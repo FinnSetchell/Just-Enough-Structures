@@ -1,0 +1,76 @@
+package com.finndog.justenoughstructures.client.render;
+
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
+/**
+ * The fluid renderer writes positions relative to the 16x16x16 section a block is in, so this puts
+ * the section's corner back on.
+ */
+final class OffsetConsumer implements VertexConsumer {
+    private final VertexConsumer delegate;
+    private double dx;
+    private double dy;
+    private double dz;
+
+    OffsetConsumer(VertexConsumer delegate) {
+        this.delegate = delegate;
+    }
+
+    OffsetConsumer at(int x, int y, int z) {
+        this.dx = x & ~15;
+        this.dy = y & ~15;
+        this.dz = z & ~15;
+        return this;
+    }
+
+    @Override
+    public VertexConsumer vertex(double x, double y, double z) {
+        delegate.vertex(x + dx, y + dy, z + dz);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer color(int r, int g, int b, int a) {
+        delegate.color(r, g, b, a);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer uv(float u, float v) {
+        delegate.uv(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer overlayCoords(int u, int v) {
+        delegate.overlayCoords(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer uv2(int u, int v) {
+        delegate.uv2(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer normal(float x, float y, float z) {
+        delegate.normal(x, y, z);
+        return this;
+    }
+
+    @Override
+    public void endVertex() {
+        delegate.endVertex();
+    }
+
+    @Override
+    public void defaultColor(int r, int g, int b, int a) {
+        delegate.defaultColor(r, g, b, a);
+    }
+
+    @Override
+    public void unsetDefaultColor() {
+        delegate.unsetDefaultColor();
+    }
+}

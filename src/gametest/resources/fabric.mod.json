@@ -8,6 +8,9 @@
   "entrypoints": {
     "fabric-gametest": [
       "com.finndog.justenoughstructures.gametest.fabric.FabricGameTests"
+    ],
+    "client": [
+      "com.finndog.justenoughstructures.gametest.fabric.Autoshot"
     ]
   },
   "depends": {

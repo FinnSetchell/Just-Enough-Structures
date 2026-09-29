@@ -1,0 +1,365 @@
+package com.finndog.justenoughstructures.client.render;
+
+import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexSorting;
+import java.util.Collection;
+import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+
+/**
+ * Draws a {@link SnapshotView} with an orbit camera into its own render target, then blits that
+ * into the screen. Also turns mouse positions into the block or entity under the cursor.
+ */
+public final class StructureViewport implements AutoCloseable {
+    private static final float FOV = 50f;
+
+    private final Minecraft minecraft = Minecraft.getInstance();
+    private SnapshotView view;
+    private SnapshotMesh mesh;
+    private TextureTarget target;
+
+    private float yaw;
+    private float pitch;
+    private float distance;
+    private final Vector3f focus = new Vector3f();
+    private float homeDistance;
+
+    private int x, y, width, height;
+    private final Matrix4f viewMatrix = new Matrix4f();
+    private final Matrix4f projection = new Matrix4f();
+    private final Vector3f eye = new Vector3f();
+
+    public void setView(SnapshotView newView) {
+        if (mesh != null) {
+            mesh.close();
+        }
+        this.view = newView;
+        this.mesh = newView == null ? null : new SnapshotMesh(newView);
+        resetCamera();
+    }
+
+    public SnapshotView view() {
+        return view;
+    }
+
+    public boolean meshing() {
+        return mesh != null && mesh.building();
+    }
+
+    public float meshProgress() {
+        return mesh == null ? 0f : mesh.progress();
+    }
+
+    public void resetCamera() {
+        yaw = 225f;
+        pitch = 30f;
+        if (view == null) {
+            return;
+        }
+        float sx = view.size().getX(), sy = view.size().getY(), sz = view.size().getZ();
+        focus.set(sx / 2f, sy / 2f, sz / 2f);
+        float radius = (float) Math.sqrt(sx * sx + sy * sy + sz * sz) / 2f;
+        homeDistance = Math.max(6f, radius / (float) Math.sin(Math.toRadians(FOV / 2f)));
+        distance = homeDistance;
+        needsFit = true;
+    }
+
+    private boolean needsFit;
+
+    /**
+     * Pulls the camera in as close as it can while the whole box stays in view from every side it
+     * spins through, so flat structures like villages fill the view instead of floating in it.
+     */
+    private void fitToView() {
+        float sx = view.size().getX(), sy = view.size().getY(), sz = view.size().getZ();
+        float keepYaw = yaw;
+        float low = 2f;
+        float high = homeDistance;
+        for (int i = 0; i < 24; i++) {
+            float mid = (low + high) / 2f;
+            distance = mid;
+            boolean fits = true;
+            for (int step = 0; step < 8 && fits; step++) {
+                yaw = keepYaw + step * 45f;
+                updateMatrices();
+                Matrix4f combined = new Matrix4f(projection).mul(viewMatrix);
+                for (int corner = 0; corner < 8 && fits; corner++) {
+                    Vector4f v = combined.transform(new Vector4f((corner & 1) * sx, ((corner >> 1) & 1) * sy, ((corner >> 2) & 1) * sz, 1f));
+                    fits = v.w() > 0 && Math.abs(v.x() / v.w()) <= 0.9f && Math.abs(v.y() / v.w()) <= 0.9f;
+                }
+            }
+            if (fits) {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+        yaw = keepYaw;
+        distance = high;
+        homeDistance = Math.max(homeDistance, high);
+        updateMatrices();
+    }
+
+    public void rotate(double dx, double dy) {
+        yaw += (float) dx * 0.6f;
+        pitch = Math.max(-89f, Math.min(89f, pitch + (float) dy * 0.6f));
+    }
+
+    public void spin(float degrees) {
+        yaw += degrees;
+    }
+
+    public void pan(double dx, double dy) {
+        float scale = distance * (float) Math.tan(Math.toRadians(FOV / 2f)) * 2f / Math.max(1, height);
+        Matrix4f inverse = new Matrix4f(viewMatrix).invert();
+        Vector3f right = inverse.transformDirection(new Vector3f(1, 0, 0)).normalize();
+        Vector3f up = inverse.transformDirection(new Vector3f(0, 1, 0)).normalize();
+        focus.add(right.mul((float) -dx * scale)).add(up.mul((float) dy * scale));
+    }
+
+    public void zoom(double amount) {
+        distance = Math.max(2f, Math.min(homeDistance * 4f, distance * (float) Math.pow(0.88, amount)));
+    }
+
+    public boolean contains(double mouseX, double mouseY) {
+        return mouseX >= x && mouseY >= y && mouseX < x + width && mouseY < y + height;
+    }
+
+    /**
+     * Renders into the target and draws it at the given GUI rectangle. {@code outlines} are block
+     * positions to draw a box around.
+     */
+    public void render(GuiGraphics graphics, int x, int y, int width, int height, float partialTick, Collection<BlockPos> outlines) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        if (view == null || width <= 0 || height <= 0) {
+            return;
+        }
+        if (needsFit) {
+            needsFit = false;
+            fitToView();
+        }
+        updateMatrices();
+
+        double scale = minecraft.getWindow().getGuiScale();
+        int pixelWidth = Math.max(1, (int) Math.round(width * scale));
+        int pixelHeight = Math.max(1, (int) Math.round(height * scale));
+        if (target == null) {
+            target = new TextureTarget(pixelWidth, pixelHeight, true, Minecraft.ON_OSX);
+        } else if (target.width != pixelWidth || target.height != pixelHeight) {
+            target.resize(pixelWidth, pixelHeight, Minecraft.ON_OSX);
+        }
+        target.setClearColor(0f, 0f, 0f, 0f);
+        target.clear(Minecraft.ON_OSX);
+        target.bindWrite(true);
+
+        RenderSystem.backupProjectionMatrix();
+        RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+        PoseStack modelView = RenderSystem.getModelViewStack();
+        modelView.pushPose();
+        modelView.setIdentity();
+        RenderSystem.applyModelViewMatrix();
+        float fogStart = RenderSystem.getShaderFogStart();
+        RenderSystem.setShaderFogStart(Float.MAX_VALUE);
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(true);
+        LightTexture lightTexture = minecraft.gameRenderer.lightTexture();
+        lightTexture.turnOnLightLayer();
+        try {
+            if (mesh.building()) {
+                mesh.buildSome(6_000_000L, eye);
+            }
+            mesh.draw(viewMatrix, projection, eye);
+            drawDynamic(partialTick, outlines);
+        } finally {
+            lightTexture.turnOffLightLayer();
+            RenderSystem.setShaderFogStart(fogStart);
+            modelView.popPose();
+            RenderSystem.applyModelViewMatrix();
+            RenderSystem.restoreProjectionMatrix();
+            minecraft.getMainRenderTarget().bindWrite(true);
+            Lighting.setupFor3DItems();
+        }
+        blit(graphics);
+    }
+
+    private void drawDynamic(float partialTick, Collection<BlockPos> outlines) {
+        PoseStack pose = new PoseStack();
+        pose.mulPoseMatrix(viewMatrix);
+        Lighting.setupLevel(new Matrix4f(viewMatrix));
+        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        int slice = view.sliceY();
+
+        for (BlockEntity be : view.blockEntities().values()) {
+            BlockPos pos = be.getBlockPos();
+            if (pos.getY() >= slice) {
+                continue;
+            }
+            BlockEntityRenderer<BlockEntity> renderer = minecraft.getBlockEntityRenderDispatcher().getRenderer(be);
+            if (renderer == null) {
+                continue;
+            }
+            pose.pushPose();
+            pose.translate(pos.getX(), pos.getY(), pos.getZ());
+            try {
+                renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            } catch (RuntimeException e) {
+                JustEnoughStructures.LOGGER.debug("Block entity renderer failed for {}", be, e);
+            }
+            pose.popPose();
+        }
+
+        EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
+        entities.setRenderShadow(false);
+        for (Entity entity : view.entities()) {
+            if (entity.getY() >= slice) {
+                continue;
+            }
+            try {
+                entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), partialTick, pose, buffers, LightTexture.FULL_BRIGHT);
+            } catch (RuntimeException e) {
+                JustEnoughStructures.LOGGER.debug("Entity renderer failed for {}", entity, e);
+            }
+        }
+        entities.setRenderShadow(true);
+
+        if (!outlines.isEmpty()) {
+            VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+            for (BlockPos pos : outlines) {
+                LevelRenderer.renderLineBox(pose, lines, pos.getX() - 0.002, pos.getY() - 0.002, pos.getZ() - 0.002,
+                        pos.getX() + 1.002, pos.getY() + 1.002, pos.getZ() + 1.002, 1f, 1f, 1f, 1f);
+            }
+        }
+        buffers.endBatch();
+    }
+
+    private void blit(GuiGraphics graphics) {
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        RenderSystem.setShaderTexture(0, target.getColorTextureId());
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        Matrix4f m = graphics.pose().last().pose();
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        builder.vertex(m, x, y + height, 0).uv(0f, 0f).endVertex();
+        builder.vertex(m, x + width, y + height, 0).uv(1f, 0f).endVertex();
+        builder.vertex(m, x + width, y, 0).uv(1f, 1f).endVertex();
+        builder.vertex(m, x, y, 0).uv(0f, 1f).endVertex();
+        BufferUploader.drawWithShader(builder.end());
+        RenderSystem.disableBlend();
+    }
+
+    private void updateMatrices() {
+        float aspect = (float) width / Math.max(1, height);
+        projection.setPerspective((float) Math.toRadians(FOV), aspect, 0.05f, 4000f);
+        viewMatrix.identity()
+                .translate(0, 0, -distance)
+                .rotateX((float) Math.toRadians(pitch))
+                .rotateY((float) Math.toRadians(yaw))
+                .translate(-focus.x(), -focus.y(), -focus.z());
+        new Matrix4f(viewMatrix).invert().transformPosition(eye.set(0, 0, 0));
+    }
+
+    /** Screen position of a point in structure space, or empty when it's behind the camera. */
+    public Optional<float[]> project(double px, double py, double pz) {
+        Vector4f v = new Matrix4f(projection).mul(viewMatrix).transform(new Vector4f((float) px, (float) py, (float) pz, 1f));
+        if (v.w() <= 0f) {
+            return Optional.empty();
+        }
+        float sx = x + (v.x() / v.w() * 0.5f + 0.5f) * width;
+        float sy = y + (1f - (v.y() / v.w() * 0.5f + 0.5f)) * height;
+        return Optional.of(new float[]{sx, sy});
+    }
+
+    /** What's under the mouse: an entity if one is closer than the first block hit. */
+    public Optional<Hit> pick(double mouseX, double mouseY) {
+        if (view == null || !contains(mouseX, mouseY)) {
+            return Optional.empty();
+        }
+        Matrix4f inverse = new Matrix4f(projection).mul(viewMatrix).invert();
+        float ndcX = (float) ((mouseX - x) / width * 2.0 - 1.0);
+        float ndcY = (float) (1.0 - (mouseY - y) / height * 2.0);
+        Vector4f near = inverse.transform(new Vector4f(ndcX, ndcY, -1f, 1f));
+        Vector4f far = inverse.transform(new Vector4f(ndcX, ndcY, 1f, 1f));
+        Vec3 from = new Vec3(near.x() / near.w(), near.y() / near.w(), near.z() / near.w());
+        Vec3 to = new Vec3(far.x() / far.w(), far.y() / far.w(), far.z() / far.w());
+
+        BlockHitResult blockHit = BlockGetter.traverseBlocks(from, to, (Object) null, (ctx, pos) -> {
+            BlockState state = view.getBlockState(pos);
+            if (state.isAir()) {
+                return null;
+            }
+            return view.clipWithInteractionOverride(from, to, pos, state.getShape(view, pos), state);
+        }, ctx -> null);
+        double blockDistance = blockHit == null ? Double.MAX_VALUE : blockHit.getLocation().distanceToSqr(from);
+
+        Entity nearest = null;
+        double entityDistance = blockDistance;
+        for (Entity entity : view.entities()) {
+            if (entity.getY() >= view.sliceY()) {
+                continue;
+            }
+            Optional<Vec3> clip = entity.getBoundingBox().clip(from, to);
+            if (clip.isPresent() && clip.get().distanceToSqr(from) < entityDistance) {
+                entityDistance = clip.get().distanceToSqr(from);
+                nearest = entity;
+            }
+        }
+        if (nearest != null) {
+            return Optional.of(new Hit(nearest.blockPosition(), null, nearest));
+        }
+        if (blockHit != null) {
+            BlockPos pos = blockHit.getBlockPos();
+            return Optional.of(new Hit(pos, view.getBlockState(pos), null));
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public void close() {
+        if (mesh != null) {
+            mesh.close();
+            mesh = null;
+        }
+        if (target != null) {
+            target.destroyBuffers();
+            target = null;
+        }
+        view = null;
+    }
+
+    /** A block ({@code state} set) or an entity ({@code entity} set) under the cursor. */
+    public record Hit(BlockPos pos, BlockState state, Entity entity) {
+    }
+}

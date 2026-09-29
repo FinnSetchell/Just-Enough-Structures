@@ -66,6 +66,19 @@ loom {
             vmArg("-Dfabric-api.gametest")
             vmArg("-Dfabric-api.gametest.report-file=${layout.buildDirectory.get().asFile}/gametest/report.xml")
         }
+        // Opens the structure browser on a list of structures in a throwaway superflat world and
+        // saves a screenshot of each to build/autoshot/screenshots, then quits. Pass
+        // -Pstructures=a:b,c:d to pick them, -Pshow to keep the window visible.
+        register("autoshot") {
+            client()
+            configName = "Fabric Autoshot"
+            source(gametest)
+            runDir("build/autoshot")
+            vmArg("-Djes.autoshot=screenshots")
+            vmArg("-Djes.autoshot.structures=${findProperty("structures") ?: ""}")
+            vmArg("-Djes.autoshot.hidden=${!hasProperty("show")}")
+            programArgs("--width", "1600", "--height", "900")
+        }
     }
 
     mods {
@@ -120,6 +133,20 @@ tasks {
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         doFirst { delete(world) }
+    }
+
+    named("runAutoshot") {
+        val dir = layout.buildDirectory.dir("autoshot")
+        doFirst {
+            val root = dir.get().asFile
+            delete(File(root, "saves"), File(root, "screenshots"))
+            root.mkdirs()
+            // Skip first-launch screens and keep the game running when the window isn't focused.
+            File(root, "options.txt").writeText(
+                "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
+                    "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\n"
+            )
+        }
     }
 
     register<Copy>("buildAndCollect") {

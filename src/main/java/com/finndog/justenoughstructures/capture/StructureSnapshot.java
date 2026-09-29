@@ -2,7 +2,9 @@ package com.finndog.justenoughstructures.capture;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
@@ -30,6 +32,7 @@ public final class StructureSnapshot {
     private final List<CompoundTag> blockEntities;
     private final List<CompoundTag> entities;
     private final int pieceCount;
+    private Map<Integer, Integer> lookup;
 
     public StructureSnapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain, BlockPos origin, Vec3i size,
                              List<BlockState> palette, int[] positions, int[] states,
@@ -105,6 +108,19 @@ public final class StructureSnapshot {
 
     public int paletteIndex(int index) {
         return states[index];
+    }
+
+    /** The block at a local position, or null if the structure placed nothing there. */
+    public BlockState stateAt(BlockPos pos) {
+        if (lookup == null) {
+            Map<Integer, Integer> built = new HashMap<>(positions.length * 2);
+            for (int i = 0; i < positions.length; i++) {
+                built.put(positions[i], states[i]);
+            }
+            lookup = built;
+        }
+        Integer state = lookup.get(pack(pos.getX(), pos.getY(), pos.getZ()));
+        return state == null ? null : palette.get(state);
     }
 
     /** Block entity NBT with x, y and z rewritten to local coordinates. */
