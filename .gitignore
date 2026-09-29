@@ -1,0 +1,27 @@
+# gradle
+.gradle/
+.kotlin/
+build/
+out/
+
+# idea
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# eclipse / vscode
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+*.launch
+
+# runs
+run/
+runs/
+.loom/
+
+# Stonecutter generates these per-node projects from settings.gradle.kts
+versions/

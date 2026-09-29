@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}+fabric",
+  "name": "${mod_name}",
+  "description": "${description}",
+  "authors": [
+    "${mod_author}"
+  ],
+  "contact": {
+    "sources": "https://github.com/FinnSetchell/Just-Enough-Structures",
+    "issues": "https://github.com/FinnSetchell/Just-Enough-Structures/issues"
+  },
+  "license": "LGPL-3.0-or-later",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.finndog.justenoughstructures.fabric.JustEnoughStructuresFabric"
+    ],
+    "client": [
+      "com.finndog.justenoughstructures.fabric.JustEnoughStructuresFabricClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": "${fabric_loader_dep}",
+    "minecraft": "${mc_compat}",
+    "fabric-api": "*",
+    "java": ">=${java_version}"
+  }
+}

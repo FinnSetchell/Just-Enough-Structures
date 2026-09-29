@@ -1,0 +1,21 @@
+# Per-node values. Mod metadata that never varies stays in gradle.properties.
+# Tables are picked per node by `properties { tags(version, loader) }` in stonecutter.gradle.kts, so
+# `deps.fabric_api` resolves to whatever the matching [fabric."<version>"] table declares.
+#
+# mod.mc_build is the Minecraft version a node compiles against and mod.mc_compat is the range the
+# jar declares, in the loader's own syntax.
+
+# Loom for the obfuscated versions, applied by dev.kikugie.loom-back-compat.
+loomx.loom_version = "1.17-SNAPSHOT"
+
+# ------------------------------------------------------------------ 1.20.1 (Java 17)
+["1.20.1"]
+mod.java = "17"
+
+[fabric."1.20.1"]
+mod.mc_build = "1.20.1"
+mod.mc_compat = "~1.20.1"
+mod.fabric_loader_dep = ">=0.15.0"
+deps.fabric_loader = "0.19.3"
+deps.fabric_api = "0.92.11+1.20.1"
+deps.modmenu = "7.2.2"

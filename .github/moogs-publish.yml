@@ -1,0 +1,30 @@
+# Publishing settings for release-actions. Only the copy on main is read.
+schema: 1
+mod:
+  id: justenoughstructures
+  displayName: "Just Enough Structures"
+  # Needed on both sides: the server generates the structures and rolls the loot, the client shows them.
+  environments: [Client, Server]
+  name: JustEnoughStructures
+  validate: false
+platforms:
+  # The CurseForge and Modrinth projects don't exist yet.
+  curseforge: { projectId: REPLACE_ME, slug: REPLACE_ME }
+  modrinth:   { projectId: REPLACE_ME, slug: REPLACE_ME }
+discord:
+  embedColor: "#7a5a1f"
+  pingDefault: true
+artifacts:
+  - type: mod-jar
+# Each loader gets its own target and tag, e.g. 0.1.0-fabric. Each build is one node from
+# settings.gradle.kts. `java` is the Java that runs Gradle; the node's own toolchain is downloaded.
+targets:
+  - branch: main
+    tagLabel: fabric
+    loaders: [fabric]
+    buildCommand: ":{mc}-fabric:build"
+    jarDir: "versions/{mc}-fabric/build/libs"
+    builds:
+      - { mc: "1.20.1", java: 25 }
+    dependencies:
+      - { modrinth: P7dR8mSH, curseforge: fabric-api, type: required }

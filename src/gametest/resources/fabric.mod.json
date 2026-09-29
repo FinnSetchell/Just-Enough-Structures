@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "justenoughstructures_gametest",
+  "version": "1.0.0",
+  "name": "Just Enough Structures Game Tests",
+  "description": "In-world tests for Just Enough Structures. Never shipped.",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "com.finndog.justenoughstructures.gametest.fabric.FabricGameTests"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-api": "*",
+    "minecraft": "*",
+    "justenoughstructures": "*"
+  }
+}
