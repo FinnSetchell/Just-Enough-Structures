@@ -116,6 +116,12 @@ tasks {
         }
     }
 
+    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
+    named("runGameTest") {
+        val world = layout.buildDirectory.dir("gametest/world")
+        doFirst { delete(world) }
+    }
+
     register<Copy>("buildAndCollect") {
         group = "build"
         description = "Builds the mod jar and copies it to build/libs/{mod version}/"

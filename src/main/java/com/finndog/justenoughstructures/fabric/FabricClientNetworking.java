@@ -1,0 +1,49 @@
+package com.finndog.justenoughstructures.fabric;
+
+import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.Codecs;
+import com.finndog.justenoughstructures.network.JesNetwork;
+import java.util.List;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+
+final class FabricClientNetworking {
+    private FabricClientNetworking() {
+    }
+
+    static void registerClient() {
+        ClientRequests.setSender(new ClientRequests.ClientSender() {
+            @Override
+            public boolean canSend(ResourceLocation channel) {
+                return ClientPlayNetworking.canSend(channel);
+            }
+
+            @Override
+            public void send(ResourceLocation channel, FriendlyByteBuf buf) {
+                ClientPlayNetworking.send(channel, buf);
+            }
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.TRANSFER, (client, handler, buf, responder) -> {
+            Blobs.Part part = Blobs.Part.read(buf);
+            client.execute(() -> ClientRequests.onTransferPart(part));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.LOOT, (client, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            List<ItemStack> items = Codecs.readItems(buf);
+            client.execute(() -> ClientRequests.onLoot(requestId, items));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.ODDS, (client, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            LootOdds odds = Codecs.readOdds(buf);
+            client.execute(() -> ClientRequests.onOdds(requestId, odds));
+        });
+
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
+    }
+}

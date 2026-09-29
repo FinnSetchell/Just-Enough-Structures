@@ -7,5 +7,6 @@ public final class JustEnoughStructuresFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         JustEnoughStructures.init();
+        FabricNetworking.registerServer();
     }
 }
