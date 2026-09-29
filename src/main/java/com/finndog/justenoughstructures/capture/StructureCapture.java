@@ -65,6 +65,11 @@ public final class StructureCapture {
     private StructureCapture() {
     }
 
+    /** The seed a structure is shown with before anyone rerolls it, so the first preview is always the same. */
+    public static long defaultSeed(ResourceLocation structureId) {
+        return structureId.toString().hashCode() * 0x9E3779B97F4A7C15L;
+    }
+
     public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed) {
         long started = System.nanoTime();
         List<String> attempts = new ArrayList<>();

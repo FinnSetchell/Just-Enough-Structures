@@ -4,11 +4,16 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -195,6 +200,41 @@ public final class Codecs {
             rows.add(new LootOdds.Row(buf.readItem(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
         }
         return new LootOdds(table, rolls, empty, rows);
+    }
+
+    // ------------------------------------------------------------------ loot index
+
+    public static void writeIndex(FriendlyByteBuf buf, LootIndex index) {
+        writeIdMap(buf, index.tablesByStructure());
+        writeIdMap(buf, index.itemsByTable());
+    }
+
+    public static LootIndex readIndex(FriendlyByteBuf buf) {
+        return new LootIndex(readIdMap(buf), readIdMap(buf));
+    }
+
+    private static void writeIdMap(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> map) {
+        buf.writeVarInt(map.size());
+        for (Map.Entry<ResourceLocation, Set<ResourceLocation>> e : map.entrySet()) {
+            buf.writeResourceLocation(e.getKey());
+            buf.writeVarInt(e.getValue().size());
+            e.getValue().forEach(buf::writeResourceLocation);
+        }
+    }
+
+    private static Map<ResourceLocation, Set<ResourceLocation>> readIdMap(FriendlyByteBuf buf) {
+        int count = buf.readVarInt();
+        Map<ResourceLocation, Set<ResourceLocation>> out = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            ResourceLocation key = buf.readResourceLocation();
+            int size = buf.readVarInt();
+            Set<ResourceLocation> values = new TreeSet<>();
+            for (int v = 0; v < size; v++) {
+                values.add(buf.readResourceLocation());
+            }
+            out.put(key, values);
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------ helpers

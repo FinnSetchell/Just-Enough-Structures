@@ -1,6 +1,11 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.FoundIn;
+import com.finndog.justenoughstructures.client.Thumbnails;
+import com.finndog.justenoughstructures.client.render.StructureViewport;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -43,6 +48,11 @@ final class StructureList {
             this.scroll = 0;
             rebuild();
         }
+    }
+
+    /** Re-runs the search, e.g. once the loot index arrives. */
+    void refresh() {
+        rebuild();
     }
 
     void setSelected(ResourceLocation id) {
@@ -100,7 +110,12 @@ final class StructureList {
             if (token.isEmpty()) {
                 continue;
             }
-            if (token.startsWith("@")) {
+            if (token.startsWith("$")) {
+                String item = token.substring(1);
+                if (!item.isEmpty() && !FoundIn.structureHasItem(entry.id(), item)) {
+                    return false;
+                }
+            } else if (token.startsWith("@")) {
                 String mod = token.substring(1);
                 if (!namespace.startsWith(mod) && !StructureNames.mod(namespace).toLowerCase(Locale.ROOT).contains(mod)) {
                     return false;
@@ -115,8 +130,13 @@ final class StructureList {
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         Gui.inset(g, x, y, width, height, 0xFFB9B9B9);
         if (rows.isEmpty()) {
-            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.no_matches"),
-                    x + 5, y + 5, width - 10, Gui.LABEL_SOFT);
+            Component message = Component.translatable("screen.justenoughstructures.no_matches");
+            if (query.contains("$") && !FoundIn.ready()) {
+                float progress = ClientRequests.indexProgress();
+                message = progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
+                        : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
+            }
+            Gui.wrapped(g, font, message, x + 5, y + 5, width - 10, Gui.LABEL_SOFT);
             return;
         }
         g.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
@@ -140,7 +160,12 @@ final class StructureList {
             } else if (hovered) {
                 g.fill(x + 1, top, x + width - 1, top + ROW, Gui.ROW_HOVER);
             }
-            g.renderItem(ICON, x + 3, top + 2);
+            TextureTarget thumbnail = Thumbnails.get(row.entry().id());
+            if (thumbnail != null) {
+                StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), x + 2, top + 1, 18, 18);
+            } else {
+                g.renderItem(ICON, x + 3, top + 2);
+            }
             g.drawString(font, Gui.clip(font, row.name(), width - 28), x + 22, top + 2, 0xFF202020, false);
             Gui.small(g, font, Gui.clip(font, row.entry().id().toString(), (int) ((width - 28) / 0.75f)), x + 22, top + 12, Gui.LABEL_SOFT);
         }

@@ -4,12 +4,14 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -109,6 +111,21 @@ public final class ServiceTests {
         helper.assertTrue(millis < 5_000, "200 shipwreck map rolls took " + millis + " ms");
         helper.assertTrue(odds.rows().stream().anyMatch(r -> BuiltInRegistries.ITEM.getKey(r.example().getItem()).getPath().contains("map")),
                 "no map came out of the shipwreck map table");
+        helper.succeed();
+    }
+
+    public static void lootIndexFindsItemsInStructures(GameTestHelper helper) {
+        List<ResourceLocation> ids = List.of(new ResourceLocation("desert_pyramid"), new ResourceLocation("shipwreck"));
+        LootIndex index = LootIndex.build(helper.getLevel().getServer(), ids, done -> {
+        }, () -> false);
+        helper.assertTrue(index != null, "the index wasn't built");
+        helper.assertTrue(index.tablesByStructure().getOrDefault(ids.get(0), Set.of()).contains(DESERT_PYRAMID_LOOT),
+                "the desert pyramid should use its chest loot table, found " + index.tablesByStructure().get(ids.get(0)));
+        Set<ResourceLocation> pyramidItems = index.itemsByTable().getOrDefault(DESERT_PYRAMID_LOOT, Set.of());
+        helper.assertTrue(pyramidItems.contains(new ResourceLocation("diamond")), "diamonds are missing from the desert pyramid table");
+        helper.assertTrue(pyramidItems.contains(new ResourceLocation("enchanted_book")), "books enchanted by the table should count as enchanted books");
+        Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(new ResourceLocation("chests/shipwreck_map"), Set.of());
+        helper.assertTrue(mapItems.contains(new ResourceLocation("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
         helper.succeed();
     }
 

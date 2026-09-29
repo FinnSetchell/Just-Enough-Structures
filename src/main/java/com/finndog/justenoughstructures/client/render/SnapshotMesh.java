@@ -40,6 +40,9 @@ public final class SnapshotMesh implements AutoCloseable {
     private Map<RenderType, VertexBuffer> cap = Map.of();
     private int capY = -1;
     private boolean closed;
+    // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
+    private final Map<VertexBuffer, BufferBuilder.SortState> translucent = new HashMap<>();
+    private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
 
     public SnapshotMesh(SnapshotView view) {
         this.view = view;
@@ -68,10 +71,13 @@ public final class SnapshotMesh implements AutoCloseable {
     }
 
     public void draw(Matrix4f viewMatrix, Matrix4f projection, Vector3f eye) {
+        if (Float.isNaN(sortedFrom.x()) || sortedFrom.distanceSquared(eye) > 2.25f) {
+            resort(eye);
+        }
         int slice = view.sliceY();
         boolean sliced = slice < view.size().getY();
         if (sliced && capY != slice - 1) {
-            cap.values().forEach(VertexBuffer::close);
+            cap.values().forEach(this::closeBuffer);
             cap = tesselate(slice - 1, eye);
             capY = slice - 1;
         }
@@ -134,8 +140,10 @@ public final class SnapshotMesh implements AutoCloseable {
         Map<RenderType, VertexBuffer> out = new HashMap<>();
         for (Map.Entry<RenderType, BufferBuilder> e : started.entrySet()) {
             BufferBuilder builder = e.getValue();
+            BufferBuilder.SortState sortState = null;
             if (e.getKey() == RenderType.translucent()) {
                 builder.setQuadSorting(VertexSorting.byDistance(eye.x(), eye.y(), eye.z()));
+                sortState = builder.getSortState();
             }
             BufferBuilder.RenderedBuffer rendered = builder.endOrDiscardIfEmpty();
             if (rendered == null) {
@@ -145,9 +153,36 @@ public final class SnapshotMesh implements AutoCloseable {
             buffer.bind();
             buffer.upload(rendered);
             out.put(e.getKey(), buffer);
+            if (sortState != null) {
+                translucent.put(buffer, sortState);
+            }
         }
         VertexBuffer.unbind();
         return out;
+    }
+
+    /** Re-sorts every transparent layer from {@code eye}, the way vanilla does for chunk sections. */
+    private void resort(Vector3f eye) {
+        sortedFrom.set(eye);
+        if (translucent.isEmpty()) {
+            return;
+        }
+        BufferBuilder builder = BUILDERS.computeIfAbsent(RenderType.translucent(), k -> new BufferBuilder(256 * 1024));
+        for (Map.Entry<VertexBuffer, BufferBuilder.SortState> e : translucent.entrySet()) {
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            builder.restoreSortState(e.getValue());
+            builder.setQuadSorting(VertexSorting.byDistance(eye.x(), eye.y(), eye.z()));
+            e.setValue(builder.getSortState());
+            BufferBuilder.RenderedBuffer rendered = builder.end();
+            e.getKey().bind();
+            e.getKey().upload(rendered);
+        }
+        VertexBuffer.unbind();
+    }
+
+    private void closeBuffer(VertexBuffer buffer) {
+        translucent.remove(buffer);
+        buffer.close();
     }
 
     private static BufferBuilder begin(Map<RenderType, BufferBuilder> started, RenderType type) {
@@ -164,9 +199,10 @@ public final class SnapshotMesh implements AutoCloseable {
             return;
         }
         closed = true;
-        layers.forEach(layer -> layer.values().forEach(VertexBuffer::close));
+        layers.forEach(layer -> layer.values().forEach(this::closeBuffer));
         layers.clear();
-        cap.values().forEach(VertexBuffer::close);
+        cap.values().forEach(this::closeBuffer);
         cap = Map.of();
+        translucent.clear();
     }
 }

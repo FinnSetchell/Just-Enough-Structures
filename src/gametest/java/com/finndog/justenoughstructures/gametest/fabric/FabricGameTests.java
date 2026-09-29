@@ -73,6 +73,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void lootIndexFindsItemsInStructures(GameTestHelper helper) {
+        ServiceTests.lootIndexFindsItemsInStructures(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownLootTableIsEmpty(GameTestHelper helper) {
         ServiceTests.unknownLootTableIsEmpty(helper);
     }

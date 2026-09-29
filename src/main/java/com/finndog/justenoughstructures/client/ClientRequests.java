@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -28,6 +29,10 @@ public final class ClientRequests {
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
+    private static CompletableFuture<LootIndex> index;
+    private static int indexDone;
+    private static int indexTotal;
+    private static long lastIndexPoll;
 
     private ClientRequests() {
     }
@@ -51,6 +56,52 @@ public final class ClientRequests {
         LOOT.clear();
         ODDS.clear();
         TRANSFERS.clear();
+        Thumbnails.clear();
+        if (index != null) {
+            index.cancel(false);
+        }
+        index = null;
+        indexDone = 0;
+        indexTotal = 0;
+        FoundIn.clear();
+    }
+
+    /**
+     * The loot index, built by the server the first time anyone asks. Until it's ready, {@link #tick()}
+     * keeps asking so the progress stays current.
+     */
+    public static CompletableFuture<LootIndex> index() {
+        if (index == null || index.isCancelled()) {
+            index = new CompletableFuture<>();
+            pollIndex();
+        }
+        return index;
+    }
+
+    public static boolean indexReady() {
+        return index != null && index.isDone() && !index.isCompletedExceptionally() && !index.isCancelled();
+    }
+
+    /** How much of the index is built, from 0 to 1, or -1 before the server has said. */
+    public static float indexProgress() {
+        return indexTotal <= 0 ? -1f : (float) indexDone / indexTotal;
+    }
+
+    public static void tick() {
+        if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
+            pollIndex();
+        }
+    }
+
+    private static void pollIndex() {
+        lastIndexPoll = System.currentTimeMillis();
+        send(JesNetwork.REQUEST_INDEX, buf -> {
+        });
+    }
+
+    public static void onIndexProgress(int done, int total) {
+        indexDone = done;
+        indexTotal = total;
     }
 
     public static CompletableFuture<List<StructureCatalog.Entry>> catalog() {
@@ -114,6 +165,13 @@ public final class ClientRequests {
                 catalog = new CompletableFuture<>();
             }
             catalog.complete(entries);
+        } else if (part.kind() == JesNetwork.KIND_INDEX) {
+            LootIndex built = Codecs.readIndex(buf);
+            FoundIn.rebuild(built);
+            if (index == null) {
+                index = new CompletableFuture<>();
+            }
+            index.complete(built);
         } else if (part.kind() == JesNetwork.KIND_CAPTURE) {
             CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(part.requestId());
             if (future != null) {

@@ -4,7 +4,7 @@
 
   "screen.justenoughstructures.title": "Just Enough Structures",
   "screen.justenoughstructures.search": "Search structures",
-  "screen.justenoughstructures.search_hint": "Search, or @mod",
+  "screen.justenoughstructures.search_hint": "Search, @mod or $item",
   "screen.justenoughstructures.no_matches": "Nothing matches that search.",
   "screen.justenoughstructures.no_server": "Just Enough Structures has to be installed on the server to generate previews. It isn't on this one.",
   "screen.justenoughstructures.loading_list": "Loading structures...",
@@ -70,5 +70,11 @@
   "screen.justenoughstructures.no_entities": "No mobs or entities were placed in this layout.",
   "screen.justenoughstructures.entities_note": "Only what the structure places itself. Mobs that spawn later aren't included.",
   "screen.justenoughstructures.hover_loot": "Loot: %s",
-  "screen.justenoughstructures.hover_open": "Click to open"
+  "screen.justenoughstructures.hover_open": "Click to open",
+  "screen.justenoughstructures.found_in": "Found in %s structures",
+  "screen.justenoughstructures.found_nowhere": "No structure's loot gives this.",
+  "screen.justenoughstructures.found_hint": "Click one to open it",
+  "screen.justenoughstructures.found_in_hint": "Click or press U: where to find it",
+  "screen.justenoughstructures.indexing": "Looking through every structure's loot...",
+  "screen.justenoughstructures.indexing_progress": "Looking through every structure's loot... %s%%"
 }

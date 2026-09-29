@@ -17,13 +17,16 @@ public final class JesNetwork {
     public static final ResourceLocation REQUEST_CAPTURE = JustEnoughStructures.id("request_capture");
     public static final ResourceLocation REQUEST_LOOT = JustEnoughStructures.id("request_loot");
     public static final ResourceLocation REQUEST_ODDS = JustEnoughStructures.id("request_odds");
+    public static final ResourceLocation REQUEST_INDEX = JustEnoughStructures.id("request_index");
 
     public static final ResourceLocation TRANSFER = JustEnoughStructures.id("transfer");
     public static final ResourceLocation LOOT = JustEnoughStructures.id("loot");
     public static final ResourceLocation ODDS = JustEnoughStructures.id("odds");
+    public static final ResourceLocation INDEX_PROGRESS = JustEnoughStructures.id("index_progress");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;
+    public static final int KIND_INDEX = 2;
 
     private static ServerSender serverSender = (player, channel, buf) -> {
     };

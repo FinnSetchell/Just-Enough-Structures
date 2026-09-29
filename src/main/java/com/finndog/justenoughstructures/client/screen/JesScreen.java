@@ -1,12 +1,15 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +66,8 @@ public class JesScreen extends Screen {
     private CaptureResult result;
     private SnapshotView view;
     private ChestPopup popup;
+    private FoundInPopup foundIn;
+    private String pendingTable;
 
     private boolean spin = true;
     private MarkerMode markers = MarkerMode.ALL;
@@ -104,7 +109,7 @@ public class JesScreen extends Screen {
     @Override
     protected void init() {
         if (info == null) {
-            info = new InfoPanel(font, this::selectTable, this::openContainer);
+            info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
         }
         int leftW = clamp(width / 4, 120, 175);
         int rightW = clamp(width / 4, 140, 200);
@@ -171,8 +176,16 @@ public class JesScreen extends Screen {
                 catalogError = "screen.justenoughstructures.no_server";
             } else {
                 ClientRequests.catalog().thenAccept(this::onCatalog);
+                // Start the loot index early so item search is usually ready by the time it's wanted.
+                ClientRequests.index().thenAccept(built -> list.refresh());
             }
         }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        ClientRequests.tick();
     }
 
     private void onCatalog(List<StructureCatalog.Entry> entries) {
@@ -186,7 +199,7 @@ public class JesScreen extends Screen {
     }
 
     private static long defaultSeed(ResourceLocation id) {
-        return id.toString().hashCode() * 0x9E3779B97F4A7C15L;
+        return StructureCapture.defaultSeed(id);
     }
 
     // ------------------------------------------------------------------ selection
@@ -229,6 +242,10 @@ public class JesScreen extends Screen {
     private void onCaptured(CaptureResult captured) {
         result = captured;
         info.setResult(captured);
+        if (pendingTable != null) {
+            selectTable(pendingTable);
+            pendingTable = null;
+        }
         if (captured.succeeded() && minecraft != null && minecraft.level != null) {
             view = new SnapshotView(captured.snapshot());
             view.createRenderables(minecraft.level);
@@ -344,6 +361,32 @@ public class JesScreen extends Screen {
         return out;
     }
 
+    /** Shows the structures whose loot can give this item. */
+    public void openFoundIn(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        closePopup();
+        foundIn = new FoundInPopup(stack);
+        foundIn.place(width, height);
+        ClientRequests.index();
+    }
+
+    private void pickFromFoundIn(FoundInPopup.Row row) {
+        foundIn = null;
+        if (catalog == null) {
+            return;
+        }
+        for (StructureCatalog.Entry entry : catalog) {
+            if (entry.id().equals(row.structure())) {
+                select(entry, defaultSeed(entry.id()));
+                info.setTab(InfoPanel.Tab.LOOT);
+                pendingTable = row.tables().iterator().next().toString();
+                return;
+            }
+        }
+    }
+
     public void closeContainer() {
         closePopup();
     }
@@ -452,8 +495,9 @@ public class JesScreen extends Screen {
         Gui.panel(g, infoX, PAD, infoW, height - PAD * 2);
 
         boolean popupOpen = popup != null;
-        int mx = popupOpen ? -1 : mouseX;
-        int my = popupOpen ? -1 : mouseY;
+        boolean anyPopup = popupOpen || foundIn != null;
+        int mx = anyPopup ? -1 : mouseX;
+        int my = anyPopup ? -1 : mouseY;
         list.render(g, font, mx, my);
         renderHeader(g);
         StructureViewport.Hit hover = renderViewport(g, mx, my, partialTick);
@@ -476,18 +520,38 @@ public class JesScreen extends Screen {
             }
             g.pose().popPose();
         }
+        popupHovered = popupHover;
+        if (foundIn != null) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 400);
+            g.fill(0, 0, width, height, 0x88000000);
+            foundIn.render(g, font, mouseX, mouseY);
+            g.pose().popPose();
+        }
 
+        if (foundIn != null) {
+            return;
+        }
         if (popupOpen) {
             if (!popupHover.isEmpty()) {
-                g.renderTooltip(font, popupHover, mouseX, mouseY);
+                g.renderComponentTooltip(font, itemTooltip(popupHover), mouseX, mouseY);
             }
         } else if (!info.hoveredStack().isEmpty()) {
-            g.renderTooltip(font, info.hoveredStack(), mouseX, mouseY);
+            g.renderComponentTooltip(font, itemTooltip(info.hoveredStack()), mouseX, mouseY);
         } else if (!info.hoveredText().isEmpty()) {
             g.renderComponentTooltip(font, info.hoveredText(), mouseX, mouseY);
         } else if (hover != null) {
             g.renderComponentTooltip(font, hoverLines(hover), mouseX, mouseY);
         }
+    }
+
+    private ItemStack popupHovered = ItemStack.EMPTY;
+
+    /** The normal item tooltip with a line saying how to find where else it turns up. */
+    private List<Component> itemTooltip(ItemStack stack) {
+        List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, stack));
+        lines.add(Component.translatable("screen.justenoughstructures.found_in_hint").withStyle(ChatFormatting.DARK_GRAY));
+        return lines;
     }
 
     private void renderHeader(GuiGraphics g) {
@@ -541,6 +605,12 @@ public class JesScreen extends Screen {
             outlines.add(popup.container.pos());
         }
         viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines);
+        if (!viewport.meshing() && !Thumbnails.has(selected.id())) {
+            TextureTarget thumbnail = viewport.renderThumbnail(64);
+            if (thumbnail != null) {
+                Thumbnails.put(selected.id(), thumbnail);
+            }
+        }
 
         StructureSnapshot s = result.snapshot();
         g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
@@ -643,6 +713,14 @@ public class JesScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (foundIn != null) {
+            if (foundIn.contains(mouseX, mouseY)) {
+                foundIn.click(mouseX, mouseY).ifPresent(this::pickFromFoundIn);
+            } else {
+                foundIn = null;
+            }
+            return true;
+        }
         if (popup != null) {
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
@@ -651,6 +729,8 @@ public class JesScreen extends Screen {
             }
             if (!popup.contains(mouseX, mouseY)) {
                 closePopup();
+            } else if (!popupHovered.isEmpty()) {
+                openFoundIn(popupHovered);
             }
             return true;
         }
@@ -714,6 +794,10 @@ public class JesScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (foundIn != null) {
+            foundIn.scroll(delta);
+            return true;
+        }
         if (popup != null) {
             return true;
         }
@@ -726,9 +810,20 @@ public class JesScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
+        if (key == GLFW.GLFW_KEY_ESCAPE && foundIn != null) {
+            foundIn = null;
+            return true;
+        }
         if (key == GLFW.GLFW_KEY_ESCAPE && popup != null) {
             closePopup();
             return true;
+        }
+        if (key == GLFW.GLFW_KEY_U && !search.isFocused()) {
+            ItemStack hovered = popup != null ? popupHovered : info.hoveredStack();
+            if (!hovered.isEmpty()) {
+                openFoundIn(hovered);
+                return true;
+            }
         }
         if (search.isFocused()) {
             if (key == GLFW.GLFW_KEY_ENTER) {

@@ -48,6 +48,7 @@ final class InfoPanel {
     private final Font font;
     private final Consumer<String> onSelectTable;
     private final Consumer<StructureSnapshot.Container> onOpenContainer;
+    private final Consumer<ItemStack> onItemClicked;
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
@@ -66,10 +67,12 @@ final class InfoPanel {
     private record Hotspot(int x, int y, int w, int h, Runnable action) {
     }
 
-    InfoPanel(Font font, Consumer<String> onSelectTable, Consumer<StructureSnapshot.Container> onOpenContainer) {
+    InfoPanel(Font font, Consumer<String> onSelectTable, Consumer<StructureSnapshot.Container> onOpenContainer,
+              Consumer<ItemStack> onItemClicked) {
         this.font = font;
         this.onSelectTable = onSelectTable;
         this.onOpenContainer = onOpenContainer;
+        this.onItemClicked = onItemClicked;
     }
 
     void layout(int x, int y, int width, int height) {
@@ -325,9 +328,11 @@ final class InfoPanel {
                 g.fill(barLeft, cy + 12, barRight, cy + 16, Gui.BAR_BACK);
                 g.fill(barLeft, cy + 12, barLeft + Math.max(1, (int) ((barRight - barLeft) * chance)), cy + 16, Gui.BAR);
             }
-            if (inside(mouseX, mouseY, x + PAD - 1, cy, 18, 18, clipTop, clipHeight)) {
+            if (inside(mouseX, mouseY, x + 2, cy, width - 4, 19, clipTop, clipHeight)) {
                 hoveredStack = row.example();
             }
+            ItemStack example = row.example();
+            hotspots.add(new Hotspot(x + 2, cy, width - 4, 19, () -> onItemClicked.accept(example)));
             cy += 20;
         }
         if (odds.emptyRolls() > 0) {

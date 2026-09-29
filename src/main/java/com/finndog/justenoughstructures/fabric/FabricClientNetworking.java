@@ -44,6 +44,12 @@ final class FabricClientNetworking {
             client.execute(() -> ClientRequests.onOdds(requestId, odds));
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.INDEX_PROGRESS, (client, handler, buf, responder) -> {
+            int done = buf.readVarInt();
+            int total = buf.readVarInt();
+            client.execute(() -> ClientRequests.onIndexProgress(done, total));
+        });
+
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
     }
 }

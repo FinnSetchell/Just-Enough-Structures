@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -18,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -49,6 +51,19 @@ public final class JesServer {
     private static final Map<UUID, AtomicInteger> QUEUED = new ConcurrentHashMap<>();
     private static byte[] catalog;
 
+    // The loot index captures every structure, so it gets its own thread and never holds up previews.
+    private static final ExecutorService INDEXER = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "Just Enough Structures loot index");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    });
+    private static volatile byte[] index;
+    private static volatile int indexGeneration;
+    private static volatile int indexDone;
+    private static volatile int indexTotal;
+    private static boolean indexing;
+
     private JesServer() {
     }
 
@@ -58,6 +73,47 @@ public final class JesServer {
             CAPTURE_CACHE.clear();
         }
         catalog = null;
+        indexGeneration++;
+        index = null;
+        indexing = false;
+    }
+
+    /**
+     * Sends the loot index if it's ready. Otherwise starts building it (once) and tells the player
+     * how far along it is; the client asks again until it arrives.
+     */
+    public static void onRequestIndex(ServerPlayer player) {
+        byte[] ready = index;
+        if (ready != null) {
+            sendBlob(player, JesNetwork.KIND_INDEX, 0, ready);
+            return;
+        }
+        MinecraftServer server = player.getServer();
+        if (!indexing) {
+            indexing = true;
+            int generation = indexGeneration;
+            indexDone = 0;
+            indexTotal = server.registryAccess().registryOrThrow(Registries.STRUCTURE).size();
+            INDEXER.execute(() -> {
+                long started = System.nanoTime();
+                LootIndex built = LootIndex.build(server, done -> indexDone = done, () -> generation != indexGeneration);
+                if (built == null || generation != indexGeneration) {
+                    return;
+                }
+                byte[] payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeIndex(buf, built)));
+                JustEnoughStructures.LOGGER.info("Indexed the loot of {} structures in {} s", indexTotal, (System.nanoTime() - started) / 1_000_000_000L);
+                server.execute(() -> {
+                    if (generation == indexGeneration) {
+                        index = payload;
+                        indexing = false;
+                    }
+                });
+            });
+        }
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(indexDone);
+        buf.writeVarInt(indexTotal);
+        JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
     }
 
     public static void onRequestCatalog(ServerPlayer player) {

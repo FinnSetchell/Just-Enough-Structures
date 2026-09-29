@@ -13,6 +13,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -180,9 +181,17 @@ public final class StructureViewport implements AutoCloseable {
         } else if (target.width != pixelWidth || target.height != pixelHeight) {
             target.resize(pixelWidth, pixelHeight, Minecraft.ON_OSX);
         }
-        target.setClearColor(0f, 0f, 0f, 0f);
-        target.clear(Minecraft.ON_OSX);
-        target.bindWrite(true);
+        if (mesh.building()) {
+            mesh.buildSome(6_000_000L, eye);
+        }
+        drawScene(target, partialTick, outlines);
+        blit(graphics);
+    }
+
+    private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines) {
+        into.setClearColor(0f, 0f, 0f, 0f);
+        into.clear(Minecraft.ON_OSX);
+        into.bindWrite(true);
 
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
@@ -197,9 +206,6 @@ public final class StructureViewport implements AutoCloseable {
         LightTexture lightTexture = minecraft.gameRenderer.lightTexture();
         lightTexture.turnOnLightLayer();
         try {
-            if (mesh.building()) {
-                mesh.buildSome(6_000_000L, eye);
-            }
             mesh.draw(viewMatrix, projection, eye);
             drawDynamic(partialTick, outlines);
         } finally {
@@ -211,7 +217,39 @@ public final class StructureViewport implements AutoCloseable {
             minecraft.getMainRenderTarget().bindWrite(true);
             Lighting.setupFor3DItems();
         }
-        blit(graphics);
+    }
+
+    /**
+     * Draws the finished structure from the default angle into a new square texture for the list.
+     * Returns null while the mesh is still being built.
+     */
+    public TextureTarget renderThumbnail(int pixels) {
+        if (view == null || mesh == null || mesh.building()) {
+            return null;
+        }
+        float keepYaw = yaw, keepPitch = pitch, keepDistance = distance, keepHome = homeDistance;
+        Vector3f keepFocus = new Vector3f(focus);
+        int keepWidth = width, keepHeight = height;
+        TextureTarget thumbnail = new TextureTarget(pixels, pixels, true, Minecraft.ON_OSX);
+        try {
+            yaw = 225f;
+            pitch = 30f;
+            focus.set(view.size().getX() / 2f, view.size().getY() / 2f, view.size().getZ() / 2f);
+            width = pixels;
+            height = pixels;
+            fitToView();
+            drawScene(thumbnail, 0f, List.of());
+        } finally {
+            yaw = keepYaw;
+            pitch = keepPitch;
+            distance = keepDistance;
+            homeDistance = keepHome;
+            focus.set(keepFocus);
+            width = keepWidth;
+            height = keepHeight;
+            updateMatrices();
+        }
+        return thumbnail;
     }
 
     private void drawDynamic(float partialTick, Collection<BlockPos> outlines) {
@@ -265,8 +303,13 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     private void blit(GuiGraphics graphics) {
+        drawTexture(graphics, target.getColorTextureId(), x, y, width, height);
+    }
+
+    /** Draws a render target's colour texture into a GUI rectangle. */
+    public static void drawTexture(GuiGraphics graphics, int textureId, float x, float y, float width, float height) {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.setShaderTexture(0, target.getColorTextureId());
+        RenderSystem.setShaderTexture(0, textureId);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         Matrix4f m = graphics.pose().last().pose();
