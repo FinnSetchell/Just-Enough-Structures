@@ -971,7 +971,7 @@ public class JesScreen extends Screen {
         }
         viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines);
         if (!viewport.meshing() && !Thumbnails.has(selected.id())) {
-            TextureTarget thumbnail = viewport.renderThumbnail(64);
+            TextureTarget thumbnail = viewport.renderThumbnail(Thumbnails.renderSize());
             if (thumbnail != null) {
                 Thumbnails.put(selected.id(), thumbnail);
             }

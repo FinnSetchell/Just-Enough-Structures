@@ -30,7 +30,7 @@ final class ThumbnailQueue {
                 viewport.buildSome(3_000_000L);
                 return;
             }
-            TextureTarget thumbnail = viewport.renderThumbnail(64);
+            TextureTarget thumbnail = viewport.renderThumbnail(Thumbnails.renderSize());
             if (thumbnail != null) {
                 Thumbnails.put(current, thumbnail);
             }
