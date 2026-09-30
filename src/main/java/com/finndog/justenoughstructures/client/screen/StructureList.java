@@ -46,6 +46,8 @@ final class StructureList {
 
     private List<StructureCatalog.Entry> all = List.of();
     private List<Row> rows = List.of();
+    /** What the search lets through, in list order, folded mods included: for stepping through. */
+    private List<StructureCatalog.Entry> ordered = List.of();
     private String query = "";
     private int contentHeight;
     private double scroll;
@@ -83,6 +85,29 @@ final class StructureList {
         clampScroll();
     }
 
+    /**
+     * The structure {@code dir} places before or after {@code current} in the list, wrapping round.
+     * With {@code byMod} it's the first structure of the previous or next mod instead.
+     */
+    Optional<StructureCatalog.Entry> step(ResourceLocation current, int dir, boolean byMod) {
+        if (ordered.isEmpty()) {
+            return Optional.empty();
+        }
+        int at = 0;
+        for (int i = 0; i < ordered.size(); i++) {
+            if (ordered.get(i).id().equals(current)) {
+                at = i;
+                break;
+            }
+        }
+        if (!byMod) {
+            return Optional.of(ordered.get(Math.floorMod(at + dir, ordered.size())));
+        }
+        List<String> mods = ordered.stream().map(e -> e.id().getNamespace()).distinct().toList();
+        String next = mods.get(Math.floorMod(mods.indexOf(ordered.get(at).id().getNamespace()) + dir, mods.size()));
+        return ordered.stream().filter(e -> e.id().getNamespace().equals(next)).findFirst();
+    }
+
     Optional<StructureCatalog.Entry> firstShown() {
         return rows.stream().filter(r -> r.entry() != null).map(Row::entry).findFirst();
     }
@@ -110,6 +135,7 @@ final class StructureList {
             }
         }
         List<Row> out = new ArrayList<>();
+        List<StructureCatalog.Entry> inOrder = new ArrayList<>();
         int top = 0;
 
         // A plain search also looks through loot, so "diamond" finds where diamonds come from.
@@ -128,6 +154,7 @@ final class StructureList {
         for (Map.Entry<String, List<StructureCatalog.Entry>> mod : byMod.entrySet()) {
             List<StructureCatalog.Entry> entries = mod.getValue();
             entries.sort(Comparator.comparing(e -> StructureNames.structure(e.id())));
+            inOrder.addAll(entries);
             out.add(new Row(mod.getKey(), entries.size(), null, StructureNames.mod(mod.getKey()), null, top, HEADER));
             top += HEADER;
             if (COLLAPSED.contains(mod.getKey()) && lower.isEmpty()) {
@@ -139,6 +166,7 @@ final class StructureList {
             }
         }
         rows = out;
+        ordered = inOrder;
         contentHeight = top;
         clampScroll();
     }
@@ -170,7 +198,6 @@ final class StructureList {
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         hovered = null;
-        Gui.inset(g, x, y, width, height, 0xFFB9B9B9);
         if (rows.isEmpty()) {
             Component message = Component.translatable("screen.justenoughstructures.no_matches");
             if (query.contains("$") && !FoundIn.ready()) {
@@ -182,9 +209,9 @@ final class StructureList {
             return;
         }
         boolean scrolls = contentHeight > height;
-        int rowRight = x + width - (scrolls ? 5 : 1);
-        g.enableScissor(x + 1, y + 1, x + width - 1, y + height - 1);
-        int offset = y + 1 - (int) scroll;
+        int rowRight = x + width - (scrolls ? 8 : 0);
+        g.enableScissor(x, y, x + width, y + height);
+        int offset = y - (int) scroll;
         for (Row row : rows) {
             int top = offset + row.top();
             if (top + row.height() < y || top > y + height) {
@@ -199,39 +226,39 @@ final class StructureList {
                 String label = row.header().equals(LOOT_HEADER)
                         ? Component.translatable("screen.justenoughstructures.loot_matches").getString()
                         : (COLLAPSED.contains(row.header()) && query.isBlank() ? "+ " : "- ") + row.name();
-                if (over && !row.header().equals(LOOT_HEADER)) {
-                    g.fill(x + 1, top, rowRight, top + HEADER, 0xFFAFAFAF);
-                }
-                Gui.fitted(g, font, label, x + 4, top + 3, rowRight - x - 30, Gui.LABEL);
+                // JEI's title rows: white text on a translucent dark band.
+                g.fill(x, top, rowRight, top + HEADER - 1, over && !row.header().equals(LOOT_HEADER) ? 0x50000000 : Gui.BAND);
                 String count = String.valueOf(row.count());
-                g.drawString(font, count, rowRight - 3 - font.width(count), top + 3, Gui.LABEL_SOFT, false);
+                g.drawString(font, Gui.clip(font, label, rowRight - x - 12 - font.width(count)), x + 3, top + 3, 0xFFFFFFFF, true);
+                g.drawString(font, count, rowRight - 3 - font.width(count), top + 3, 0xFFE0E0E0, true);
                 continue;
             }
             boolean isSelected = row.entry() != null && row.entry().id().equals(selected);
             if (isSelected) {
-                g.fill(x + 1, top, rowRight, top + ROW, Gui.ROW_SELECTED);
+                g.fill(x, top, rowRight, top + ROW, Gui.ROW_SELECTED);
             } else if (over) {
-                g.fill(x + 1, top, rowRight, top + ROW, Gui.ROW_HOVER);
+                g.fill(x, top, rowRight, top + ROW, Gui.ROW_HOVER);
             }
+            Gui.slot(g, x, top);
             if (row.item() != null) {
-                g.renderItem(new ItemStack(row.item()), x + 3, top + 1);
+                g.renderItem(new ItemStack(row.item()), x + 1, top + 1);
                 String count = "x" + row.count();
-                Gui.fitted(g, font, row.name(), x + 22, top + 5, rowRight - x - 28 - font.width(count), 0xFF202020);
+                Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 26 - font.width(count), Gui.LABEL);
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.LABEL_SOFT, false);
                 continue;
             }
             TextureTarget thumbnail = Thumbnails.get(row.entry().id());
             if (thumbnail != null) {
-                StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), x + 2, top, 18, 18);
+                StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), x + 1, top + 1, 16, 16);
             } else {
-                g.renderItem(ICON, x + 3, top + 1);
+                g.renderItem(ICON, x + 1, top + 1);
             }
-            Gui.fitted(g, font, row.name(), x + 23, top + 5, rowRight - x - 26, 0xFF202020);
+            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24, Gui.LABEL);
         }
         g.disableScissor();
 
         if (scrolls) {
-            Gui.scrollbar(g, x + width - 4, y + 1, height - 2, scroll, contentHeight - height);
+            Gui.scrollbar(g, x + width - 4, y, height, scroll, contentHeight - height);
         }
     }
 

@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -50,6 +51,8 @@ import org.lwjgl.glfw.GLFW;
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
 public class JesScreen extends Screen {
     private static final int PAD = 6;
+    /** How far the details panel sits down to make room for its tabs, as JEI's recipe panel does. */
+    private static final int TABS = 21;
     private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
     private static final ItemStack SPIN_ICON = new ItemStack(Items.CLOCK);
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
@@ -96,7 +99,9 @@ public class JesScreen extends Screen {
     private boolean ground = true;
     private Component locateText;
     private boolean locateFound;
+    private boolean locating;
     private long locateUntil = Long.MAX_VALUE;
+    private int searchY;
     private int lastViewW;
     private int lastViewH;
     private boolean sides;
@@ -144,7 +149,10 @@ public class JesScreen extends Screen {
         centreW = sides ? infoX - PAD - centreX : width - PAD * 2;
 
         String query = search == null ? "" : search.getValue();
-        search = new EditBox(font, listX + 5, PAD + 5, Math.max(10, listW - 10), 16, Component.translatable("screen.justenoughstructures.search"));
+        // At the bottom of the list, as JEI has it: a black box, the text drawn without a border.
+        searchY = height - PAD - 6 - 20;
+        search = new EditBox(font, listX + 10, searchY + 6, Math.max(10, listW - 24), 12, Component.translatable("screen.justenoughstructures.search"));
+        search.setBordered(false);
         search.setHint(Component.translatable(listW >= 150 ? "screen.justenoughstructures.search_hint" : "screen.justenoughstructures.search_hint_short")
                 .withStyle(ChatFormatting.DARK_GRAY));
         search.setValue(query);
@@ -155,15 +163,25 @@ public class JesScreen extends Screen {
         updateSearchHelp();
         search.visible = sides;
         addRenderableWidget(search);
-        listY = PAD + 25;
-        listH = height - PAD - listY - 5;
-        list.layout(listX + 5, listY, listW - 10, listH);
+        listY = PAD + 6;
+        listH = searchY - 4 - listY;
+        list.layout(listX + 6, listY, listW - 12, listH);
 
-        viewX = centreX + 5;
-        viewY = PAD + 28;
-        int toolbarY = height - PAD - 25;
-        viewW = centreW - 10;
-        viewH = toolbarY - 3 - viewY;
+        // JEI's two title rows: previous/next structure around its name, previous/next mod around the mod's.
+        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 4, true,
+                Component.translatable("screen.justenoughstructures.previous_structure"), b -> step(-1, false)));
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 4, false,
+                Component.translatable("screen.justenoughstructures.next_structure"), b -> step(1, false)));
+        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 19, true,
+                Component.translatable("screen.justenoughstructures.previous_mod"), b -> step(-1, true)));
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 19, false,
+                Component.translatable("screen.justenoughstructures.next_mod"), b -> step(1, true)));
+
+        viewX = centreX + 6;
+        viewY = PAD + 35;
+        int toolbarY = height - PAD - 26;
+        viewW = centreW - 12;
+        viewH = toolbarY - 4 - viewY;
         if (viewW != lastViewW || viewH != lastViewH) {
             // A bigger or smaller preview (maximised, or the window resized) gets zoomed to fit again.
             viewport.refit();
@@ -171,8 +189,9 @@ public class JesScreen extends Screen {
             lastViewH = viewH;
         }
 
-        int headerRight = centreX + centreW - 6;
-        maximiseButton = addRenderableWidget(new IconButton(headerRight - 20, PAD + 5, maximised ? RESTORE_ICON : MAXIMISE_ICON,
+        // Over the preview's top right corner, like a 3D viewer's controls.
+        int overlayRight = viewX + viewW - 2;
+        maximiseButton = addRenderableWidget(new IconButton(overlayRight - 20, viewY + 2, maximised ? RESTORE_ICON : MAXIMISE_ICON,
                 Component.translatable(maximised ? "screen.justenoughstructures.restore" : "screen.justenoughstructures.maximise"), b -> {
             maximised = !maximised;
             rebuildWidgets();
@@ -183,8 +202,9 @@ public class JesScreen extends Screen {
             locateLabel = locateLabel.copy().append("\n").append(Component.translatable("screen.justenoughstructures.locate_teleport_hint")
                     .withStyle(ChatFormatting.GRAY));
         }
-        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, LOCATE_ICON, locateLabel,
+        locateButton = addRenderableWidget(new IconButton(overlayRight - 42, viewY + 2, LOCATE_ICON, locateLabel,
                 b -> locate(hasControlDown())));
+        locateButton.active = !locating;
 
         int bx = viewX;
         boolean roomy = viewW >= 250;
@@ -219,7 +239,8 @@ public class JesScreen extends Screen {
         slider.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.layers_tooltip")));
         updateSlider();
 
-        info.layout(infoX + 5, PAD + 5, infoW - 10, height - PAD * 2 - 10);
+        // The details panel starts lower, so its tabs can sit on top of it the way JEI's do.
+        info.layout(infoX + 6, PAD + TABS + 6, infoW - 12, height - PAD * 2 - TABS - 12, infoX + 2, PAD);
 
         chestReroll = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll_loot"), b -> rerollLoot())
                 .bounds(0, 0, 70, 20).build());
@@ -235,7 +256,13 @@ public class JesScreen extends Screen {
             } else {
                 ClientRequests.catalog().thenAccept(this::onCatalog);
                 // Start the loot index early so item search is usually ready by the time it's wanted.
-                ClientRequests.index().thenAccept(built -> list.refresh());
+                // The index can take minutes, so the callback finds whichever browser is open then
+                // instead of holding on to this one after it's closed.
+                ClientRequests.index().thenAccept(built -> {
+                    if (Minecraft.getInstance().screen instanceof JesScreen open) {
+                        open.list.refresh();
+                    }
+                });
             }
         }
     }
@@ -341,14 +368,19 @@ public class JesScreen extends Screen {
 
     /** Finds the nearest one, and with {@code teleport} (Ctrl-click) goes there too. */
     private void locate(boolean teleport) {
-        if (selected == null) {
+        if (selected == null || locating) {
             return;
         }
         ResourceLocation id = selected.id();
         locateText = Component.translatable("screen.justenoughstructures.locating");
         locateFound = false;
         locateUntil = Long.MAX_VALUE;
+        // One search at a time: they can take a while, and each click would otherwise start another.
+        locating = true;
+        locateButton.active = false;
         ClientRequests.locate(id, teleport).thenAccept(reply -> {
+            locating = false;
+            locateButton.active = true;
             if (reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_teleported")) {
                 // They've gone there, so get out of the way and say where they are.
                 minecraft.gui.setOverlayMessage(reply, false);
@@ -693,7 +725,8 @@ public class JesScreen extends Screen {
         renderBackground(g);
         if (sides) {
             Gui.panel(g, listX, PAD, listW, height - PAD * 2);
-            Gui.panel(g, infoX, PAD, infoW, height - PAD * 2);
+            Gui.searchBox(g, listX + 6, searchY, listW - 12, 20);
+            Gui.panel(g, infoX, PAD + TABS, infoW, height - PAD * 2 - TABS);
         }
         Gui.panel(g, centreX, PAD, centreW, height - PAD * 2);
 
@@ -758,6 +791,8 @@ public class JesScreen extends Screen {
             }
         } else if (overHeaderLine(mouseX, mouseY)) {
             g.renderTooltip(font, font.split(headerOverflow, 240), mouseX, mouseY);
+        } else if (!headerTooltip(mouseX, mouseY).isEmpty()) {
+            g.renderComponentTooltip(font, headerTooltip(mouseX, mouseY), mouseX, mouseY);
         } else if (sides && !info.hoveredStack().isEmpty()) {
             g.renderComponentTooltip(font, itemTooltip(info.hoveredStack(), info.hoveredExtra()), mouseX, mouseY);
         } else if (sides && !info.hoveredText().isEmpty()) {
@@ -779,34 +814,48 @@ public class JesScreen extends Screen {
         return lines;
     }
 
+    /** JEI's title rows: the structure's name, then its mod's, each in white on a dark band. */
     private void renderHeader(GuiGraphics g) {
-        int x = centreX + 6;
-        if (selected == null) {
-            g.drawString(font, title, x, PAD + 6, 0xFF202020, false);
-            return;
+        int bandX = centreX + 19;
+        int bandW = centreW - 38;
+        String name = selected == null ? title.getString() : StructureNames.structure(selected.id());
+        String mod = selected == null ? "" : StructureNames.mod(selected.id().getNamespace());
+        Gui.band(g, font, name, bandX, PAD + 4, bandW, 13);
+        Gui.band(g, font, mod, bandX, PAD + 19, bandW, 13);
+    }
+
+    /** The full name when a title row had to cut it short, for its tooltip. */
+    private List<Component> headerTooltip(int mouseX, int mouseY) {
+        if (selected == null || mouseX < centreX + 19 || mouseX >= centreX + centreW - 19) {
+            return List.of();
         }
-        int room = centreW - 12 - 46;
-        Gui.fitted(g, font, StructureNames.structure(selected.id()), x, PAD + 6, room, 0xFF202020);
-        if (locateText != null && Util.getMillis() > locateUntil) {
-            locateText = null;
+        String name = StructureNames.structure(selected.id());
+        String mod = StructureNames.mod(selected.id().getNamespace());
+        if (mouseY >= PAD + 4 && mouseY < PAD + 17 && font.width(name) > centreW - 42) {
+            return List.of(Component.literal(name));
         }
-        Component second = locateText != null ? locateText : Component.literal(StructureNames.mod(selected.id().getNamespace()));
-        int colour = locateText == null || (!locateFound && locateUntil == Long.MAX_VALUE) ? Gui.LABEL_SOFT : locateFound ? 0xFF2E5B1D : 0xFF8B1A1A;
-        Gui.small(g, font, Gui.clip(font, second.getString(), (int) (room / 0.75f)), x, PAD + 17, colour);
-        // Cut short, so the whole thing goes in a tooltip.
-        headerOverflow = font.width(second) * 0.75f > room ? second : null;
-        headerRoom = room;
+        if (mouseY >= PAD + 19 && mouseY < PAD + 32 && font.width(mod) > centreW - 42) {
+            return List.of(Component.literal(mod));
+        }
+        return List.of();
+    }
+
+    /** Previous or next structure in the list, or the first of the previous or next mod. */
+    private void step(int dir, boolean byMod) {
+        if (selected != null) {
+            list.step(selected.id(), dir, byMod).ifPresent(e -> select(e, defaultSeed(e.id())));
+        }
     }
 
     private Component headerOverflow;
     private int headerRoom;
 
     private boolean overHeaderLine(int mouseX, int mouseY) {
-        return headerOverflow != null && mouseX >= centreX + 6 && mouseX < centreX + 6 + headerRoom && mouseY >= PAD + 16 && mouseY < PAD + 25;
+        return headerOverflow != null && mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 16 && mouseY < viewY + 26;
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        g.fill(viewX - 1, viewY - 1, viewX + viewW + 1, viewY + viewH + 1, Gui.SLOT_DARK);
+        Gui.inset(g, viewX - 1, viewY - 1, viewW + 2, viewH + 2, Gui.SLOT_DARK);
         g.fillGradient(viewX, viewY, viewX + viewW, viewY + viewH, Gui.VIEW_TOP, Gui.VIEW_BOTTOM);
         markerRects.clear();
 
@@ -883,7 +932,19 @@ public class JesScreen extends Screen {
 
         String stats = Component.translatable("screen.justenoughstructures.stats", String.format("%,d", s.blockCount()),
                 s.containers().stream().filter(c -> c.lootTable() != null).count()).getString();
-        g.drawString(font, Gui.clip(font, stats, viewW - 12), viewX + 6, viewY + 6, 0xFFE8E8E8, true);
+        int room = viewW - 12 - 46;
+        g.drawString(font, Gui.clip(font, stats, room), viewX + 6, viewY + 6, 0xFFE8E8E8, true);
+        // What locate found, or why it couldn't, under the stats. Failures fade after a while.
+        if (locateText != null && Util.getMillis() > locateUntil) {
+            locateText = null;
+        }
+        headerOverflow = null;
+        if (locateText != null) {
+            int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
+            g.drawString(font, Gui.clip(font, locateText.getString(), room), viewX + 6, viewY + 17, colour, true);
+            headerOverflow = font.width(locateText) > room ? locateText : null;
+            headerRoom = room;
+        }
         if (viewport.meshing()) {
             int barW = Math.min(120, viewW - 20);
             int bx = viewX + (viewW - barW) / 2;
@@ -917,44 +978,16 @@ public class JesScreen extends Screen {
      * shrink or split apart as it spins. The nearest are drawn last, on top.
      */
     private void placeMarkers(StructureSnapshot s) {
-        List<StructureSnapshot.Container> shown = new ArrayList<>();
-        for (StructureSnapshot.Container c : s.containers()) {
-            if (c.lootTable() != null && c.pos().getY() < view.sliceY()) {
-                shown.add(c);
-            }
-        }
-        // Sorted so a group always has the same container first, whichever way it's facing.
-        shown.sort(Comparator.comparing((StructureSnapshot.Container c) -> c.pos()));
-
         float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
         int chestSize = Math.round(Math.max(8f, Math.min(16f, perBlock * 0.8f)));
         int smallSize = Math.round(Math.max(6f, Math.min(10f, perBlock * 0.8f)));
         double reach = chestSize * 1.5 / perBlock;
-
-        // Join containers closer than about a marker and a half, and anything joined to those, so
-        // markers that would touch or overlap from some angle share one.
-        int[] group = new int[shown.size()];
-        for (int i = 0; i < group.length; i++) {
-            group[i] = i;
-        }
-        for (int i = 0; i < shown.size(); i++) {
-            for (int j = i + 1; j < shown.size(); j++) {
-                if (shown.get(i).pos().distSqr(shown.get(j).pos()) < reach * reach) {
-                    int a = root(group, i);
-                    int b = root(group, j);
-                    group[Math.max(a, b)] = Math.min(a, b);
-                }
-            }
-        }
-        Map<Integer, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
-        for (int i = 0; i < shown.size(); i++) {
-            groups.computeIfAbsent(root(group, i), k -> new ArrayList<>()).add(shown.get(i));
-        }
+        List<List<StructureSnapshot.Container>> groups = markerGroups(s, reach);
 
         record Placed(Marker marker, float depth) {
         }
         List<Placed> placed = new ArrayList<>();
-        for (List<StructureSnapshot.Container> members : groups.values()) {
+        for (List<StructureSnapshot.Container> members : groups) {
             double x = 0;
             double z = 0;
             int top = Integer.MIN_VALUE;
@@ -976,6 +1009,54 @@ public class JesScreen extends Screen {
         for (Placed pl : placed) {
             markerRects.add(pl.marker());
         }
+    }
+
+    private StructureSnapshot groupedFor;
+    private int groupedSlice;
+    private double groupedReach;
+    private List<List<StructureSnapshot.Container>> grouped = List.of();
+
+    /**
+     * Containers close enough in the structure to share a marker. Only zooming or the layer slider
+     * changes the answer, so it's worked out again only then, not every frame.
+     */
+    private List<List<StructureSnapshot.Container>> markerGroups(StructureSnapshot s, double reach) {
+        if (s == groupedFor && view.sliceY() == groupedSlice && reach == groupedReach) {
+            return grouped;
+        }
+        List<StructureSnapshot.Container> shown = new ArrayList<>();
+        for (StructureSnapshot.Container c : s.containers()) {
+            if (c.lootTable() != null && c.pos().getY() < view.sliceY()) {
+                shown.add(c);
+            }
+        }
+        // Sorted so a group always has the same container first, whichever way it's facing.
+        shown.sort(Comparator.comparing((StructureSnapshot.Container c) -> c.pos()));
+
+        // Join containers closer than about a marker and a half, and anything joined to those, so
+        // markers that would touch or overlap from some angle share one.
+        int[] group = new int[shown.size()];
+        for (int i = 0; i < group.length; i++) {
+            group[i] = i;
+        }
+        for (int i = 0; i < shown.size(); i++) {
+            for (int j = i + 1; j < shown.size(); j++) {
+                if (shown.get(i).pos().distSqr(shown.get(j).pos()) < reach * reach) {
+                    int a = root(group, i);
+                    int b = root(group, j);
+                    group[Math.max(a, b)] = Math.min(a, b);
+                }
+            }
+        }
+        Map<Integer, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < shown.size(); i++) {
+            groups.computeIfAbsent(root(group, i), k -> new ArrayList<>()).add(shown.get(i));
+        }
+        grouped = List.copyOf(groups.values());
+        groupedFor = s;
+        groupedSlice = view.sliceY();
+        groupedReach = reach;
+        return grouped;
     }
 
     private static int root(int[] group, int i) {
@@ -1200,6 +1281,11 @@ public class JesScreen extends Screen {
     public void removed() {
         viewport.close();
         thumbnails.close();
+        // A big preview can be hundreds of megabytes; don't keep it around once the screen's gone.
+        view = null;
+        result = null;
+        groupedFor = null;
+        grouped = List.of();
         super.removed();
     }
 

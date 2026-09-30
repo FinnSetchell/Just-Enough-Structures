@@ -135,5 +135,10 @@
   "screen.justenoughstructures.sort_to_common": "Click to put the most likely first",
   "screen.justenoughstructures.locate_teleport_hint": "Ctrl-click to teleport there",
   "screen.justenoughstructures.locate_teleported": "Teleported to the nearest one at %s, %s, %s",
-  "screen.justenoughstructures.locate_no_ground": "Found one at x %s, z %s, but there's nowhere safe to stand there"
+  "screen.justenoughstructures.locate_no_ground": "Found one at x %s, z %s, but there's nowhere safe to stand there",
+  "screen.justenoughstructures.previous_structure": "Previous structure",
+  "screen.justenoughstructures.next_structure": "Next structure",
+  "screen.justenoughstructures.previous_mod": "Previous mod",
+  "screen.justenoughstructures.next_mod": "Next mod",
+  "screen.justenoughstructures.locate_busy": "Still looking for the last one"
 }

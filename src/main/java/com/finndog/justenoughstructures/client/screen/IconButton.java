@@ -8,7 +8,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-/** A small square button showing an item, with its label as a tooltip. Can show an on/off state. */
+/**
+ * A small square button showing an item, with its label as a tooltip. A toggle that's on is drawn
+ * pressed in, the way JEI shows its own toggles.
+ */
 final class IconButton extends Button {
     private interface Icon {
         void draw(GuiGraphics g, int x, int y);
@@ -39,16 +42,15 @@ final class IconButton extends Button {
 
     @Override
     protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        super.renderWidget(g, mouseX, mouseY, partialTick);
         if (on != null && on.get()) {
-            g.fill(getX() + 2, getY() + 2, getX() + width - 2, getY() + height - 2, 0x5055FF55);
-        }
-        icon.draw(g, getX() + 2, getY() + 2);
-        if (on != null && !on.get()) {
+            Gui.pressedButton(g, getX(), getY(), width, height, isHoveredOrFocused());
             g.pose().pushPose();
-            g.pose().translate(0, 0, 200);
-            g.fill(getX() + 2, getY() + 2, getX() + width - 2, getY() + height - 2, 0x90303030);
+            g.pose().translate(0.5f, 0.5f, 0);
+            icon.draw(g, getX() + 2, getY() + 2);
             g.pose().popPose();
+            return;
         }
+        super.renderWidget(g, mouseX, mouseY, partialTick);
+        icon.draw(g, getX() + 2, getY() + 2);
     }
 }

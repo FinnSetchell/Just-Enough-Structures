@@ -60,9 +60,9 @@ final class InfoPanel {
         }
     }
 
-    private static final int TAB_HEIGHT = 16;
-    private static final int PAD = 5;
-    private static final int TEXT = 0xFF202020;
+    private static final int TAB_SIZE = 24;
+    private static final int PAD = 2;
+    private static final int TEXT = Gui.LABEL;
     private static final int RARE = 0xFF8A5A00;
     private static final int GOOD = 0xFF2E5B1D;
     private static boolean showDetails;
@@ -78,6 +78,8 @@ final class InfoPanel {
     private double scroll;
     private int contentHeight;
     private int contentRight;
+    private int tabsX;
+    private int tabsY;
 
     private StructureCatalog.Entry entry;
     private CaptureResult result;
@@ -103,11 +105,14 @@ final class InfoPanel {
         this.onItemClicked = onItemClicked;
     }
 
-    void layout(int x, int y, int width, int height) {
+    /** The body goes in x, y, width, height; the tabs sit in a row above it from tabsX, tabsY. */
+    void layout(int x, int y, int width, int height, int tabsX, int tabsY) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
+        this.tabsX = tabsX;
+        this.tabsY = tabsY;
     }
 
     void setEntry(StructureCatalog.Entry entry) {
@@ -162,8 +167,7 @@ final class InfoPanel {
     }
 
     int[] tabCentre(Tab t) {
-        int tabWidth = width / Tab.values().length;
-        return new int[]{x + t.ordinal() * tabWidth + tabWidth / 2, y + TAB_HEIGHT / 2};
+        return new int[]{tabsX + t.ordinal() * TAB_SIZE + TAB_SIZE / 2, tabsY + TAB_SIZE / 2};
     }
 
     int[] oddsRow(Item item) {
@@ -177,41 +181,22 @@ final class InfoPanel {
         hoveredExtra = List.of();
         hoveredText = List.of();
 
-        int tabWidth = width / Tab.values().length;
-        // Words on every tab if they all fit, otherwise icons on every tab, never a mix.
-        boolean words = true;
+        // JEI's category tabs: icons only, the selected one joined to the panel below.
         for (Tab t : Tab.values()) {
-            words &= font.width(t.label()) <= tabWidth - 6;
-        }
-        for (Tab t : Tab.values()) {
-            int tx = x + t.ordinal() * tabWidth;
-            int tw = t.ordinal() == Tab.values().length - 1 ? width - tabWidth * (Tab.values().length - 1) : tabWidth;
-            boolean active = t == tab;
-            g.fill(tx, y, tx + tw, y + TAB_HEIGHT, Gui.EDGE);
-            g.fill(tx + 1, y + 1, tx + tw - 1, y + TAB_HEIGHT - (active ? 0 : 1), active ? Gui.PANEL : 0xFF9C9C9C);
-            String label = t.label().getString();
-            if (words) {
-                g.drawString(font, label, tx + (tw - font.width(label)) / 2, y + 4, active ? TEXT : 0xFF404040, false);
-            } else {
-                // Too narrow for the word: show an icon and put the word in a tooltip.
-                g.pose().pushPose();
-                g.pose().translate(tx + tw / 2f - 6, y + 2, 0);
-                g.pose().scale(0.75f, 0.75f, 1f);
-                g.renderItem(t.icon, 0, 0);
-                g.pose().popPose();
-                if (mouseX >= tx && mouseX < tx + tw && mouseY >= y && mouseY < y + TAB_HEIGHT) {
-                    hoveredText = List.of(t.label());
-                }
+            int tx = tabsX + t.ordinal() * TAB_SIZE;
+            Gui.tab(g, tx, tabsY, t == tab);
+            g.renderItem(t.icon, tx + 4, tabsY + 4);
+            if (mouseX >= tx && mouseX < tx + TAB_SIZE && mouseY >= tabsY && mouseY < tabsY + TAB_SIZE - 3) {
+                hoveredText = List.of(t.label());
             }
         }
 
-        int top = y + TAB_HEIGHT + 1;
-        int bodyHeight = height - TAB_HEIGHT - 1;
+        int top = y;
+        int bodyHeight = height;
         boolean scrolls = contentHeight > bodyHeight;
-        contentRight = x + width - (scrolls ? 6 : 2);
-        Gui.inset(g, x, top, width, bodyHeight, 0xFFBDBDBD);
-        g.enableScissor(x + 1, top + 1, x + width - 1, top + bodyHeight - 1);
-        int cursor = top + PAD - (int) scroll;
+        contentRight = x + width - (scrolls ? 8 : 0);
+        g.enableScissor(x, top, x + width, top + bodyHeight);
+        int cursor = top + 2 - (int) scroll;
         int end = switch (tab) {
             case OVERVIEW -> overview(g, cursor, mouseX, mouseY, top, bodyHeight);
             case LOOT -> loot(g, cursor, mouseX, mouseY, top, bodyHeight);
@@ -219,20 +204,19 @@ final class InfoPanel {
             case ENTITIES -> mobs(g, cursor);
         };
         g.disableScissor();
-        contentHeight = end - cursor + PAD;
+        contentHeight = end - cursor + 2;
         scroll = Math.max(0, Math.min(scroll, Math.max(0, contentHeight - bodyHeight)));
         if (contentHeight > bodyHeight) {
-            Gui.scrollbar(g, x + width - 5, top + 2, bodyHeight - 4, scroll, contentHeight - bodyHeight);
+            Gui.scrollbar(g, x + width - 4, top, bodyHeight, scroll, contentHeight - bodyHeight);
         }
     }
 
     boolean click(double mouseX, double mouseY) {
-        if (mouseY >= y && mouseY < y + TAB_HEIGHT && mouseX >= x && mouseX < x + width) {
-            int index = (int) ((mouseX - x) / (width / Tab.values().length));
-            setTab(Tab.values()[Math.min(Tab.values().length - 1, Math.max(0, index))]);
+        if (mouseY >= tabsY && mouseY < tabsY + TAB_SIZE - 3 && mouseX >= tabsX && mouseX < tabsX + TAB_SIZE * Tab.values().length) {
+            setTab(Tab.values()[(int) ((mouseX - tabsX) / TAB_SIZE)]);
             return true;
         }
-        if (mouseX < x || mouseX >= x + width || mouseY < y + TAB_HEIGHT + 1 || mouseY >= y + height) {
+        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
         for (Hotspot h : hotspots) {
@@ -510,17 +494,20 @@ final class InfoPanel {
             List<StructureSnapshot.Container> containers = group.getValue();
             int rowHeight = 22;
             boolean selected = table.equals(selectedTable);
-            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, rowHeight, clipTop, clipHeight);
-            g.fill(x + 2, cy, contentRight, cy + rowHeight, selected ? Gui.ROW_SELECTED : hovered ? Gui.ROW_HOVER : 0xFFB3B3B3);
+            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
+            Gui.card(g, x, cy, contentRight - x, rowHeight);
+            if (selected || hovered) {
+                g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+            }
             ItemStack icon = containerIcon(snapshot, containers.get(0));
-            Gui.slot(g, x + PAD - 1, cy + 2);
-            g.renderItem(icon, x + PAD, cy + 3);
+            Gui.slot(g, x + PAD + 1, cy + 2);
+            g.renderItem(icon, x + PAD + 2, cy + 3);
             String name = icon.getHoverName().getString() + " x" + containers.size();
             String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
-            int textWidth = contentRight - x - PAD - 21 - 10;
-            Gui.fitted(g, font, name, x + PAD + 21, cy + 3, textWidth, TEXT);
-            Gui.small(g, font, Gui.clip(font, detail, (int) (textWidth / 0.75f)), x + PAD + 21, cy + 13, Gui.LABEL_SOFT);
-            g.drawString(font, ">", contentRight - 8, cy + 7, hovered ? TEXT : Gui.LABEL_SOFT, false);
+            int textWidth = contentRight - x - PAD - 23 - 12;
+            Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
+            Gui.small(g, font, Gui.clip(font, detail, (int) (textWidth / 0.75f)), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+            g.drawString(font, ">", contentRight - 9, cy + 7, hovered ? TEXT : Gui.LABEL_SOFT, false);
             if (hovered) {
                 hoveredText = List.of(Component.literal(name), Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW));
             }
@@ -529,7 +516,7 @@ final class InfoPanel {
                 selectedName = icon.getHoverName().getString().toLowerCase(Locale.ROOT);
             }
             StructureSnapshot.Container first = containers.get(0);
-            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, rowHeight, () -> {
+            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> {
                 onSelectTable.accept(table.isEmpty() ? null : table);
                 onOpenContainer.accept(first);
             }));
@@ -539,9 +526,10 @@ final class InfoPanel {
         if (selectedTable == null) {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.pick_group"), x + PAD, cy + 4, textWidth(), Gui.LABEL_SOFT);
         }
-        cy += 5;
-        g.drawString(font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName), x + PAD, cy, TEXT, false);
-        cy += font.lineHeight + 2;
+        cy += 4;
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName).getString(),
+                x, cy, contentRight - x, 13);
+        cy += 16;
         Component sortLabel = Component.translatable(rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
         int sortWidth = (int) (font.width(sortLabel) * 0.75f) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, 9, clipTop, clipHeight);
@@ -695,19 +683,25 @@ final class InfoPanel {
         }
 
         for (Map.Entry<Block, Integer> e : sorted) {
+            if (cy + 18 < clipTop || cy > clipTop + clipHeight) {
+                // Scrolled out of view: a big structure can use hundreds of kinds of block.
+                cy += 18;
+                continue;
+            }
             Block block = e.getKey();
             int count = e.getValue();
-            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, 18, clipTop, clipHeight);
+            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, 18, clipTop, clipHeight);
             if (hovered) {
-                g.fill(x + 2, cy, contentRight, cy + 18, Gui.ROW_HOVER);
+                g.fill(x, cy, contentRight, cy + 18, Gui.ROW_HOVER);
             }
             ItemStack stack = new ItemStack(block.asItem());
             if (stack.isEmpty()) {
                 stack = new ItemStack(Items.BARRIER);
             }
+            Gui.slot(g, x + PAD - 1, cy);
             g.renderItem(stack, x + PAD, cy + 1);
             String amount = String.format("%,d", count);
-            Gui.fitted(g, font, block.getName().getString(), x + PAD + 20, cy + 5, contentRight - x - PAD - 26 - font.width(amount), TEXT);
+            Gui.fitted(g, font, block.getName().getString(), x + PAD + 21, cy + 5, contentRight - x - PAD - 27 - font.width(amount), TEXT);
             g.drawString(font, amount, contentRight - 2 - font.width(amount), cy + 5, Gui.LABEL_SOFT, false);
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
@@ -769,21 +763,22 @@ final class InfoPanel {
         if (mobs.isEmpty()) {
             return cy;
         }
-        g.drawString(font, Component.translatable("screen.justenoughstructures.mobs_" + key), x + PAD, cy, TEXT, false);
-        cy += font.lineHeight + 2;
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_" + key).getString(), x, cy, contentRight - x, 13);
+        cy += 16;
         for (Map.Entry<String, Integer> e : mobs.entrySet()) {
             ResourceLocation id = ResourceLocation.tryParse(e.getKey());
             EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
             Component name = type != null ? type.getDescription() : Component.literal(e.getKey());
-            g.fill(x + 2, cy, contentRight, cy + 18, 0xFFB3B3B3);
+            Gui.card(g, x, cy, contentRight - x, 22);
+            Gui.slot(g, x + PAD + 1, cy + 2);
             SpawnEggItem egg = type == null ? null : SpawnEggItem.byId(type);
             if (egg != null) {
-                g.renderItem(new ItemStack(egg), x + PAD, cy + 1);
+                g.renderItem(new ItemStack(egg), x + PAD + 2, cy + 3);
             }
             String count = counts ? "x" + e.getValue() : "";
-            Gui.fitted(g, font, name.getString(), x + PAD + 20, cy + 5, contentRight - x - PAD - 26 - font.width(count), TEXT);
-            g.drawString(font, count, contentRight - 2 - font.width(count), cy + 5, Gui.LABEL_SOFT, false);
-            cy += 19;
+            Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(count), TEXT);
+            g.drawString(font, count, contentRight - 4 - font.width(count), cy + 7, Gui.LABEL_SOFT, false);
+            cy += 23;
         }
         Component note = Component.translatable("screen.justenoughstructures.mobs_" + key + "_note");
         return Gui.wrapped(g, font, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
