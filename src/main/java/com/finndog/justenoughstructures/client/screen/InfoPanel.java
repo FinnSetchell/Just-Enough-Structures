@@ -638,24 +638,14 @@ final class InfoPanel {
         cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
                 x + PAD, cy, textWidth(), TEXT) + 3;
 
+        Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
         int bx = x + PAD;
-        for (String action : List.of("copy", "save")) {
-            Component label = Component.translatable("screen.justenoughstructures.blocks_" + action);
-            int w = font.width(label) + 8;
-            if (bx > x + PAD && bx + w > contentRight - 2) {
-                // No room beside the first button, so this one goes underneath.
-                bx = x + PAD;
-                cy += 16;
-            }
-            boolean over = inside(mouseX, mouseY, bx, cy, w, 13, clipTop, clipHeight);
-            g.fill(bx, cy, bx + w, cy + 13, Gui.EDGE);
-            g.fill(bx + 1, cy + 1, bx + w - 1, cy + 12, over ? 0xFF8D8D8D : 0xFF737373);
-            g.drawString(font, label, bx + 4, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
-            hotspots.add(new Hotspot(bx, cy, w, 13, action.equals("copy")
-                    ? () -> notify(Exports.copyMaterialList(entry.id(), s))
-                    : () -> notify(Exports.saveStructure(entry.id(), s))));
-            bx += w + 4;
-        }
+        int w = font.width(label) + 8;
+        boolean over = inside(mouseX, mouseY, bx, cy, w, 13, clipTop, clipHeight);
+        g.fill(bx, cy, bx + w, cy + 13, Gui.EDGE);
+        g.fill(bx + 1, cy + 1, bx + w - 1, cy + 12, over ? 0xFF8D8D8D : 0xFF737373);
+        g.drawString(font, label, bx + 4, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
+        hotspots.add(new Hotspot(bx, cy, w, 13, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 16;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
             cy = Gui.wrapped(g, font, notice, x + PAD, cy, textWidth(), GOOD) + 2;
