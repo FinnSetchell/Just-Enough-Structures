@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import net.fabricmc.api.ModInitializer;
+import java.util.stream.Collectors;
 import net.fabricmc.loader.api.FabricLoader;
 
 public final class JustEnoughStructuresFabric implements ModInitializer {
@@ -11,6 +12,9 @@ public final class JustEnoughStructuresFabric implements ModInitializer {
                 .map(mod -> mod.getMetadata().getName())
                 .orElse(namespace));
         JustEnoughStructures.setConfigDir(FabricLoader.getInstance().getConfigDir());
+        JustEnoughStructures.setGameDir(FabricLoader.getInstance().getGameDir());
+        JustEnoughStructures.setModVersions(() -> FabricLoader.getInstance().getAllMods().stream()
+                .collect(Collectors.toMap(mod -> mod.getMetadata().getId(), mod -> mod.getMetadata().getVersion().getFriendlyString(), (a, b) -> a)));
         JustEnoughStructures.init();
         FabricNetworking.registerServer();
     }

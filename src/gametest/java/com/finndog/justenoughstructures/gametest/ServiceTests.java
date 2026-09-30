@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -10,6 +11,9 @@ import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +21,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.finndog.justenoughstructures.server.JesServer;
+import com.finndog.justenoughstructures.server.LootIndexStore;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -154,6 +160,65 @@ public final class ServiceTests {
                 .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size())
                 .toList();
         helper.assertTrue(got.equals(List.of("a diamond 2", "a gold_ingot 1", "b diamond 1")), "expected diamonds from both tables in a, gold in a and diamonds in b, got " + got);
+        helper.succeed();
+    }
+
+    /** The saved index reads back as it was, a damaged one is rebuilt rather than trusted, and old ones are cleared out. */
+    public static void savedLootIndexReadsBack(GameTestHelper helper) {
+        ResourceLocation structure = new ResourceLocation("test", "tower");
+        ResourceLocation table = new ResourceLocation("test", "chests/tower");
+        LootIndex index = new LootIndex(Map.of(structure, Set.of(table)), Map.of(table, Set.of(new ResourceLocation("diamond"))));
+        try {
+            Path dir = Files.createTempDirectory("jes-index");
+            LootIndexStore.write(dir, "abc", index);
+            LootIndex read = LootIndexStore.read(dir, "abc");
+            helper.assertTrue(read != null && read.tablesByStructure().equals(index.tablesByStructure()) && read.itemsByTable().equals(index.itemsByTable()),
+                    "the saved index read back as " + read);
+            helper.assertTrue(LootIndexStore.read(dir, "missing") == null, "an index that was never saved was read");
+            Files.write(dir.resolve("broken.bin"), new byte[]{1, 2, 3});
+            helper.assertTrue(LootIndexStore.read(dir, "broken") == null, "a damaged file was read as an index");
+            for (int i = 0; i < 6; i++) {
+                LootIndexStore.write(dir, "extra" + i, index);
+            }
+            try (var files = Files.list(dir)) {
+                long kept = files.filter(p -> p.toString().endsWith(".bin")).count();
+                helper.assertTrue(kept == 4, kept + " saved indexes were kept, expected the 4 newest");
+            }
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary folder", e);
+        }
+        helper.succeed();
+    }
+
+    /** The fingerprint that says whether a saved index still holds comes out the same each time. */
+    public static void lootIndexFingerprintIsStable(GameTestHelper helper) {
+        long started = System.nanoTime();
+        String first = LootIndexStore.fingerprintOf(helper.getLevel().getServer());
+        long millis = (System.nanoTime() - started) / 1_000_000L;
+        String second = LootIndexStore.fingerprintOf(helper.getLevel().getServer());
+        helper.assertTrue(first != null && first.equals(second), "the fingerprint changed from " + first + " to " + second);
+        JustEnoughStructures.LOGGER.info("Fingerprinting the loot index's sources took {} ms", millis);
+        helper.assertTrue(millis < 30_000, "fingerprinting took " + millis + " ms");
+        helper.succeed();
+    }
+
+    /** Players never get hidden structures in the index, or loot tables only they use. */
+    public static void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
+        ResourceLocation shown = new ResourceLocation("test", "shown");
+        ResourceLocation hidden = new ResourceLocation("test", "secret");
+        ResourceLocation shared = new ResourceLocation("test", "chests/shared");
+        ResourceLocation own = new ResourceLocation("test", "chests/secret");
+        LootIndex full = new LootIndex(Map.of(shown, Set.of(shared), hidden, Set.of(shared, own)),
+                Map.of(shared, Set.of(new ResourceLocation("bread")), own, Set.of(new ResourceLocation("diamond"))));
+        ServerConfig.Settings before = ServerConfig.get();
+        try {
+            ServerConfig.set(new ServerConfig.Settings(Set.of(hidden), Set.of(), 2, 2, true));
+            LootIndex visible = LootIndexStore.visible(full);
+            helper.assertTrue(visible.tablesByStructure().keySet().equals(Set.of(shown)), "the hidden structure is still in the index");
+            helper.assertTrue(visible.itemsByTable().keySet().equals(Set.of(shared)), "a loot table only the hidden structure uses is still there");
+        } finally {
+            ServerConfig.set(before);
+        }
         helper.succeed();
     }
 

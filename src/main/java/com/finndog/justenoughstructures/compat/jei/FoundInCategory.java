@@ -6,7 +6,6 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,9 +95,9 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         if (overStructure(mouseX, mouseY)) {
             g.fill(0, 0, WIDTH - 20, HEIGHT, 0x40FFFFFF);
         }
-        TextureTarget thumbnail = Thumbnails.get(recipe.structure());
-        if (thumbnail != null) {
-            StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), 1, 3, 18, 18);
+        int thumbnail = Thumbnails.textureId(recipe.structure());
+        if (thumbnail >= 0) {
+            StructureViewport.drawTexture(g, thumbnail, 1, 3, 18, 18);
         } else {
             g.renderItem(MAP, 2, 4);
         }

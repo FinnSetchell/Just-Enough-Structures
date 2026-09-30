@@ -1,7 +1,9 @@
 package com.finndog.justenoughstructures;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +14,8 @@ public final class JustEnoughStructures {
 
     private static Function<String, String> modNames = namespace -> namespace;
     private static Path configDir = Path.of("config");
+    private static Path gameDir = Path.of(".");
+    private static Supplier<Map<String, String>> modVersions = Map::of;
 
     private JustEnoughStructures() {
     }
@@ -44,5 +48,24 @@ public final class JustEnoughStructures {
     /** Where this mod keeps its files, inside the config folder. */
     public static Path configDir() {
         return configDir.resolve(MOD_ID);
+    }
+
+    /** Set by the loader: the game's folder, or the server's. */
+    public static void setGameDir(Path dir) {
+        gameDir = dir;
+    }
+
+    /** Where this mod keeps what it works out once and saves for next time. Safe to delete. */
+    public static Path cacheDir() {
+        return gameDir.resolve(".cache").resolve(MOD_ID);
+    }
+
+    /** Set by the loader: every installed mod's id and version. */
+    public static void setModVersions(Supplier<Map<String, String>> versions) {
+        modVersions = versions;
+    }
+
+    public static Map<String, String> modVersions() {
+        return modVersions.get();
     }
 }

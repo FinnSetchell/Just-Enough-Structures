@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -247,9 +246,9 @@ final class StructureList {
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.LABEL_SOFT, false);
                 continue;
             }
-            TextureTarget thumbnail = Thumbnails.get(row.entry().id());
-            if (thumbnail != null) {
-                StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), x + 1, top + 1, 16, 16);
+            int thumbnail = Thumbnails.textureId(row.entry().id());
+            if (thumbnail >= 0) {
+                StructureViewport.drawTexture(g, thumbnail, x + 1, top + 1, 16, 16);
             } else {
                 g.renderItem(ICON, x + 1, top + 1);
             }

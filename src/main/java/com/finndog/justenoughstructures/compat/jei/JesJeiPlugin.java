@@ -50,8 +50,10 @@ public final class JesJeiPlugin implements IModPlugin {
         if (!ClientRequests.serverSupported()) {
             return;
         }
-        // Asks the server for the index if nobody has yet; it arrives through the listener.
+        // Asks the server for the index if nobody has yet; it arrives through the listener. The
+        // structure list is what saved thumbnails are checked against, so the rows can have pictures.
         ClientRequests.index();
+        ClientRequests.catalog();
         if (ClientRequests.indexReady()) {
             show(ClientRequests.index().join());
         }

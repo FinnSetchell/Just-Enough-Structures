@@ -244,6 +244,7 @@ public final class ClientRequests {
         FriendlyByteBuf buf = Blobs.fromBytes(Blobs.inflate(transfer.bytes()));
         if (part.kind() == JesNetwork.KIND_CATALOG) {
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
+            Thumbnails.onCatalog(entries);
             if (catalog == null) {
                 catalog = new CompletableFuture<>();
             }
@@ -251,7 +252,8 @@ public final class ClientRequests {
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
             LootIndex built = Codecs.readIndex(buf);
             FoundIn.rebuild(built);
-            if (index == null) {
+            // The server sends a new one when it changes, after a /reload for instance.
+            if (index == null || index.isDone()) {
                 index = new CompletableFuture<>();
             }
             index.complete(built);

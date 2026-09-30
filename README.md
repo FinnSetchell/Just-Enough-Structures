@@ -47,6 +47,15 @@ packs where finding hidden chests is part of the fun. There are no loot markers 
 opened in the preview, but the Loot tab still lists what the loot can be. The server leaves the
 loot out of the previews it sends, so this can't be undone on the client.
 
+## Loading times
+
+Nothing is worked out while the game or server starts, or while players join. Item search and the
+JEI pages need a scan of every structure's loot, which takes a few minutes with a lot of structure
+mods. It runs in the background and is saved in `.cache/justenoughstructures`, so it's only done
+again when mods, their versions or datapacks change. A dedicated server starts it on its own after
+starting up; in singleplayer it waits until something needs it. The pictures in the structure list
+are saved there too. The folder is safe to delete.
+
 ## For mod and modpack authors
 
 A structure can have a file at `data/<namespace>/justenoughstructures/structures/<path>.json` for

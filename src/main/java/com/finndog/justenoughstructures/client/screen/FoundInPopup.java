@@ -4,7 +4,6 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -102,9 +101,9 @@ final class FoundInPopup {
             if (hovered) {
                 g.fill(x + 7, ry, x + WIDTH - 7, ry + ROW, Gui.ROW_HOVER);
             }
-            TextureTarget thumbnail = Thumbnails.get(row.structure());
-            if (thumbnail != null) {
-                StructureViewport.drawTexture(g, thumbnail.getColorTextureId(), x + 9, ry + 2, 18, 18);
+            int thumbnail = Thumbnails.textureId(row.structure());
+            if (thumbnail >= 0) {
+                StructureViewport.drawTexture(g, thumbnail, x + 9, ry + 2, 18, 18);
             } else {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }

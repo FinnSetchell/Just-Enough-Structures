@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
-import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -65,22 +64,10 @@ public final class JesServer {
     private static final Map<UUID, AtomicInteger> QUEUED = new ConcurrentHashMap<>();
     private static byte[] catalog;
 
-    // The loot index captures every structure, so it gets its own thread and never holds up previews.
-    private static final ExecutorService INDEXER = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Just Enough Structures loot index");
-        t.setDaemon(true);
-        t.setPriority(Thread.MIN_PRIORITY);
-        return t;
-    });
     private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
     private static final Set<UUID> LOCATING = ConcurrentHashMap.newKeySet();
     // Players who've opened the browser this session, so they have the mod and hear about a /reload.
     private static final Set<UUID> BROWSING = ConcurrentHashMap.newKeySet();
-    private static volatile byte[] index;
-    private static volatile int indexGeneration;
-    private static volatile int indexDone;
-    private static volatile int indexTotal;
-    private static boolean indexing;
 
     private JesServer() {
     }
@@ -98,6 +85,7 @@ public final class JesServer {
             }
         }
         invalidate();
+        LootIndexStore.refresh(server);
         for (UUID id : BROWSING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
@@ -115,49 +103,27 @@ public final class JesServer {
         }
         catalog = null;
         ODDS_CACHE.clear();
-        indexGeneration++;
-        index = null;
-        indexing = false;
     }
 
-    /**
-     * Sends the loot index if it's ready. Otherwise, starts building it (once) and tells the player
-     * how far along it is; the client asks again until it arrives.
-     */
+    /** When the server stops: drops what belonged to that world and stops the loot index. */
+    public static void stop() {
+        invalidate();
+        LootIndexStore.stop();
+        BROWSING.clear();
+    }
+
     public static void onRequestIndex(ServerPlayer player) {
-        byte[] ready = index;
-        if (ready != null) {
-            sendBlob(player, JesNetwork.KIND_INDEX, 0, ready);
-            return;
-        }
-        MinecraftServer server = player.getServer();
-        if (!indexing) {
-            indexing = true;
-            int generation = indexGeneration;
-            List<ResourceLocation> ids = server.registryAccess().registryOrThrow(Registries.STRUCTURE).keySet().stream()
-                    .filter(id -> !ServerConfig.hides(id))
-                    .toList();
-            indexDone = 0;
-            indexTotal = ids.size();
-            INDEXER.execute(() -> {
-                long started = System.nanoTime();
-                LootIndex built = LootIndex.build(server, ids, done -> indexDone = done, () -> generation != indexGeneration || !server.isRunning());
-                if (built == null || generation != indexGeneration) {
-                    return;
-                }
-                byte[] payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeIndex(buf, built)));
-                JustEnoughStructures.LOGGER.info("Indexed the loot of {} structures in {} s", indexTotal, (System.nanoTime() - started) / 1_000_000_000L);
-                server.execute(() -> {
-                    if (generation == indexGeneration) {
-                        index = payload;
-                        indexing = false;
-                    }
-                });
-            });
-        }
+        LootIndexStore.request(player);
+    }
+
+    static void sendIndex(ServerPlayer player, byte[] payload) {
+        sendBlob(player, JesNetwork.KIND_INDEX, 0, payload);
+    }
+
+    static void sendIndexProgress(ServerPlayer player, int done, int total) {
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
-        buf.writeVarInt(indexDone);
-        buf.writeVarInt(indexTotal);
+        buf.writeVarInt(done);
+        buf.writeVarInt(total);
         JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
     }
 

@@ -90,6 +90,21 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void savedLootIndexReadsBack(GameTestHelper helper) {
+        ServiceTests.savedLootIndexReadsBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void lootIndexFingerprintIsStable(GameTestHelper helper) {
+        ServiceTests.lootIndexFingerprintIsStable(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
+        ServiceTests.hiddenStructuresLeaveTheLootIndex(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void impossibleLocateIsQuick(GameTestHelper helper) {
         ServiceTests.impossibleLocateIsQuick(helper);
     }
