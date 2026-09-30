@@ -19,6 +19,7 @@ mod.fabric_loader_dep = ">=0.15.0"
 deps.fabric_loader = "0.19.5"
 deps.fabric_api = "0.92.11+1.20.1"
 deps.modmenu = "7.2.2"
+deps.cloth_config = "11.1.136"
 # Compiled against for the optional JEI plugin, never bundled.
 deps.jei = "15.56.0.205"
 # Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.

@@ -75,6 +75,11 @@ dependencies {
     modImplementation("net.fabricmc.fabric-api:fabric-api:${prop("deps.fabric_api")}")
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
     modCompileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
+    // The settings screen: Mod Menu opens it and Cloth Config draws it. Both optional.
+    modCompileOnly("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
+    modCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${prop("deps.cloth_config")}") {
+        exclude(group = "net.fabricmc.fabric-api")
+    }
     // Likewise Explorer's Compass, which has no API: the link calls its own search.
     modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
 

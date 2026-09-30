@@ -148,6 +148,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void serverSettingsWriteBack(GameTestHelper helper) {
+        SettingsTests.serverSettingsWriteBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenStructuresStayHidden(GameTestHelper helper) {
         SettingsTests.hiddenStructuresStayHidden(helper);
     }

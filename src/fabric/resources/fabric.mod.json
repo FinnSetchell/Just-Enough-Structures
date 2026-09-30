@@ -25,6 +25,9 @@
     ],
     "jei_mod_plugin": [
       "com.finndog.justenoughstructures.compat.jei.JesJeiPlugin"
+    ],
+    "modmenu": [
+      "com.finndog.justenoughstructures.fabric.JesModMenu"
     ]
   },
   "depends": {
@@ -35,6 +38,8 @@
   },
   "suggests": {
     "jei": "*",
-    "explorerscompass": "*"
+    "explorerscompass": "*",
+    "modmenu": "*",
+    "cloth-config": "*"
   }
 }

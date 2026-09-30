@@ -29,7 +29,10 @@ Press **K** (you can change it in Controls) to open the browser.
 - With cheats on (or as an operator), the recovery compass button finds the nearest one.
   Ctrl-click it to teleport there.
 
-The browser remembers how you left it: spin, markers, the ground, maximise and so on.
+The browser remembers how you left it: spin, markers, the ground, maximise and so on. With
+[Mod Menu](https://modrinth.com/mod/modmenu) and [Cloth Config](https://modrinth.com/mod/cloth-config)
+installed, its Config button opens a settings screen for those, and for the server settings of
+worlds you play or host from your game.
 
 With [JEI](https://modrinth.com/mod/jei) installed, an item's recipes get a **Found in structures**
 page listing every structure whose loot can give it, with the chance in each container. Click a

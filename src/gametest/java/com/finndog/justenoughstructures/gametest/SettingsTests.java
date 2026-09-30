@@ -100,6 +100,17 @@ public final class SettingsTests {
         helper.succeed();
     }
 
+    /** Settings saved from the config screen read back the same, and the file keeps its comments. */
+    public static void serverSettingsWriteBack(GameTestHelper helper) {
+        ServerConfig.Settings settings = new ServerConfig.Settings(Set.of(new ResourceLocation("igloo"), new ResourceLocation("somemod", "tower")),
+                Set.of("othermod"), 0, 4, false);
+        String written = ServerConfig.render(settings);
+        helper.assertTrue(written.contains("// Who can use the locate button"), "the saved file lost its comments");
+        ServerConfig.Settings read = ServerConfig.parse(written, "test");
+        helper.assertTrue(read.equals(settings), "saved " + settings + " but read back " + read);
+        helper.succeed();
+    }
+
     /** Hidden structures are left out of the list and can't be located. */
     public static void hiddenStructuresStayHidden(GameTestHelper helper) {
         ServerConfig.Settings before = ServerConfig.get();

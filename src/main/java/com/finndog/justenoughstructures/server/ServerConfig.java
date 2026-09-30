@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -8,7 +9,9 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 
@@ -20,25 +23,26 @@ import net.minecraft.resources.ResourceLocation;
 public final class ServerConfig {
     public static final String FILE_NAME = "server.json5";
 
-    private static final String DEFAULT_FILE = """
+    private static final Gson GSON = new Gson();
+    private static final String TEMPLATE = """
             // Just Enough Structures server settings. Changes apply after /reload or a restart.
             {
               // Structures to leave out of the browser. They can't be previewed or located and their
               // loot isn't listed, so nothing gives them away. Use a structure's id, or "modid:*" for
               // everything from one mod. For example: ["minecraft:ancient_city", "somemod:*"]
-              "hidden": [],
+              "hidden": %s,
 
               // Who can use the locate button, as a vanilla permission level: 0 is everyone, 2 is
               // operators and singleplayer with cheats on (the same as /locate), 4 is the server owner.
-              "locate_permission": 2,
+              "locate_permission": %s,
 
               // Who can Ctrl-click it to teleport there. 2 is the same as /tp.
-              "teleport_permission": 2,
+              "teleport_permission": %s,
 
               // False keeps where every structure's loot is out of the browser: no chest markers and
               // no opening chests in the preview. What the loot can be is still listed. A structure's
               // own datapack file can hide just its loot instead.
-              "show_loot_locations": true
+              "show_loot_locations": %s
             }
             """;
 
@@ -74,16 +78,20 @@ public final class ServerConfig {
         return current.hides(id);
     }
 
+    public static Path file() {
+        return JustEnoughStructures.configDir().resolve(FILE_NAME);
+    }
+
     /** Reads the file in the config folder, writing a commented one first if there isn't one. */
     public static Settings load() {
-        return load(JustEnoughStructures.configDir().resolve(FILE_NAME));
+        return load(file());
     }
 
     public static Settings load(Path file) {
         try {
             if (!Files.exists(file)) {
                 Files.createDirectories(file.getParent());
-                Files.writeString(file, DEFAULT_FILE);
+                Files.writeString(file, render(DEFAULTS));
             }
             current = parse(Files.readString(file), file.toString());
         } catch (IOException e) {
@@ -91,6 +99,30 @@ public final class ServerConfig {
             current = DEFAULTS;
         }
         return current;
+    }
+
+    /** The settings in the file, without applying them. The defaults if there's no file or it can't be read. */
+    public static Settings read(Path file) {
+        try {
+            return Files.exists(file) ? parse(Files.readString(file), file.toString()) : DEFAULTS;
+        } catch (IOException e) {
+            JustEnoughStructures.LOGGER.warn("Couldn't read {}", file, e);
+            return DEFAULTS;
+        }
+    }
+
+    /** Writes these settings to the file, comments and all. The server picks them up on /reload. */
+    public static void save(Path file, Settings settings) throws IOException {
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, render(settings));
+    }
+
+    /** The settings file with these values in it. */
+    public static String render(Settings settings) {
+        List<String> hidden = new ArrayList<>();
+        settings.hiddenMods().stream().sorted().forEach(mod -> hidden.add(mod + ":*"));
+        settings.hiddenStructures().stream().map(ResourceLocation::toString).sorted().forEach(hidden::add);
+        return TEMPLATE.formatted(GSON.toJson(hidden), settings.locatePermission(), settings.teleportPermission(), settings.showLootLocations());
     }
 
     /**
