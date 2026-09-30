@@ -410,14 +410,29 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     private void updateMatrices() {
-        float aspect = (float) width / Math.max(1, height);
-        projection.setPerspective((float) Math.toRadians(FOV), aspect, 0.05f, 4000f);
         viewMatrix.identity()
                 .translate(0, 0, -distance)
                 .rotateX((float) Math.toRadians(pitch))
                 .rotateY((float) Math.toRadians(yaw))
                 .translate(-focus.x(), -focus.y(), -focus.z());
         new Matrix4f(viewMatrix).invert().transformPosition(eye.set(0, 0, 0));
+
+        // The depth buffer is most precise just past the near plane, so a near plane right at the
+        // camera wastes it on empty space. From far out that left too little for water surfaces,
+        // which sit a thousandth of a block inside their blocks, and they flickered through them.
+        // So it goes just in front of the closest the structure (and its ground plane) can be.
+        float near = 0.05f;
+        float far = 4000f;
+        if (view != null) {
+            float sx = view.size().getX(), sy = view.size().getY(), sz = view.size().getZ();
+            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
+            float radius = (float) Math.sqrt((sx + 2 * margin) * (sx + 2 * margin) + sy * sy + (sz + 2 * margin) * (sz + 2 * margin)) / 2f + 2f;
+            float fromCentre = eye.distance(sx / 2f, sy / 2f, sz / 2f);
+            near = Math.max(0.05f, (fromCentre - radius) * 0.8f);
+            far = Math.max(far, fromCentre + radius * 2f);
+        }
+        float aspect = (float) width / Math.max(1, height);
+        projection.setPerspective((float) Math.toRadians(FOV), aspect, near, far);
     }
 
     /** Screen position of a point in structure space, or empty when it's behind the camera. */
