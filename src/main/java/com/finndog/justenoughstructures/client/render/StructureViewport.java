@@ -359,7 +359,10 @@ public final class StructureViewport implements AutoCloseable {
                 continue;
             }
             try {
-                entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), partialTick, pose, buffers, LightTexture.FULL_BRIGHT);
+                // Always at their current pose. They never tick, so their "last tick" rotations stay
+                // at whatever loading left them (0 for a mob's head and body), and blending towards
+                // those by a different amount each frame made them shake.
+                entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
             } catch (RuntimeException e) {
                 JustEnoughStructures.LOGGER.debug("Entity renderer failed for {}", entity, e);
             }
