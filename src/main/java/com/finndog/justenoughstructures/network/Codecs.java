@@ -187,6 +187,7 @@ public final class Codecs {
             buf.writeVarInt(row.total());
             buf.writeVarInt(row.min());
             buf.writeVarInt(row.max());
+            buf.writeMap(row.variants(), FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeVarInt);
         }
     }
 
@@ -197,7 +198,8 @@ public final class Codecs {
         int count = buf.readVarInt();
         List<LootOdds.Row> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            rows.add(new LootOdds.Row(buf.readItem(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
+            rows.add(new LootOdds.Row(buf.readItem(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+                    new TreeMap<>(buf.readMap(b -> b.readUtf(), b -> b.readVarInt()))));
         }
         return new LootOdds(table, rolls, empty, rows);
     }

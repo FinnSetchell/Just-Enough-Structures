@@ -4,11 +4,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.Potion;
+import net.minecraft.world.item.alchemy.PotionUtils;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
@@ -46,7 +51,8 @@ public final class LootRolls {
         for (int i = 0; i < rolls; i++) {
             Map<Item, Integer> counts = new HashMap<>();
             Map<Item, ItemStack> examples = new HashMap<>();
-            for (ItemStack stack : table.getRandomItems(params, seed + i)) {
+            List<ItemStack> rolled = table.getRandomItems(params, seed + i);
+            for (ItemStack stack : rolled) {
                 if (stack.isEmpty()) {
                     continue;
                 }
@@ -59,6 +65,18 @@ public final class LootRolls {
             for (Map.Entry<Item, Integer> e : counts.entrySet()) {
                 rows.computeIfAbsent(e.getKey(), item -> new LootOdds.Row(examples.get(item).copyWithCount(1)))
                         .record(e.getValue());
+            }
+            for (ItemStack stack : rolled) {
+                LootOdds.Row row = rows.get(stack.getItem());
+                if (row == null) {
+                    continue;
+                }
+                EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
+                        row.variant("enchantment:" + BuiltInRegistries.ENCHANTMENT.getKey(enchantment), enchantmentLevel));
+                Potion potion = PotionUtils.getPotion(stack);
+                if (potion != Potions.EMPTY) {
+                    row.variant("potion:" + BuiltInRegistries.POTION.getKey(potion), 0);
+                }
             }
         }
         List<LootOdds.Row> sorted = new ArrayList<>(rows.values());

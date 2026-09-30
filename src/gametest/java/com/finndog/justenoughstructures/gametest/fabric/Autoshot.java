@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Set;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
@@ -31,9 +33,10 @@ import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Dev-only screenshot run: makes a superflat world, opens the browser on each structure in turn,
- * saves a screenshot of each (and of an opened chest for a few), writes a summary and quits.
- * Enabled with {@code -Djes.autoshot=<folder>}; see the runAutoshot task.
+ * Dev-only screenshot run: makes a superflat world, then either opens the browser on each structure
+ * in turn and saves a screenshot of each (mode "gallery"), or plays one of the {@link Scenarios}
+ * ("review", "open", "showcase"). Writes a summary and quits. Enabled with
+ * {@code -Djes.autoshot=<folder>}; see the runAutoshot task.
  */
 public final class Autoshot implements ClientModInitializer {
     private static final List<String> DEFAULT_STRUCTURES = List.of(
@@ -44,7 +47,7 @@ public final class Autoshot implements ClientModInitializer {
     private static final Set<String> OPEN_CHEST = Set.of("minecraft:desert_pyramid", "minecraft:shipwreck", "minecraft:pillager_outpost");
     private static final int TIMEOUT_TICKS = 20 * 90;
 
-    private enum Step { START, WAIT_WORLD, WAIT_CATALOG, WAIT_IDLE, SETTLE, WAIT_CHEST, WAIT_LOOT_TAB, DONE }
+    private enum Step { START, WAIT_WORLD, WAIT_CATALOG, WAIT_IDLE, SETTLE, WAIT_CHEST, WAIT_LOOT_TAB, SCRIPT, DONE }
 
     private Step step = Step.START;
     private int ticks;
@@ -54,6 +57,8 @@ public final class Autoshot implements ClientModInitializer {
     private List<ResourceLocation> structures;
     private Path out;
     private boolean hide;
+    private String mode;
+    private Director director;
     private final JsonArray summary = new JsonArray();
 
     @Override
@@ -66,8 +71,21 @@ public final class Autoshot implements ClientModInitializer {
         structures = (list.isBlank() ? DEFAULT_STRUCTURES : Arrays.asList(list.split(","))).stream()
                 .map(String::trim).filter(s -> !s.isEmpty()).map(ResourceLocation::new).toList();
         hide = Boolean.parseBoolean(System.getProperty("jes.autoshot.hidden", "true"));
+        mode = System.getProperty("jes.autoshot.mode", "gallery");
         out = Path.of(folder);
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        // The scripted modes draw a cursor and count frames after every screen and the HUD.
+        ScreenEvents.AFTER_INIT.register((mc, screen, w, h) ->
+                ScreenEvents.afterRender(screen).register((s, graphics, mouseX, mouseY, partial) -> {
+                    if (director != null) {
+                        director.onRender(graphics);
+                    }
+                }));
+        HudRenderCallback.EVENT.register((graphics, partial) -> {
+            if (director != null && Minecraft.getInstance().screen == null) {
+                director.onRender(graphics);
+            }
+        });
     }
 
     private void tick(Minecraft mc) {
@@ -75,18 +93,22 @@ public final class Autoshot implements ClientModInitializer {
         stepTicks++;
         switch (step) {
             case START -> {
-                if (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen) {
+                // Wait for the loading overlay too: creating the world mid-reload renders chunks before shaders exist.
+                if (mc.getOverlay() == null && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
                     if (hide) {
                         GLFW.glfwHideWindow(mc.getWindow().getWindow());
                     }
-                    mc.options.guiScale().set(2);
+                    mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
                     mc.resizeDisplay();
                     createWorld(mc);
                     go(Step.WAIT_WORLD);
                 }
             }
             case WAIT_WORLD -> {
-                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
+                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40 && !mode.equals("gallery")) {
+                    director = Scenarios.build(mode, mc);
+                    go(Step.SCRIPT);
+                } else if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
                     screen = new JesScreen();
                     mc.setScreen(screen);
                     go(Step.WAIT_CATALOG);
@@ -150,6 +172,17 @@ public final class Autoshot implements ClientModInitializer {
                     screen.showInfoTab();
                     index++;
                     go(Step.WAIT_CATALOG);
+                }
+            }
+            case SCRIPT -> {
+                director.tick();
+                if (director.done() || stepTicks > 20 * 600) {
+                    JsonObject row = new JsonObject();
+                    row.addProperty("mode", mode);
+                    row.addProperty("finished", director.done());
+                    row.addProperty("frames", director.recordedFrames());
+                    summary.add(row);
+                    finish(mc);
                 }
             }
             case DONE -> {

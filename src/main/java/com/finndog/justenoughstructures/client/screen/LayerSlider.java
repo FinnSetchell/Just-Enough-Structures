@@ -27,9 +27,12 @@ final class LayerSlider extends AbstractSliderButton {
 
     @Override
     protected void updateMessage() {
-        setMessage(shown() >= layers
-                ? Component.translatable("screen.justenoughstructures.layers_all")
-                : Component.translatable("screen.justenoughstructures.layers", shown(), layers));
+        boolean narrow = width < 100;
+        if (shown() >= layers) {
+            setMessage(Component.translatable(narrow ? "screen.justenoughstructures.layers_all_short" : "screen.justenoughstructures.layers_all"));
+        } else {
+            setMessage(Component.translatable(narrow ? "screen.justenoughstructures.layers_short" : "screen.justenoughstructures.layers", shown(), layers));
+        }
     }
 
     @Override

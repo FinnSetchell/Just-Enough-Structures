@@ -82,14 +82,13 @@ final class ChestPopup {
         Gui.panel(g, x, infoTop, WIDTH, INFO_HEIGHT);
         String table = container.lootTable() == null
                 ? Component.translatable("screen.justenoughstructures.prefilled").getString()
-                : container.lootTable();
+                : StructureNames.lootTable(container.lootTable());
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, infoTop + 5, Gui.LABEL_SOFT);
         g.drawString(font, Gui.clip(font, table, WIDTH - 14), x + 7, infoTop + 12, 0xFF202020, false);
         if (items == null) {
             Gui.small(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         } else if (container.lootTable() != null) {
-            Gui.small(g, font, Component.translatable("screen.justenoughstructures.seed", Long.toHexString(seed).toUpperCase(Locale.ROOT)).getString(),
-                    x + 7, infoTop + 23, Gui.LABEL_SOFT);
+            Gui.small(g, font, Component.translatable("screen.justenoughstructures.roll_hint").getString(), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         }
         return hovered;
     }

@@ -23,6 +23,12 @@ public final class StructureNames {
         return JustEnoughStructures.modName(namespace);
     }
 
+    /** "minecraft:chests/desert_pyramid" becomes "Desert Pyramid". */
+    public static String lootTable(String id) {
+        ResourceLocation parsed = ResourceLocation.tryParse(id);
+        return parsed == null ? id : pretty(parsed.getPath());
+    }
+
     public static String pretty(String path) {
         String last = path.substring(path.lastIndexOf('/') + 1);
         StringBuilder out = new StringBuilder();

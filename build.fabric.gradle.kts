@@ -66,9 +66,10 @@ loom {
             vmArg("-Dfabric-api.gametest")
             vmArg("-Dfabric-api.gametest.report-file=${layout.buildDirectory.get().asFile}/gametest/report.xml")
         }
-        // Opens the structure browser on a list of structures in a throwaway superflat world and
-        // saves a screenshot of each to build/autoshot/screenshots, then quits. Pass
-        // -Pstructures=a:b,c:d to pick them, -Pshow to keep the window visible.
+        // Opens the structure browser in a throwaway superflat world, saves screenshots to
+        // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
+        // -Pmode=review|open|showcase plays a scripted tour or recording instead, -Pwidth and
+        // -Pheight size the window and -Pshow keeps it visible.
         register("autoshot") {
             client()
             configName = "Fabric Autoshot"
@@ -77,7 +78,9 @@ loom {
             vmArg("-Djes.autoshot=screenshots")
             vmArg("-Djes.autoshot.structures=${findProperty("structures") ?: ""}")
             vmArg("-Djes.autoshot.hidden=${!hasProperty("show")}")
-            programArgs("--width", "1600", "--height", "900")
+            vmArg("-Djes.autoshot.mode=${findProperty("mode") ?: "gallery"}")
+            vmArg("-Djes.autoshot.gui=${findProperty("gui") ?: 2}")
+            programArgs("--width", "${findProperty("width") ?: 1600}", "--height", "${findProperty("height") ?: 900}")
         }
     }
 

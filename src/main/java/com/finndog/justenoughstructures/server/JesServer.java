@@ -11,6 +11,15 @@ import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import io.netty.buffer.Unpooled;
+import com.mojang.datafixers.util.Pair;
+import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -188,6 +197,49 @@ public final class JesServer {
         buf.writeVarInt(requestId);
         Codecs.writeOdds(buf, odds);
         JesNetwork.send(player, JesNetwork.ODDS, buf);
+    }
+
+    private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};
+
+    /**
+     * Finds the nearest structure of this kind in the player's dimension, like /locate, and needs the
+     * same permission. Runs on the server thread because structure lookups load chunk data.
+     */
+    public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id) {
+        Component reply = player.hasPermissions(2)
+                ? locate(player.serverLevel(), player.blockPosition(), id)
+                : Component.translatable("screen.justenoughstructures.locate_no_permission");
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(requestId);
+        buf.writeComponent(reply);
+        JesNetwork.send(player, JesNetwork.LOCATE, buf);
+    }
+
+    /** The nearest structure of this kind to {@code from}, as a sentence for the player. */
+    public static Component locate(ServerLevel level, BlockPos from, ResourceLocation id) {
+        Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
+                .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
+        // Searching for something that can't generate here makes the game generate chunk after
+        // chunk looking for it, which can stall the server for minutes, so rule that out first.
+        boolean possible = holder.isPresent()
+                && level.getServer().getWorldData().worldGenOptions().generateStructures()
+                && !level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty();
+        if (!possible) {
+            return Component.translatable("screen.justenoughstructures.locate_impossible");
+        }
+        Pair<BlockPos, Holder<Structure>> found = level.getChunkSource().getGenerator()
+                .findNearestMapStructure(level, HolderSet.direct(holder.get()), from, 100, false);
+        if (found == null) {
+            return Component.translatable("screen.justenoughstructures.locate_none");
+        }
+        BlockPos at = found.getFirst();
+        int dx = at.getX() - from.getX();
+        int dz = at.getZ() - from.getZ();
+        double angle = Math.toDegrees(Math.atan2(dx, -dz));
+        String direction = DIRECTIONS[Math.floorMod((int) Math.round(angle / 45.0), 8)];
+        return Component.translatable("screen.justenoughstructures.locate_found",
+                String.format("%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz)),
+                Component.translatable("screen.justenoughstructures.direction." + direction), at.getX(), at.getZ());
     }
 
     private static void sendBlob(ServerPlayer player, int kind, int requestId, byte[] compressed) {

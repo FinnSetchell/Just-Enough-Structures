@@ -14,8 +14,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.finndog.justenoughstructures.server.JesServer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -126,6 +130,17 @@ public final class ServiceTests {
         helper.assertTrue(pyramidItems.contains(new ResourceLocation("enchanted_book")), "books enchanted by the table should count as enchanted books");
         Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(new ResourceLocation("chests/shipwreck_map"), Set.of());
         helper.assertTrue(mapItems.contains(new ResourceLocation("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
+        helper.succeed();
+    }
+
+    /** Looking for something that can't generate here must answer straight away, not search for minutes. */
+    public static void impossibleLocateIsQuick(GameTestHelper helper) {
+        long started = System.nanoTime();
+        Component reply = JesServer.locate(helper.getLevel(), helper.absolutePos(BlockPos.ZERO), new ResourceLocation("end_city"));
+        long millis = (System.nanoTime() - started) / 1_000_000L;
+        helper.assertTrue(millis < 2_000, "locating an end city in the overworld took " + millis + " ms");
+        helper.assertTrue(reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_impossible"),
+                "expected to be told it can't generate here, got " + reply.getString());
         helper.succeed();
     }
 

@@ -78,6 +78,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void impossibleLocateIsQuick(GameTestHelper helper) {
+        ServiceTests.impossibleLocateIsQuick(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownLootTableIsEmpty(GameTestHelper helper) {
         ServiceTests.unknownLootTableIsEmpty(helper);
     }

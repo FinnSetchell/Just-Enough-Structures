@@ -17,8 +17,8 @@ final class Gui {
     static final int LABEL_SOFT = 0xFF6A6A6A;
     static final int ROW_HOVER = 0xFFB0B0B0;
     static final int ROW_SELECTED = 0xFF9A9A9A;
-    static final int VIEW_TOP = 0xFF39414F;
-    static final int VIEW_BOTTOM = 0xFF15181D;
+    static final int VIEW_TOP = 0xFF6E7C90;
+    static final int VIEW_BOTTOM = 0xFF343B48;
     static final int BAR = 0xFF3E8A2A;
     static final int BAR_BACK = 0xFF8A8A8A;
 
@@ -52,6 +52,36 @@ final class Gui {
         g.pose().scale(0.75f, 0.75f, 1f);
         g.drawString(font, text, 0, 0, color, false);
         g.pose().popPose();
+    }
+
+    /**
+     * Draws text in {@code maxWidth}: shrunk a little if that's enough to fit, cut short with "..."
+     * if it still isn't, so similar names ("Ruined Portal Mountain", "Ruined Portal Swamp") stay
+     * tellable apart for as long as possible.
+     */
+    static void fitted(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {
+        int width = font.width(text);
+        if (width <= maxWidth) {
+            g.drawString(font, text, x, y, color, false);
+            return;
+        }
+        float scale = Math.max(0.75f, (float) maxWidth / width);
+        String shown = width * scale <= maxWidth ? text : clip(font, text, (int) (maxWidth / scale));
+        g.pose().pushPose();
+        g.pose().translate(x, y + font.lineHeight * (1f - scale) / 2f, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(font, shown, 0, 0, color, false);
+        g.pose().popPose();
+    }
+
+    static void scrollbar(GuiGraphics g, int x, int y, int height, double scroll, double maxScroll) {
+        if (maxScroll <= 0) {
+            return;
+        }
+        g.fill(x, y, x + 3, y + height, 0x30000000);
+        int thumb = Math.max(10, (int) (height * height / (height + maxScroll)));
+        int top = y + (int) ((height - thumb) * Math.min(1, scroll / maxScroll));
+        g.fill(x, top, x + 3, top + thumb, 0xFF6F6F6F);
     }
 
     static String clip(Font font, String text, int width) {

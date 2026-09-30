@@ -5,7 +5,9 @@ import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.finndog.justenoughstructures.loot.LootOdds;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,10 +58,32 @@ final class FoundInPopup {
             rows = new ArrayList<>();
             for (Map.Entry<ResourceLocation, Set<ResourceLocation>> e : FoundIn.structuresFor(item.getItem()).entrySet()) {
                 rows.add(new Row(e.getKey(), e.getValue()));
+                e.getValue().forEach(ClientRequests::odds);
             }
-            rows.sort((a, b) -> StructureNames.structure(a.structure()).compareToIgnoreCase(StructureNames.structure(b.structure())));
+        }
+        if (rows != null) {
+            // Best chance first, as the odds come in; alphabetical until then.
+            rows.sort(Comparator.comparingDouble((Row r) -> -chance(r)).thenComparing(r -> StructureNames.structure(r.structure())));
         }
         return rows;
+    }
+
+    /** The best chance, per container, of any loot table in the structure giving the item; -1 until known. */
+    private double chance(Row row) {
+        double best = -1;
+        for (ResourceLocation table : row.tables()) {
+            LootOdds odds = ClientRequests.odds(table).getNow(null);
+            if (odds == null) {
+                continue;
+            }
+            best = Math.max(best, 0);
+            for (LootOdds.Row r : odds.rows()) {
+                if (r.example().is(item.getItem())) {
+                    best = Math.max(best, (double) r.hits() / odds.rolls());
+                }
+            }
+        }
+        return best;
     }
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
@@ -78,7 +102,7 @@ final class FoundInPopup {
             Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.LABEL_SOFT);
             return;
         }
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.found_in", list.size()).getString(), x + 30, y + 17, Gui.LABEL_SOFT);
+        Gui.small(g, font, Component.translatable("screen.justenoughstructures.found_in_chance", list.size()).getString(), x + 30, y + 17, Gui.LABEL_SOFT);
         Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, 0xFFB9B9B9);
         if (list.isEmpty()) {
             Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.LABEL_SOFT);
@@ -96,8 +120,11 @@ final class FoundInPopup {
             } else {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
-            g.drawString(font, Gui.clip(font, StructureNames.structure(row.structure()), WIDTH - 50), x + 30, ry + 3, 0xFF202020, false);
-            String tables = row.tables().stream().map(ResourceLocation::toString).collect(Collectors.joining(", "));
+            double chance = chance(row);
+            String pct = chance < 0 ? "..." : chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
+            Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), 0xFF202020);
+            g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, 0xFF202020, false);
+            String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct().collect(Collectors.joining(", "));
             Gui.small(g, font, Gui.clip(font, tables, (int) ((WIDTH - 40) / 0.75f)), x + 30, ry + 13, Gui.LABEL_SOFT);
         }
         if (list.size() > VISIBLE_ROWS) {

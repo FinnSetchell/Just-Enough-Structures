@@ -14,14 +14,19 @@ loaders to follow.
 
 Press **K** (you can change it in Controls) to open the browser.
 
-- Search the list on the left, or type `@` and part of a mod's name to show only that mod.
-- Drag to turn the preview, shift-drag or right-drag to move it, scroll to zoom.
-- **Reroll** generates the structure again from a new seed. **Layers** hides the top of it so you
-  can see inside.
+- Search the list on the left. A search also finds items in structures' loot: click one to see
+  every structure it can come from, best chance first. `@mod` shows one mod's structures and
+  `$item` shows the structures whose loot can give an item.
+- Drag to turn the preview, shift-drag or right-drag to move it, scroll to zoom. The spyglass
+  button makes the preview fill the screen.
+- **New layout** generates the structure again from a new seed. **Layers** hides the top of it
+  so you can see inside.
 - Click a chest, barrel or suspicious block (or the marker floating over it) to open it and see a
-  real roll of its loot. **Reroll loot** rolls again.
-- The **Loot** tab lists every loot table in the structure with the odds of each item. **Blocks**
-  counts what it's made of and **Mobs** lists what it places.
+  real roll of its loot. **Roll again** rolls it again.
+- The **Info** tab says where it spawns and how common it is. **Loot** lists every loot table in
+  it with the chance of each item, **Blocks** is a material list you can copy or save as a
+  structure file, and **Mobs** lists what it places, its spawners and what keeps spawning there.
+- With cheats on (or as an operator), the recovery compass button finds the nearest one.
 
 ## Requirements
 

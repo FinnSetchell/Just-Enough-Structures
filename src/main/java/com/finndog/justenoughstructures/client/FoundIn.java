@@ -1,7 +1,10 @@
 package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.loot.LootIndex;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +65,18 @@ public final class FoundIn {
             }
         }
         return false;
+    }
+
+    /** Loot items whose name or id contains {@code text}, most widespread first. */
+    public static List<Item> itemsMatching(String text, int limit) {
+        List<ResourceLocation> matches = new ArrayList<>();
+        for (ResourceLocation item : byItem.keySet()) {
+            if (item.getPath().contains(text) || name(item).contains(text)) {
+                matches.add(item);
+            }
+        }
+        matches.sort(Comparator.comparingInt((ResourceLocation id) -> -byItem.get(id).size()).thenComparing(FoundIn::name));
+        return matches.stream().limit(limit).map(BuiltInRegistries.ITEM::get).toList();
     }
 
     private static String name(ResourceLocation item) {

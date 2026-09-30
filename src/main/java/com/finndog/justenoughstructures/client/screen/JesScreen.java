@@ -31,9 +31,12 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -42,17 +45,27 @@ import org.lwjgl.glfw.GLFW;
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
 public class JesScreen extends Screen {
     private static final int PAD = 6;
+    private static final ItemStack RESET_ICON = new ItemStack(Items.COMPASS);
+    private static final ItemStack SPIN_ICON = new ItemStack(Items.CLOCK);
+    private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
+    private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
+    private static final ItemStack MAXIMISE_ICON = new ItemStack(Items.SPYGLASS);
+    private static final ItemStack LOCATE_ICON = new ItemStack(Items.RECOVERY_COMPASS);
     private static ResourceLocation lastSelected;
+    private static boolean maximised;
 
     private final StructureList list = new StructureList();
     private final StructureViewport viewport = new StructureViewport();
-    private final Map<String, LootOdds> odds = new HashMap<>();
+    private final ThumbnailQueue thumbnails = new ThumbnailQueue();
     private InfoPanel info;
 
     private EditBox search;
     private Button rerollButton;
-    private Button spinButton;
-    private Button markersButton;
+    private IconButton spinButton;
+    private IconButton markersButton;
+    private IconButton groundButton;
+    private IconButton maximiseButton;
+    private IconButton locateButton;
     private LayerSlider slider;
     private Button chestReroll;
     private Button chestPrev;
@@ -70,7 +83,10 @@ public class JesScreen extends Screen {
     private String pendingTable;
 
     private boolean spin = true;
-    private MarkerMode markers = MarkerMode.ALL;
+    private boolean markers = true;
+    private boolean ground = true;
+    private Component locateText;
+    private boolean sides;
     private long lastFrame = System.nanoTime();
 
     private int listX, listY, listW, listH;
@@ -82,21 +98,10 @@ public class JesScreen extends Screen {
     private boolean dragged;
     private final List<Marker> markerRects = new ArrayList<>();
 
-    private record Marker(int x, int y, int size, StructureSnapshot.Container container) {
-    }
-
-    /** Which loot markers float over the preview. Chests only leaves out suspicious sand and gravel. */
-    private enum MarkerMode {
-        ALL("all"), CHESTS("chests"), OFF("off");
-
-        final String key;
-
-        MarkerMode(String key) {
-            this.key = key;
-        }
-
-        MarkerMode next() {
-            return values()[(ordinal() + 1) % values().length];
+    /** A marker on screen. Markers that would overlap are merged, so {@code containers} can hold several. */
+    private record Marker(int x, int y, int size, List<StructureSnapshot.Container> containers) {
+        StructureSnapshot.Container container() {
+            return containers.get(0);
         }
     }
 
@@ -111,20 +116,25 @@ public class JesScreen extends Screen {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
         }
-        int leftW = clamp(width / 4, 120, 175);
-        int rightW = clamp(width / 4, 140, 200);
+        // Side panels need room; below that, or when maximised, the preview takes the whole width.
+        sides = !maximised && width >= 330;
+        int leftW = sides ? clamp(width / 4, 118, 175) : 0;
+        int rightW = sides ? clamp(width / 4, 138, 200) : 0;
         listX = PAD;
         listW = leftW;
-        centreX = listX + leftW + PAD;
+        centreX = sides ? listX + leftW + PAD : PAD;
         infoW = rightW;
         infoX = width - PAD - infoW;
-        centreW = infoX - PAD - centreX;
+        centreW = sides ? infoX - PAD - centreX : width - PAD * 2;
 
         String query = search == null ? "" : search.getValue();
-        search = new EditBox(font, listX + 5, PAD + 5, listW - 10, 16, Component.translatable("screen.justenoughstructures.search"));
-        search.setHint(Component.translatable("screen.justenoughstructures.search_hint").withStyle(ChatFormatting.DARK_GRAY));
+        search = new EditBox(font, listX + 5, PAD + 5, Math.max(10, listW - 10), 16, Component.translatable("screen.justenoughstructures.search"));
+        search.setHint(Component.translatable(listW >= 150 ? "screen.justenoughstructures.search_hint" : "screen.justenoughstructures.search_hint_short")
+                .withStyle(ChatFormatting.DARK_GRAY));
+        search.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.search_help")));
         search.setValue(query);
         search.setResponder(value -> list.setQuery(value));
+        search.visible = sides;
         addRenderableWidget(search);
         listY = PAD + 25;
         listH = height - PAD - listY - 5;
@@ -136,29 +146,46 @@ public class JesScreen extends Screen {
         viewW = centreW - 10;
         viewH = toolbarY - 3 - viewY;
 
+        int headerRight = centreX + centreW - 6;
+        maximiseButton = addRenderableWidget(new IconButton(headerRight - 20, PAD + 5, () -> MAXIMISE_ICON, () -> maximised,
+                Component.translatable(maximised ? "screen.justenoughstructures.restore" : "screen.justenoughstructures.maximise"), b -> {
+            maximised = !maximised;
+            rebuildWidgets();
+        }));
+        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, () -> LOCATE_ICON, null,
+                Component.translatable("screen.justenoughstructures.locate"), b -> locate()));
+
         int bx = viewX;
-        rerollButton = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll"), b -> reroll())
-                .bounds(bx, toolbarY, 56, 20).tooltip(Tooltip.create(
+        boolean roomy = viewW >= 250;
+        rerollButton = addRenderableWidget(Button.builder(Component.translatable(roomy ? "screen.justenoughstructures.reroll" : "screen.justenoughstructures.reroll_short"), b -> reroll())
+                .bounds(bx, toolbarY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
                         Component.translatable("screen.justenoughstructures.reroll_tooltip"))).build());
-        bx += 58;
-        addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera())
-                .bounds(bx, toolbarY, 40, 20).build());
-        bx += 42;
-        spinButton = addRenderableWidget(Button.builder(spinLabel(), b -> {
+        bx += roomy ? 68 : 36;
+        addRenderableWidget(new IconButton(bx, toolbarY, () -> RESET_ICON, null,
+                Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
+        bx += 22;
+        spinButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> SPIN_ICON, () -> spin, spinLabel(), b -> {
             spin = !spin;
-            b.setMessage(spinLabel());
-        }).bounds(bx, toolbarY, 40, 20).build());
-        bx += 42;
-        markersButton = addRenderableWidget(Button.builder(markersLabel(), b -> {
-            markers = markers.next();
-            b.setMessage(markersLabel());
-        }).bounds(bx, toolbarY, 62, 20).build());
-        bx += 64;
-        slider = addRenderableWidget(new LayerSlider(bx, toolbarY, Math.max(60, viewX + viewW - bx), 20, shown -> {
+            spinButton.setLabel(spinLabel());
+        }));
+        bx += 22;
+        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> markers, markersLabel(), b -> {
+            markers = !markers;
+            markersButton.setLabel(markersLabel());
+        }));
+        bx += 22;
+        groundButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> GROUND_ICON, () -> ground, groundLabel(), b -> {
+            ground = !ground;
+            groundButton.setLabel(groundLabel());
+            updateGround();
+        }));
+        bx += 24;
+        slider = addRenderableWidget(new LayerSlider(bx, toolbarY, Math.max(30, viewX + viewW - bx), 20, shown -> {
             if (view != null) {
                 view.setSliceY(shown);
             }
         }));
+        slider.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.layers_tooltip")));
         updateSlider();
 
         info.layout(infoX + 5, PAD + 5, infoW - 10, height - PAD * 2 - 10);
@@ -219,6 +246,9 @@ public class JesScreen extends Screen {
     }
 
     private void select(StructureCatalog.Entry entry, long newSeed) {
+        if (selected != entry) {
+            locateText = null;
+        }
         selected = entry;
         lastSelected = entry.id();
         seed = newSeed;
@@ -250,8 +280,39 @@ public class JesScreen extends Screen {
             view = new SnapshotView(captured.snapshot());
             view.createRenderables(minecraft.level);
             viewport.setView(view);
+            updateGround();
         }
         updateSlider();
+    }
+
+    /** Where the flat ground the structure was generated on sits, as a local height, if it cuts through it. */
+    private void updateGround() {
+        if (view == null) {
+            return;
+        }
+        StructureSnapshot s = view.snapshot();
+        int surface = switch (s.terrain()) {
+            case LAND -> 64;
+            case OCEAN -> 43;
+            case NETHER -> 41;
+            case END -> 65;
+            case VOID -> Integer.MIN_VALUE;
+        };
+        int local = surface - s.origin().getY();
+        viewport.setGround(ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
+    }
+
+    private void locate() {
+        if (selected == null) {
+            return;
+        }
+        ResourceLocation id = selected.id();
+        locateText = Component.translatable("screen.justenoughstructures.locating");
+        ClientRequests.locate(id).thenAccept(reply -> {
+            if (selected != null && selected.id().equals(id)) {
+                locateText = reply;
+            }
+        });
     }
 
     private void reroll() {
@@ -289,17 +350,9 @@ public class JesScreen extends Screen {
         if (table == null) {
             return;
         }
-        LootOdds cached = odds.get(table);
-        if (cached != null) {
-            info.setOdds(cached);
-            return;
-        }
         ResourceLocation id = ResourceLocation.tryParse(table);
         if (id != null) {
-            ClientRequests.odds(id).thenAccept(o -> {
-                odds.put(table, o);
-                info.setOdds(o);
-            });
+            ClientRequests.odds(id).thenAccept(info::setOdds);
         }
     }
 
@@ -399,6 +452,95 @@ public class JesScreen extends Screen {
         info.setTab(InfoPanel.Tab.OVERVIEW);
     }
 
+    // ------------------------------------------------------------------ positions, for the dev harness
+
+    /** Makes the next opened browser start on this structure. */
+    public static void startOn(ResourceLocation id) {
+        lastSelected = id;
+    }
+
+    public void setSpin(boolean on) {
+        spin = on;
+        if (spinButton != null) {
+            spinButton.setLabel(spinLabel());
+        }
+    }
+
+    public Optional<int[]> structureRow(ResourceLocation id) {
+        return list.rowCentre(id);
+    }
+
+    public int[] viewportCentre() {
+        return new int[]{viewX + viewW / 2, viewY + viewH / 2};
+    }
+
+    public int[] searchBox() {
+        return new int[]{search.getX() + search.getWidth() / 2, search.getY() + search.getHeight() / 2};
+    }
+
+    /** A point on the layer slider, {@code fraction} of the way along it. */
+    public int[] sliderAt(float fraction) {
+        return new int[]{slider.getX() + 4 + Math.round((slider.getWidth() - 8) * fraction), slider.getY() + slider.getHeight() / 2};
+    }
+
+    public int[] button(String name) {
+        Button b = switch (name) {
+            case "reroll" -> rerollButton;
+            case "spin" -> spinButton;
+            case "markers" -> markersButton;
+            case "ground" -> groundButton;
+            case "maximise" -> maximiseButton;
+            case "locate" -> locateButton;
+            case "reroll_loot" -> chestReroll;
+            case "next" -> chestNext;
+            case "done" -> chestClose;
+            default -> throw new IllegalArgumentException(name);
+        };
+        return new int[]{b.getX() + b.getWidth() / 2, b.getY() + b.getHeight() / 2};
+    }
+
+    public int[] tab(String name) {
+        return info.tabCentre(InfoPanel.Tab.valueOf(name.toUpperCase(Locale.ROOT)));
+    }
+
+    /** Where the marker for the first container using {@code table} is drawn, if it's on screen. */
+    public Optional<int[]> marker(String table) {
+        for (Marker m : markerRects) {
+            if (table.equals(m.container().lootTable())) {
+                return Optional.of(new int[]{m.x() + m.size() / 2, m.y() + m.size() / 2});
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Optional<int[]> oddsRow(Item item) {
+        return Optional.ofNullable(info.oddsRow(item));
+    }
+
+    public Optional<int[]> chestSlotWithItem() {
+        if (popup == null || popup.items == null) {
+            return Optional.empty();
+        }
+        for (int i = 0; i < popup.items.size(); i++) {
+            if (!popup.items.get(i).isEmpty()) {
+                return Optional.of(new int[]{popup.x + 8 + (i % 9) * 18 + 8, popup.y + 18 + (i / 9) * 18 + 8});
+            }
+        }
+        return Optional.empty();
+    }
+
+    public boolean containerOpen() {
+        return popup != null && popup.items != null;
+    }
+
+    public boolean foundInOpen() {
+        return foundIn != null;
+    }
+
+    public int sliceLayers() {
+        return view == null ? 0 : view.size().getY();
+    }
+
     private void closePopup() {
         popup = null;
         layoutPopupButtons();
@@ -490,18 +632,25 @@ public class JesScreen extends Screen {
         }
 
         renderBackground(g);
-        Gui.panel(g, listX, PAD, listW, height - PAD * 2);
+        if (sides) {
+            Gui.panel(g, listX, PAD, listW, height - PAD * 2);
+            Gui.panel(g, infoX, PAD, infoW, height - PAD * 2);
+        }
         Gui.panel(g, centreX, PAD, centreW, height - PAD * 2);
-        Gui.panel(g, infoX, PAD, infoW, height - PAD * 2);
 
         boolean popupOpen = popup != null;
         boolean anyPopup = popupOpen || foundIn != null;
         int mx = anyPopup ? -1 : mouseX;
         int my = anyPopup ? -1 : mouseY;
-        list.render(g, font, mx, my);
+        if (sides) {
+            list.render(g, font, mx, my);
+            thumbnails.tick(list.visible(), result == null || viewport.meshing());
+        }
         renderHeader(g);
         StructureViewport.Hit hover = renderViewport(g, mx, my, partialTick);
-        info.render(g, mx, my);
+        if (sides) {
+            info.render(g, mx, my);
+        }
 
         for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
             b.visible = false;
@@ -532,14 +681,24 @@ public class JesScreen extends Screen {
         if (foundIn != null) {
             return;
         }
+        // Above the popups, whose items are drawn a long way towards the viewer.
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 600);
+        renderTooltips(g, mouseX, mouseY, popupOpen, popupHover, hover);
+        g.pose().popPose();
+    }
+
+    private void renderTooltips(GuiGraphics g, int mouseX, int mouseY, boolean popupOpen, ItemStack popupHover, StructureViewport.Hit hover) {
         if (popupOpen) {
             if (!popupHover.isEmpty()) {
-                g.renderComponentTooltip(font, itemTooltip(popupHover), mouseX, mouseY);
+                g.renderComponentTooltip(font, itemTooltip(popupHover, List.of()), mouseX, mouseY);
             }
-        } else if (!info.hoveredStack().isEmpty()) {
-            g.renderComponentTooltip(font, itemTooltip(info.hoveredStack()), mouseX, mouseY);
-        } else if (!info.hoveredText().isEmpty()) {
+        } else if (sides && !info.hoveredStack().isEmpty()) {
+            g.renderComponentTooltip(font, itemTooltip(info.hoveredStack(), info.hoveredExtra()), mouseX, mouseY);
+        } else if (sides && !info.hoveredText().isEmpty()) {
             g.renderComponentTooltip(font, info.hoveredText(), mouseX, mouseY);
+        } else if (sides && !list.tooltip().isEmpty()) {
+            g.renderComponentTooltip(font, list.tooltip(), mouseX, mouseY);
         } else if (hover != null) {
             g.renderComponentTooltip(font, hoverLines(hover), mouseX, mouseY);
         }
@@ -548,8 +707,9 @@ public class JesScreen extends Screen {
     private ItemStack popupHovered = ItemStack.EMPTY;
 
     /** The normal item tooltip with a line saying how to find where else it turns up. */
-    private List<Component> itemTooltip(ItemStack stack) {
+    private List<Component> itemTooltip(ItemStack stack, List<Component> extra) {
         List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, stack));
+        lines.addAll(extra);
         lines.add(Component.translatable("screen.justenoughstructures.found_in_hint").withStyle(ChatFormatting.DARK_GRAY));
         return lines;
     }
@@ -560,9 +720,10 @@ public class JesScreen extends Screen {
             g.drawString(font, title, x, PAD + 6, 0xFF202020, false);
             return;
         }
-        g.drawString(font, Gui.clip(font, StructureNames.structure(selected.id()), centreW - 12), x, PAD + 6, 0xFF202020, false);
-        Gui.small(g, font, Gui.clip(font, selected.id() + "  " + StructureNames.mod(selected.id().getNamespace()), (int) ((centreW - 12) / 0.75f)),
-                x, PAD + 17, Gui.LABEL_SOFT);
+        int room = centreW - 12 - 46;
+        Gui.fitted(g, font, StructureNames.structure(selected.id()), x, PAD + 6, room, 0xFF202020);
+        Component second = locateText != null ? locateText : Component.literal(StructureNames.mod(selected.id().getNamespace()));
+        Gui.small(g, font, Gui.clip(font, second.getString(), (int) (room / 0.75f)), x, PAD + 17, locateText != null ? 0xFF2E5B1D : Gui.LABEL_SOFT);
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -614,87 +775,161 @@ public class JesScreen extends Screen {
 
         StructureSnapshot s = result.snapshot();
         g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
-        if (markers != MarkerMode.OFF) {
-            for (StructureSnapshot.Container c : s.containers()) {
-                if (c.lootTable() == null || c.pos().getY() >= view.sliceY()) {
-                    continue;
-                }
-                if (markers == MarkerMode.CHESTS && !c.entity() && !(view.blockEntities().get(c.pos()) instanceof Container)) {
-                    continue;
-                }
-                Optional<float[]> at = viewport.project(c.pos().getX() + 0.5, c.pos().getY() + 1.1, c.pos().getZ() + 0.5);
-                if (at.isEmpty()) {
-                    continue;
-                }
-                int size = 12;
-                int mx = (int) at.get()[0] - size / 2;
-                int my = (int) at.get()[1] - size;
-                boolean over = mouseX >= mx && mouseX < mx + size && mouseY >= my && mouseY < my + size;
+        if (markers) {
+            placeMarkers(s);
+            for (Marker m : markerRects) {
+                boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size();
                 g.pose().pushPose();
                 g.pose().translate(0, 0, 200);
-                g.fill(mx - 1, my - 1, mx + size + 1, my + size + 1, over ? 0xFFFFFF55 : 0xFF000000);
-                g.fill(mx, my, mx + size, my + size, 0xFF2B2B2B);
-                g.pose().translate(mx + 0.5f, my + 0.5f, 0);
-                g.pose().scale(0.6875f, 0.6875f, 1f);
-                g.renderItem(InfoPanel.containerIcon(s, c), 0, 0);
+                g.fill(m.x() - 1, m.y() - 1, m.x() + m.size() + 1, m.y() + m.size() + 1, over ? 0xFFFFFF55 : 0xFF000000);
+                g.fill(m.x(), m.y(), m.x() + m.size(), m.y() + m.size(), 0xFF2B2B2B);
+                g.pose().pushPose();
+                g.pose().translate(m.x() + 0.5f, m.y() + 0.5f, 0);
+                float scale = (m.size() - 1) / 16f;
+                g.pose().scale(scale, scale, 1f);
+                g.renderItem(InfoPanel.containerIcon(s, m.container()), 0, 0);
                 g.pose().popPose();
-                markerRects.add(new Marker(mx, my, size, c));
+                if (m.containers().size() > 1) {
+                    String count = String.valueOf(m.containers().size());
+                    g.pose().translate(0, 0, 200);
+                    Gui.small(g, font, count, m.x() + m.size() - (int) (font.width(count) * 0.75f) + 1, m.y() + m.size() - 5, 0xFFFFFFFF);
+                }
+                g.pose().popPose();
             }
         }
 
         String stats = Component.translatable("screen.justenoughstructures.stats", String.format("%,d", s.blockCount()),
                 s.containers().stream().filter(c -> c.lootTable() != null).count()).getString();
         g.drawString(font, Gui.clip(font, stats, viewW - 12), viewX + 6, viewY + 6, 0xFFE8E8E8, true);
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.seed", Long.toHexString(seed).toUpperCase(Locale.ROOT)).getString(),
-                viewX + 6, viewY + 17, 0xFFB8B8B8);
         if (viewport.meshing()) {
             int barW = Math.min(120, viewW - 20);
             int bx = viewX + (viewW - barW) / 2;
             int by = viewY + viewH - 12;
+            String building = Component.translatable("screen.justenoughstructures.building").getString();
+            Gui.small(g, font, building, viewX + (viewW - (int) (font.width(building) * 0.75f)) / 2, by - 9, 0xFFE0E0E0);
             g.fill(bx - 1, by - 1, bx + barW + 1, by + 5, 0xFF000000);
             g.fill(bx, by, bx + (int) (barW * viewport.meshProgress()), by + 4, 0xFF7FD06A);
         } else {
-            Gui.small(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.controls").getString(), (int) ((viewW - 12) / 0.75f)),
-                    viewX + 6, viewY + viewH - 10, 0xFFB0B0B0);
+            String hint = Component.translatable("screen.justenoughstructures.controls").getString();
+            if (font.width(hint) * 0.75f > viewW - 12) {
+                hint = Component.translatable("screen.justenoughstructures.controls_short").getString();
+            }
+            Gui.small(g, font, Gui.clip(font, hint, (int) ((viewW - 12) / 0.75f)), viewX + 6, viewY + viewH - 10, 0xFFE0E0E0);
         }
         g.disableScissor();
 
         for (Marker m : markerRects) {
             if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
-                return new StructureViewport.Hit(m.container().pos(), view.rawState(m.container().pos().getX(), m.container().pos().getY(), m.container().pos().getZ()), null);
+                BlockPos pos = m.container().pos();
+                return new StructureViewport.Hit(pos, view.rawState(pos.getX(), pos.getY(), pos.getZ()), null);
             }
         }
         return hover;
     }
 
-    private void centred(GuiGraphics g, Component text) {
-        int textH = Gui.wrappedHeight(font, text, viewW - 30);
-        Gui.wrapped(g, font, text, viewX + 15, viewY + (viewH - textH) / 2, viewW - 30, 0xFFE0E0E0);
+    /**
+     * Works out where each loot marker goes. They're sized to roughly one block at the current zoom,
+     * and any that would overlap are merged into one marker with a count, nearest to the camera first.
+     */
+    private void placeMarkers(StructureSnapshot s) {
+        record Placed(float x, float y, float size, StructureSnapshot.Container container) {
+        }
+        List<Placed> placed = new ArrayList<>();
+        for (StructureSnapshot.Container c : s.containers()) {
+            if (c.lootTable() == null || c.pos().getY() >= view.sliceY()) {
+                continue;
+            }
+            Optional<float[]> at = viewport.project(c.pos().getX() + 0.5, c.pos().getY() + 1.1, c.pos().getZ() + 0.5);
+            Optional<float[]> above = viewport.project(c.pos().getX() + 0.5, c.pos().getY() + 2.1, c.pos().getZ() + 0.5);
+            if (at.isEmpty() || above.isEmpty()) {
+                continue;
+            }
+            float block = Math.abs(at.get()[1] - above.get()[1]);
+            boolean chest = c.entity() || view.blockEntities().get(c.pos()) instanceof Container;
+            float size = Math.max(chest ? 8 : 6, Math.min(chest ? 16 : 10, block * 0.8f));
+            placed.add(new Placed(at.get()[0], at.get()[1], size, c));
+        }
+        List<List<Placed>> groups = new ArrayList<>();
+        for (Placed p : placed) {
+            List<Placed> joined = null;
+            for (List<Placed> group : groups) {
+                Placed head = group.get(0);
+                if (Math.abs(head.x() - p.x()) < head.size() && Math.abs(head.y() - p.y()) < head.size()) {
+                    joined = group;
+                    break;
+                }
+            }
+            if (joined == null) {
+                joined = new ArrayList<>();
+                groups.add(joined);
+            }
+            joined.add(p);
+        }
+        for (List<Placed> group : groups) {
+            Placed head = group.get(0);
+            int size = Math.round(head.size());
+            markerRects.add(new Marker(Math.round(head.x()) - size / 2, Math.round(head.y()) - size, size,
+                    group.stream().map(Placed::container).toList()));
+        }
     }
 
+    private void centred(GuiGraphics g, Component text) {
+        List<FormattedCharSequence> lines = font.split(text, viewW - 30);
+        int y = viewY + (viewH - lines.size() * (font.lineHeight + 1)) / 2;
+        for (FormattedCharSequence line : lines) {
+            g.drawString(font, line, viewX + (viewW - font.width(line)) / 2, y, 0xFFE0E0E0, false);
+            y += font.lineHeight + 1;
+        }
+    }
+
+    /** Short by default; holding Shift adds block states, ids and positions for people who want them. */
     private List<Component> hoverLines(StructureViewport.Hit hit) {
         List<Component> lines = new ArrayList<>();
         StructureSnapshot.Container container = containerAt(hit);
+        boolean details = hasShiftDown();
         if (hit.entity() != null) {
             lines.add(hit.entity().getName());
         } else {
             BlockState state = hit.state();
             lines.add(state.getBlock().getName());
-            for (Property<?> property : state.getProperties()) {
-                lines.add(Component.literal(property.getName() + ": " + state.getValue(property)).withStyle(ChatFormatting.GRAY));
+            if (details) {
+                for (Property<?> property : state.getProperties()) {
+                    lines.add(Component.literal(property.getName() + ": " + state.getValue(property)).withStyle(ChatFormatting.GRAY));
+                }
             }
         }
+        int grouped = markerAt(hit.pos());
         if (container != null) {
             if (container.lootTable() != null) {
-                lines.add(Component.translatable("screen.justenoughstructures.hover_loot", container.lootTable()).withStyle(ChatFormatting.AQUA));
+                lines.add(Component.translatable("screen.justenoughstructures.hover_loot", StructureNames.lootTable(container.lootTable())).withStyle(ChatFormatting.AQUA));
+            }
+            if (grouped > 1) {
+                lines.add(Component.translatable("screen.justenoughstructures.hover_grouped", grouped).withStyle(ChatFormatting.GRAY));
             }
             lines.add(Component.translatable("screen.justenoughstructures.hover_open").withStyle(ChatFormatting.YELLOW));
         }
         ResourceLocation id = hit.entity() != null ? BuiltInRegistries.ENTITY_TYPE.getKey(hit.entity().getType())
                 : BuiltInRegistries.BLOCK.getKey(hit.state().getBlock());
-        lines.add(Component.literal(id + "  " + hit.pos().toShortString()).withStyle(ChatFormatting.DARK_GRAY));
+        if (details) {
+            if (container != null && container.lootTable() != null) {
+                lines.add(Component.literal(container.lootTable()).withStyle(ChatFormatting.DARK_GRAY));
+            }
+            lines.add(Component.literal(id + "  " + hit.pos().toShortString()).withStyle(ChatFormatting.DARK_GRAY));
+        }
         lines.add(Component.literal(StructureNames.mod(id.getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
         return lines;
+    }
+
+    /** How many containers the marker covering {@code pos} stands for, or 0. */
+    private int markerAt(BlockPos pos) {
+        for (Marker m : markerRects) {
+            for (StructureSnapshot.Container c : m.containers()) {
+                if (c.pos().equals(pos)) {
+                    return m.containers().size();
+                }
+            }
+        }
+        return 0;
     }
 
     private StructureSnapshot.Container containerAt(StructureViewport.Hit hit) {
@@ -746,14 +981,17 @@ public class JesScreen extends Screen {
             return true;
         }
         if (button == 0) {
-            Optional<StructureCatalog.Entry> clicked = list.click(mouseX, mouseY);
+            Optional<StructureList.Pick> clicked = sides ? list.click(mouseX, mouseY) : Optional.empty();
             if (clicked.isPresent()) {
-                if (clicked.get() != selected) {
-                    select(clicked.get(), defaultSeed(clicked.get().id()));
+                StructureList.Pick pick = clicked.get();
+                if (pick.entry() != null && pick.entry() != selected) {
+                    select(pick.entry(), defaultSeed(pick.entry().id()));
+                } else if (!pick.item().isEmpty()) {
+                    openFoundIn(pick.item());
                 }
                 return true;
             }
-            if (info.click(mouseX, mouseY)) {
+            if (sides && info.click(mouseX, mouseY)) {
                 return true;
             }
         }
@@ -805,7 +1043,7 @@ public class JesScreen extends Screen {
             viewport.zoom(delta);
             return true;
         }
-        return list.scroll(mouseX, mouseY, delta) || info.scroll(mouseX, mouseY, delta) || super.mouseScrolled(mouseX, mouseY, delta);
+        return (sides && (list.scroll(mouseX, mouseY, delta) || info.scroll(mouseX, mouseY, delta))) || super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override
@@ -848,6 +1086,7 @@ public class JesScreen extends Screen {
     @Override
     public void removed() {
         viewport.close();
+        thumbnails.close();
         super.removed();
     }
 
@@ -855,8 +1094,12 @@ public class JesScreen extends Screen {
         return Component.translatable(spin ? "screen.justenoughstructures.spin_on" : "screen.justenoughstructures.spin_off");
     }
 
+    private Component groundLabel() {
+        return Component.translatable(ground ? "screen.justenoughstructures.ground_on" : "screen.justenoughstructures.ground_off");
+    }
+
     private Component markersLabel() {
-        return Component.translatable("screen.justenoughstructures.markers_" + markers.key);
+        return Component.translatable(markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
     }
 
     private static int clamp(int value, int min, int max) {

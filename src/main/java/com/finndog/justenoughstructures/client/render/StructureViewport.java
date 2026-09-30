@@ -55,6 +55,7 @@ public final class StructureViewport implements AutoCloseable {
     private float homeDistance;
 
     private int x, y, width, height;
+    private int groundY = -1;
     private final Matrix4f viewMatrix = new Matrix4f();
     private final Matrix4f projection = new Matrix4f();
     private final Vector3f eye = new Vector3f();
@@ -68,12 +69,24 @@ public final class StructureViewport implements AutoCloseable {
         resetCamera();
     }
 
+    /** Draws a see-through plane where the ground was, or nothing when {@code localY} is negative. */
+    public void setGround(int localY) {
+        groundY = localY;
+    }
+
     public SnapshotView view() {
         return view;
     }
 
     public boolean meshing() {
         return mesh != null && mesh.building();
+    }
+
+    /** Builds more of the mesh without drawing, for previews made off screen. */
+    public void buildSome(long nanos) {
+        if (mesh != null && mesh.building()) {
+            mesh.buildSome(nanos, eye);
+        }
     }
 
     public float meshProgress() {
@@ -291,6 +304,18 @@ public final class StructureViewport implements AutoCloseable {
             }
         }
         entities.setRenderShadow(true);
+
+        if (groundY >= 0 && groundY < slice) {
+            float sx = view.size().getX(), sz = view.size().getZ();
+            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
+            float gy = groundY + 0.002f;
+            Matrix4f m = pose.last().pose();
+            VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
+            quads.vertex(m, -margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+            quads.vertex(m, -margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+            quads.vertex(m, sx + margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+            quads.vertex(m, sx + margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+        }
 
         if (!outlines.isEmpty()) {
             VertexConsumer lines = buffers.getBuffer(RenderType.lines());

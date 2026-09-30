@@ -9,6 +9,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -48,6 +49,12 @@ final class FabricClientNetworking {
             int done = buf.readVarInt();
             int total = buf.readVarInt();
             client.execute(() -> ClientRequests.onIndexProgress(done, total));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.LOCATE, (client, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            Component reply = buf.readComponent();
+            client.execute(() -> ClientRequests.onLocate(requestId, reply));
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));

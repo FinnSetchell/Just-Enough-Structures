@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -28,6 +29,8 @@ public final class ClientRequests {
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
+    private static final Map<ResourceLocation, CompletableFuture<LootOdds>> ODDS_BY_TABLE = new HashMap<>();
+    private static final Map<Integer, CompletableFuture<Component>> LOCATES = new HashMap<>();
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
     private static CompletableFuture<LootIndex> index;
     private static int indexDone;
@@ -55,6 +58,9 @@ public final class ClientRequests {
         CAPTURES.clear();
         LOOT.clear();
         ODDS.clear();
+        ODDS_BY_TABLE.clear();
+        LOCATES.values().forEach(f -> f.cancel(false));
+        LOCATES.clear();
         TRANSFERS.clear();
         Thumbnails.clear();
         if (index != null) {
@@ -138,7 +144,36 @@ public final class ClientRequests {
         return future;
     }
 
+    public static CompletableFuture<Component> locate(ResourceLocation structure) {
+        int id = nextRequestId++;
+        CompletableFuture<Component> future = new CompletableFuture<>();
+        LOCATES.put(id, future);
+        send(JesNetwork.REQUEST_LOCATE, buf -> {
+            buf.writeVarInt(id);
+            buf.writeResourceLocation(structure);
+        });
+        return future;
+    }
+
+    public static void onLocate(int requestId, Component reply) {
+        CompletableFuture<Component> future = LOCATES.remove(requestId);
+        if (future != null) {
+            future.complete(reply);
+        }
+    }
+
+    /** Odds for a loot table, asked for once per connection and shared by everything that wants them. */
     public static CompletableFuture<LootOdds> odds(ResourceLocation table) {
+        CompletableFuture<LootOdds> cached = ODDS_BY_TABLE.get(table);
+        if (cached != null && !cached.isCancelled()) {
+            return cached;
+        }
+        CompletableFuture<LootOdds> future = requestOdds(table);
+        ODDS_BY_TABLE.put(table, future);
+        return future;
+    }
+
+    private static CompletableFuture<LootOdds> requestOdds(ResourceLocation table) {
         int id = nextRequestId++;
         CompletableFuture<LootOdds> future = new CompletableFuture<>();
         ODDS.put(id, future);

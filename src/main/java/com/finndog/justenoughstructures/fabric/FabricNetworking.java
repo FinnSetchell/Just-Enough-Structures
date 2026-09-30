@@ -40,6 +40,12 @@ final class FabricNetworking {
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_INDEX, (server, player, handler, buf, responder) ->
                 server.execute(() -> JesServer.onRequestIndex(player)));
 
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_LOCATE, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation structure = buf.readResourceLocation();
+            server.execute(() -> JesServer.onRequestLocate(player, requestId, structure));
+        });
+
         ServerLifecycleEvents.SERVER_STARTED.register(server -> JesServer.invalidate());
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.invalidate());
     }

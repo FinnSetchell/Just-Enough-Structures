@@ -34,7 +34,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
 
     /** Seeds captured per structure. Different seeds pick different pieces, so more seeds find more loot. */
-    private static final int SEEDS = 3;
+    private static final int SEEDS = 4;
 
     /**
      * Captures every structure and reads every loot table they use. {@code progress} gets the number
