@@ -144,6 +144,10 @@ final class InfoPanel {
         this.scroll = 0;
     }
 
+    static void showDetails(boolean shown) {
+        showDetails = shown;
+    }
+
     ItemStack hoveredStack() {
         return hoveredStack;
     }
@@ -418,14 +422,52 @@ final class InfoPanel {
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.field." + key).getString(), x + PAD, cy, Gui.LABEL_SOFT);
         cy += 8;
         for (String line : value.split("\n")) {
-            cy = Gui.wrapped(g, font, Component.literal(breakable(line)), x + PAD, cy, textWidth(), TEXT);
+            if (line.contains(" ")) {
+                cy = Gui.wrapped(g, font, Component.literal(line), x + PAD, cy, textWidth(), TEXT);
+                continue;
+            }
+            for (String part : idLines(line, textWidth())) {
+                g.drawString(font, part, x + PAD, cy, TEXT, false);
+                cy += font.lineHeight + 1;
+            }
         }
         return cy + 4;
     }
 
-    /** Lets long ids wrap after underscores and slashes rather than mid-word. */
-    private static String breakable(String text) {
-        return text.contains(" ") ? text : text.replace("_", "_​").replace("/", "/​").replace(":", ":​");
+    /**
+     * Splits an id into lines that break after underscores, slashes and colons rather than
+     * mid-word. Done by hand because Minecraft's font draws a zero-width space as a missing glyph.
+     */
+    private List<String> idLines(String text, int width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        int start = 0;
+        for (int i = 0; i < text.length(); i++) {
+            boolean last = i == text.length() - 1;
+            if (!last && "_/:".indexOf(text.charAt(i)) < 0) {
+                continue;
+            }
+            String piece = text.substring(start, i + 1);
+            start = i + 1;
+            if (!line.isEmpty() && font.width(line + piece) > width) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            line.append(piece);
+            // A single piece wider than the panel still has to be cut somewhere.
+            while (font.width(line.toString()) > width) {
+                String head = font.plainSubstrByWidth(line.toString(), width);
+                if (head.isEmpty()) {
+                    break;
+                }
+                lines.add(head);
+                line.delete(0, head.length());
+            }
+        }
+        if (!line.isEmpty()) {
+            lines.add(line.toString());
+        }
+        return lines;
     }
 
     private static String string(JsonElement e) {

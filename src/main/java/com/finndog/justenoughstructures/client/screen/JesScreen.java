@@ -12,7 +12,9 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -109,8 +111,11 @@ public class JesScreen extends Screen {
     private boolean dragged;
     private final List<Marker> markerRects = new ArrayList<>();
 
-    /** A marker on screen. Markers that would overlap are merged, so {@code containers} can hold several. */
-    private record Marker(int x, int y, int size, List<StructureSnapshot.Container> containers) {
+    /**
+     * A marker on screen, at an exact (not pixel-rounded) position so it keeps up with the preview
+     * as it turns. Containers close together share one marker, so {@code containers} can hold several.
+     */
+    private record Marker(float x, float y, int size, List<StructureSnapshot.Container> containers) {
         StructureSnapshot.Container container() {
             return containers.get(0);
         }
@@ -483,6 +488,11 @@ public class JesScreen extends Screen {
         info.setTab(InfoPanel.Tab.OVERVIEW);
     }
 
+    public void showDetails(boolean shown) {
+        info.setTab(InfoPanel.Tab.OVERVIEW);
+        InfoPanel.showDetails(shown);
+    }
+
     // ------------------------------------------------------------------ positions, for the dev harness
 
     /** Makes the next opened browser start on this structure. */
@@ -538,7 +548,7 @@ public class JesScreen extends Screen {
     public Optional<int[]> marker(String table) {
         for (Marker m : markerRects) {
             if (table.equals(m.container().lootTable())) {
-                return Optional.of(new int[]{m.x() + m.size() / 2, m.y() + m.size() / 2});
+                return Optional.of(new int[]{Math.round(m.x() + m.size() / 2f), Math.round(m.y() + m.size() / 2f)});
             }
         }
         return Optional.empty();
@@ -819,20 +829,23 @@ public class JesScreen extends Screen {
             placeMarkers(s);
             for (Marker m : markerRects) {
                 boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size();
+                int size = m.size();
                 g.pose().pushPose();
-                g.pose().translate(0, 0, 200);
-                g.fill(m.x() - 1, m.y() - 1, m.x() + m.size() + 1, m.y() + m.size() + 1, over ? 0xFFFFFF55 : 0xFF000000);
-                g.fill(m.x(), m.y(), m.x() + m.size(), m.y() + m.size(), 0xFF2B2B2B);
+                // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
+                // markers jitter against the smoothly turning preview.
+                g.pose().translate(m.x(), m.y(), 200);
+                g.fill(-1, -1, size + 1, size + 1, over ? 0xFFFFFF55 : 0xFF000000);
+                g.fill(0, 0, size, size, 0xFF2B2B2B);
                 g.pose().pushPose();
-                g.pose().translate(m.x() + 0.5f, m.y() + 0.5f, 0);
-                float scale = (m.size() - 1) / 16f;
+                g.pose().translate(0.5f, 0.5f, 0);
+                float scale = (size - 1) / 16f;
                 g.pose().scale(scale, scale, 1f);
                 g.renderItem(InfoPanel.containerIcon(s, m.container()), 0, 0);
                 g.pose().popPose();
                 if (m.containers().size() > 1) {
                     String count = String.valueOf(m.containers().size());
                     g.pose().translate(0, 0, 200);
-                    Gui.small(g, font, count, m.x() + m.size() - (int) (font.width(count) * 0.75f) + 1, m.y() + m.size() - 5, 0xFFFFFFFF);
+                    Gui.small(g, font, count, size - (int) (font.width(count) * 0.75f) + 1, size - 5, 0xFFFFFFFF);
                 }
                 g.pose().popPose();
             }
@@ -868,49 +881,79 @@ public class JesScreen extends Screen {
     }
 
     /**
-     * Works out where each loot marker goes. They're sized to roughly one block at the current zoom,
-     * and any that would overlap are merged into one marker with a count, nearest to the camera first.
+     * Works out where each loot marker goes. Markers are all one size, set by the zoom, and
+     * containers close enough in the structure for their markers to overlap share one marker with a
+     * count. Neither changes while the preview turns, only when you zoom, so markers don't grow,
+     * shrink or split apart as it spins. The nearest are drawn last, on top.
      */
     private void placeMarkers(StructureSnapshot s) {
-        record Placed(float x, float y, float size, StructureSnapshot.Container container) {
-        }
-        List<Placed> placed = new ArrayList<>();
+        List<StructureSnapshot.Container> shown = new ArrayList<>();
         for (StructureSnapshot.Container c : s.containers()) {
-            if (c.lootTable() == null || c.pos().getY() >= view.sliceY()) {
-                continue;
+            if (c.lootTable() != null && c.pos().getY() < view.sliceY()) {
+                shown.add(c);
             }
-            Optional<float[]> at = viewport.project(c.pos().getX() + 0.5, c.pos().getY() + 1.1, c.pos().getZ() + 0.5);
-            Optional<float[]> above = viewport.project(c.pos().getX() + 0.5, c.pos().getY() + 2.1, c.pos().getZ() + 0.5);
-            if (at.isEmpty() || above.isEmpty()) {
-                continue;
-            }
-            float block = Math.abs(at.get()[1] - above.get()[1]);
-            boolean chest = c.entity() || view.blockEntities().get(c.pos()) instanceof Container;
-            float size = Math.max(chest ? 8 : 6, Math.min(chest ? 16 : 10, block * 0.8f));
-            placed.add(new Placed(at.get()[0], at.get()[1], size, c));
         }
-        List<List<Placed>> groups = new ArrayList<>();
-        for (Placed p : placed) {
-            List<Placed> joined = null;
-            for (List<Placed> group : groups) {
-                Placed head = group.get(0);
-                if (Math.abs(head.x() - p.x()) < head.size() && Math.abs(head.y() - p.y()) < head.size()) {
-                    joined = group;
-                    break;
+        // Sorted so a group always has the same container first, whichever way it's facing.
+        shown.sort(Comparator.comparing((StructureSnapshot.Container c) -> c.pos()));
+
+        float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
+        int chestSize = Math.round(Math.max(8f, Math.min(16f, perBlock * 0.8f)));
+        int smallSize = Math.round(Math.max(6f, Math.min(10f, perBlock * 0.8f)));
+        double reach = chestSize * 1.5 / perBlock;
+
+        // Join containers closer than about a marker and a half, and anything joined to those, so
+        // markers that would touch or overlap from some angle share one.
+        int[] group = new int[shown.size()];
+        for (int i = 0; i < group.length; i++) {
+            group[i] = i;
+        }
+        for (int i = 0; i < shown.size(); i++) {
+            for (int j = i + 1; j < shown.size(); j++) {
+                if (shown.get(i).pos().distSqr(shown.get(j).pos()) < reach * reach) {
+                    int a = root(group, i);
+                    int b = root(group, j);
+                    group[Math.max(a, b)] = Math.min(a, b);
                 }
             }
-            if (joined == null) {
-                joined = new ArrayList<>();
-                groups.add(joined);
+        }
+        Map<Integer, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < shown.size(); i++) {
+            groups.computeIfAbsent(root(group, i), k -> new ArrayList<>()).add(shown.get(i));
+        }
+
+        record Placed(Marker marker, float depth) {
+        }
+        List<Placed> placed = new ArrayList<>();
+        for (List<StructureSnapshot.Container> members : groups.values()) {
+            double x = 0;
+            double z = 0;
+            int top = Integer.MIN_VALUE;
+            boolean chest = false;
+            for (StructureSnapshot.Container c : members) {
+                x += c.pos().getX() + 0.5;
+                z += c.pos().getZ() + 0.5;
+                top = Math.max(top, c.pos().getY());
+                chest |= c.entity() || view.blockEntities().get(c.pos()) instanceof Container;
             }
-            joined.add(p);
+            Optional<float[]> at = viewport.project(x / members.size(), top + 1.1, z / members.size());
+            if (at.isEmpty()) {
+                continue;
+            }
+            int size = chest ? chestSize : smallSize;
+            placed.add(new Placed(new Marker(at.get()[0] - size / 2f, at.get()[1] - size, size, members), at.get()[2]));
         }
-        for (List<Placed> group : groups) {
-            Placed head = group.get(0);
-            int size = Math.round(head.size());
-            markerRects.add(new Marker(Math.round(head.x()) - size / 2, Math.round(head.y()) - size, size,
-                    group.stream().map(Placed::container).toList()));
+        placed.sort(Comparator.comparingDouble(pl -> -pl.depth()));
+        for (Placed pl : placed) {
+            markerRects.add(pl.marker());
         }
+    }
+
+    private static int root(int[] group, int i) {
+        while (group[i] != i) {
+            group[i] = group[group[i]];
+            i = group[i];
+        }
+        return i;
     }
 
     private void centred(GuiGraphics g, Component text) {

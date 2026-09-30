@@ -88,7 +88,7 @@ public final class JesServer {
     }
 
     /**
-     * Sends the loot index if it's ready. Otherwise starts building it (once) and tells the player
+     * Sends the loot index if it's ready. Otherwise, starts building it (once) and tells the player
      * how far along it is; the client asks again until it arrives.
      */
     public static void onRequestIndex(ServerPlayer player) {

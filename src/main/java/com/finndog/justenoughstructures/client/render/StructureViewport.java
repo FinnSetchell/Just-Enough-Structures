@@ -421,6 +421,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /** Screen position of a point in structure space, or empty when it's behind the camera. */
+    /** Where a point lands on screen, as {x, y, distance from the camera}, or empty if it's behind it. */
     public Optional<float[]> project(double px, double py, double pz) {
         Vector4f v = new Matrix4f(projection).mul(viewMatrix).transform(new Vector4f((float) px, (float) py, (float) pz, 1f));
         if (v.w() <= 0f) {
@@ -428,7 +429,12 @@ public final class StructureViewport implements AutoCloseable {
         }
         float sx = x + (v.x() / v.w() * 0.5f + 0.5f) * width;
         float sy = y + (1f - (v.y() / v.w() * 0.5f + 0.5f)) * height;
-        return Optional.of(new float[]{sx, sy});
+        return Optional.of(new float[]{sx, sy, v.w()});
+    }
+
+    /** How tall a block looks at the point the camera turns around. Only zooming changes it. */
+    public float pixelsPerBlock() {
+        return height / (2f * distance * (float) Math.tan(Math.toRadians(FOV / 2f)));
     }
 
     /** What's under the mouse: an entity if one is closer than the first block hit. */

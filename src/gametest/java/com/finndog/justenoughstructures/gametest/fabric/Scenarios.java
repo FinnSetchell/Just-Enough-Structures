@@ -34,6 +34,7 @@ final class Scenarios {
             case "review" -> review(mc);
             case "open" -> open(mc);
             case "showcase" -> showcase(mc);
+            case "spin" -> spin(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }
@@ -152,6 +153,10 @@ final class Scenarios {
                 .then(moveTo(offset(viewport, 150, 110), 8))
                 .then(pause(6))
                 .then(shoot("r17_ancient_city"))
+                .then(run(() -> screen(mc).showDetails(true)))
+                .then(pause(4))
+                .then(shoot("r17b_details"))
+                .then(run(() -> screen(mc).showDetails(false)))
                 .then(moveTo(at(mc, s -> s.button("maximise")), 10))
                 .then(click())
                 .then(pause(8))
@@ -185,6 +190,20 @@ final class Scenarios {
                 .then(dragBy(-150, 18, 60))
                 .then(moveTo(offset(viewport, 170, 150), 16))
                 .then(pause(10));
+        return d;
+    }
+
+    /** A few seconds of a desert pyramid turning on its own, to check the loot markers keep up with it. */
+    private static Director spin(Minecraft mc) {
+        JesScreen.startOn(new ResourceLocation("desert_pyramid"));
+        Director d = new Director(mc, null);
+        Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
+        d.then(pressKey(GLFW.GLFW_KEY_K))
+                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> idle(mc), 400))
+                .then(moveTo(offset(viewport, 150, 130), 2))
+                .then(record("spin"))
+                .then(pause(100));
         return d;
     }
 
