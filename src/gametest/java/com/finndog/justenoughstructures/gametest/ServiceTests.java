@@ -139,7 +139,9 @@ public final class ServiceTests {
         Component reply = JesServer.locate(helper.getLevel(), helper.absolutePos(BlockPos.ZERO), new ResourceLocation("end_city"));
         long millis = (System.nanoTime() - started) / 1_000_000L;
         helper.assertTrue(millis < 2_000, "locating an end city in the overworld took " + millis + " ms");
-        helper.assertTrue(reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_impossible"),
+        // The test world has structures turned off, and an end city can't be in the overworld anyway.
+        helper.assertTrue(reply.getContents() instanceof TranslatableContents t
+                        && (t.getKey().endsWith("locate_structures_off") || t.getKey().endsWith("locate_wrong_dimension")),
                 "expected to be told it can't generate here, got " + reply.getString());
         helper.succeed();
     }

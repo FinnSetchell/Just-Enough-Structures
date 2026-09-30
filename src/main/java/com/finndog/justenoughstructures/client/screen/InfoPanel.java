@@ -174,6 +174,11 @@ final class InfoPanel {
         hoveredText = List.of();
 
         int tabWidth = width / Tab.values().length;
+        // Words on every tab if they all fit, otherwise icons on every tab, never a mix.
+        boolean words = true;
+        for (Tab t : Tab.values()) {
+            words &= font.width(t.label()) <= tabWidth - 6;
+        }
         for (Tab t : Tab.values()) {
             int tx = x + t.ordinal() * tabWidth;
             int tw = t.ordinal() == Tab.values().length - 1 ? width - tabWidth * (Tab.values().length - 1) : tabWidth;
@@ -181,7 +186,7 @@ final class InfoPanel {
             g.fill(tx, y, tx + tw, y + TAB_HEIGHT, Gui.EDGE);
             g.fill(tx + 1, y + 1, tx + tw - 1, y + TAB_HEIGHT - (active ? 0 : 1), active ? Gui.PANEL : 0xFF9C9C9C);
             String label = t.label().getString();
-            if (font.width(label) <= tw - 6) {
+            if (words) {
                 g.drawString(font, label, tx + (tw - font.width(label)) / 2, y + 4, active ? TEXT : 0xFF404040, false);
             } else {
                 // Too narrow for the word: show an icon and put the word in a tooltip.
@@ -334,7 +339,7 @@ final class InfoPanel {
         return cy;
     }
 
-    /** "About one every 544 blocks", from the structure set's placement. */
+    /** "At most one in each 544 x 544 block area", from the structure set's placement. */
     private String rarity() {
         for (StructureCatalog.SetInfo set : entry.sets()) {
             JsonObject p = set.placement();
@@ -343,8 +348,8 @@ final class InfoPanel {
             }
             String type = string(p.get("type"));
             if (p.has("spacing") && p.get("spacing").isJsonPrimitive()) {
-                int blocks = p.get("spacing").getAsInt() * 16;
-                String out = Component.translatable("screen.justenoughstructures.rarity_spread", String.format("%,d", blocks)).getString();
+                String blocks = String.format("%,d", p.get("spacing").getAsInt() * 16);
+                String out = Component.translatable("screen.justenoughstructures.rarity_spread", blocks, blocks).getString();
                 if (p.has("frequency") && p.get("frequency").isJsonPrimitive() && p.get("frequency").getAsFloat() < 1f) {
                     out += " " + Component.translatable("screen.justenoughstructures.rarity_frequency",
                             Math.round(p.get("frequency").getAsFloat() * 100)).getString();
@@ -499,6 +504,9 @@ final class InfoPanel {
         int sortWidth = (int) (font.width(sortLabel) * 0.75f) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, 9, clipTop, clipHeight);
         Gui.small(g, font, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
+        if (overSort) {
+            hoveredText = List.of(Component.translatable(rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
+        }
         hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, 9, () -> rarestFirst = !rarestFirst));
         cy += 10;
         if (odds == null) {
@@ -618,14 +626,18 @@ final class InfoPanel {
         }
         StructureSnapshot s = result.snapshot();
         List<Map.Entry<Block, Integer>> sorted = Exports.blockCounts(s);
-        g.drawString(font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
-                x + PAD, cy, TEXT, false);
-        cy += font.lineHeight + 3;
+        cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
+                x + PAD, cy, textWidth(), TEXT) + 3;
 
         int bx = x + PAD;
         for (String action : List.of("copy", "save")) {
             Component label = Component.translatable("screen.justenoughstructures.blocks_" + action);
             int w = font.width(label) + 8;
+            if (bx > x + PAD && bx + w > contentRight - 2) {
+                // No room beside the first button, so this one goes underneath.
+                bx = x + PAD;
+                cy += 16;
+            }
             boolean over = inside(mouseX, mouseY, bx, cy, w, 13, clipTop, clipHeight);
             g.fill(bx, cy, bx + w, cy + 13, Gui.EDGE);
             g.fill(bx + 1, cy + 1, bx + w - 1, cy + 12, over ? 0xFF8D8D8D : 0xFF737373);
@@ -656,9 +668,13 @@ final class InfoPanel {
             Gui.fitted(g, font, block.getName().getString(), x + PAD + 20, cy + 5, contentRight - x - PAD - 26 - font.width(amount), TEXT);
             g.drawString(font, amount, contentRight - 2 - font.width(amount), cy + 5, Gui.LABEL_SOFT, false);
             if (hovered) {
-                hoveredText = List.of(block.getName(),
-                        Component.translatable("screen.justenoughstructures.stacks", count / 64, count % 64).withStyle(ChatFormatting.GRAY),
-                        Component.literal(BuiltInRegistries.BLOCK.getKey(block).toString()).withStyle(ChatFormatting.DARK_GRAY));
+                List<Component> lines = new ArrayList<>();
+                lines.add(block.getName());
+                lines.add(Component.translatable("screen.justenoughstructures.stacks", count / 64, count % 64).withStyle(ChatFormatting.GRAY));
+                if (Minecraft.getInstance().options.advancedItemTooltips) {
+                    lines.add(Component.literal(BuiltInRegistries.BLOCK.getKey(block).toString()).withStyle(ChatFormatting.DARK_GRAY));
+                }
+                hoveredText = lines;
             }
             cy += 18;
         }

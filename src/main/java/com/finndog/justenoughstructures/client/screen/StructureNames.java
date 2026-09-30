@@ -23,10 +23,19 @@ public final class StructureNames {
         return JustEnoughStructures.modName(namespace);
     }
 
-    /** "minecraft:chests/desert_pyramid" becomes "Desert Pyramid". */
+    /**
+     * "minecraft:chests/desert_pyramid" becomes "Desert Pyramid", and tables that aren't for chests
+     * say what they are, so "minecraft:archaeology/desert_pyramid" becomes "Desert Pyramid (Archaeology)".
+     */
     public static String lootTable(String id) {
         ResourceLocation parsed = ResourceLocation.tryParse(id);
-        return parsed == null ? id : pretty(parsed.getPath());
+        if (parsed == null) {
+            return id;
+        }
+        String path = parsed.getPath();
+        int slash = path.indexOf('/');
+        String kind = slash > 0 ? path.substring(0, slash) : "chests";
+        return kind.equals("chests") ? pretty(path) : pretty(path) + " (" + pretty(kind) + ")";
     }
 
     public static String pretty(String path) {

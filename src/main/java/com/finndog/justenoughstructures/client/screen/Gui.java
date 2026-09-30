@@ -60,18 +60,8 @@ final class Gui {
      * tellable apart for as long as possible.
      */
     static void fitted(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {
-        int width = font.width(text);
-        if (width <= maxWidth) {
-            g.drawString(font, text, x, y, color, false);
-            return;
-        }
-        float scale = Math.max(0.75f, (float) maxWidth / width);
-        String shown = width * scale <= maxWidth ? text : clip(font, text, (int) (maxWidth / scale));
-        g.pose().pushPose();
-        g.pose().translate(x, y + font.lineHeight * (1f - scale) / 2f, 0);
-        g.pose().scale(scale, scale, 1f);
-        g.drawString(font, shown, 0, 0, color, false);
-        g.pose().popPose();
+        // Always the normal size, cut short if need be, so rows in a list line up.
+        g.drawString(font, clip(font, text, maxWidth), x, y, color, false);
     }
 
     static void scrollbar(GuiGraphics g, int x, int y, int height, double scroll, double maxScroll) {

@@ -25,7 +25,7 @@ final class FoundInPopup {
     static final int WIDTH = 230;
     private static final int ROW = 22;
     private static final int VISIBLE_ROWS = 7;
-    private static final ItemStack STRUCTURE_ICON = new ItemStack(Items.STRUCTURE_BLOCK);
+    private static final ItemStack STRUCTURE_ICON = new ItemStack(Items.FILLED_MAP);
 
     record Row(ResourceLocation structure, Set<ResourceLocation> tables) {
     }
@@ -127,7 +127,10 @@ final class FoundInPopup {
             String pct = chance < 0 ? "..." : chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
             Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), 0xFF202020);
             g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, 0xFF202020, false);
-            String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct().collect(Collectors.joining(", "));
+            // Which of its loot tables, unless that only repeats the structure's name.
+            String name = StructureNames.structure(row.structure());
+            String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct()
+                    .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
             Gui.small(g, font, Gui.clip(font, tables, (int) ((WIDTH - 40) / 0.75f)), x + 30, ry + 13, Gui.LABEL_SOFT);
         }
         if (list.size() > VISIBLE_ROWS) {
@@ -150,6 +153,15 @@ final class FoundInPopup {
             }
         }
         return Optional.empty();
+    }
+
+    /** The structures showing right now, to make pictures for. */
+    List<ResourceLocation> visibleStructures() {
+        List<Row> list = rows();
+        if (list == null) {
+            return List.of();
+        }
+        return list.subList(scroll, Math.min(list.size(), scroll + VISIBLE_ROWS)).stream().map(Row::structure).toList();
     }
 
     void scroll(double delta) {

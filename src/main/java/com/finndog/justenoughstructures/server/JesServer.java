@@ -221,11 +221,11 @@ public final class JesServer {
                 .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
         // Searching for something that can't generate here makes the game generate chunk after
         // chunk looking for it, which can stall the server for minutes, so rule that out first.
-        boolean possible = holder.isPresent()
-                && level.getServer().getWorldData().worldGenOptions().generateStructures()
-                && !level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty();
-        if (!possible) {
-            return Component.translatable("screen.justenoughstructures.locate_impossible");
+        if (!level.getServer().getWorldData().worldGenOptions().generateStructures()) {
+            return Component.translatable("screen.justenoughstructures.locate_structures_off");
+        }
+        if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.locate_wrong_dimension");
         }
         Pair<BlockPos, Holder<Structure>> found = level.getChunkSource().getGenerator()
                 .findNearestMapStructure(level, HolderSet.direct(holder.get()), from, 100, false);

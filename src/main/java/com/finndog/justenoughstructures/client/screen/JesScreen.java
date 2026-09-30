@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -19,6 +20,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -30,6 +32,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.Container;
@@ -45,11 +48,14 @@ import org.lwjgl.glfw.GLFW;
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
 public class JesScreen extends Screen {
     private static final int PAD = 6;
-    private static final ItemStack RESET_ICON = new ItemStack(Items.COMPASS);
+    private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
     private static final ItemStack SPIN_ICON = new ItemStack(Items.CLOCK);
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
-    private static final ItemStack MAXIMISE_ICON = new ItemStack(Items.SPYGLASS);
+    private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
+    private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
+    /** How long a locate that found nothing stays in the header. */
+    private static final long LOCATE_FAILURE_MILLIS = 8000;
     // One frame of the recovery compass. The item itself spins forever when there's no death point.
     private static final ResourceLocation LOCATE_ICON = new ResourceLocation("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
@@ -87,6 +93,10 @@ public class JesScreen extends Screen {
     private boolean markers = true;
     private boolean ground = true;
     private Component locateText;
+    private boolean locateFound;
+    private long locateUntil = Long.MAX_VALUE;
+    private int lastViewW;
+    private int lastViewH;
     private boolean sides;
     private long lastFrame = System.nanoTime();
 
@@ -132,9 +142,12 @@ public class JesScreen extends Screen {
         search = new EditBox(font, listX + 5, PAD + 5, Math.max(10, listW - 10), 16, Component.translatable("screen.justenoughstructures.search"));
         search.setHint(Component.translatable(listW >= 150 ? "screen.justenoughstructures.search_hint" : "screen.justenoughstructures.search_hint_short")
                 .withStyle(ChatFormatting.DARK_GRAY));
-        search.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.search_help")));
         search.setValue(query);
-        search.setResponder(value -> list.setQuery(value));
+        search.setResponder(value -> {
+            list.setQuery(value);
+            updateSearchHelp();
+        });
+        updateSearchHelp();
         search.visible = sides;
         addRenderableWidget(search);
         listY = PAD + 25;
@@ -146,9 +159,15 @@ public class JesScreen extends Screen {
         int toolbarY = height - PAD - 25;
         viewW = centreW - 10;
         viewH = toolbarY - 3 - viewY;
+        if (viewW != lastViewW || viewH != lastViewH) {
+            // A bigger or smaller preview (maximised, or the window resized) gets zoomed to fit again.
+            viewport.refit();
+            lastViewW = viewW;
+            lastViewH = viewH;
+        }
 
         int headerRight = centreX + centreW - 6;
-        maximiseButton = addRenderableWidget(new IconButton(headerRight - 20, PAD + 5, () -> MAXIMISE_ICON, () -> maximised,
+        maximiseButton = addRenderableWidget(new IconButton(headerRight - 20, PAD + 5, maximised ? RESTORE_ICON : MAXIMISE_ICON,
                 Component.translatable(maximised ? "screen.justenoughstructures.restore" : "screen.justenoughstructures.maximise"), b -> {
             maximised = !maximised;
             rebuildWidgets();
@@ -162,7 +181,7 @@ public class JesScreen extends Screen {
                 .bounds(bx, toolbarY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
                         Component.translatable("screen.justenoughstructures.reroll_tooltip"))).build());
         bx += roomy ? 68 : 36;
-        addRenderableWidget(new IconButton(bx, toolbarY, () -> RESET_ICON, null,
+        addRenderableWidget(new IconButton(bx, toolbarY, RESET_ICON,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
         bx += 22;
         spinButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> SPIN_ICON, () -> spin, spinLabel(), b -> {
@@ -249,6 +268,7 @@ public class JesScreen extends Screen {
     private void select(StructureCatalog.Entry entry, long newSeed) {
         if (selected != entry) {
             locateText = null;
+            locateUntil = Long.MAX_VALUE;
         }
         selected = entry;
         lastSelected = entry.id();
@@ -303,15 +323,25 @@ public class JesScreen extends Screen {
         viewport.setGround(ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
     }
 
+    /** The search help only while the box is empty, so it never covers what a search found. */
+    private void updateSearchHelp() {
+        search.setTooltip(search.getValue().isEmpty() ? Tooltip.create(Component.translatable("screen.justenoughstructures.search_help")) : null);
+    }
+
     private void locate() {
         if (selected == null) {
             return;
         }
         ResourceLocation id = selected.id();
         locateText = Component.translatable("screen.justenoughstructures.locating");
+        locateFound = false;
+        locateUntil = Long.MAX_VALUE;
         ClientRequests.locate(id).thenAccept(reply -> {
             if (selected != null && selected.id().equals(id)) {
                 locateText = reply;
+                // Where it is stays up; why it couldn't be found goes away after a while.
+                locateFound = reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_found");
+                locateUntil = locateFound ? Long.MAX_VALUE : Util.getMillis() + LOCATE_FAILURE_MILLIS;
             }
         });
     }
@@ -645,7 +675,11 @@ public class JesScreen extends Screen {
         int my = anyPopup ? -1 : mouseY;
         if (sides) {
             list.render(g, font, mx, my);
-            thumbnails.tick(list.visible(), result == null || viewport.meshing());
+            List<ResourceLocation> wanted = new ArrayList<>(list.visible());
+            if (foundIn != null) {
+                wanted.addAll(0, foundIn.visibleStructures());
+            }
+            thumbnails.tick(wanted, result == null || viewport.meshing());
         }
         renderHeader(g);
         StructureViewport.Hit hover = renderViewport(g, mx, my, partialTick);
@@ -723,8 +757,12 @@ public class JesScreen extends Screen {
         }
         int room = centreW - 12 - 46;
         Gui.fitted(g, font, StructureNames.structure(selected.id()), x, PAD + 6, room, 0xFF202020);
+        if (locateText != null && Util.getMillis() > locateUntil) {
+            locateText = null;
+        }
         Component second = locateText != null ? locateText : Component.literal(StructureNames.mod(selected.id().getNamespace()));
-        Gui.small(g, font, Gui.clip(font, second.getString(), (int) (room / 0.75f)), x, PAD + 17, locateText != null ? 0xFF2E5B1D : Gui.LABEL_SOFT);
+        int colour = locateText == null || (!locateFound && locateUntil == Long.MAX_VALUE) ? Gui.LABEL_SOFT : locateFound ? 0xFF2E5B1D : 0xFF8B1A1A;
+        Gui.small(g, font, Gui.clip(font, second.getString(), (int) (room / 0.75f)), x, PAD + 17, colour);
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {

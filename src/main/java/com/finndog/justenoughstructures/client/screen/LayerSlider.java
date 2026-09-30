@@ -35,6 +35,17 @@ final class LayerSlider extends AbstractSliderButton {
         }
     }
 
+    /** The scroll wheel steps one layer at a time. */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (layers <= 1 || delta == 0) {
+            return false;
+        }
+        setLayers(layers, Math.max(1, Math.min(layers, shown() + (delta > 0 ? 1 : -1))));
+        applyValue();
+        return true;
+    }
+
     @Override
     protected void applyValue() {
         onChange.accept(shown());

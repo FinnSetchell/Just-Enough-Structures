@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -241,9 +242,14 @@ final class StructureList {
         }
         if (hovered.entry() != null) {
             ResourceLocation id = hovered.entry().id();
-            return List.of(Component.literal(hovered.name()),
-                    Component.literal(id.toString()).withStyle(ChatFormatting.DARK_GRAY),
-                    Component.literal(StructureNames.mod(id.getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
+            List<Component> lines = new ArrayList<>();
+            lines.add(Component.literal(hovered.name()));
+            // Ids only for people who asked for them with F3+H, the same as item tooltips.
+            if (Minecraft.getInstance().options.advancedItemTooltips) {
+                lines.add(Component.literal(id.toString()).withStyle(ChatFormatting.DARK_GRAY));
+            }
+            lines.add(Component.literal(StructureNames.mod(id.getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
+            return lines;
         }
         if (hovered.item() != null) {
             return List.of(Component.literal(hovered.name()),
