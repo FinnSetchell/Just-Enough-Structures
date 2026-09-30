@@ -13,11 +13,13 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
@@ -35,6 +37,7 @@ final class Scenarios {
             case "open" -> open(mc);
             case "showcase" -> showcase(mc);
             case "spin" -> spin(mc);
+            case "teleport" -> teleport(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }
@@ -190,6 +193,29 @@ final class Scenarios {
                 .then(dragBy(-150, 18, 60))
                 .then(moveTo(offset(viewport, 170, 150), 16))
                 .then(pause(10));
+        return d;
+    }
+
+    /**
+     * Ctrl-click locate on a plains village, in a world where structures generate (superflat makes
+     * villages), then a screenshot and a log line of where the player ended up.
+     */
+    private static Director teleport(Minecraft mc) {
+        JesScreen.startOn(new ResourceLocation("village_plains"));
+        Director d = new Director(mc, null);
+        d.then(pressKey(GLFW.GLFW_KEY_K))
+                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> idle(mc), 400))
+                .then(run(() -> JustEnoughStructures.LOGGER.info("Autoshot teleport from {}", mc.player.blockPosition())))
+                .then(run(() -> screen(mc).locateAndTeleport()))
+                .then(until(() -> screen(mc) == null, 2400))
+                .then(pause(60))
+                .then(run(() -> {
+                    BlockPos at = mc.player.blockPosition();
+                    JustEnoughStructures.LOGGER.info("Autoshot teleport to {} standing on {}, feet in {}, head in {}", at,
+                            mc.level.getBlockState(at.below()), mc.level.getBlockState(at), mc.level.getBlockState(at.above()));
+                }))
+                .then(shoot("t01_arrived"));
         return d;
     }
 

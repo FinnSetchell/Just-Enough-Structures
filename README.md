@@ -27,6 +27,7 @@ Press **K** (you can change it in Controls) to open the browser.
   it with the chance of each item, **Blocks** is a material list you can copy or save as a
   structure file, and **Mobs** lists what it places, its spawners and what keeps spawning there.
 - With cheats on (or as an operator), the recovery compass button finds the nearest one.
+  Ctrl-click it to teleport there.
 
 ## Requirements
 

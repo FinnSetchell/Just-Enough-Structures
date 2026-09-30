@@ -16,6 +16,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
+import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -33,7 +34,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.levelgen.Heightmap;
 
 /** Answers client requests. Loader code calls these from its packet handlers, on the server thread. */
 public final class JesServer {
@@ -202,44 +205,100 @@ public final class JesServer {
     private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};
 
     /**
-     * Finds the nearest structure of this kind in the player's dimension, like /locate, and needs the
-     * same permission. Runs on the server thread because structure lookups load chunk data.
+     * Finds the nearest structure of this kind in the player's dimension, like /locate, and with
+     * {@code teleport} takes the player there, like /tp. Both need the permission those commands
+     * do. Runs on the server thread because structure lookups load chunk data.
      */
-    public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id) {
-        Component reply = player.hasPermissions(2)
-                ? locate(player.serverLevel(), player.blockPosition(), id)
-                : Component.translatable("screen.justenoughstructures.locate_no_permission");
+    public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
+        Component reply = locateFor(player, id, teleport);
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(requestId);
         buf.writeComponent(reply);
         JesNetwork.send(player, JesNetwork.LOCATE, buf);
     }
 
+    /** What to tell the player who asked, after teleporting them if they wanted and are allowed to. */
+    public static Component locateFor(ServerPlayer player, ResourceLocation id, boolean teleport) {
+        if (!player.hasPermissions(2)) {
+            return Component.translatable("screen.justenoughstructures.locate_no_permission");
+        }
+        Located found = find(player.serverLevel(), player.blockPosition(), id);
+        if (!teleport || found.pos() == null) {
+            return found.message();
+        }
+        Optional<BlockPos> spot = standingSpot(player.serverLevel(), found.pos().getX(), found.pos().getZ());
+        if (spot.isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.locate_no_ground", found.pos().getX(), found.pos().getZ());
+        }
+        BlockPos to = spot.get();
+        player.teleportTo(player.serverLevel(), to.getX() + 0.5, to.getY(), to.getZ() + 0.5, player.getYRot(), player.getXRot());
+        return Component.translatable("screen.justenoughstructures.locate_teleported", to.getX(), to.getY(), to.getZ());
+    }
+
+    /** Where a locate ended up, or a null position and the reason why not. */
+    private record Located(BlockPos pos, Component message) {
+    }
+
     /** The nearest structure of this kind to {@code from}, as a sentence for the player. */
     public static Component locate(ServerLevel level, BlockPos from, ResourceLocation id) {
+        return find(level, from, id).message();
+    }
+
+    private static Located find(ServerLevel level, BlockPos from, ResourceLocation id) {
         Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
                 .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
         // Searching for something that can't generate here makes the game generate chunk after
         // chunk looking for it, which can stall the server for minutes, so rule that out first.
         if (!level.getServer().getWorldData().worldGenOptions().generateStructures()) {
-            return Component.translatable("screen.justenoughstructures.locate_structures_off");
+            return new Located(null, Component.translatable("screen.justenoughstructures.locate_structures_off"));
         }
         if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
-            return Component.translatable("screen.justenoughstructures.locate_wrong_dimension");
+            return new Located(null, Component.translatable("screen.justenoughstructures.locate_wrong_dimension"));
         }
         Pair<BlockPos, Holder<Structure>> found = level.getChunkSource().getGenerator()
                 .findNearestMapStructure(level, HolderSet.direct(holder.get()), from, 100, false);
         if (found == null) {
-            return Component.translatable("screen.justenoughstructures.locate_none");
+            return new Located(null, Component.translatable("screen.justenoughstructures.locate_none"));
         }
         BlockPos at = found.getFirst();
         int dx = at.getX() - from.getX();
         int dz = at.getZ() - from.getZ();
         double angle = Math.toDegrees(Math.atan2(dx, -dz));
         String direction = DIRECTIONS[Math.floorMod((int) Math.round(angle / 45.0), 8)];
-        return Component.translatable("screen.justenoughstructures.locate_found",
+        return new Located(at, Component.translatable("screen.justenoughstructures.locate_found",
                 String.format("%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz)),
-                Component.translatable("screen.justenoughstructures.direction." + direction), at.getX(), at.getZ());
+                Component.translatable("screen.justenoughstructures.direction." + direction), at.getX(), at.getZ()));
+    }
+
+    /**
+     * Somewhere safe to stand at this x and z: on the top block (water counts, you'll float), or in
+     * a dimension with a roof like the Nether, on the highest floor beneath it. Empty if there's
+     * only lava or nothing at all, like over the End's void. Loads or generates the chunk, as /tp would.
+     */
+    public static Optional<BlockPos> standingSpot(ServerLevel level, int x, int z) {
+        level.getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
+        int bottom = level.getMinBuildHeight();
+        if (!level.dimensionType().hasCeiling()) {
+            BlockPos feet = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), z);
+            boolean safe = feet.getY() > bottom && !level.getFluidState(feet.below()).is(FluidTags.LAVA);
+            return safe ? Optional.of(feet) : Optional.empty();
+        }
+        int top = bottom + level.dimensionType().logicalHeight() - 1;
+        for (int y = top - 2; y > bottom; y--) {
+            BlockPos feet = new BlockPos(x, y, z);
+            if (solid(level, feet.below()) && open(level, feet) && open(level, feet.above())) {
+                return Optional.of(feet);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean solid(ServerLevel level, BlockPos pos) {
+        return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+    }
+
+    private static boolean open(ServerLevel level, BlockPos pos) {
+        return !solid(level, pos) && !level.getFluidState(pos).is(FluidTags.LAVA);
     }
 
     private static void sendBlob(ServerPlayer player, int kind, int requestId, byte[] compressed) {

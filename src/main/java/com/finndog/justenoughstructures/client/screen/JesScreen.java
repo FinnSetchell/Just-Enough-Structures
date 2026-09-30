@@ -177,8 +177,14 @@ public class JesScreen extends Screen {
             maximised = !maximised;
             rebuildWidgets();
         }));
-        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, LOCATE_ICON,
-                Component.translatable("screen.justenoughstructures.locate"), b -> locate()));
+        // Only operators can use it at all, so only they are told about Ctrl-click.
+        Component locateLabel = Component.translatable("screen.justenoughstructures.locate");
+        if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
+            locateLabel = locateLabel.copy().append("\n").append(Component.translatable("screen.justenoughstructures.locate_teleport_hint")
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, LOCATE_ICON, locateLabel,
+                b -> locate(hasControlDown())));
 
         int bx = viewX;
         boolean roomy = viewW >= 250;
@@ -333,7 +339,8 @@ public class JesScreen extends Screen {
         search.setTooltip(search.getValue().isEmpty() ? Tooltip.create(Component.translatable("screen.justenoughstructures.search_help")) : null);
     }
 
-    private void locate() {
+    /** Finds the nearest one, and with {@code teleport} (Ctrl-click) goes there too. */
+    private void locate(boolean teleport) {
         if (selected == null) {
             return;
         }
@@ -341,7 +348,13 @@ public class JesScreen extends Screen {
         locateText = Component.translatable("screen.justenoughstructures.locating");
         locateFound = false;
         locateUntil = Long.MAX_VALUE;
-        ClientRequests.locate(id).thenAccept(reply -> {
+        ClientRequests.locate(id, teleport).thenAccept(reply -> {
+            if (reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_teleported")) {
+                // They've gone there, so get out of the way and say where they are.
+                minecraft.gui.setOverlayMessage(reply, false);
+                onClose();
+                return;
+            }
             if (selected != null && selected.id().equals(id)) {
                 locateText = reply;
                 // Where it is stays up; why it couldn't be found goes away after a while.
@@ -486,6 +499,11 @@ public class JesScreen extends Screen {
 
     public void showInfoTab() {
         info.setTab(InfoPanel.Tab.OVERVIEW);
+    }
+
+    /** Ctrl-clicking the locate button, which a scripted click can't do: it reads the real keyboard. */
+    public void locateAndTeleport() {
+        locate(true);
     }
 
     public void showDetails(boolean shown) {
@@ -738,6 +756,8 @@ public class JesScreen extends Screen {
             if (!popupHover.isEmpty()) {
                 g.renderComponentTooltip(font, itemTooltip(popupHover, List.of()), mouseX, mouseY);
             }
+        } else if (overHeaderLine(mouseX, mouseY)) {
+            g.renderTooltip(font, font.split(headerOverflow, 240), mouseX, mouseY);
         } else if (sides && !info.hoveredStack().isEmpty()) {
             g.renderComponentTooltip(font, itemTooltip(info.hoveredStack(), info.hoveredExtra()), mouseX, mouseY);
         } else if (sides && !info.hoveredText().isEmpty()) {
@@ -773,6 +793,16 @@ public class JesScreen extends Screen {
         Component second = locateText != null ? locateText : Component.literal(StructureNames.mod(selected.id().getNamespace()));
         int colour = locateText == null || (!locateFound && locateUntil == Long.MAX_VALUE) ? Gui.LABEL_SOFT : locateFound ? 0xFF2E5B1D : 0xFF8B1A1A;
         Gui.small(g, font, Gui.clip(font, second.getString(), (int) (room / 0.75f)), x, PAD + 17, colour);
+        // Cut short, so the whole thing goes in a tooltip.
+        headerOverflow = font.width(second) * 0.75f > room ? second : null;
+        headerRoom = room;
+    }
+
+    private Component headerOverflow;
+    private int headerRoom;
+
+    private boolean overHeaderLine(int mouseX, int mouseY) {
+        return headerOverflow != null && mouseX >= centreX + 6 && mouseX < centreX + 6 + headerRoom && mouseY >= PAD + 16 && mouseY < PAD + 25;
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {

@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -22,8 +23,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 /** Tests for the catalog, the wire format and loot rolls. */
 public final class ServiceTests {
@@ -143,6 +148,43 @@ public final class ServiceTests {
         helper.assertTrue(reply.getContents() instanceof TranslatableContents t
                         && (t.getKey().endsWith("locate_structures_off") || t.getKey().endsWith("locate_wrong_dimension")),
                 "expected to be told it can't generate here, got " + reply.getString());
+        helper.succeed();
+    }
+
+    /** Teleporting lands on top of the ground in the overworld, and on a floor under the roof in the Nether. */
+    public static void teleportLandsSomewhereSafe(GameTestHelper helper) {
+        BlockPos near = helper.absolutePos(BlockPos.ZERO);
+        checkStandingSpot(helper, helper.getLevel(), near.getX() + 40, near.getZ() + 40);
+        ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
+        helper.assertTrue(nether != null, "the test world has no Nether to try");
+        checkStandingSpot(helper, nether, 0, 0);
+        checkStandingSpot(helper, nether, 200, -300);
+        helper.succeed();
+    }
+
+    private static void checkStandingSpot(GameTestHelper helper, ServerLevel level, int x, int z) {
+        String where = x + ", " + z + " in " + level.dimension().location();
+        Optional<BlockPos> spot = JesServer.standingSpot(level, x, z);
+        helper.assertTrue(spot.isPresent(), "nowhere to stand at " + where);
+        BlockPos feet = spot.get();
+        helper.assertFalse(level.getBlockState(feet.below()).getCollisionShape(level, feet.below()).isEmpty(), "nothing solid under " + feet + " at " + where);
+        helper.assertTrue(level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty(), "no room to stand at " + feet + " at " + where);
+        helper.assertFalse(level.getFluidState(feet).is(FluidTags.LAVA) || level.getFluidState(feet.above()).is(FluidTags.LAVA), "stood in lava at " + where);
+        if (level.dimensionType().hasCeiling()) {
+            int roof = level.getMinBuildHeight() + level.dimensionType().logicalHeight();
+            helper.assertTrue(feet.getY() < roof - 3, "stood on the roof at " + feet + " at " + where);
+        }
+    }
+
+    /** Only operators can teleport, the same as /tp. */
+    public static void onlyOperatorsCanTeleport(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Vec3 before = player.position();
+        Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);
+        helper.assertTrue(reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_no_permission"),
+                "a player who isn't an operator got " + reply.getString());
+        helper.assertTrue(player.position().equals(before), "a player who isn't an operator was moved");
         helper.succeed();
     }
 

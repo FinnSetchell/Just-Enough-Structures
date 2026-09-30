@@ -88,6 +88,16 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void teleportLandsSomewhereSafe(GameTestHelper helper) {
+        ServiceTests.teleportLandsSomewhereSafe(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void onlyOperatorsCanTeleport(GameTestHelper helper) {
+        ServiceTests.onlyOperatorsCanTeleport(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownLootTableIsEmpty(GameTestHelper helper) {
         ServiceTests.unknownLootTableIsEmpty(helper);
     }

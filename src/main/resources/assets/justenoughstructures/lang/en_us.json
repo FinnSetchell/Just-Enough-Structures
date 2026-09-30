@@ -132,5 +132,8 @@
   "screen.justenoughstructures.locate_structures_off": "Structures are turned off in this world",
   "screen.justenoughstructures.locate_wrong_dimension": "It can't generate in this dimension",
   "screen.justenoughstructures.sort_to_rare": "Click to put the rarest first",
-  "screen.justenoughstructures.sort_to_common": "Click to put the most likely first"
+  "screen.justenoughstructures.sort_to_common": "Click to put the most likely first",
+  "screen.justenoughstructures.locate_teleport_hint": "Ctrl-click to teleport there",
+  "screen.justenoughstructures.locate_teleported": "Teleported to the nearest one at %s, %s, %s",
+  "screen.justenoughstructures.locate_no_ground": "Found one at x %s, z %s, but there's nowhere safe to stand there"
 }

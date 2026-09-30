@@ -100,7 +100,7 @@ public final class Autoshot implements ClientModInitializer {
                     }
                     mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
                     mc.resizeDisplay();
-                    createWorld(mc);
+                    createWorld(mc, "teleport".equals(mode));
                     go(Step.WAIT_WORLD);
                 }
             }
@@ -244,13 +244,14 @@ public final class Autoshot implements ClientModInitializer {
         mc.stop();
     }
 
-    private static void createWorld(Minecraft mc) {
+    /** A superflat world; with {@code structures} it gets villages, for trying locate and teleport. */
+    private static void createWorld(Minecraft mc, boolean structures) {
         // Stop the sun moving, so the world behind the screen stays still in recordings.
         GameRules rules = new GameRules();
         rules.getRule(GameRules.RULE_DAYLIGHT).set(false, null);
         LevelSettings settings = new LevelSettings("JES autoshot", GameType.CREATIVE, false, Difficulty.PEACEFUL, true,
                 rules, WorldDataConfiguration.DEFAULT);
-        mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, false, false),
+        mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, structures, false),
                 registries -> registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions());
     }
 }

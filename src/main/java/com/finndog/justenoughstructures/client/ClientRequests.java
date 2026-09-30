@@ -144,13 +144,15 @@ public final class ClientRequests {
         return future;
     }
 
-    public static CompletableFuture<Component> locate(ResourceLocation structure) {
+    /** Finds the nearest one, and with {@code teleport} also takes the player there. */
+    public static CompletableFuture<Component> locate(ResourceLocation structure, boolean teleport) {
         int id = nextRequestId++;
         CompletableFuture<Component> future = new CompletableFuture<>();
         LOCATES.put(id, future);
         send(JesNetwork.REQUEST_LOCATE, buf -> {
             buf.writeVarInt(id);
             buf.writeResourceLocation(structure);
+            buf.writeBoolean(teleport);
         });
         return future;
     }
