@@ -46,6 +46,10 @@ public final class ClientRequests {
     private static int locatePermission = 2;
     private static int teleportPermission = 2;
     private static boolean compassSearch;
+    private static int editPermission = 4;
+    private static int nextUploadId = 1;
+    private static final Map<Integer, CompletableFuture<Codecs.TableReply>> TABLES = new HashMap<>();
+    private static final Map<Integer, CompletableFuture<EditReply>> EDITS = new HashMap<>();
 
     private ClientRequests() {
     }
@@ -85,6 +89,77 @@ public final class ClientRequests {
         locatePermission = 2;
         teleportPermission = 2;
         compassSearch = false;
+        editPermission = 4;
+        TABLES.values().forEach(f -> f.cancel(false));
+        TABLES.clear();
+        EDITS.values().forEach(f -> f.cancel(false));
+        EDITS.clear();
+    }
+
+    /** What the server said about an edit: a message, and for a draft, what it would give. */
+    public record EditReply(Component message, LootOdds odds) {
+    }
+
+    /** Whether this player may edit loot tables on this server. */
+    public static boolean canEditLoot() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player != null && mc.player.hasPermissions(editPermission);
+    }
+
+    /** A loot table for the editor: as it is now, as the mods have it, and whether it's overridden. */
+    public static CompletableFuture<Codecs.TableReply> table(ResourceLocation id) {
+        int requestId = nextRequestId++;
+        CompletableFuture<Codecs.TableReply> future = new CompletableFuture<>();
+        TABLES.put(requestId, future);
+        send(JesNetwork.REQUEST_TABLE, buf -> {
+            buf.writeVarInt(requestId);
+            buf.writeResourceLocation(id);
+        });
+        return future;
+    }
+
+    /** Rolls an edit that isn't saved yet. */
+    public static CompletableFuture<EditReply> draftOdds(ResourceLocation id, String json) {
+        return upload(JesNetwork.KIND_DRAFT, id, json);
+    }
+
+    /** Saves an edit as an override. It applies after /reload. */
+    public static CompletableFuture<EditReply> saveTable(ResourceLocation id, String json) {
+        return upload(JesNetwork.KIND_SAVE, id, json);
+    }
+
+    /** Keeps an override whose original changed, or turns one off. */
+    public static CompletableFuture<EditReply> tableAction(ResourceLocation id, int action) {
+        int requestId = nextRequestId++;
+        CompletableFuture<EditReply> future = new CompletableFuture<>();
+        EDITS.put(requestId, future);
+        send(JesNetwork.TABLE_ACTION, buf -> {
+            buf.writeVarInt(requestId);
+            buf.writeResourceLocation(id);
+            buf.writeVarInt(action);
+        });
+        return future;
+    }
+
+    private static CompletableFuture<EditReply> upload(int kind, ResourceLocation id, String json) {
+        int requestId = nextRequestId++;
+        CompletableFuture<EditReply> future = new CompletableFuture<>();
+        EDITS.put(requestId, future);
+        byte[] compressed = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeDraft(buf, id, json)));
+        List<byte[]> parts = Blobs.split(compressed, Blobs.UPLOAD_PART_SIZE);
+        int transferId = nextUploadId++;
+        for (int i = 0; i < parts.size(); i++) {
+            Blobs.Part part = new Blobs.Part(transferId, kind, requestId, i, parts.size(), parts.get(i));
+            send(JesNetwork.UPLOAD, part::write);
+        }
+        return future;
+    }
+
+    public static void onEditReply(int requestId, Component message, LootOdds odds) {
+        CompletableFuture<EditReply> future = EDITS.remove(requestId);
+        if (future != null) {
+            future.complete(new EditReply(message, odds));
+        }
     }
 
     /** Whether the server can set a held structure compass searching. */
@@ -277,6 +352,11 @@ public final class ClientRequests {
             }
             index.complete(built);
             INDEX_LISTENERS.forEach(listener -> listener.accept(built));
+        } else if (part.kind() == JesNetwork.KIND_TABLE) {
+            CompletableFuture<Codecs.TableReply> future = TABLES.remove(part.requestId());
+            if (future != null) {
+                future.complete(Codecs.readTable(buf));
+            }
         } else if (part.kind() == JesNetwork.KIND_CAPTURE) {
             CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(part.requestId());
             if (future != null) {
@@ -289,10 +369,11 @@ public final class ClientRequests {
      * The server's locate settings. After a /reload the structure list and loot may have changed
      * too, so what's cached is dropped and fetched again the next time it's wanted.
      */
-    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass) {
+    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, int edit) {
         locatePermission = locate;
         teleportPermission = teleport;
         compassSearch = compass;
+        editPermission = edit;
         if (!reloaded) {
             return;
         }

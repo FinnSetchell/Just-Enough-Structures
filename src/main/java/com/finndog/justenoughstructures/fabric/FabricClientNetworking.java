@@ -62,7 +62,15 @@ final class FabricClientNetworking {
             int teleport = buf.readVarInt();
             boolean reloaded = buf.readBoolean();
             boolean compass = buf.readBoolean();
-            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass));
+            int edit = buf.readVarInt();
+            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, edit));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.EDIT_REPLY, (client, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            Component message = buf.readBoolean() ? buf.readComponent() : null;
+            LootOdds odds = buf.readBoolean() ? Codecs.readOdds(buf) : null;
+            client.execute(() -> ClientRequests.onEditReply(requestId, message, odds));
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));

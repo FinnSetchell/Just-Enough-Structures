@@ -103,7 +103,7 @@ public final class SettingsTests {
     /** Settings saved from the config screen read back the same, and the file keeps its comments. */
     public static void serverSettingsWriteBack(GameTestHelper helper) {
         ServerConfig.Settings settings = new ServerConfig.Settings(Set.of(new ResourceLocation("igloo"), new ResourceLocation("somemod", "tower")),
-                Set.of("othermod"), 0, 4, false);
+                Set.of("othermod"), 0, 4, false, 3);
         String written = ServerConfig.render(settings);
         helper.assertTrue(written.contains("// Who can use the locate button"), "the saved file lost its comments");
         ServerConfig.Settings read = ServerConfig.parse(written, "test");
@@ -115,7 +115,7 @@ public final class SettingsTests {
     public static void hiddenStructuresStayHidden(GameTestHelper helper) {
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(new ResourceLocation("igloo")), Set.of(), 0, 2, true));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(new ResourceLocation("igloo")), Set.of(), 0, 2, true, 4));
             List<ResourceLocation> ids = JesServer.visibleCatalog(helper.getLevel().getServer()).stream().map(StructureCatalog.Entry::id).toList();
             helper.assertFalse(ids.contains(new ResourceLocation("igloo")), "a hidden structure is in the list");
             helper.assertTrue(ids.contains(new ResourceLocation("desert_pyramid")), "a structure that isn't hidden is missing");
@@ -124,7 +124,7 @@ public final class SettingsTests {
             Component reply = JesServer.locateFor(player, new ResourceLocation("igloo"), false);
             helper.assertTrue(key(reply).endsWith("locate_hidden"), "locating a hidden structure got " + reply.getString());
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of("minecraft"), 2, 2, true));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of("minecraft"), 2, 2, true, 4));
             helper.assertTrue(JesServer.visibleCatalog(helper.getLevel().getServer()).stream().noneMatch(e -> e.id().getNamespace().equals("minecraft")),
                     "hiding a whole mod left some of its structures in the list");
         } finally {
@@ -139,12 +139,12 @@ public final class SettingsTests {
         try {
             ServerPlayer player = helper.makeMockServerPlayerInLevel();
             Vec3 start = player.position();
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, 4));
             Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);
             helper.assertFalse(key(reply).endsWith("locate_no_permission"), "locating was refused with locate_permission at 0");
             helper.assertTrue(player.position().equals(start), "a player who isn't an operator was moved");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 3, 3, true));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 3, 3, true, 4));
             reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), false);
             helper.assertTrue(key(reply).endsWith("locate_no_permission"), "locating wasn't refused at level 3, got " + reply.getString());
         } finally {
@@ -196,7 +196,7 @@ public final class SettingsTests {
         // The server switch hides every structure's.
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, false));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, false, 4));
             helper.assertTrue(JesServer.hidesLootLocations(new ResourceLocation("desert_pyramid")), "show_loot_locations false didn't hide the desert pyramid's");
             helper.assertTrue(JesServer.visibleCatalog(helper.getLevel().getServer()).stream().allMatch(e -> e.info().hideLootLocations()),
                     "show_loot_locations false left some structures' loot locations showing");

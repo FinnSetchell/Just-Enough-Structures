@@ -44,7 +44,11 @@ public final class LootRolls {
 
     /** Rolls the table {@code rolls} times and counts how often each item turned up. */
     public static LootOdds odds(ServerLevel level, ResourceLocation tableId, int rolls, long seed) {
-        LootTable table = level.getServer().getLootData().getLootTable(tableId);
+        return odds(level, tableId, level.getServer().getLootData().getLootTable(tableId), rolls, seed);
+    }
+
+    /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
+    public static LootOdds odds(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
         LootParams params = chestParams(level);
         Map<Item, LootOdds.Row> rows = new HashMap<>();
         int empty = 0;

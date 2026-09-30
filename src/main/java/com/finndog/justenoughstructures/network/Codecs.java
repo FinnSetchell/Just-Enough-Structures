@@ -7,8 +7,10 @@ import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -252,6 +254,59 @@ public final class Codecs {
             out.put(key, values);
         }
         return out;
+    }
+
+    // ------------------------------------------------------------------ loot table editing
+
+    /** A loot table for the editor, or why it can't have one. */
+    public record TableReply(LootOverrides.View view, Component problem) {
+    }
+
+    public static void writeTable(FriendlyByteBuf buf, TableReply reply) {
+        buf.writeBoolean(reply.problem() != null);
+        if (reply.problem() != null) {
+            buf.writeComponent(reply.problem());
+            return;
+        }
+        LootOverrides.View view = reply.view();
+        buf.writeResourceLocation(view.id());
+        buf.writeEnum(view.status());
+        writeText(buf, view.current());
+        writeText(buf, view.original());
+    }
+
+    public static TableReply readTable(FriendlyByteBuf buf) {
+        if (buf.readBoolean()) {
+            return new TableReply(null, buf.readComponent());
+        }
+        ResourceLocation id = buf.readResourceLocation();
+        LootOverrides.Status status = buf.readEnum(LootOverrides.Status.class);
+        return new TableReply(new LootOverrides.View(id, readText(buf), readText(buf), status), null);
+    }
+
+    /** An edited table going up to the server: which table, and its JSON. */
+    public static void writeDraft(FriendlyByteBuf buf, ResourceLocation id, String json) {
+        buf.writeResourceLocation(id);
+        writeText(buf, json);
+    }
+
+    public record Draft(ResourceLocation id, String json) {
+    }
+
+    public static Draft readDraft(FriendlyByteBuf buf) {
+        return new Draft(buf.readResourceLocation(), readText(buf));
+    }
+
+    /** Text of any length, or null. Loot tables can be longer than a string packet field allows. */
+    private static void writeText(FriendlyByteBuf buf, String text) {
+        buf.writeBoolean(text != null);
+        if (text != null) {
+            buf.writeByteArray(text.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private static String readText(FriendlyByteBuf buf) {
+        return buf.readBoolean() ? new String(buf.readByteArray(), StandardCharsets.UTF_8) : null;
     }
 
     // ------------------------------------------------------------------ helpers

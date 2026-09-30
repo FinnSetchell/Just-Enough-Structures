@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import io.netty.buffer.Unpooled;
 import com.mojang.datafixers.util.Pair;
 import java.util.Optional;
@@ -109,6 +110,7 @@ public final class JesServer {
     /** When the server stops: drops what belonged to that world and stops the loot index. */
     public static void stop() {
         invalidate();
+        Uploads.clear();
         LootIndexStore.stop();
         BROWSING.clear();
     }
@@ -139,6 +141,97 @@ public final class JesServer {
         sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
     }
 
+    // ------------------------------------------------------------------ loot table editing
+
+    private static boolean canEdit(ServerPlayer player) {
+        return player.hasPermissions(ServerConfig.get().editPermission());
+    }
+
+    /** A loot table for the editor, as it is now and as the mods have it. */
+    public static Codecs.TableReply tableFor(ServerPlayer player, ResourceLocation id) {
+        if (!canEdit(player)) {
+            return new Codecs.TableReply(null, Component.translatable("screen.justenoughstructures.override.no_permission"));
+        }
+        return new Codecs.TableReply(LootOverrides.view(player.getServer().getResourceManager(), id), null);
+    }
+
+    public static void onRequestTable(ServerPlayer player, int requestId, ResourceLocation id) {
+        Codecs.TableReply reply = tableFor(player, id);
+        sendBlob(player, JesNetwork.KIND_TABLE, requestId, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeTable(buf, reply))));
+    }
+
+    /** Keeping an override whose original changed, or turning one off. */
+    public static Component tableAction(ServerPlayer player, ResourceLocation id, int action) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        return action == JesNetwork.ACTION_KEEP ? LootOverrides.keep(player.getServer().getResourceManager(), id) : LootOverrides.remove(id);
+    }
+
+    public static void onTableAction(ServerPlayer player, int requestId, ResourceLocation id, int action) {
+        sendEditReply(player, requestId, tableAction(player, id, action), null);
+    }
+
+    /** What an unsaved edit would give, or what's wrong with it. */
+    public record DraftOdds(Component problem, LootOdds odds) {
+    }
+
+    /** Rolls an edit that isn't saved yet, so the editor can show what it would give. */
+    public static DraftOdds draftOdds(ServerPlayer player, ResourceLocation id, String json) {
+        if (!canEdit(player)) {
+            return new DraftOdds(Component.translatable("screen.justenoughstructures.override.no_permission"), null);
+        }
+        Component problem = LootOverrides.check(id, json);
+        if (problem != null) {
+            return new DraftOdds(problem, null);
+        }
+        return new DraftOdds(null, LootRolls.odds(player.serverLevel(), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode()));
+    }
+
+    public static Component saveTable(ServerPlayer player, ResourceLocation id, String json) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        return LootOverrides.save(player.getServer().getResourceManager(), id, json);
+    }
+
+    /** A part of an upload. Once it's all in, it's dealt with on the server thread. */
+    public static void onUploadPart(MinecraftServer server, ServerPlayer player, Blobs.Part part) {
+        Uploads.Done done = Uploads.accept(player.getUUID(), part);
+        if (done == null) {
+            return;
+        }
+        server.execute(() -> {
+            Codecs.Draft draft;
+            try {
+                draft = Codecs.readDraft(Blobs.fromBytes(Blobs.inflate(done.bytes())));
+            } catch (RuntimeException e) {
+                JustEnoughStructures.LOGGER.warn("Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
+                return;
+            }
+            if (done.kind() == JesNetwork.KIND_DRAFT) {
+                DraftOdds result = draftOdds(player, draft.id(), draft.json());
+                sendEditReply(player, done.requestId(), result.problem(), result.odds());
+            } else if (done.kind() == JesNetwork.KIND_SAVE) {
+                sendEditReply(player, done.requestId(), saveTable(player, draft.id(), draft.json()), null);
+            }
+        });
+    }
+
+    private static void sendEditReply(ServerPlayer player, int requestId, Component message, LootOdds odds) {
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(requestId);
+        buf.writeBoolean(message != null);
+        if (message != null) {
+            buf.writeComponent(message);
+        }
+        buf.writeBoolean(odds != null);
+        if (odds != null) {
+            Codecs.writeOdds(buf, odds);
+        }
+        JesNetwork.send(player, JesNetwork.EDIT_REPLY, buf);
+    }
+
     /** Set by the loader when a structure compass mod is installed. */
     public static void setCompassSearch(CompassSearch search) {
         compassSearch = search;
@@ -152,6 +245,7 @@ public final class JesServer {
         buf.writeVarInt(settings.teleportPermission());
         buf.writeBoolean(reloaded);
         buf.writeBoolean(compassSearch != null);
+        buf.writeVarInt(settings.editPermission());
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 

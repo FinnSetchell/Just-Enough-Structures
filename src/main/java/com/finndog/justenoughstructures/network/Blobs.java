@@ -14,6 +14,8 @@ import net.minecraft.network.FriendlyByteBuf;
 public final class Blobs {
     /** Leaves room under the 1 MB clientbound limit for the part header. */
     public static final int PART_SIZE = 900_000;
+    /** The same under the 32 KB limit on what a client can send in one packet. */
+    public static final int UPLOAD_PART_SIZE = 30_000;
 
     private Blobs() {
     }
@@ -72,9 +74,13 @@ public final class Blobs {
     }
 
     public static List<byte[]> split(byte[] data) {
+        return split(data, PART_SIZE);
+    }
+
+    public static List<byte[]> split(byte[] data, int size) {
         List<byte[]> parts = new ArrayList<>();
-        for (int start = 0; start < data.length || parts.isEmpty(); start += PART_SIZE) {
-            int end = Math.min(data.length, start + PART_SIZE);
+        for (int start = 0; start < data.length || parts.isEmpty(); start += size) {
+            int end = Math.min(data.length, start + size);
             byte[] part = new byte[end - start];
             System.arraycopy(data, start, part, 0, part.length);
             parts.add(part);

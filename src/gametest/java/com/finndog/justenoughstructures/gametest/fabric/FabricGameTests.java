@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.gametest.fabric;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
 import com.finndog.justenoughstructures.gametest.CompassTests;
+import com.finndog.justenoughstructures.gametest.OverrideTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
 import com.finndog.justenoughstructures.gametest.SettingsTests;
@@ -108,6 +109,42 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void compassOnlySearchesWhereItCould(GameTestHelper helper) {
         CompassTests.compassOnlySearchesWhereItCould(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void editsSaveAndReadBack(GameTestHelper helper) {
+        OverrideTests.editsSaveAndReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void brokenEditsAreRefused(GameTestHelper helper) {
+        OverrideTests.brokenEditsAreRefused(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void editsNoticeTheirOriginalChanging(GameTestHelper helper) {
+        OverrideTests.editsNoticeTheirOriginalChanging(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void removedEditsAreKept(GameTestHelper helper) {
+        OverrideTests.removedEditsAreKept(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void brokenOverridesAreLeftOut(GameTestHelper helper) {
+        OverrideTests.brokenOverridesAreLeftOut(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void draftsRollBeforeSaving(GameTestHelper helper) {
+        OverrideTests.draftsRollBeforeSaving(helper);
+    }
+
+    // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_override_reload", timeoutTicks = 1200)
+    public void editsApplyOnReload(GameTestHelper helper) {
+        OverrideTests.editsApplyOnReload(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

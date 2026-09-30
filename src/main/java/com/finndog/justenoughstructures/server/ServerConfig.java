@@ -42,12 +42,17 @@ public final class ServerConfig {
               // False keeps where every structure's loot is out of the browser: no chest markers and
               // no opening chests in the preview. What the loot can be is still listed. A structure's
               // own datapack file can hide just its loot instead.
-              "show_loot_locations": %s
+              "show_loot_locations": %s,
+
+              // Who can edit loot tables in the browser, saved as overrides in
+              // config/justenoughstructures/loot_overrides. 4 is the server owner, or singleplayer
+              // with cheats on.
+              "edit_permission": %s
             }
             """;
 
     /** What {@link #get()} returns until a file is read, and whatever a file leaves out. */
-    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true);
+    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true, 4);
 
     private static volatile Settings current = DEFAULTS;
 
@@ -59,7 +64,7 @@ public final class ServerConfig {
      * @param hiddenMods       namespaces whose every structure is hidden
      */
     public record Settings(Set<ResourceLocation> hiddenStructures, Set<String> hiddenMods, int locatePermission, int teleportPermission,
-                           boolean showLootLocations) {
+                           boolean showLootLocations, int editPermission) {
         public boolean hides(ResourceLocation id) {
             return hiddenMods.contains(id.getNamespace()) || hiddenStructures.contains(id);
         }
@@ -122,7 +127,8 @@ public final class ServerConfig {
         List<String> hidden = new ArrayList<>();
         settings.hiddenMods().stream().sorted().forEach(mod -> hidden.add(mod + ":*"));
         settings.hiddenStructures().stream().map(ResourceLocation::toString).sorted().forEach(hidden::add);
-        return TEMPLATE.formatted(GSON.toJson(hidden), settings.locatePermission(), settings.teleportPermission(), settings.showLootLocations());
+        return TEMPLATE.formatted(GSON.toJson(hidden), settings.locatePermission(), settings.teleportPermission(), settings.showLootLocations(),
+                settings.editPermission());
     }
 
     /**
@@ -165,7 +171,8 @@ public final class ServerConfig {
         return new Settings(Set.copyOf(structures), Set.copyOf(mods),
                 level(json, "locate_permission", DEFAULTS.locatePermission(), source),
                 level(json, "teleport_permission", DEFAULTS.teleportPermission(), source),
-                flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source));
+                flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source),
+                level(json, "edit_permission", DEFAULTS.editPermission(), source));
     }
 
     private static boolean flag(JsonObject json, String key, boolean fallback, String source) {

@@ -20,6 +20,10 @@ public final class JesNetwork {
     public static final ResourceLocation REQUEST_INDEX = JustEnoughStructures.id("request_index");
     public static final ResourceLocation REQUEST_LOCATE = JustEnoughStructures.id("request_locate");
     public static final ResourceLocation REQUEST_COMPASS = JustEnoughStructures.id("request_compass");
+    public static final ResourceLocation REQUEST_TABLE = JustEnoughStructures.id("request_table");
+    public static final ResourceLocation TABLE_ACTION = JustEnoughStructures.id("table_action");
+    /** Parts of something bigger than one packet from the client, like an edited loot table. */
+    public static final ResourceLocation UPLOAD = JustEnoughStructures.id("upload");
 
     public static final ResourceLocation TRANSFER = JustEnoughStructures.id("transfer");
     public static final ResourceLocation LOOT = JustEnoughStructures.id("loot");
@@ -27,10 +31,19 @@ public final class JesNetwork {
     public static final ResourceLocation INDEX_PROGRESS = JustEnoughStructures.id("index_progress");
     public static final ResourceLocation LOCATE = JustEnoughStructures.id("locate");
     public static final ResourceLocation SETTINGS = JustEnoughStructures.id("settings");
+    public static final ResourceLocation EDIT_REPLY = JustEnoughStructures.id("edit_reply");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;
     public static final int KIND_INDEX = 2;
+    public static final int KIND_TABLE = 3;
+    /** Uploads: an edited loot table to roll, and one to save. */
+    public static final int KIND_DRAFT = 4;
+    public static final int KIND_SAVE = 5;
+
+    /** What {@link #TABLE_ACTION} asks for. */
+    public static final int ACTION_KEEP = 0;
+    public static final int ACTION_REMOVE = 1;
 
     private static ServerSender serverSender = (player, channel, buf) -> {
     };

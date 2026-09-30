@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.JesServer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -44,6 +45,22 @@ final class FabricNetworking {
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_INDEX, (server, player, handler, buf, responder) ->
                 server.execute(() -> JesServer.onRequestIndex(player)));
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_TABLE, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation table = buf.readResourceLocation();
+            server.execute(() -> JesServer.onRequestTable(player, requestId, table));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.TABLE_ACTION, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation table = buf.readResourceLocation();
+            int action = buf.readVarInt();
+            server.execute(() -> JesServer.onTableAction(player, requestId, table, action));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.UPLOAD, (server, player, handler, buf, responder) ->
+                JesServer.onUploadPart(server, player, Blobs.Part.read(buf)));
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_COMPASS, (server, player, handler, buf, responder) -> {
             int requestId = buf.readVarInt();
