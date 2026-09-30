@@ -24,6 +24,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -70,6 +71,8 @@ public final class JesServer {
         t.setPriority(Thread.MIN_PRIORITY);
         return t;
     });
+    private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
+    private static final Set<UUID> LOCATING = ConcurrentHashMap.newKeySet();
     private static volatile byte[] index;
     private static volatile int indexGeneration;
     private static volatile int indexDone;
@@ -85,6 +88,7 @@ public final class JesServer {
             CAPTURE_CACHE.clear();
         }
         catalog = null;
+        ODDS_CACHE.clear();
         indexGeneration++;
         index = null;
         indexing = false;
@@ -108,7 +112,7 @@ public final class JesServer {
             indexTotal = server.registryAccess().registryOrThrow(Registries.STRUCTURE).size();
             INDEXER.execute(() -> {
                 long started = System.nanoTime();
-                LootIndex built = LootIndex.build(server, done -> indexDone = done, () -> generation != indexGeneration);
+                LootIndex built = LootIndex.build(server, done -> indexDone = done, () -> generation != indexGeneration || !server.isRunning());
                 if (built == null || generation != indexGeneration) {
                     return;
                 }
@@ -195,7 +199,8 @@ public final class JesServer {
     }
 
     public static void onRequestOdds(ServerPlayer player, int requestId, ResourceLocation table) {
-        LootOdds odds = LootRolls.odds(player.serverLevel(), table, ODDS_ROLLS, table.hashCode());
+        // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
+        LootOdds odds = ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(player.serverLevel(), t, ODDS_ROLLS, t.hashCode()));
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(requestId);
         Codecs.writeOdds(buf, odds);
@@ -209,6 +214,28 @@ public final class JesServer {
      * {@code teleport} takes the player there, like /tp. Both need the permission those commands
      * do. Runs on the server thread because structure lookups load chunk data.
      */
+    /**
+     * Queues a locate on the server thread, unless this player already has one waiting: each is a
+     * full structure search, so repeated clicks mustn't pile them up.
+     */
+    public static void queueLocate(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
+        UUID uuid = player.getUUID();
+        if (!LOCATING.add(uuid)) {
+            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            buf.writeVarInt(requestId);
+            buf.writeComponent(Component.translatable("screen.justenoughstructures.locate_busy"));
+            JesNetwork.send(player, JesNetwork.LOCATE, buf);
+            return;
+        }
+        server.execute(() -> {
+            try {
+                onRequestLocate(player, requestId, id, teleport);
+            } finally {
+                LOCATING.remove(uuid);
+            }
+        });
+    }
+
     public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
         Component reply = locateFor(player, id, teleport);
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());

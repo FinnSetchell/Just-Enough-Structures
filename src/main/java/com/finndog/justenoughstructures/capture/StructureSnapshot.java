@@ -33,6 +33,7 @@ public final class StructureSnapshot {
     private final List<CompoundTag> entities;
     private final int pieceCount;
     private Map<Integer, Integer> lookup;
+    private volatile List<Container> containers;
 
     public StructureSnapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain, BlockPos origin, Vec3i size,
                              List<BlockState> palette, int[] positions, int[] states,
@@ -138,7 +139,17 @@ public final class StructureSnapshot {
     }
 
     /** Every block entity or entity carrying a loot table, plus containers that were saved with items in them. */
+    /** Worked out once: a snapshot never changes, and the screen asks for these several times a frame. */
     public List<Container> containers() {
+        List<Container> found = containers;
+        if (found == null) {
+            found = List.copyOf(findContainers());
+            containers = found;
+        }
+        return found;
+    }
+
+    private List<Container> findContainers() {
         List<Container> out = new ArrayList<>();
         for (CompoundTag tag : blockEntities) {
             String table = tag.contains("LootTable", Tag.TAG_STRING) ? tag.getString("LootTable") : null;

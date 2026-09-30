@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,8 @@ public final class ClientRequests {
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
     private static final Map<ResourceLocation, CompletableFuture<LootOdds>> ODDS_BY_TABLE = new HashMap<>();
+    private static final ArrayDeque<Map.Entry<ResourceLocation, CompletableFuture<LootOdds>>> ODDS_WAITING = new ArrayDeque<>();
+    private static final int ODDS_IN_FLIGHT = 2;
     private static final Map<Integer, CompletableFuture<Component>> LOCATES = new HashMap<>();
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
     private static CompletableFuture<LootIndex> index;
@@ -58,6 +61,8 @@ public final class ClientRequests {
         CAPTURES.clear();
         LOOT.clear();
         ODDS.clear();
+        ODDS_WAITING.forEach(e -> e.getValue().cancel(false));
+        ODDS_WAITING.clear();
         ODDS_BY_TABLE.clear();
         LOCATES.values().forEach(f -> f.cancel(false));
         LOCATES.clear();
@@ -175,15 +180,30 @@ public final class ClientRequests {
         return future;
     }
 
+    /**
+     * Odds cost the server a couple of thousand loot rolls each, and the found-in list can want a
+     * hundred tables at once, so only a couple are asked for at a time and the rest wait their turn.
+     */
     private static CompletableFuture<LootOdds> requestOdds(ResourceLocation table) {
-        int id = nextRequestId++;
         CompletableFuture<LootOdds> future = new CompletableFuture<>();
-        ODDS.put(id, future);
-        send(JesNetwork.REQUEST_ODDS, buf -> {
-            buf.writeVarInt(id);
-            buf.writeResourceLocation(table);
-        });
+        ODDS_WAITING.add(Map.entry(table, future));
+        sendWaitingOdds();
         return future;
+    }
+
+    private static void sendWaitingOdds() {
+        while (ODDS.size() < ODDS_IN_FLIGHT && !ODDS_WAITING.isEmpty()) {
+            Map.Entry<ResourceLocation, CompletableFuture<LootOdds>> next = ODDS_WAITING.poll();
+            if (next.getValue().isCancelled()) {
+                continue;
+            }
+            int id = nextRequestId++;
+            ODDS.put(id, next.getValue());
+            send(JesNetwork.REQUEST_ODDS, buf -> {
+                buf.writeVarInt(id);
+                buf.writeResourceLocation(next.getKey());
+            });
+        }
     }
 
     // ------------------------------------------------------------------ incoming, already on the client thread
@@ -229,6 +249,7 @@ public final class ClientRequests {
         if (future != null) {
             future.complete(odds);
         }
+        sendWaitingOdds();
     }
 
     private static void send(ResourceLocation channel, Consumer<FriendlyByteBuf> writer) {

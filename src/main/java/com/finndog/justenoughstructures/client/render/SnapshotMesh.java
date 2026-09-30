@@ -71,7 +71,12 @@ public final class SnapshotMesh implements AutoCloseable {
     }
 
     public void draw(Matrix4f viewMatrix, Matrix4f projection, Vector3f eye) {
-        if (Float.isNaN(sortedFrom.x()) || sortedFrom.distanceSquared(eye) > 2.25f) {
+        // Re-sort see-through faces once the eye has moved far enough to change their order. From
+        // far away that takes a bigger move, which keeps a spinning preview of a big structure
+        // from re-sorting every frame.
+        float fromCentre = eye.distance(view.size().getX() / 2f, view.size().getY() / 2f, view.size().getZ() / 2f);
+        float threshold = Math.max(1.5f, fromCentre * 0.04f);
+        if (Float.isNaN(sortedFrom.x()) || sortedFrom.distanceSquared(eye) > threshold * threshold) {
             resort(eye);
         }
         int slice = view.sliceY();

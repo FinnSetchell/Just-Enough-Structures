@@ -44,10 +44,12 @@ final class FabricNetworking {
             int requestId = buf.readVarInt();
             ResourceLocation structure = buf.readResourceLocation();
             boolean teleport = buf.readBoolean();
-            server.execute(() -> JesServer.onRequestLocate(player, requestId, structure, teleport));
+            JesServer.queueLocate(server, player, requestId, structure, teleport);
         });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> JesServer.invalidate());
+        // Stops the loot index and drops what belonged to that world when it closes.
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> JesServer.invalidate());
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.invalidate());
     }
 }
