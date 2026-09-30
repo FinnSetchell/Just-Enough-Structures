@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
@@ -17,6 +18,7 @@ import net.minecraft.world.level.chunk.ChunkStatus;
  */
 final class CaptureRegion extends WorldGenRegion {
     private final LongSet written = new LongOpenHashSet();
+    private ChunkPos placing;
 
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
         super(level, chunks, ChunkStatus.FEATURES, writeRadius);
@@ -24,6 +26,20 @@ final class CaptureRegion extends WorldGenRegion {
 
     LongSet written() {
         return written;
+    }
+
+    /**
+     * In a real world every chunk is decorated by a region centred on it, and some structure code
+     * relies on that: processors that add pillars, carve air or flood with water skip any block
+     * outside {@link #getCenter()}'s chunk. So while a chunk is being placed, it's the centre.
+     */
+    void placing(ChunkPos chunk) {
+        placing = chunk;
+    }
+
+    @Override
+    public ChunkPos getCenter() {
+        return placing != null ? placing : super.getCenter();
     }
 
     // Same as the vanilla method minus the call to ServerLevel.onBlockStateChange, which would

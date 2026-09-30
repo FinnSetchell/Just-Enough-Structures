@@ -2,13 +2,16 @@ package com.finndog.justenoughstructures.capture;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import net.minecraft.core.BlockPos;
@@ -217,9 +220,11 @@ public final class StructureCapture {
                     random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
                     BoundingBox writable = new BoundingBox(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
                             pos.getMaxBlockX(), level.getMaxBuildHeight() - 1, pos.getMaxBlockZ());
+                    region.placing(pos);
                     start.placeInChunk(region, structureManager, generator, random, writable, pos);
                 }
             }
+            region.placing(null);
             postProcess(region, chunks);
         } finally {
             SANDBOX_STRUCTURES.remove();
@@ -337,12 +342,51 @@ public final class StructureCapture {
         }
     }
 
+    /**
+     * Blocks that aren't the flat terrain the chunks started with. Some structure code writes
+     * straight into chunk sections instead of through the region, like the legs, pillars and arches
+     * YUNG's and Repurposed Structures' processors add, so those never show up in written(). A
+     * section whose palette holds nothing the terrain doesn't is skipped without looking inside.
+     */
+    private static LongArrayList changedFromTerrain(SandboxTerrain terrain, List<ChunkAccess> chunks) {
+        LongArrayList changed = new LongArrayList();
+        for (ChunkAccess chunk : chunks) {
+            LevelChunkSection[] sections = chunk.getSections();
+            for (int i = 0; i < sections.length; i++) {
+                int minY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(i));
+                Set<BlockState> baseline = new HashSet<>();
+                for (int y = 0; y < 16; y++) {
+                    baseline.add(terrain.stateAt(minY + y));
+                }
+                if (!sections[i].getStates().maybeHas(state -> !state.isAir() && !baseline.contains(state))) {
+                    continue;
+                }
+                int baseX = chunk.getPos().getMinBlockX();
+                int baseZ = chunk.getPos().getMinBlockZ();
+                for (int y = 0; y < 16; y++) {
+                    BlockState ground = terrain.stateAt(minY + y);
+                    for (int z = 0; z < 16; z++) {
+                        for (int x = 0; x < 16; x++) {
+                            BlockState state = sections[i].getBlockState(x, y, z);
+                            if (!state.isAir() && state != ground) {
+                                changed.add(BlockPos.asLong(baseX + x, minY + y, baseZ + z));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return changed;
+    }
+
     private static StructureSnapshot snapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain,
                                               CaptureRegion region, List<ChunkAccess> chunks, int pieces) {
         LongArrayList solid = new LongArrayList();
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (long packed : region.written()) {
+        LongOpenHashSet placed = new LongOpenHashSet(region.written());
+        placed.addAll(changedFromTerrain(terrain, chunks));
+        for (long packed : placed) {
             BlockPos pos = BlockPos.of(packed);
             if (region.getBlockState(pos).isAir()) {
                 continue;
