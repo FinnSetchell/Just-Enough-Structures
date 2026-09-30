@@ -29,7 +29,38 @@ val gametest: SourceSet = sourceSets.create("gametest") {
 
 repositories {
     maven("https://maven.terraformersmc.com/releases") { name = "TerraformersMC" }
+    maven("https://maven.shedaniel.me/") { name = "Shedaniel" }
+    maven("https://api.modrinth.com/maven") {
+        name = "Modrinth"
+        content { includeGroup("maven.modrinth") }
+    }
 }
+
+// Popular structure mods, and JEI, for trying the browser against a modpack's worth of structures.
+// They're only on the dev runtime classpath, so they never end up in the built jar. Off on CI, and
+// -Pdev_mods=false turns them off locally. Pinned to Modrinth version ids, per Minecraft version.
+val devMods = mapOf(
+    "1.20.1" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:ROvChtQg", "moogs-voyager-structures:dMwX4GPR", "mns-moogs-nether-structures:bcwhyj8t",
+        "mss-moogs-soaring-structures:Fu2E23KF", "mmv-moogs-missing-villages:uwxEdo7J", "mtr-moogs-temples-reimagined:Gcx1X3Ji",
+        "mmr-moogs-mineshafts-reimagined:fjkyFY5g", "mos-moogs-ocean-structures:O1LxGHhC",
+        // YUNG's
+        "yungs-better-dungeons:nidyvq2m", "yungs-better-mineshafts:qLnQnqXS", "yungs-better-strongholds:yV6hn0bB",
+        "yungs-better-ocean-monuments:4c00pjbt", "yungs-better-desert-temples:1Z9HNWpj", "yungs-better-jungle-temples:6LPrzuB0",
+        "yungs-better-witch-huts:lYpHN3iF", "yungs-better-nether-fortresses:FL88RLRu", "yungs-better-end-island:qJTsmyiE",
+        "yungs-bridges:hvfjXu8d", "yungs-extras:pfVTUz1L",
+        // Other big structure mods
+        "repurposed-structures-fabric:jaRcykAY", "towns-and-towers:7ZwnSrVW", "structory:FkaSuQb0", "structory-towers:fTl6NfPL",
+        "when-dungeons-arise:Vd5XOXlj", "dungeons-and-taverns:d1sY0JqV", "explorify:CuBdAr31",
+        // Recipe viewer
+        "jei:YRfUnbXb",
+        // Libraries the above need
+        "moogs-structure-lib:ynssyzOT", "yungs-api:lscV1N5k", "cristel-lib:tBnivdbu", "cloth-config:2xQdCMyG",
+        "resourceful-config:2gStMKhM", "midnightlib:rXX4FCV8",
+    ),
+)
+val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 
 dependencies {
     minecraft("com.mojang:minecraft:$mcBuild")
@@ -38,6 +69,16 @@ dependencies {
 
     modImplementation("net.fabricmc:fabric-loader:${prop("deps.fabric_loader")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${prop("deps.fabric_api")}")
+
+    if (useDevMods) {
+        devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
+        // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:
+        // YUNG's (Reflections), Cristel Lib (Jankson) and Cloth Config (basic-math).
+        localRuntime("org.reflections:reflections:0.10.2")
+        localRuntime("org.javassist:javassist:3.29.2-GA")
+        localRuntime("blue.endless:jankson:1.2.3")
+        localRuntime("me.shedaniel.cloth:basic-math:0.6.1")
+    }
 }
 
 loom {
@@ -65,6 +106,8 @@ loom {
             runDir("build/gametest")
             vmArg("-Dfabric-api.gametest")
             vmArg("-Dfabric-api.gametest.report-file=${layout.buildDirectory.get().asFile}/gametest/report.xml")
+            // -Pperf also captures every installed structure and times it, into build/gametest/perf.csv.
+            vmArg("-Djes.perf=${hasProperty("perf")}")
         }
         // Opens the structure browser in a throwaway superflat world, saves screenshots to
         // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,

@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
+import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
 import java.util.Collection;
 import java.util.List;
@@ -95,6 +96,13 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void onlyOperatorsCanTeleport(GameTestHelper helper) {
         ServiceTests.onlyOperatorsCanTeleport(helper);
+    }
+
+    // Captures everything installed and times it; does nothing without -Pperf. Long timeout for
+    // the batch it holds up, although the body runs in one go on the server thread.
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 72000)
+    public void captureEveryStructure(GameTestHelper helper) {
+        PerfTests.captureEveryStructure(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

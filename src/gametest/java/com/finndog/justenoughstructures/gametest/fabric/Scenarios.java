@@ -38,6 +38,7 @@ final class Scenarios {
             case "showcase" -> showcase(mc);
             case "spin" -> spin(mc);
             case "teleport" -> teleport(mc);
+            case "jei" -> jei(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }
@@ -216,6 +217,32 @@ final class Scenarios {
                             mc.level.getBlockState(at.below()), mc.level.getBlockState(at), mc.level.getBlockState(at.above()));
                 }))
                 .then(shoot("t01_arrived"));
+        return d;
+    }
+
+    /**
+     * JEI's own screens, as a reference for matching its look: the inventory with its item list,
+     * then the recipes and uses of whatever is in the top left of that list.
+     */
+    private static Director jei(Minecraft mc) {
+        Director d = new Director(mc, null);
+        Supplier<int[]> firstItem = () -> new int[]{mc.getWindow().getGuiScaledWidth() - 152, 37};
+        d.then(pause(40))
+                .then(pressKey(GLFW.GLFW_KEY_E))
+                .then(until(() -> mc.screen != null, 40))
+                .then(pause(40))
+                .then(moveTo(firstItem, 10))
+                .then(pause(10))
+                .then(shoot("j01_inventory"))
+                .then(pressKey(GLFW.GLFW_KEY_R))
+                .then(pause(40))
+                .then(shoot("j02_recipes"))
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pause(20))
+                .then(moveTo(firstItem, 4))
+                .then(pressKey(GLFW.GLFW_KEY_U))
+                .then(pause(40))
+                .then(shoot("j03_uses"));
         return d;
     }
 
