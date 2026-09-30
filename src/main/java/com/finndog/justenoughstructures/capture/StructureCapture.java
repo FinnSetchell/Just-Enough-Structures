@@ -29,6 +29,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.StructureManager;
@@ -75,6 +76,8 @@ public final class StructureCapture {
     private static final ReentrantLock LOCK = new ReentrantLock(true);
     /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
     private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
+    /** What draws from the real world's random come from while this thread is placing a capture. */
+    private static final ThreadLocal<RandomSource> SANDBOX_RANDOM = new ThreadLocal<>();
 
     private StructureCapture() {
     }
@@ -210,6 +213,7 @@ public final class StructureCapture {
         region.setCurrentlyGenerating(() -> "Just Enough Structures preview of " + structureId);
         StructureManager structureManager = level.structureManager().forWorldGenRegion(region);
         SANDBOX_STRUCTURES.set(structureManager);
+        SANDBOX_RANDOM.set(new XoroshiroRandomSource(seed));
         try {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
                 for (int cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -228,6 +232,7 @@ public final class StructureCapture {
             postProcess(region, chunks);
         } finally {
             SANDBOX_STRUCTURES.remove();
+            SANDBOX_RANDOM.remove();
         }
 
         StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size());
@@ -242,6 +247,11 @@ public final class StructureCapture {
     /** What {@code ServerLevel.structureManager()} should answer on this thread, or null to leave it be. */
     public static StructureManager sandboxStructures() {
         return SANDBOX_STRUCTURES.get();
+    }
+
+    /** What {@code LegacyRandomSourceMixin} draws from in place of a real world's random, or null outside a capture. */
+    public static RandomSource sandboxRandom() {
+        return SANDBOX_RANDOM.get();
     }
 
     private static ServerLevel levelFor(MinecraftServer server, SandboxTerrain terrain) {

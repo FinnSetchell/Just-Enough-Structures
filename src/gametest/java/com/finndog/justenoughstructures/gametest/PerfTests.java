@@ -85,6 +85,8 @@ public final class PerfTests {
         rows.stream().sorted(Comparator.comparingInt(Row::bytes).reversed()).limit(10).forEach(r ->
                 JustEnoughStructures.LOGGER.info("Perf: big    {} KB  {} ({} blocks, {} ms)", r.bytes() / 1024, r.id(), r.blocks(), r.millis()));
         rows.stream().filter(r -> !r.ok()).forEach(r -> JustEnoughStructures.LOGGER.info("Perf: failed {}: {}", r.id(), r.error()));
+        // With every installed structure placed, this is where one drawing from the real world's random shows up.
+        helper.assertTrue(RealRandoms.places() == 0, RealRandoms.places() + " places drew from a real world's random during captures, see the log");
         helper.succeed();
     }
 }

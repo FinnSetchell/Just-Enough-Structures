@@ -1,14 +1,17 @@
 package com.finndog.justenoughstructures.mixin;
 
+import com.finndog.justenoughstructures.capture.LevelRandom;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -18,6 +21,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(ServerLevel.class)
 public abstract class ServerLevelMixin {
+    /** So draws from this world's random during a capture can be told apart, see {@code LegacyRandomSourceMixin}. */
+    @Inject(method = "<init>", at = @At("TAIL"))
+    private void justenoughstructures$markRandom(CallbackInfo ci) {
+        if (((Level) (Object) this).random instanceof LevelRandom random) {
+            random.justenoughstructures$markLevelRandom();
+        }
+    }
+
     /** Village cats ask whether they're in a swamp hut. */
     @Inject(method = "structureManager", at = @At("HEAD"), cancellable = true)
     private void justenoughstructures$sandboxStructures(CallbackInfoReturnable<StructureManager> cir) {

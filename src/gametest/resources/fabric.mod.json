@@ -5,6 +5,9 @@
   "name": "Just Enough Structures Game Tests",
   "description": "In-world tests for Just Enough Structures. Never shipped.",
   "environment": "*",
+  "mixins": [
+    "justenoughstructures_gametest.mixins.json"
+  ],
   "entrypoints": {
     "fabric-gametest": [
       "com.finndog.justenoughstructures.gametest.fabric.FabricGameTests"
