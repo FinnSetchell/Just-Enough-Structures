@@ -22,6 +22,7 @@ public final class JesNetwork {
     public static final ResourceLocation REQUEST_COMPASS = JustEnoughStructures.id("request_compass");
     public static final ResourceLocation REQUEST_TABLE = JustEnoughStructures.id("request_table");
     public static final ResourceLocation TABLE_ACTION = JustEnoughStructures.id("table_action");
+    public static final ResourceLocation CONTAINER_ACTION = JustEnoughStructures.id("container_action");
     /** Parts of something bigger than one packet from the client, like an edited loot table. */
     public static final ResourceLocation UPLOAD = JustEnoughStructures.id("upload");
 

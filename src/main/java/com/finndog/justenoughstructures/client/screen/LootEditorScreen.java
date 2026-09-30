@@ -48,6 +48,8 @@ public final class LootEditorScreen extends Screen {
     private static final int WARN = 0xFF9A6200;
     private static final long PREVIEW_DELAY = 400;
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    /** Where a new table starts: a chest table with nothing in it yet. */
+    private static final String BLANK = "{\"type\": \"minecraft:chest\", \"pools\": []}";
 
     private final Screen parent;
     private final ResourceLocation tableId;
@@ -96,7 +98,7 @@ public final class LootEditorScreen extends Screen {
             }
             view = reply.view();
             if (draft == null && rawText == null) {
-                startFrom(view.current(), view.status() == LootOverrides.Status.BROKEN);
+                startFrom(view.current() != null ? view.current() : BLANK, view.status() == LootOverrides.Status.BROKEN);
                 dirty = false;
             }
             if (minecraft != null && minecraft.screen == this) {

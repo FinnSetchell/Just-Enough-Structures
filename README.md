@@ -81,6 +81,21 @@ you've overridden, the editor flags it and offers the changes side by side, a me
 theirs into yours, or keeping yours as it is. Nothing is ever deleted: removing an override keeps
 a dated copy.
 
+### Changing one container's table
+
+Open a chest in the preview and the same players get a **Change** link. Pick any loot table the
+structures use, type an id, or make a new table in the editor and pick it once it's saved. The
+change goes in `containers.json` in the same folder, as the template, the container's spot in it
+and the table, and is applied as the game loads the template from the next `/reload`. The
+structure's own files are never touched, so when its mod updates, the change carries over as long
+as that container is still in the same spot. If it isn't, or the block there has changed, the
+change is skipped and logged. **Undo** puts the container back and keeps the old entry in the
+file.
+
+A change applies wherever that template is used, which can be more than one structure. Only
+containers placed from a template can be changed on their own; ones a structure's code places,
+like the desert pyramid's chests, get an **Edit table** link instead.
+
 ## For mod and modpack authors
 
 A structure can have a file at `data/<namespace>/justenoughstructures/structures/<path>.json` for

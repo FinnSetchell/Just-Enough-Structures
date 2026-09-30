@@ -2,15 +2,19 @@ package com.finndog.justenoughstructures.capture;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
  * A real {@link WorldGenRegion} over chunks that belong to no world, so structure code sees exactly
@@ -18,6 +22,7 @@ import net.minecraft.world.level.chunk.ChunkStatus;
  */
 final class CaptureRegion extends WorldGenRegion {
     private final LongSet written = new LongOpenHashSet();
+    private final Map<Long, StructureTemplate> filledBy = new HashMap<>();
     private ChunkPos placing;
 
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
@@ -26,6 +31,23 @@ final class CaptureRegion extends WorldGenRegion {
 
     LongSet written() {
         return written;
+    }
+
+    /** Which template last filled the block entity at each position, and nothing for ones placed by structure code. */
+    Map<Long, StructureTemplate> filledBy() {
+        return filledBy;
+    }
+
+    // A template fills a block entity by fetching it right after setting the block, so the template
+    // placing at that moment is the one whose loot table it ends up with.
+    @Override
+    public BlockEntity getBlockEntity(BlockPos pos) {
+        BlockEntity blockEntity = super.getBlockEntity(pos);
+        StructureTemplate template = TemplatePlacements.current();
+        if (blockEntity != null && template != null) {
+            filledBy.put(pos.asLong(), template);
+        }
+        return blockEntity;
     }
 
     /**
@@ -52,6 +74,9 @@ final class CaptureRegion extends WorldGenRegion {
         ChunkAccess chunk = getChunk(pos);
         BlockState old = chunk.setBlockState(pos, state, false);
         written.add(pos.asLong());
+        if (TemplatePlacements.current() == null) {
+            filledBy.remove(pos.asLong());
+        }
 
         if (state.hasBlockEntity()) {
             CompoundTag placeholder = new CompoundTag();

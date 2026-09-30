@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.gui.Font;
@@ -25,6 +26,20 @@ final class ChestPopup {
     List<ItemStack> items;
     int x;
     int y;
+    /** A link on the popup under the mouse, and what it does, set as it's drawn. */
+    Action hoveredAction;
+    Component hoveredHint;
+    private final java.util.Map<Action, int[]> links = new java.util.EnumMap<>(Action.class);
+
+    /** What the links on the popup do, for players who can edit loot. */
+    enum Action {
+        /** Point this one container at a different table. */
+        CHANGE,
+        /** Edit the table itself, for a container placed by code that can't be changed on its own. */
+        EDIT,
+        /** Put a changed container back on its own table. */
+        UNDO
+    }
 
     ChestPopup(StructureSnapshot.Container container, Component title, int size, int index, int count) {
         this.container = container;
@@ -85,12 +100,59 @@ final class ChestPopup {
                 : StructureNames.lootTable(container.lootTable());
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, infoTop + 5, Gui.LABEL_SOFT);
         g.drawString(font, Gui.clip(font, table, WIDTH - 14), x + 7, infoTop + 12, 0xFF202020, false);
-        if (items == null) {
+
+        links.clear();
+        hoveredAction = null;
+        hoveredHint = null;
+        boolean canEdit = ClientRequests.canEditLoot();
+        if (canEdit && container.source() != null) {
+            link(g, font, Action.CHANGE, "container.change", "container.change_hint", infoTop + 5, mouseX, mouseY);
+        } else if (canEdit && container.lootTable() != null) {
+            link(g, font, Action.EDIT, "container.edit_table", "container.edit_table_hint", infoTop + 5, mouseX, mouseY);
+        }
+        String changedFrom = container.source() == null ? null : container.source().patchedFrom();
+        if (changedFrom != null) {
+            int undoRoom = canEdit ? link(g, font, Action.UNDO, "container.undo", "container.undo_hint", infoTop + 23, mouseX, mouseY) + 4 : 0;
+            String was = Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.lootTable(changedFrom)).getString();
+            Gui.small(g, font, Gui.clip(font, was, (int) ((WIDTH - 14 - undoRoom) / 0.75f)), x + 7, infoTop + 23, Gui.LABEL_SOFT);
+        } else if (items == null) {
             Gui.small(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         } else if (container.lootTable() != null) {
             Gui.small(g, font, Component.translatable("screen.justenoughstructures.roll_hint").getString(), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         }
         return hovered;
+    }
+
+    /** Draws a small link at the right of a line and returns how wide it is. */
+    private int link(GuiGraphics g, Font font, Action action, String key, String hint, int lineY, int mouseX, int mouseY) {
+        String text = Component.translatable("screen.justenoughstructures." + key).getString();
+        int w = (int) (font.width(text) * 0.75f) + 2;
+        int lx = x + WIDTH - 7 - w;
+        boolean over = mouseX >= lx && mouseX < lx + w && mouseY >= lineY - 1 && mouseY < lineY + 8;
+        Gui.small(g, font, text, lx, lineY, over ? 0xFF1F3F8F : 0xFF3A55A0);
+        links.put(action, new int[]{lx, lineY - 1, w, 9});
+        if (over) {
+            hoveredAction = action;
+            hoveredHint = Component.translatable("screen.justenoughstructures." + hint);
+        }
+        return w;
+    }
+
+    /** The middle of a link, or null if it isn't shown. */
+    int[] linkCentre(Action action) {
+        int[] r = links.get(action);
+        return r == null ? null : new int[]{r[0] + r[2] / 2, r[1] + r[3] / 2};
+    }
+
+    /** The link at a point, or null. */
+    Action actionAt(double mouseX, double mouseY) {
+        for (java.util.Map.Entry<Action, int[]> e : links.entrySet()) {
+            int[] r = e.getValue();
+            if (mouseX >= r[0] && mouseX < r[0] + r[2] && mouseY >= r[1] && mouseY < r[1] + r[3]) {
+                return e.getKey();
+            }
+        }
+        return null;
     }
 
     /** Where the popup's buttons go, one row along the bottom of the info panel. */

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.gametest.fabric;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
 import com.finndog.justenoughstructures.gametest.CompassTests;
+import com.finndog.justenoughstructures.gametest.ContainerTests;
 import com.finndog.justenoughstructures.gametest.OverrideTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
@@ -217,5 +218,26 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenLootLeavesThePreview(GameTestHelper helper) {
         SettingsTests.hiddenLootLeavesThePreview(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void patchesFollowTheirContainer(GameTestHelper helper) {
+        ContainerTests.patchesFollowTheirContainer(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void patchesAreChecked(GameTestHelper helper) {
+        ContainerTests.patchesAreChecked(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
+    public void containersKnowTheirTemplate(GameTestHelper helper) {
+        ContainerTests.containersKnowTheirTemplate(helper);
+    }
+
+    // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "container_patch_reload", timeoutTicks = 1200)
+    public void patchesApplyOnReload(GameTestHelper helper) {
+        ContainerTests.patchesApplyOnReload(helper);
     }
 }

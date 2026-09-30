@@ -10,6 +10,7 @@ import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -215,6 +216,7 @@ public final class StructureCapture {
         StructureManager structureManager = level.structureManager().forWorldGenRegion(region);
         SANDBOX_STRUCTURES.set(structureManager);
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(seed));
+        TemplatePlacements.begin();
         try {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
                 for (int cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -234,9 +236,11 @@ public final class StructureCapture {
         } finally {
             SANDBOX_STRUCTURES.remove();
             SANDBOX_RANDOM.remove();
+            TemplatePlacements.end();
         }
 
-        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size());
+        Map<Long, CompoundTag> sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy());
+        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources);
         if (snapshot == null) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.placed_nothing", terrain.name()));
             return null;
@@ -391,7 +395,7 @@ public final class StructureCapture {
     }
 
     private static StructureSnapshot snapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain,
-                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces) {
+                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces, Map<Long, CompoundTag> sources) {
         LongArrayList solid = new LongArrayList();
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
@@ -450,6 +454,10 @@ public final class StructureCapture {
                     tag.putInt("x", pos.getX() - minX);
                     tag.putInt("y", pos.getY() - minY);
                     tag.putInt("z", pos.getZ() - minZ);
+                    CompoundTag source = sources.get(pos.asLong());
+                    if (source != null && ContainerSources.matches(source, state, tag)) {
+                        tag.put(ContainerSources.TAG, source.copy());
+                    }
                     blockEntities.add(tag);
                 }
             }

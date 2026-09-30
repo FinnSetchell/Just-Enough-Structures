@@ -48,6 +48,11 @@ public final class FoundIn {
         return index != null;
     }
 
+    /** Every loot table any structure uses, or none until the index is here. */
+    public static Set<ResourceLocation> allTables() {
+        return index == null ? Set.of() : index.itemsByTable().keySet();
+    }
+
     /** The loot tables the structure uses, or null until the index is here. */
     public static Set<ResourceLocation> tablesIn(ResourceLocation structure) {
         return index == null ? null : index.tablesByStructure().getOrDefault(structure, Set.of());

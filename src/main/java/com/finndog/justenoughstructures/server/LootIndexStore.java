@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -204,8 +205,9 @@ public final class LootIndexStore {
 
     /**
      * A hash of everything the index is built from: the game and mod versions, since structure
-     * code can change with them, and the bytes of every file structures and loot come from, in
-     * every mod and datapack. Null if the files couldn't be read.
+     * code can change with them, the containers changed in the browser, and the bytes of every
+     * file structures and loot come from, in every mod and datapack. Null if the files couldn't be
+     * read.
      */
     public static String fingerprintOf(MinecraftServer server) {
         try {
@@ -213,6 +215,8 @@ public final class LootIndexStore {
             hasher.putString(FORMAT + "|" + SharedConstants.getCurrentVersion().getName() + "|", StandardCharsets.UTF_8);
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) ->
                     hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
+            // Containers pointed at other tables in the browser change what's found where, too.
+            hasher.putString(ContainerPatches.summary() + "|", StandardCharsets.UTF_8);
             ResourceManager resources = server.getResourceManager();
             for (String source : SOURCES) {
                 for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(resources.listResources(source, path -> true)).entrySet()) {

@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -30,6 +31,7 @@ public final class ClientRequests {
     private static int nextRequestId = 1;
     private static CompletableFuture<List<StructureCatalog.Entry>> catalog;
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
+    private static int reloads;
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
     private static final Map<ResourceLocation, CompletableFuture<LootOdds>> ODDS_BY_TABLE = new HashMap<>();
@@ -137,6 +139,23 @@ public final class ClientRequests {
             buf.writeVarInt(requestId);
             buf.writeResourceLocation(id);
             buf.writeVarInt(action);
+        });
+        return future;
+    }
+
+    /** Points a container in a template at another loot table, or with a null table, back at its own. */
+    public static CompletableFuture<EditReply> containerAction(ResourceLocation template, BlockPos pos, ResourceLocation table) {
+        int requestId = nextRequestId++;
+        CompletableFuture<EditReply> future = new CompletableFuture<>();
+        EDITS.put(requestId, future);
+        send(JesNetwork.CONTAINER_ACTION, buf -> {
+            buf.writeVarInt(requestId);
+            buf.writeResourceLocation(template);
+            buf.writeBlockPos(pos);
+            buf.writeBoolean(table != null);
+            if (table != null) {
+                buf.writeResourceLocation(table);
+            }
         });
         return future;
     }
@@ -377,6 +396,7 @@ public final class ClientRequests {
         if (!reloaded) {
             return;
         }
+        reloads++;
         if (catalog != null && catalog.isDone()) {
             catalog = null;
         }
@@ -390,6 +410,11 @@ public final class ClientRequests {
             }
         }
         ODDS_BY_TABLE.clear();
+    }
+
+    /** How many times the server has reloaded since joining, so screens can tell when to fetch again. */
+    public static int reloads() {
+        return reloads;
     }
 
     public static void onLoot(int requestId, List<ItemStack> items) {

@@ -102,6 +102,7 @@ public class JesScreen extends Screen {
     private boolean locateFound;
     private boolean locating;
     private int locateAccess;
+    private int seenReloads = ClientRequests.reloads();
     private boolean markersSecret;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
@@ -302,6 +303,13 @@ public class JesScreen extends Screen {
         updateLocateButton();
         updateMarkersButton();
         updateCompassButton();
+        // After a /reload the structure may have changed, like a container pointed at another table, so it's generated again.
+        if (ClientRequests.reloads() != seenReloads) {
+            seenReloads = ClientRequests.reloads();
+            if (selected != null) {
+                select(selected, seed);
+            }
+        }
     }
 
     /**
@@ -594,6 +602,29 @@ public class JesScreen extends Screen {
         pointCompass();
     }
 
+    /** The chest popup's links: change which table this one container uses, edit its table, or undo a change. */
+    private void containerAction(ChestPopup open, ChestPopup.Action action) {
+        StructureSnapshot.Container container = open.container;
+        switch (action) {
+            case CHANGE -> minecraft.setScreen(new TablePickerScreen(this, container.source(), container.lootTable(), open.title));
+            case EDIT -> openEditor(container.lootTable());
+            case UNDO -> ClientRequests.containerAction(container.source().template(), container.source().pos(), null)
+                    .thenAccept(reply -> showMessage(reply.message()));
+        }
+    }
+
+    /** Where a link on the open chest popup is, for the screenshot harness, or null. */
+    public int[] popupLink(String name) {
+        return popup == null ? null : popup.linkCentre(ChestPopup.Action.valueOf(name.toUpperCase(java.util.Locale.ROOT)));
+    }
+
+    /** Says something in the preview's top line, where locate results go, for a few seconds. */
+    public void showMessage(Component text) {
+        locateText = text;
+        locateFound = true;
+        locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+    }
+
     /** The loot table editor, from the Loot tab's Edit link. Coming back returns here. */
     private void openEditor(String table) {
         ResourceLocation id = ResourceLocation.tryParse(table);
@@ -859,6 +890,8 @@ public class JesScreen extends Screen {
         if (popupOpen) {
             if (!popupHover.isEmpty()) {
                 g.renderComponentTooltip(font, itemTooltip(popupHover, List.of()), mouseX, mouseY);
+            } else if (popup.hoveredHint != null) {
+                g.renderTooltip(font, font.split(popup.hoveredHint, 200), mouseX, mouseY);
             }
         } else if (clippedHeaderLine(mouseX, mouseY) != null) {
             g.renderTooltip(font, font.split(clippedHeaderLine(mouseX, mouseY), 240), mouseX, mouseY);
@@ -1238,6 +1271,11 @@ public class JesScreen extends Screen {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
                     return b.mouseClicked(mouseX, mouseY, button);
                 }
+            }
+            ChestPopup.Action action = popup.actionAt(mouseX, mouseY);
+            if (action != null) {
+                containerAction(popup, action);
+                return true;
             }
             if (!popup.contains(mouseX, mouseY)) {
                 closePopup();

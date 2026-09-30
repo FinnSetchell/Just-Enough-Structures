@@ -20,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.level.storage.loot.LootDataType;
@@ -130,6 +131,11 @@ public final class LootOverrides {
             }
         }
         return null;
+    }
+
+    /** Whether there's a loot table by that name, loaded or saved here since the last /reload. */
+    public static boolean exists(MinecraftServer server, ResourceLocation id) {
+        return server.getLootData().getLootTable(id) != LootTable.EMPTY || Files.exists(file(folder(), id));
     }
 
     /** What's wrong with a draft, or null if the game can load it as a loot table. */

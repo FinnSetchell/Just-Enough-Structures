@@ -154,6 +154,7 @@ public final class StructureSnapshot {
             copy.remove("LootTable");
             copy.remove("LootTableSeed");
             copy.remove("Items");
+            copy.remove(ContainerSources.TAG);
             out.add(copy);
         }
         return out;
@@ -177,14 +178,14 @@ public final class StructureSnapshot {
             boolean hasItems = tag.contains("Items", Tag.TAG_LIST) && !tag.getList("Items", Tag.TAG_COMPOUND).isEmpty();
             if (table != null || hasItems) {
                 out.add(new Container(new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), tag.getString("id"),
-                        table, tag.getLong("LootTableSeed"), false));
+                        table, tag.getLong("LootTableSeed"), false, Source.read(tag.getCompound(ContainerSources.TAG))));
             }
         }
         for (CompoundTag tag : entities) {
             if (tag.contains("LootTable", Tag.TAG_STRING)) {
                 ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
                 BlockPos at = BlockPos.containing(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
-                out.add(new Container(at, tag.getString("id"), tag.getString("LootTable"), tag.getLong("LootTableSeed"), true));
+                out.add(new Container(at, tag.getString("id"), tag.getString("LootTable"), tag.getLong("LootTableSeed"), true, null));
             }
         }
         return out;
@@ -192,8 +193,25 @@ public final class StructureSnapshot {
 
     /**
      * A container found in the snapshot. {@code lootTable} is null for one that was saved with items
-     * but no table.
+     * but no table. {@code source} is where in which template it came from, or null when it wasn't
+     * placed from a template's blocks.
      */
-    public record Container(BlockPos pos, String id, String lootTable, long lootSeed, boolean entity) {
+    public record Container(BlockPos pos, String id, String lootTable, long lootSeed, boolean entity, Source source) {
+    }
+
+    /**
+     * The template a container came from and its spot in it, what block it is there, and the table it
+     * had before a dev changed it, or null if it's not been changed.
+     */
+    public record Source(ResourceLocation template, BlockPos pos, ResourceLocation block, String patchedFrom) {
+        static Source read(CompoundTag tag) {
+            ResourceLocation template = ResourceLocation.tryParse(tag.getString("template"));
+            ResourceLocation block = ResourceLocation.tryParse(tag.getString("block"));
+            if (tag.isEmpty() || template == null || block == null) {
+                return null;
+            }
+            return new Source(template, new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), block,
+                    tag.contains("patched_from") ? tag.getString("patched_from") : null);
+        }
     }
 }

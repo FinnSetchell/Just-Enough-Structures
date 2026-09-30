@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.server.packs.PackType;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 
 final class FabricNetworking {
@@ -57,6 +58,14 @@ final class FabricNetworking {
             ResourceLocation table = buf.readResourceLocation();
             int action = buf.readVarInt();
             server.execute(() -> JesServer.onTableAction(player, requestId, table, action));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.CONTAINER_ACTION, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation template = buf.readResourceLocation();
+            BlockPos pos = buf.readBlockPos();
+            ResourceLocation table = buf.readBoolean() ? buf.readResourceLocation() : null;
+            server.execute(() -> JesServer.onContainerAction(player, requestId, template, pos, table));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.UPLOAD, (server, player, handler, buf, responder) ->

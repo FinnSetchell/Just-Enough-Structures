@@ -10,6 +10,8 @@ import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
+import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import io.netty.buffer.Unpooled;
 import com.mojang.datafixers.util.Pair;
@@ -22,6 +24,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.nbt.Tag;
+import net.minecraft.core.registries.BuiltInRegistries;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +105,7 @@ public final class JesServer {
 
     /** Called when the server starts and after /reload, since structures and loot can change. */
     public static void invalidate() {
+        ContainerPatches.load();
         synchronized (CAPTURE_CACHE) {
             CAPTURE_CACHE.clear();
         }
@@ -193,6 +199,51 @@ public final class JesServer {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
         return LootOverrides.save(player.getServer().getResourceManager(), id, json);
+    }
+
+    /**
+     * Points one container in a template at another loot table, after checking the container is
+     * really there and the table exists. It applies from the next /reload.
+     */
+    public static Component patchContainer(ServerPlayer player, ResourceLocation template, BlockPos pos, ResourceLocation table) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        MinecraftServer server = player.getServer();
+        Optional<StructureTemplate> loaded = server.getStructureManager().get(template);
+        if (loaded.isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.container.no_template");
+        }
+        StructureTemplate.StructureBlockInfo container = null;
+        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) loaded.get()).justenoughstructures$palettes()) {
+            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
+                if (info.pos().equals(pos) && info.nbt() != null && info.nbt().contains("LootTable", Tag.TAG_STRING)) {
+                    container = info;
+                }
+            }
+        }
+        if (container == null) {
+            return Component.translatable("screen.justenoughstructures.container.not_there");
+        }
+        if (!LootOverrides.exists(server, table)) {
+            return Component.translatable("screen.justenoughstructures.container.no_table", table.toString());
+        }
+        // The template may already be patched, in which case what it had first is what the patch remembers.
+        ContainerPatches.Patch existing = ContainerPatches.find(template, pos);
+        String original = existing != null ? existing.original() : container.nbt().getString("LootTable");
+        return ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
+    }
+
+    public static Component unpatchContainer(ServerPlayer player, ResourceLocation template, BlockPos pos) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        return ContainerPatches.remove(template, pos);
+    }
+
+    public static void onContainerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, ResourceLocation table) {
+        Component reply = table == null ? unpatchContainer(player, template, pos) : patchContainer(player, template, pos, table);
+        sendEditReply(player, requestId, reply, null);
     }
 
     /** A part of an upload. Once it's all in, it's dealt with on the server thread. */

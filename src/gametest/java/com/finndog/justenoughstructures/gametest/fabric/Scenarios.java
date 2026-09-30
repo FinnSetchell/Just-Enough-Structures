@@ -44,6 +44,7 @@ final class Scenarios {
             case "compass" -> CompassScenario.build(mc);
             case "settings" -> ConfigScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
+            case "containers" -> ContainerScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }
