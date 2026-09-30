@@ -5,9 +5,12 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -61,6 +64,14 @@ import net.minecraft.world.ticks.ProtoChunkTicks;
 public final class StructureCapture {
     private static final ChunkPos START_CHUNK = new ChunkPos(0, 0);
     private static final int MAX_CHUNKS_ACROSS = StructureSnapshot.MAX_SIZE / 16;
+    /**
+     * One capture at a time. Previews and the loot index run on different threads, and structure
+     * code leans on caches that aren't safe to share, like the block lists templates keep. Fair, so
+     * a preview only ever waits for the one index capture in progress.
+     */
+    private static final ReentrantLock LOCK = new ReentrantLock(true);
+    /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
+    private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
 
     private StructureCapture() {
     }
@@ -71,6 +82,23 @@ public final class StructureCapture {
     }
 
     public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed) {
+        try {
+            // Only ever a wait for one other capture, so this is a safety net rather than a limit.
+            if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
+                return CaptureResult.failure("Another preview is still generating, try again in a moment", List.of(), 0);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return CaptureResult.failure("Interrupted", List.of(), 0);
+        }
+        try {
+            return captureLocked(server, structureId, seed);
+        } finally {
+            LOCK.unlock();
+        }
+    }
+
+    private static CaptureResult captureLocked(MinecraftServer server, ResourceLocation structureId, long seed) {
         long started = System.nanoTime();
         List<String> attempts = new ArrayList<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
@@ -83,7 +111,15 @@ public final class StructureCapture {
         String lastError = "It didn't find anywhere to generate on any terrain";
         for (SandboxTerrain terrain : terrainsFor(structure)) {
             try {
-                StructureSnapshot snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
+                StructureSnapshot snapshot;
+                try {
+                    snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
+                } catch (ConcurrentModificationException e) {
+                    // The world's own generation threads can still race us over those caches. It
+                    // says nothing about the terrain, so try the same one again.
+                    attempts.add(terrain + ": ran into world generation, trying again");
+                    snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
+                }
                 if (snapshot != null) {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
                 }
@@ -170,19 +206,24 @@ public final class StructureCapture {
         CaptureRegion region = new CaptureRegion(level, chunks, side);
         region.setCurrentlyGenerating(() -> "Just Enough Structures preview of " + structureId);
         StructureManager structureManager = level.structureManager().forWorldGenRegion(region);
-        for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-            for (int cx = minChunkX; cx <= maxChunkX; cx++) {
-                ChunkPos pos = new ChunkPos(cx, cz);
-                // Seeded the way ChunkGenerator.applyBiomeDecoration seeds structure placement.
-                WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(RandomSupport.generateUniqueSeed()));
-                long decorationSeed = random.setDecorationSeed(seed, pos.getMinBlockX(), pos.getMinBlockZ());
-                random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
-                BoundingBox writable = new BoundingBox(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
-                        pos.getMaxBlockX(), level.getMaxBuildHeight() - 1, pos.getMaxBlockZ());
-                start.placeInChunk(region, structureManager, generator, random, writable, pos);
+        SANDBOX_STRUCTURES.set(structureManager);
+        try {
+            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+                for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+                    ChunkPos pos = new ChunkPos(cx, cz);
+                    // Seeded the way ChunkGenerator.applyBiomeDecoration seeds structure placement.
+                    WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(RandomSupport.generateUniqueSeed()));
+                    long decorationSeed = random.setDecorationSeed(seed, pos.getMinBlockX(), pos.getMinBlockZ());
+                    random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
+                    BoundingBox writable = new BoundingBox(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
+                            pos.getMaxBlockX(), level.getMaxBuildHeight() - 1, pos.getMaxBlockZ());
+                    start.placeInChunk(region, structureManager, generator, random, writable, pos);
+                }
             }
+            postProcess(region, chunks);
+        } finally {
+            SANDBOX_STRUCTURES.remove();
         }
-        postProcess(region, chunks);
 
         StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size());
         if (snapshot == null) {
@@ -191,6 +232,11 @@ public final class StructureCapture {
         }
         attempts.add(terrain + ": " + snapshot.blockCount() + " blocks");
         return snapshot;
+    }
+
+    /** What {@code ServerLevel.structureManager()} should answer on this thread, or null to leave it be. */
+    public static StructureManager sandboxStructures() {
+        return SANDBOX_STRUCTURES.get();
     }
 
     private static ServerLevel levelFor(MinecraftServer server, SandboxTerrain terrain) {

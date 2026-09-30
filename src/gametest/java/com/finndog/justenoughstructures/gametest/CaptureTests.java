@@ -7,10 +7,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 
@@ -79,12 +86,10 @@ public final class CaptureTests {
         StructureSnapshot a = StructureCapture.capture(helper.getLevel().getServer(), id, SEED).snapshot();
         StructureSnapshot b = StructureCapture.capture(helper.getLevel().getServer(), id, SEED).snapshot();
         helper.assertTrue(a != null && b != null, "village_plains did not capture");
-        helper.assertTrue(a.blockCount() == b.blockCount(), "block counts differ: " + a.blockCount() + " vs " + b.blockCount());
-        for (int i = 0; i < a.blockCount(); i++) {
-            if (a.packedPosition(i) != b.packedPosition(i) || a.state(i) != b.state(i)) {
-                helper.fail("snapshots differ at block " + i);
-                return;
-            }
+        String difference = difference(a, b);
+        if (difference != null) {
+            helper.fail(difference);
+            return;
         }
         StructureSnapshot c = StructureCapture.capture(helper.getLevel().getServer(), id, SEED + 1).snapshot();
         helper.assertTrue(c != null, "village_plains did not capture with another seed");
@@ -117,6 +122,65 @@ public final class CaptureTests {
             }
             helper.succeed();
         });
+    }
+
+    private record Job(ResourceLocation id, long seed) {
+    }
+
+    /**
+     * Previews and the loot index capture on separate threads, and structure code shares caches
+     * that aren't thread safe. Run several captures at once on freshly loaded templates and check
+     * each comes out exactly as it does on its own.
+     */
+    public static void parallelCapturesMatchSerialOnes(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Job> jobs = List.of(
+                new Job(new ResourceLocation("village_plains"), SEED + 1), new Job(new ResourceLocation("village_plains"), SEED + 2),
+                new Job(new ResourceLocation("village_plains"), SEED + 3), new Job(new ResourceLocation("bastion_remnant"), SEED + 1),
+                new Job(new ResourceLocation("bastion_remnant"), SEED + 2), new Job(new ResourceLocation("pillager_outpost"), SEED + 1));
+        // Drop the loaded templates so their block caches start empty, which is when they get filled in.
+        server.getStructureManager().onResourceManagerReload(server.getResourceManager());
+        ExecutorService pool = Executors.newFixedThreadPool(jobs.size());
+        List<Future<CaptureResult>> parallel = new ArrayList<>();
+        for (Job job : jobs) {
+            parallel.add(pool.submit(() -> StructureCapture.capture(server, job.id(), job.seed())));
+        }
+        pool.shutdown();
+        for (int i = 0; i < jobs.size(); i++) {
+            Job job = jobs.get(i);
+            CaptureResult together;
+            try {
+                // The server thread is blocked here, so a capture that needs it (to load a real
+                // chunk, say) never finishes.
+                together = parallel.get(i).get(1, TimeUnit.MINUTES);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                helper.fail(job + " didn't finish, it may be waiting on the server thread: " + e);
+                return;
+            }
+            helper.assertTrue(together.succeeded(), job + " failed alongside the others: " + together.error() + " " + together.attempts());
+            helper.assertTrue(together.attempts().stream().noneMatch(a -> a.contains("crashed")), job + " crashed alongside the others: " + together.attempts());
+            CaptureResult alone = StructureCapture.capture(server, job.id(), job.seed());
+            helper.assertTrue(alone.succeeded(), job + " failed on its own: " + alone.error());
+            String difference = difference(together.snapshot(), alone.snapshot());
+            if (difference != null) {
+                helper.fail(job + ": " + difference);
+                return;
+            }
+        }
+        helper.succeed();
+    }
+
+    /** Why two snapshots aren't the same, or null if they are. */
+    private static String difference(StructureSnapshot a, StructureSnapshot b) {
+        if (a.blockCount() != b.blockCount()) {
+            return "block counts differ: " + a.blockCount() + " vs " + b.blockCount();
+        }
+        for (int i = 0; i < a.blockCount(); i++) {
+            if (a.packedPosition(i) != b.packedPosition(i) || a.state(i) != b.state(i)) {
+                return "snapshots differ at block " + i;
+            }
+        }
+        return null;
     }
 
     public static void unknownStructureFailsCleanly(GameTestHelper helper) {

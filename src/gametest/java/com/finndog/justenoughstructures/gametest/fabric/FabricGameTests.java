@@ -43,6 +43,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void parallelCapturesMatchSerialOnes(GameTestHelper helper) {
+        CaptureTests.parallelCapturesMatchSerialOnes(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownStructureFailsCleanly(GameTestHelper helper) {
         CaptureTests.unknownStructureFailsCleanly(helper);
     }
