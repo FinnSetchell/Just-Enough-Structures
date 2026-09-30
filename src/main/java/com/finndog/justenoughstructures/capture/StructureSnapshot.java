@@ -138,6 +138,27 @@ public final class StructureSnapshot {
         return pieceCount;
     }
 
+    /**
+     * The same snapshot with nothing that says where its loot is: no loot tables and no items saved
+     * in containers. The blocks are all still there.
+     */
+    public StructureSnapshot withoutLoot() {
+        return new StructureSnapshot(structureId, seed, terrain, origin, size, palette, positions, states,
+                withoutLoot(blockEntities), withoutLoot(entities), pieceCount);
+    }
+
+    private static List<CompoundTag> withoutLoot(List<CompoundTag> tags) {
+        List<CompoundTag> out = new ArrayList<>(tags.size());
+        for (CompoundTag tag : tags) {
+            CompoundTag copy = tag.copy();
+            copy.remove("LootTable");
+            copy.remove("LootTableSeed");
+            copy.remove("Items");
+            out.add(copy);
+        }
+        return out;
+    }
+
     /** Every block entity or entity carrying a loot table, plus containers that were saved with items in them. */
     /** Worked out once: a snapshot never changes, and the screen asks for these several times a frame. */
     public List<Container> containers() {

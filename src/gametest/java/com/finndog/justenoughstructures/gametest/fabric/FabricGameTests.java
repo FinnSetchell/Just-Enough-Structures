@@ -135,4 +135,14 @@ public final class FabricGameTests implements FabricGameTest {
     public void locateLevelsComeFromTheSettings(GameTestHelper helper) {
         SettingsTests.locateLevelsComeFromTheSettings(helper);
     }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void structureInfoFilesAreRead(GameTestHelper helper) {
+        SettingsTests.structureInfoFilesAreRead(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void hiddenLootLeavesThePreview(GameTestHelper helper) {
+        SettingsTests.hiddenLootLeavesThePreview(helper);
+    }
 }

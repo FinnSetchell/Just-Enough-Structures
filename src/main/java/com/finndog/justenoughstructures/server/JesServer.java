@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
@@ -181,11 +182,23 @@ public final class JesServer {
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 
-    /** Every structure, less the ones the server hides. */
+    /** Every structure, less the ones the server hides, each marked if where its loot is is hidden. */
     public static List<StructureCatalog.Entry> visibleCatalog(MinecraftServer server) {
+        boolean showLoot = ServerConfig.get().showLootLocations();
         return StructureCatalog.build(server.registryAccess()).stream()
                 .filter(entry -> !ServerConfig.hides(entry.id()))
+                .map(entry -> showLoot ? entry : entry.withInfo(entry.info().hidingLoot()))
                 .toList();
+    }
+
+    /** Whether players are kept from seeing where this structure's loot is, by its datapack file or the server settings. */
+    public static boolean hidesLootLocations(ResourceLocation structure) {
+        return !ServerConfig.get().showLootLocations() || StructureInfo.forStructure(structure).hideLootLocations();
+    }
+
+    /** A capture as players get it: without where its loot is, when that's hidden. */
+    public static CaptureResult forPlayers(ResourceLocation structure, CaptureResult result) {
+        return hidesLootLocations(structure) ? result.withoutLoot() : result;
     }
 
     public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed) {
@@ -219,7 +232,7 @@ public final class JesServer {
         CAPTURES.execute(() -> {
             byte[] payload;
             try {
-                CaptureResult result = StructureCapture.capture(server, structure, seed);
+                CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
                 payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, result)));
                 if (result.succeeded()) {
                     synchronized (CAPTURE_CACHE) {

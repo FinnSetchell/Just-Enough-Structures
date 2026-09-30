@@ -99,6 +99,7 @@ public class JesScreen extends Screen {
     private boolean locateFound;
     private boolean locating;
     private int locateAccess;
+    private boolean markersSecret;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
     private int lastViewW;
@@ -228,11 +229,13 @@ public class JesScreen extends Screen {
             spinButton.setLabel(spinLabel());
         }));
         bx += 22;
-        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> ClientState.markers, markersLabel(), b -> {
+        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> ClientState.markers && !lootSecret(), markersLabel(), b -> {
             ClientState.markers = !ClientState.markers;
             ClientState.save();
             markersButton.setLabel(markersLabel());
         }));
+        markersSecret = lootSecret();
+        markersButton.active = !markersSecret;
         bx += 22;
         groundButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> GROUND_ICON, () -> ClientState.ground, groundLabel(), b -> {
             ClientState.ground = !ClientState.ground;
@@ -281,6 +284,7 @@ public class JesScreen extends Screen {
     public void tick() {
         super.tick();
         updateLocateButton();
+        updateMarkersButton();
     }
 
     /**
@@ -566,6 +570,12 @@ public class JesScreen extends Screen {
     /** Ctrl-clicking the locate button, which a scripted click can't do: it reads the real keyboard. */
     public void locateAndTeleport() {
         locate(true);
+    }
+
+    /** The Loot tab with {@code table} picked, as clicking its row would. */
+    public void showLoot(String table) {
+        info.setTab(InfoPanel.Tab.LOOT);
+        selectTable(table);
     }
 
     public void showDetails(boolean shown) {
@@ -960,8 +970,10 @@ public class JesScreen extends Screen {
             }
         }
 
-        String stats = Component.translatable("screen.justenoughstructures.stats", String.format("%,d", s.blockCount()),
-                s.containers().stream().filter(c -> c.lootTable() != null).count()).getString();
+        String stats = lootSecret()
+                ? Component.translatable("screen.justenoughstructures.stats_blocks", String.format("%,d", s.blockCount())).getString()
+                : Component.translatable("screen.justenoughstructures.stats", String.format("%,d", s.blockCount()),
+                        s.containers().stream().filter(c -> c.lootTable() != null).count()).getString();
         int room = viewW - 12 - 46;
         g.drawString(font, Gui.clip(font, stats, room), viewX + 6, viewY + 6, 0xFFE8E8E8, true);
         // What locate found, or why it couldn't, under the stats. Failures fade after a while.
@@ -984,9 +996,10 @@ public class JesScreen extends Screen {
             g.fill(bx - 1, by - 1, bx + barW + 1, by + 5, 0xFF000000);
             g.fill(bx, by, bx + (int) (barW * viewport.meshProgress()), by + 4, 0xFF7FD06A);
         } else {
-            String hint = Component.translatable("screen.justenoughstructures.controls").getString();
+            String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
+            String hint = Component.translatable(controls).getString();
             if (font.width(hint) * 0.75f > viewW - 12) {
-                hint = Component.translatable("screen.justenoughstructures.controls_short").getString();
+                hint = Component.translatable(controls + "_short").getString();
             }
             Gui.small(g, font, Gui.clip(font, hint, (int) ((viewW - 12) / 0.75f)), viewX + 6, viewY + viewH - 10, 0xFFE0E0E0);
         }
@@ -1328,7 +1341,25 @@ public class JesScreen extends Screen {
     }
 
     private Component markersLabel() {
+        if (lootSecret()) {
+            return Component.translatable("screen.justenoughstructures.markers_secret");
+        }
         return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
+    }
+
+    /** True when the selected structure keeps where its loot is a secret, so its previews come without loot. */
+    private boolean lootSecret() {
+        return selected != null && selected.info().hideLootLocations();
+    }
+
+    /** Markers mean nothing for a structure whose loot is kept secret, so the button says so instead. */
+    private void updateMarkersButton() {
+        boolean secret = lootSecret();
+        if (secret != markersSecret) {
+            markersSecret = secret;
+            markersButton.setLabel(markersLabel());
+        }
+        markersButton.active = !secret;
     }
 
     private static int clamp(int value, int min, int max) {

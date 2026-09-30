@@ -19,4 +19,9 @@ public record CaptureResult(StructureSnapshot snapshot, String error, List<Strin
     public boolean succeeded() {
         return snapshot != null;
     }
+
+    /** This result with {@link StructureSnapshot#withoutLoot()} in place of its snapshot. */
+    public CaptureResult withoutLoot() {
+        return succeeded() ? new CaptureResult(snapshot.withoutLoot(), error, attempts, millis) : this;
+    }
 }

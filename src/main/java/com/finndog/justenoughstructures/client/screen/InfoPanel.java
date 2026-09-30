@@ -3,8 +3,11 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.catalog.StructureInfo;
+import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.Exports;
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -66,6 +69,7 @@ final class InfoPanel {
     private static final int TEXT = Gui.LABEL;
     private static final int RARE = 0xFF8A5A00;
     private static final int GOOD = 0xFF2E5B1D;
+    private static final ItemStack SECRET_ICON = new ItemStack(Items.CHEST);
 
     private final Font font;
     private final Consumer<String> onSelectTable;
@@ -280,7 +284,19 @@ final class InfoPanel {
             StructureSnapshot s = result.snapshot();
             cy = field(g, cy, "size", Component.translatable("screen.justenoughstructures.size_blocks",
                     s.size().getX(), s.size().getY(), s.size().getZ()).getString());
-            cy = field(g, cy, "loot_here", lootSummary(s));
+            cy = field(g, cy, "loot_here", entry.info().hideLootLocations()
+                    ? Component.translatable("screen.justenoughstructures.loot_secret").getString() : lootSummary(s));
+        }
+
+        // Whatever the structure's mod or the modpack wrote about it.
+        StructureInfo info = entry.info();
+        if (info.notes() != null) {
+            cy += 3;
+            String title = info.author() == null ? Component.translatable("screen.justenoughstructures.notes").getString()
+                    : Component.translatable("screen.justenoughstructures.notes_by", info.author()).getString();
+            Gui.band(g, font, Gui.clip(font, title, contentRight - x - 8), x, cy, contentRight - x, 13);
+            cy += 16;
+            cy = Gui.wrapped(g, font, info.notes(), x + PAD, cy, textWidth(), TEXT) + 3;
         }
 
         // Everything a datapack author wants and a player doesn't, folded away by default.
@@ -453,6 +469,9 @@ final class InfoPanel {
     // ------------------------------------------------------------------ loot
 
     private int loot(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        if (entry != null && entry.info().hideLootLocations()) {
+            return secretLoot(g, cy, mouseX, mouseY, clipTop, clipHeight);
+        }
         if (result == null || !result.succeeded()) {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
@@ -504,6 +523,48 @@ final class InfoPanel {
             cy += rowHeight + 1;
         }
 
+        return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, selectedCount, selectedName);
+    }
+
+    /**
+     * For a structure that keeps where its loot is a secret: the previews come without loot, so this
+     * lists its loot tables from the loot index instead of from the containers in the layout.
+     */
+    private int secretLoot(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_note"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 3;
+        Set<ResourceLocation> tables = FoundIn.tablesIn(entry.id());
+        if (tables == null) {
+            ClientRequests.index();
+            float progress = ClientRequests.indexProgress();
+            Component text = progress < 0
+                    ? Component.translatable("screen.justenoughstructures.indexing")
+                    : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
+            return Gui.wrapped(g, font, text, x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+        }
+        if (tables.isEmpty()) {
+            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+        }
+        List<String> sorted = tables.stream().map(ResourceLocation::toString).sorted(Comparator.comparing(StructureNames::lootTable)).toList();
+        for (String table : sorted) {
+            int rowHeight = 20;
+            boolean selected = table.equals(selectedTable);
+            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
+            Gui.card(g, x, cy, contentRight - x, rowHeight);
+            if (selected || hovered) {
+                g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+            }
+            Gui.slot(g, x + PAD + 1, cy + 1);
+            g.renderItem(SECRET_ICON, x + PAD + 2, cy + 2);
+            Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12, TEXT);
+            g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? TEXT : Gui.LABEL_SOFT, false);
+            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
+            cy += rowHeight + 1;
+        }
+        return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, 1,
+                Component.translatable("screen.justenoughstructures.container").getString());
+    }
+
+    private int lootOdds(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight, int selectedCount, String selectedName) {
         if (selectedTable == null) {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.pick_group"), x + PAD, cy + 4, textWidth(), Gui.LABEL_SOFT);
         }

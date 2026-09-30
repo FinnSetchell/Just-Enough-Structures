@@ -42,6 +42,33 @@ It can hide structures, or every structure from a mod, so they can't be browsed,
 located, and it sets who can locate and teleport. Out of the box that's operators, the same as
 `/locate` and `/tp`. Edit it and run `/reload` to apply the changes.
 
+`show_loot_locations` in the same file keeps where every structure's loot is out of the browser, for
+packs where finding hidden chests is part of the fun. There are no loot markers and chests can't be
+opened in the preview, but the Loot tab still lists what the loot can be. The server leaves the
+loot out of the previews it sends, so this can't be undone on the client.
+
+## For mod and modpack authors
+
+A structure can have a file at `data/<namespace>/justenoughstructures/structures/<path>.json` for
+the structure `<namespace>:<path>`, in a mod's jar or any datapack. Every field is optional.
+
+```json
+{
+  "notes": "Shown in an Author's notes section on the Info tab.",
+  "author": "Moog",
+  "hide_loot_locations": true
+}
+```
+
+- `notes` is a plain string or any text component, so it can be translated with
+  `{"translate": "..."}` and styled. Use `\n` for a new line.
+- `author` changes the section's title to "Notes from Moog".
+- `hide_loot_locations` hides where just this structure's loot is, the same way
+  `show_loot_locations` does for every structure.
+
+Structure names come from the translation key `structure.<namespace>.<path>`, the same one
+Explorer's Compass uses.
+
 ## Requirements
 
 - Minecraft 1.20.1

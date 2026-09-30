@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.google.gson.JsonObject;
@@ -22,6 +23,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -47,6 +49,16 @@ public final class Codecs {
                 writeJson(buf, set.placement());
                 buf.writeVarInt(set.weight());
             }
+            StructureInfo info = e.info();
+            buf.writeBoolean(info.notes() != null);
+            if (info.notes() != null) {
+                buf.writeComponent(info.notes());
+            }
+            buf.writeBoolean(info.author() != null);
+            if (info.author() != null) {
+                buf.writeUtf(info.author());
+            }
+            buf.writeBoolean(info.hideLootLocations());
         }
     }
 
@@ -62,7 +74,10 @@ public final class Codecs {
             for (int s = 0; s < setCount; s++) {
                 sets.add(new StructureCatalog.SetInfo(buf.readResourceLocation(), readJson(buf), buf.readVarInt()));
             }
-            out.add(new StructureCatalog.Entry(id, type, definition, sets));
+            Component notes = buf.readBoolean() ? buf.readComponent() : null;
+            String author = buf.readBoolean() ? buf.readUtf() : null;
+            StructureInfo info = new StructureInfo(notes, author, buf.readBoolean());
+            out.add(new StructureCatalog.Entry(id, type, definition, sets, info));
         }
         return out;
     }

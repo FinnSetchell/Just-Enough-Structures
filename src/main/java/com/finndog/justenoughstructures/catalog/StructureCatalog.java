@@ -51,7 +51,7 @@ public final class StructureCatalog {
             Structure structure = e.getValue();
             ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
             JsonObject definition = encode(Structure.DIRECT_CODEC.encodeStart(ops, structure).result());
-            out.add(new Entry(id, type, definition, List.copyOf(setsByStructure.getOrDefault(id, List.of()))));
+            out.add(new Entry(id, type, definition, List.copyOf(setsByStructure.getOrDefault(id, List.of())), StructureInfo.forStructure(id)));
         }
         out.sort(Comparator.comparing(entry -> entry.id().toString()));
         return out;
@@ -63,9 +63,12 @@ public final class StructureCatalog {
 
     /**
      * One structure. {@code definition} is the structure's JSON as its codec writes it, or null when
-     * the codec couldn't encode it.
+     * the codec couldn't encode it. {@code info} is what its mod or a datapack says about it.
      */
-    public record Entry(ResourceLocation id, ResourceLocation type, JsonObject definition, List<SetInfo> sets) {
+    public record Entry(ResourceLocation id, ResourceLocation type, JsonObject definition, List<SetInfo> sets, StructureInfo info) {
+        public Entry withInfo(StructureInfo newInfo) {
+            return new Entry(id, type, definition, sets, newInfo);
+        }
     }
 
     /** A structure set the structure belongs to, with its placement JSON (null if it didn't encode). */

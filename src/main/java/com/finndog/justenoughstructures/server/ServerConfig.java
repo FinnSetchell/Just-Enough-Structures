@@ -33,12 +33,17 @@ public final class ServerConfig {
               "locate_permission": 2,
 
               // Who can Ctrl-click it to teleport there. 2 is the same as /tp.
-              "teleport_permission": 2
+              "teleport_permission": 2,
+
+              // False keeps where every structure's loot is out of the browser: no chest markers and
+              // no opening chests in the preview. What the loot can be is still listed. A structure's
+              // own datapack file can hide just its loot instead.
+              "show_loot_locations": true
             }
             """;
 
     /** What {@link #get()} returns until a file is read, and whatever a file leaves out. */
-    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2);
+    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true);
 
     private static volatile Settings current = DEFAULTS;
 
@@ -49,7 +54,8 @@ public final class ServerConfig {
      * @param hiddenStructures single structures that are hidden
      * @param hiddenMods       namespaces whose every structure is hidden
      */
-    public record Settings(Set<ResourceLocation> hiddenStructures, Set<String> hiddenMods, int locatePermission, int teleportPermission) {
+    public record Settings(Set<ResourceLocation> hiddenStructures, Set<String> hiddenMods, int locatePermission, int teleportPermission,
+                           boolean showLootLocations) {
         public boolean hides(ResourceLocation id) {
             return hiddenMods.contains(id.getNamespace()) || hiddenStructures.contains(id);
         }
@@ -126,7 +132,20 @@ public final class ServerConfig {
 
         return new Settings(Set.copyOf(structures), Set.copyOf(mods),
                 level(json, "locate_permission", DEFAULTS.locatePermission(), source),
-                level(json, "teleport_permission", DEFAULTS.teleportPermission(), source));
+                level(json, "teleport_permission", DEFAULTS.teleportPermission(), source),
+                flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source));
+    }
+
+    private static boolean flag(JsonObject json, String key, boolean fallback, String source) {
+        JsonElement value = json.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean()) {
+            return value.getAsBoolean();
+        }
+        JustEnoughStructures.LOGGER.warn("{}: {} should be true or false, not {}", source, key, value);
+        return fallback;
     }
 
     private static int level(JsonObject json, String key, int fallback, String source) {

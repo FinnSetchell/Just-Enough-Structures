@@ -48,6 +48,11 @@ public final class FoundIn {
         return index != null;
     }
 
+    /** The loot tables the structure uses, or null until the index is here. */
+    public static Set<ResourceLocation> tablesIn(ResourceLocation structure) {
+        return index == null ? null : index.tablesByStructure().getOrDefault(structure, Set.of());
+    }
+
     /** Structure id to the loot tables in it that can give this item. Empty if none do. */
     public static Map<ResourceLocation, Set<ResourceLocation>> structuresFor(Item item) {
         return byItem.getOrDefault(BuiltInRegistries.ITEM.getKey(item), Map.of());
