@@ -196,6 +196,7 @@ final class InfoPanel {
         boolean scrolls = contentHeight > bodyHeight;
         contentRight = x + width - (scrolls ? 8 : 0);
         g.enableScissor(x, top, x + width, top + bodyHeight);
+        clampScroll();
         int cursor = top + 2 - (int) scroll;
         int end = switch (tab) {
             case OVERVIEW -> overview(g, cursor, mouseX, mouseY, top, bodyHeight);
@@ -205,7 +206,7 @@ final class InfoPanel {
         };
         g.disableScissor();
         contentHeight = end - cursor + 2;
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, contentHeight - bodyHeight)));
+        clampScroll();
         if (contentHeight > bodyHeight) {
             Gui.scrollbar(g, x + width - 4, top, bodyHeight, scroll, contentHeight - bodyHeight);
         }
@@ -233,7 +234,13 @@ final class InfoPanel {
             return false;
         }
         scroll -= delta * 20;
+        clampScroll();
         return true;
+    }
+
+    /** Keeps the scroll inside the content, so it never shows past the top or bottom, even for a frame. */
+    private void clampScroll() {
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, contentHeight - height)));
     }
 
     private int textWidth() {
