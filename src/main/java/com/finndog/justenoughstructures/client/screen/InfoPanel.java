@@ -76,6 +76,8 @@ final class InfoPanel {
     private final Consumer<String> onSelectTable;
     private final Consumer<StructureSnapshot.Container> onOpenContainer;
     private final Consumer<ItemStack> onItemClicked;
+    private Consumer<String> onEditTable = table -> {
+    };
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
@@ -146,6 +148,11 @@ final class InfoPanel {
 
     Tab tab() {
         return tab;
+    }
+
+    /** What the Loot tab's Edit link does with the picked table. */
+    void onEditTable(Consumer<String> action) {
+        onEditTable = action;
     }
 
     void setTab(Tab tab) {
@@ -591,6 +598,21 @@ final class InfoPanel {
             ClientState.rarestFirst = !ClientState.rarestFirst;
             ClientState.save();
         }));
+        // Right-aligned on the same line, for players the server lets edit loot tables.
+        if (ClientRequests.canEditLoot() && selectedTable != null) {
+            String edit = Component.translatable("screen.justenoughstructures.editor.edit_link").getString();
+            int editWidth = (int) (font.width(edit) * 0.75f) + 2;
+            int editX = contentRight - 2 - editWidth;
+            if (editX > x + PAD + sortWidth + 4) {
+                boolean overEdit = inside(mouseX, mouseY, editX, cy - 1, editWidth, 9, clipTop, clipHeight);
+                Gui.small(g, font, edit, editX, cy, overEdit ? 0xFF1F3F8F : 0xFF3A55A0);
+                if (overEdit) {
+                    hoveredText = List.of(Component.translatable("screen.justenoughstructures.editor.edit_hint"));
+                }
+                String table = selectedTable;
+                hotspots.add(new Hotspot(editX, cy - 1, editWidth, 9, () -> onEditTable.accept(table)));
+            }
+        }
         cy += 10;
         if (odds == null) {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);

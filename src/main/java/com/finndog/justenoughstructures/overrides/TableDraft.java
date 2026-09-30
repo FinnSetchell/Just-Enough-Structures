@@ -123,7 +123,9 @@ public final class TableDraft {
         if (function == null) {
             return new Range(1, 1);
         }
-        if (function.has("conditions") || function.has("add")) {
+        // Adding to a count someone else set, or only sometimes, is more than two numbers can show.
+        boolean adds = function.has("add") && function.get("add").isJsonPrimitive() && function.get("add").getAsBoolean();
+        if (function.has("conditions") || adds) {
             return null;
         }
         return range(function.get("count"));

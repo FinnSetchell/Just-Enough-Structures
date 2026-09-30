@@ -151,6 +151,7 @@ public class JesScreen extends Screen {
     protected void init() {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
+            info.onEditTable(this::openEditor);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -591,6 +592,14 @@ public class JesScreen extends Screen {
     /** Ctrl-clicking the compass button, which a scripted click can't do either. */
     public void pointCompassNow() {
         pointCompass();
+    }
+
+    /** The loot table editor, from the Loot tab's Edit link. Coming back returns here. */
+    private void openEditor(String table) {
+        ResourceLocation id = ResourceLocation.tryParse(table);
+        if (id != null) {
+            minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(table)));
+        }
     }
 
     /** The Loot tab with {@code table} picked, as clicking its row would. */

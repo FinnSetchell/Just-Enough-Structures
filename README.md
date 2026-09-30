@@ -66,6 +66,21 @@ again when mods, their versions or datapacks change. A dedicated server starts i
 starting up; in singleplayer it waits until something needs it. The pictures in the structure list
 are saved there too. The folder is safe to delete.
 
+## Editing loot tables
+
+Players allowed to (`edit_permission` in `server.json5`, the server owner by default, or you in
+singleplayer with cheats on) get an **Edit** link on the Loot tab. It opens the table in an editor:
+its pools and entries, a form for items, weights, counts and rolls, a JSON view for everything
+else, and the odds of your version, rolled as you edit. Saving writes an override to
+`config/justenoughstructures/loot_overrides`, a datapack that's always on and applies from the next
+`/reload`, so it ships with a modpack like any other config.
+
+It's built not to break anything. An edit the game couldn't load is refused, and a file broken by
+hand later is left out, so the mod's own table is used instead. If a mod changes or drops a table
+you've overridden, the editor flags it and offers the changes side by side, a merge that brings
+theirs into yours, or keeping yours as it is. Nothing is ever deleted: removing an override keeps
+a dated copy.
+
 ## For mod and modpack authors
 
 A structure can have a file at `data/<namespace>/justenoughstructures/structures/<path>.json` for
