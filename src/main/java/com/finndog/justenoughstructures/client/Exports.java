@@ -41,7 +41,7 @@ public final class Exports {
     public static Component copyMaterialList(ResourceLocation id, StructureSnapshot s) {
         StringBuilder text = new StringBuilder(id.toString()).append('\n');
         for (Map.Entry<Block, Integer> e : blockCounts(s)) {
-            text.append(e.getValue()).append(" x ").append(e.getKey().getName().getString()).append('\n');
+            text.append(Component.translatable("screen.justenoughstructures.times_name", e.getValue(), e.getKey().getName()).getString()).append('\n');
         }
         Minecraft.getInstance().keyboardHandler.setClipboard(text.toString());
         return Component.translatable("screen.justenoughstructures.copied");

@@ -24,6 +24,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.DoubleTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -91,11 +92,11 @@ public final class StructureCapture {
         try {
             // Only ever a wait for one other capture, so this is a safety net rather than a limit.
             if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
-                return CaptureResult.failure("Another preview is still generating, try again in a moment", List.of(), 0);
+                return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return CaptureResult.failure("Interrupted", List.of(), 0);
+            return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
         }
         try {
             return captureLocked(server, structureId, seed);
@@ -106,15 +107,15 @@ public final class StructureCapture {
 
     private static CaptureResult captureLocked(MinecraftServer server, ResourceLocation structureId, long seed) {
         long started = System.nanoTime();
-        List<String> attempts = new ArrayList<>();
+        List<Component> attempts = new ArrayList<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         Optional<Holder.Reference<Structure>> holder = registry.getHolder(ResourceKey.create(Registries.STRUCTURE, structureId));
         if (holder.isEmpty()) {
-            return CaptureResult.failure("Unknown structure " + structureId, attempts, elapsed(started));
+            return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.unknown_structure", structureId.toString()), attempts, elapsed(started));
         }
         Structure structure = holder.get().value();
 
-        String lastError = "It didn't find anywhere to generate on any terrain";
+        Component lastError = Component.translatable("screen.justenoughstructures.error.nowhere_to_generate");
         for (SandboxTerrain terrain : terrainsFor(structure)) {
             try {
                 StructureSnapshot snapshot;
@@ -123,19 +124,19 @@ public final class StructureCapture {
                 } catch (ConcurrentModificationException e) {
                     // The world's own generation threads can still race us over those caches. It
                     // says nothing about the terrain, so try the same one again.
-                    attempts.add(terrain + ": ran into world generation, trying again");
+                    attempts.add(Component.translatable("screen.justenoughstructures.attempt.retrying", terrain.name()));
                     snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
                 }
                 if (snapshot != null) {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
                 }
             } catch (TooLargeException e) {
-                attempts.add(terrain + ": " + e.getMessage());
-                return CaptureResult.failure(e.getMessage(), attempts, elapsed(started));
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
+                return CaptureResult.failure(e.reason, attempts, elapsed(started));
             } catch (RuntimeException | LinkageError e) {
                 JustEnoughStructures.LOGGER.warn("Capturing {} on {} terrain failed", structureId, terrain, e);
-                attempts.add(terrain + ": crashed with " + e);
-                lastError = "It crashed while generating: " + e;
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
+                lastError = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
             }
         }
         return CaptureResult.failure(lastError, attempts, elapsed(started));
@@ -170,7 +171,7 @@ public final class StructureCapture {
     }
 
     private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Structure structure,
-                                               SandboxTerrain terrain, long seed, List<String> attempts) {
+                                               SandboxTerrain terrain, long seed, List<Component> attempts) {
         ServerLevel level = levelFor(server, terrain);
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
         Holder<Biome> biome = biomeFor(structure, terrain, biomes);
@@ -180,7 +181,7 @@ public final class StructureCapture {
         StructureStart start = structure.generate(server.registryAccess(), generator, biomeSource,
                 level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
         if (!start.isValid()) {
-            attempts.add(terrain + ": no valid start");
+            attempts.add(Component.translatable("screen.justenoughstructures.attempt.no_start", terrain.name()));
             return null;
         }
 
@@ -191,7 +192,7 @@ public final class StructureCapture {
         int maxChunkZ = SectionPos.blockToSectionCoord(box.maxZ());
         int across = Math.max(maxChunkX - minChunkX, maxChunkZ - minChunkZ) + 1;
         if (across > MAX_CHUNKS_ACROSS) {
-            throw new TooLargeException("It's " + across + " chunks across, more than the " + MAX_CHUNKS_ACROSS + " we can show");
+            throw new TooLargeException(Component.translatable("screen.justenoughstructures.error.too_wide", across, MAX_CHUNKS_ACROSS));
         }
 
         // One spare chunk on every side so pieces can look at their neighbours, and an odd width so
@@ -237,10 +238,10 @@ public final class StructureCapture {
 
         StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size());
         if (snapshot == null) {
-            attempts.add(terrain + ": placed nothing");
+            attempts.add(Component.translatable("screen.justenoughstructures.attempt.placed_nothing", terrain.name()));
             return null;
         }
-        attempts.add(terrain + ": " + snapshot.blockCount() + " blocks");
+        attempts.add(Component.translatable("screen.justenoughstructures.attempt.blocks", terrain.name(), snapshot.blockCount()));
         return snapshot;
     }
 
@@ -414,7 +415,7 @@ public final class StructureCapture {
         }
         Vec3i size = new Vec3i(maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1);
         if (size.getX() > StructureSnapshot.MAX_SIZE || size.getY() > StructureSnapshot.MAX_SIZE || size.getZ() > StructureSnapshot.MAX_SIZE) {
-            throw new TooLargeException("It's " + size.getX() + " x " + size.getY() + " x " + size.getZ() + " blocks, too big to show");
+            throw new TooLargeException(Component.translatable("screen.justenoughstructures.error.too_big", size.getX(), size.getY(), size.getZ()));
         }
         BlockPos origin = new BlockPos(minX, minY, minZ);
 
@@ -478,8 +479,10 @@ public final class StructureCapture {
     }
 
     private static final class TooLargeException extends RuntimeException {
-        TooLargeException(String message) {
-            super(message);
+        private final Component reason;
+
+        TooLargeException(Component reason) {
+            this.reason = reason;
         }
     }
 }

@@ -351,7 +351,7 @@ final class InfoPanel {
             cy = field(g, cy, "pieces", String.valueOf(s.pieceCount()));
             cy = field(g, cy, "generated_on", Component.translatable("screen.justenoughstructures.terrain." + s.terrain().name().toLowerCase(Locale.ROOT)).getString());
             cy = field(g, cy, "seed", Long.toHexString(s.seed()).toUpperCase(Locale.ROOT));
-            cy = field(g, cy, "time", result.millis() + " ms");
+            cy = field(g, cy, "time", Component.translatable("screen.justenoughstructures.millis", result.millis()).getString());
         }
         return cy;
     }
@@ -367,7 +367,7 @@ final class InfoPanel {
             return Component.translatable("screen.justenoughstructures.loot_none").getString();
         }
         List<String> parts = new ArrayList<>();
-        kinds.forEach((name, count) -> parts.add(count + " x " + name));
+        kinds.forEach((name, count) -> parts.add(Component.translatable("screen.justenoughstructures.times_name", count, name).getString()));
         return String.join(", ", parts);
     }
 
@@ -510,7 +510,7 @@ final class InfoPanel {
             ItemStack icon = containerIcon(snapshot, containers.get(0));
             Gui.slot(g, x + PAD + 1, cy + 2);
             g.renderItem(icon, x + PAD + 2, cy + 3);
-            String name = icon.getHoverName().getString() + " x" + containers.size();
+            String name = Component.translatable("screen.justenoughstructures.name_times", icon.getHoverName(), containers.size()).getString();
             String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
             int textWidth = contentRight - x - PAD - 23 - 12;
             Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
@@ -818,7 +818,7 @@ final class InfoPanel {
             if (egg != null) {
                 g.renderItem(new ItemStack(egg), x + PAD + 2, cy + 3);
             }
-            String count = counts ? "x" + e.getValue() : "";
+            String count = counts ? Component.translatable("screen.justenoughstructures.times", e.getValue()).getString() : "";
             Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(count), TEXT);
             g.drawString(font, count, contentRight - 4 - font.width(count), cy + 7, Gui.LABEL_SOFT, false);
             cy += 23;

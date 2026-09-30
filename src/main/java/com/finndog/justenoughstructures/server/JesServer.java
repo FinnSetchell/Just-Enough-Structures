@@ -177,7 +177,7 @@ public final class JesServer {
     public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed) {
         MinecraftServer server = player.getServer();
         if (ServerConfig.hides(structure)) {
-            CaptureResult hidden = CaptureResult.failure("This server keeps this structure hidden", List.of(), 0);
+            CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
                     Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
             return;
@@ -195,7 +195,7 @@ public final class JesServer {
         AtomicInteger queued = QUEUED.computeIfAbsent(player.getUUID(), id -> new AtomicInteger());
         if (queued.incrementAndGet() > MAX_QUEUED_PER_PLAYER) {
             queued.decrementAndGet();
-            CaptureResult busy = CaptureResult.failure("Too many previews are generating at once, try again in a moment", List.of(), 0);
+            CaptureResult busy = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
                     Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, busy))));
             return;
@@ -214,7 +214,7 @@ public final class JesServer {
                 }
             } catch (RuntimeException e) {
                 JustEnoughStructures.LOGGER.error("Previewing {} failed", structure, e);
-                CaptureResult failed = CaptureResult.failure("Something went wrong generating this: " + e, List.of(), 0);
+                CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
                 payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {
                 queued.decrementAndGet();

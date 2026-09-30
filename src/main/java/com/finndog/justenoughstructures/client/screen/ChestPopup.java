@@ -55,7 +55,7 @@ final class ChestPopup {
         g.blit(TEXTURE, x, y + chestHeight, 0, 215, WIDTH, 7);
         g.drawString(font, title, x + 8, y + 6, Gui.LABEL, false);
         if (count > 1) {
-            String of = (index + 1) + " / " + count;
+            String of = Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString();
             g.drawString(font, of, x + WIDTH - 8 - font.width(of), y + 6, Gui.LABEL_SOFT, false);
         }
 

@@ -16,6 +16,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -52,7 +54,7 @@ public final class CaptureTests {
         ResourceLocation id = new ResourceLocation("minecraft", name);
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), id, SEED);
         if (!result.succeeded()) {
-            helper.fail(name + " did not capture: " + result.error() + " " + result.attempts());
+            helper.fail(name + " did not capture: " + result.error() + " " + attempts(result));
             return;
         }
         StructureSnapshot snapshot = result.snapshot();
@@ -157,8 +159,9 @@ public final class CaptureTests {
                 helper.fail(job + " didn't finish, it may be waiting on the server thread: " + e);
                 return;
             }
-            helper.assertTrue(together.succeeded(), job + " failed alongside the others: " + together.error() + " " + together.attempts());
-            helper.assertTrue(together.attempts().stream().noneMatch(a -> a.contains("crashed")), job + " crashed alongside the others: " + together.attempts());
+            helper.assertTrue(together.succeeded(), job + " failed alongside the others: " + together.error() + " " + attempts(together));
+            helper.assertTrue(together.attempts().stream().noneMatch(a -> a.getContents() instanceof TranslatableContents t
+                    && t.getKey().endsWith("attempt.crashed")), job + " crashed alongside the others: " + attempts(together));
             CaptureResult alone = StructureCapture.capture(server, job.id(), job.seed());
             helper.assertTrue(alone.succeeded(), job + " failed on its own: " + alone.error());
             String difference = difference(together.snapshot(), alone.snapshot());
@@ -168,6 +171,10 @@ public final class CaptureTests {
             }
         }
         helper.succeed();
+    }
+
+    private static List<String> attempts(CaptureResult result) {
+        return result.attempts().stream().map(Component::getString).toList();
     }
 
     /** Why two snapshots aren't the same, or null if they are. */

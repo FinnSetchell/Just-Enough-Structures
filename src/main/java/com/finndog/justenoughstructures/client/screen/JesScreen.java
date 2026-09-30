@@ -949,9 +949,9 @@ public class JesScreen extends Screen {
         if (!result.succeeded()) {
             List<Component> lines = new ArrayList<>();
             lines.add(Component.translatable("screen.justenoughstructures.failed"));
-            lines.add(Component.literal(result.error()).withStyle(ChatFormatting.GRAY));
-            for (String attempt : result.attempts()) {
-                lines.add(Component.literal(attempt).withStyle(ChatFormatting.DARK_GRAY));
+            lines.add(result.reason().copy().withStyle(ChatFormatting.GRAY));
+            for (Component attempt : result.attempts()) {
+                lines.add(attempt.copy().withStyle(ChatFormatting.DARK_GRAY));
             }
             int cy = viewY + 10;
             for (Component line : lines) {

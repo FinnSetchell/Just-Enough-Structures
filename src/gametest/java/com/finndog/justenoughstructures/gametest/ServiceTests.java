@@ -93,11 +93,12 @@ public final class ServiceTests {
 
     public static void failedCaptureSurvivesTheWire(GameTestHelper helper) {
         ResourceLocation id = new ResourceLocation("justenoughstructures", "nope");
-        CaptureResult failed = CaptureResult.failure("It didn't work", List.of("LAND: no valid start"), 12);
+        CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", "it didn't work"),
+                List.of(Component.translatable("screen.justenoughstructures.attempt.no_start", "LAND")), 12);
         Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(Blobs.inflate(
                 Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, id, 5, failed))))));
         helper.assertFalse(reply.result().succeeded(), "a failure came back as a success");
-        helper.assertTrue("It didn't work".equals(reply.result().error()), "the error message changed");
+        helper.assertTrue(failed.reason().equals(reply.result().reason()), "the error message changed");
         helper.assertTrue(reply.result().attempts().equals(failed.attempts()), "the attempts changed");
         helper.succeed();
     }

@@ -89,12 +89,12 @@ public final class Codecs {
         buf.writeLong(seed);
         buf.writeVarLong(result.millis());
         buf.writeVarInt(result.attempts().size());
-        result.attempts().forEach(buf::writeUtf);
+        result.attempts().forEach(buf::writeComponent);
         buf.writeBoolean(result.succeeded());
         if (result.succeeded()) {
             writeSnapshot(buf, result.snapshot());
         } else {
-            buf.writeUtf(result.error());
+            buf.writeComponent(result.reason());
         }
     }
 
@@ -107,13 +107,13 @@ public final class Codecs {
         long seed = buf.readLong();
         long millis = buf.readVarLong();
         int attemptCount = buf.readVarInt();
-        List<String> attempts = new ArrayList<>(attemptCount);
+        List<Component> attempts = new ArrayList<>(attemptCount);
         for (int i = 0; i < attemptCount; i++) {
-            attempts.add(buf.readUtf());
+            attempts.add(buf.readComponent());
         }
         CaptureResult result = buf.readBoolean()
                 ? CaptureResult.success(readSnapshot(buf), attempts, millis)
-                : CaptureResult.failure(buf.readUtf(), attempts, millis);
+                : CaptureResult.failure(buf.readComponent(), attempts, millis);
         return new CaptureReply(id, seed, result);
     }
 

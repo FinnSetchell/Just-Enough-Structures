@@ -118,7 +118,7 @@ final class FoundInPopup {
             Gui.small(g, font, Gui.clip(font, tables, (int) ((WIDTH - 40) / 0.75f)), x + 30, ry + 13, Gui.LABEL_SOFT);
         }
         if (list.size() > VISIBLE_ROWS) {
-            String more = (scroll + 1) + "-" + Math.min(list.size(), scroll + VISIBLE_ROWS) + " / " + list.size();
+            String more = Component.translatable("screen.justenoughstructures.found_in_range", scroll + 1, Math.min(list.size(), scroll + VISIBLE_ROWS), list.size()).getString();
             Gui.small(g, font, more, x + WIDTH - 8 - (int) (font.width(more) * 0.75f), y + height() - 11, Gui.LABEL_SOFT);
         }
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.found_hint").getString(), x + 8, y + height() - 11, Gui.LABEL_SOFT);

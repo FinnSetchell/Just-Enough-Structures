@@ -241,7 +241,7 @@ final class StructureList {
             Gui.slot(g, x, top);
             if (row.item() != null) {
                 g.renderItem(new ItemStack(row.item()), x + 1, top + 1);
-                String count = "x" + row.count();
+                String count = Component.translatable("screen.justenoughstructures.times", row.count()).getString();
                 Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 26 - font.width(count), Gui.LABEL);
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.LABEL_SOFT, false);
                 continue;
