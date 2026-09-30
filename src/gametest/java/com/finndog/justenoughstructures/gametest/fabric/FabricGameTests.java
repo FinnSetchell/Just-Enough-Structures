@@ -127,6 +127,16 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void formEditsKeepTheRest(GameTestHelper helper) {
+        OverrideTests.formEditsKeepTheRest(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void mergesKeepBothSidesChanges(GameTestHelper helper) {
+        OverrideTests.mergesKeepBothSidesChanges(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void removedEditsAreKept(GameTestHelper helper) {
         OverrideTests.removedEditsAreKept(helper);
     }

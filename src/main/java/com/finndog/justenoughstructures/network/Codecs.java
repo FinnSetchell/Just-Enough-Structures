@@ -273,6 +273,7 @@ public final class Codecs {
         buf.writeEnum(view.status());
         writeText(buf, view.current());
         writeText(buf, view.original());
+        writeText(buf, view.base());
     }
 
     public static TableReply readTable(FriendlyByteBuf buf) {
@@ -281,7 +282,7 @@ public final class Codecs {
         }
         ResourceLocation id = buf.readResourceLocation();
         LootOverrides.Status status = buf.readEnum(LootOverrides.Status.class);
-        return new TableReply(new LootOverrides.View(id, readText(buf), readText(buf), status), null);
+        return new TableReply(new LootOverrides.View(id, readText(buf), readText(buf), readText(buf), status), null);
     }
 
     /** An edited table going up to the server: which table, and its JSON. */

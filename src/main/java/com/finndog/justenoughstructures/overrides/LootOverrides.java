@@ -40,6 +40,8 @@ public final class LootOverrides {
     private static final int PACK_FORMAT = 15;
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String META = "overrides.json";
+    /** What the metadata remembers for an override of a table no mod had: nothing to compare with. */
+    private static final String NO_ORIGINAL = "none";
 
     private static Path folder;
 
@@ -54,7 +56,7 @@ public final class LootOverrides {
         ACTIVE,
         /** The mod's table has changed since the override was made. */
         ORIGINAL_CHANGED,
-        /** The mod no longer has this table, so only the override defines it. */
+        /** The mod no longer has the table the override was made from, so only the override defines it. */
         ORIGINAL_MISSING,
         /** The override can't be loaded, so it's left out and the mod's table is used. */
         BROKEN
@@ -63,9 +65,10 @@ public final class LootOverrides {
     /**
      * A table as the editor sees it. {@code current} is the override if there is one, otherwise
      * the table as the mod or datapacks have it. {@code original} is the table without the override,
-     * or null if there's none.
+     * or null if there's none. {@code base} is the original the override was made from, for merging
+     * in what the mod has changed since, or null.
      */
-    public record View(ResourceLocation id, String current, String original, Status status) {
+    public record View(ResourceLocation id, String current, String original, String base, Status status) {
     }
 
     public static Path folder() {
@@ -83,27 +86,30 @@ public final class LootOverrides {
 
     public static View view(ResourceManager resources, ResourceLocation id) {
         String original = original(resources, id);
-        Path file = file(folder(), id);
+        Path root = folder();
+        Path file = file(root, id);
         if (!Files.exists(file)) {
-            return new View(id, original, original, Status.NONE);
+            return new View(id, original, original, null, Status.NONE);
         }
         String override;
         try {
             override = Files.readString(file);
         } catch (IOException e) {
-            return new View(id, original, original, Status.BROKEN);
+            return new View(id, original, original, null, Status.BROKEN);
         }
+        String base = base(id);
         Status status;
         if (check(id, override) != null) {
             status = Status.BROKEN;
         } else if (original == null) {
-            status = Status.ORIGINAL_MISSING;
-        } else if (!hash(original).equals(base(id))) {
+            // A table a dev made from scratch has no original, and that's fine.
+            status = NO_ORIGINAL.equals(base) ? Status.ACTIVE : Status.ORIGINAL_MISSING;
+        } else if (!hash(original).equals(base)) {
             status = Status.ORIGINAL_CHANGED;
         } else {
             status = Status.ACTIVE;
         }
-        return new View(id, override, original, status);
+        return new View(id, override, original, baseText(root, id), status);
     }
 
     /** The table as the mods and datapacks have it, leaving out any override, or null if none of them has it. */
@@ -168,12 +174,11 @@ public final class LootOverrides {
             String original = original(resources, id);
             JsonObject meta = readMeta(root);
             JsonObject entry = new JsonObject();
-            if (original != null) {
-                entry.addProperty("base", hash(original));
-            }
+            entry.addProperty("base", original == null ? NO_ORIGINAL : hash(original));
             entry.addProperty("saved", Instant.now().toString());
             meta.add(id.toString(), entry);
             writeMeta(root, meta);
+            writeBaseText(root, id, original);
         } catch (IOException | RuntimeException e) {
             JustEnoughStructures.LOGGER.warn("Couldn't save the loot override for {}", id, e);
             return Component.translatable("screen.justenoughstructures.override.save_failed", message(e));
@@ -192,13 +197,10 @@ public final class LootOverrides {
             JsonObject meta = readMeta(root);
             JsonObject entry = meta.has(id.toString()) && meta.get(id.toString()).isJsonObject()
                     ? meta.getAsJsonObject(id.toString()) : new JsonObject();
-            if (original != null) {
-                entry.addProperty("base", hash(original));
-            } else {
-                entry.remove("base");
-            }
+            entry.addProperty("base", original == null ? NO_ORIGINAL : hash(original));
             meta.add(id.toString(), entry);
             writeMeta(root, meta);
+            writeBaseText(root, id, original);
         } catch (IOException | RuntimeException e) {
             return Component.translatable("screen.justenoughstructures.override.save_failed", message(e));
         }
@@ -251,6 +253,33 @@ public final class LootOverrides {
             return entry != null && entry.isJsonObject() && entry.getAsJsonObject().has("base")
                     ? entry.getAsJsonObject().get("base").getAsString() : null;
         } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A copy of the original an override was made from, kept next to it. Merging what the mod changed
+     * since needs to know what the table was then, not only that it's different now.
+     */
+    private static Path baseFile(Path root, ResourceLocation id) {
+        return root.resolve("originals").resolve(id.getNamespace()).resolve(id.getPath() + ".json");
+    }
+
+    private static void writeBaseText(Path root, ResourceLocation id, String original) throws IOException {
+        Path file = baseFile(root, id);
+        if (original == null) {
+            Files.deleteIfExists(file);
+            return;
+        }
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, original);
+    }
+
+    private static String baseText(Path root, ResourceLocation id) {
+        Path file = baseFile(root, id);
+        try {
+            return Files.exists(file) ? Files.readString(file) : null;
+        } catch (IOException e) {
             return null;
         }
     }

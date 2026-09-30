@@ -2,8 +2,10 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.overrides.JsonMerge;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.OverridePack;
+import com.finndog.justenoughstructures.overrides.TableDraft;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonObject;
@@ -106,15 +108,86 @@ public final class OverrideTests {
             helper.assertTrue(LootOverrides.view(server.getResourceManager(), IGLOO).status() == LootOverrides.Status.ACTIVE,
                     "keeping the edit didn't clear the flag");
 
-            ResourceLocation gone = new ResourceLocation("justenoughstructures", "chests/nothing_here");
-            LootOverrides.save(server.getResourceManager(), gone, DIAMONDS_ONLY);
-            helper.assertTrue(LootOverrides.view(server.getResourceManager(), gone).status() == LootOverrides.Status.ORIGINAL_MISSING,
-                    "an edit with no original wasn't noticed");
+            // A table made from scratch has no original, and isn't flagged for it.
+            ResourceLocation made = new ResourceLocation("justenoughstructures", "chests/nothing_here");
+            LootOverrides.save(server.getResourceManager(), made, DIAMONDS_ONLY);
+            helper.assertTrue(LootOverrides.view(server.getResourceManager(), made).status() == LootOverrides.Status.ACTIVE,
+                    "a new table was flagged for having no original");
+            // As if it had been made from a mod's table that's since gone.
+            json = JsonParser.parseString(Files.readString(meta)).getAsJsonObject();
+            json.getAsJsonObject(made.toString()).addProperty("base", "a table that's gone");
+            Files.writeString(meta, json.toString());
+            helper.assertTrue(LootOverrides.view(server.getResourceManager(), made).status() == LootOverrides.Status.ORIGINAL_MISSING,
+                    "an edit whose original went wasn't noticed");
         } catch (IOException e) {
             throw new AssertionError(e);
         } finally {
             LootOverrides.setFolder(null);
         }
+        helper.succeed();
+    }
+
+    /** The simple form's edits change only what they're meant to, and keep everything else. */
+    public static void formEditsKeepTheRest(GameTestHelper helper) {
+        JsonObject table = JsonParser.parseString("""
+                {"pools": [{"rolls": {"type": "minecraft:uniform", "min": 2, "max": 4}, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 10,
+                   "functions": [{"function": "minecraft:set_count", "count": {"min": 1, "max": 3}}, {"function": "minecraft:enchant_randomly"}]}
+                ]}]}
+                """).getAsJsonObject();
+        JsonObject pool = TableDraft.poolList(table).get(0);
+        helper.assertTrue(new TableDraft.Range(2, 4).equals(TableDraft.rolls(pool)), "rolls didn't read as 2 to 4");
+        JsonObject bone = TableDraft.entryList(pool).get(0);
+        helper.assertTrue(TableDraft.weight(bone) == 10 && new TableDraft.Range(1, 3).equals(TableDraft.count(bone)) && TableDraft.others(bone) == 1,
+                "the bone entry didn't read right");
+
+        TableDraft.setRolls(pool, new TableDraft.Range(5, 5));
+        TableDraft.setCount(bone, new TableDraft.Range(1, 1));
+        TableDraft.setWeight(bone, 3);
+        TableDraft.addItem(pool, "minecraft:diamond");
+        helper.assertTrue(pool.get("rolls").getAsInt() == 5, "a fixed number of rolls should be written as a number");
+        helper.assertTrue(TableDraft.count(bone).equals(new TableDraft.Range(1, 1)) && bone.getAsJsonArray("functions").size() == 1
+                && bone.toString().contains("minecraft:enchant_randomly"), "clearing the count took the other mod's function with it");
+        helper.assertTrue(TableDraft.entryList(pool).size() == 2 && TableDraft.name(TableDraft.entryList(pool).get(1)).equals("minecraft:diamond"),
+                "the new item wasn't added");
+        helper.assertTrue(LootOverrides.check(IGLOO, table.toString()) == null, "the edited table doesn't load: " + LootOverrides.check(IGLOO, table.toString()));
+        helper.succeed();
+    }
+
+    /** A mod's update and a dev's edit to different parts both survive a merge; the same part is a conflict, keeping the dev's. */
+    public static void mergesKeepBothSidesChanges(GameTestHelper helper) {
+        String base = """
+                {"pools": [{"rolls": 1, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 10},
+                  {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 5}]}]}
+                """;
+        // The dev made gold rarer and added diamonds.
+        String mine = """
+                {"pools": [{"rolls": 1, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 10},
+                  {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 1},
+                  {"type": "minecraft:item", "name": "minecraft:diamond", "weight": 1}]}]}
+                """;
+        // The mod added emeralds at the front and made bones commoner.
+        String theirs = """
+                {"pools": [{"rolls": 1, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:emerald", "weight": 2},
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 20},
+                  {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 5}]}]}
+                """;
+        JsonMerge.Result result = JsonMerge.merge(JsonParser.parseString(base), JsonParser.parseString(mine), JsonParser.parseString(theirs));
+        JsonObject pool = TableDraft.poolList(result.merged().getAsJsonObject()).get(0);
+        List<String> names = TableDraft.entryList(pool).stream().map(e -> TableDraft.name(e) + "=" + TableDraft.weight(e)).toList();
+        helper.assertTrue(names.equals(List.of("minecraft:emerald=2", "minecraft:bone=20", "minecraft:gold_ingot=1", "minecraft:diamond=1")),
+                "the merge came out as " + names);
+        helper.assertTrue(result.conflicts() == 0, "changes to different parts were counted as conflicts");
+
+        // Both changed the gold's weight: the dev's stays, and it's a conflict.
+        String theirsGold = theirs.replace("\"minecraft:gold_ingot\", \"weight\": 5", "\"minecraft:gold_ingot\", \"weight\": 8");
+        JsonMerge.Result clash = JsonMerge.merge(JsonParser.parseString(base), JsonParser.parseString(mine), JsonParser.parseString(theirsGold));
+        JsonObject gold = TableDraft.entryList(TableDraft.poolList(clash.merged().getAsJsonObject()).get(0)).stream()
+                .filter(e -> TableDraft.name(e).equals("minecraft:gold_ingot")).findFirst().orElseThrow();
+        helper.assertTrue(clash.conflicts() == 1 && TableDraft.weight(gold) == 1, "a clash should keep the dev's weight and count one conflict");
         helper.succeed();
     }
 
