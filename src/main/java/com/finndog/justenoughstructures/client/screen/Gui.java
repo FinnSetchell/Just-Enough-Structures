@@ -9,7 +9,7 @@ import net.minecraft.util.FormattedCharSequence;
  * Drawing helpers in the look JEI uses, which is the vanilla container look: the same frames,
  * slots and buttons, with title rows of white text on a dark band.
  */
-final class Gui {
+public final class Gui {
     static final int PANEL = 0xFFC6C6C6;
     static final int PANEL_LIGHT = 0xFFFFFFFF;
     static final int PANEL_DARK = 0xFF555555;
@@ -17,9 +17,9 @@ final class Gui {
     static final int SLOT = 0xFF8B8B8B;
     static final int SLOT_DARK = 0xFF373737;
     /** Body text, as in JEI's recipe layouts. */
-    static final int LABEL = 0xFF000000;
+    public static final int LABEL = 0xFF000000;
     /** Secondary text, as JEI's cook times and other recipe details. */
-    static final int LABEL_SOFT = 0xFF808080;
+    public static final int LABEL_SOFT = 0xFF808080;
     /** Row highlights: JEI's slot highlight, and a darker one for what's picked. */
     static final int ROW_HOVER = 0x80FFFFFF;
     static final int ROW_SELECTED = 0x40000000;
@@ -166,7 +166,7 @@ final class Gui {
         g.fill(x + 1, y + 1, x + 2, y + h - 1, 0xFF555555);
     }
 
-    static void small(GuiGraphics g, Font font, String text, int x, int y, int color) {
+    public static void small(GuiGraphics g, Font font, String text, int x, int y, int color) {
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
         g.pose().scale(0.75f, 0.75f, 1f);
@@ -199,7 +199,7 @@ final class Gui {
         }
     }
 
-    static String clip(Font font, String text, int width) {
+    public static String clip(Font font, String text, int width) {
         if (font.width(text) <= width) {
             return text;
         }

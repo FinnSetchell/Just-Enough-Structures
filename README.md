@@ -31,6 +31,10 @@ Press **K** (you can change it in Controls) to open the browser.
 
 The browser remembers how you left it: spin, markers, the ground, maximise and so on.
 
+With [JEI](https://modrinth.com/mod/jei) installed, an item's recipes get a **Found in structures**
+page listing every structure whose loot can give it, with the chance in each container. Click a
+structure to open it in the browser.
+
 ## Server settings
 
 `config/justenoughstructures/server.json5` is written the first time a server or world starts.

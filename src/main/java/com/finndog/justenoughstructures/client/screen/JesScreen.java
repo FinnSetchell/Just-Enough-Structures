@@ -66,6 +66,7 @@ public class JesScreen extends Screen {
     private static final ResourceLocation LOCATE_ICON = new ResourceLocation("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
 
+    private final Screen parent;
     private final StructureList list = new StructureList();
     private final StructureViewport viewport = new StructureViewport();
     private final ThumbnailQueue thumbnails = new ThumbnailQueue();
@@ -125,8 +126,19 @@ public class JesScreen extends Screen {
     }
 
     public JesScreen() {
+        this(null);
+    }
+
+    /** @param parent where closing the browser goes back to, or null for the game */
+    public JesScreen(Screen parent) {
         super(Component.translatable("screen.justenoughstructures.title"));
+        this.parent = parent;
         ClientState.load();
+    }
+
+    @Override
+    public void onClose() {
+        minecraft.setScreen(parent);
     }
 
     // ------------------------------------------------------------------ setup
@@ -268,7 +280,6 @@ public class JesScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        ClientRequests.tick();
         updateLocateButton();
     }
 
@@ -403,7 +414,7 @@ public class JesScreen extends Screen {
             if (reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_teleported")) {
                 // They've gone there, so get out of the way and say where they are.
                 minecraft.gui.setOverlayMessage(reply, false);
-                onClose();
+                minecraft.setScreen(null);
                 return;
             }
             if (selected != null && selected.id().equals(id)) {

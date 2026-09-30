@@ -22,6 +22,9 @@
     ],
     "client": [
       "com.finndog.justenoughstructures.fabric.JustEnoughStructuresFabricClient"
+    ],
+    "jei_mod_plugin": [
+      "com.finndog.justenoughstructures.compat.jei.JesJeiPlugin"
     ]
   },
   "depends": {
@@ -29,5 +32,8 @@
     "minecraft": "${mc_compat}",
     "fabric-api": "*",
     "java": ">=${java_version}"
+  },
+  "suggests": {
+    "jei": "*"
   }
 }

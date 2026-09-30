@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.network.JesNetwork;
 import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ public final class ClientRequests {
     private static final int ODDS_IN_FLIGHT = 2;
     private static final Map<Integer, CompletableFuture<Component>> LOCATES = new HashMap<>();
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
+    private static final List<Consumer<LootIndex>> INDEX_LISTENERS = new ArrayList<>();
     private static CompletableFuture<LootIndex> index;
     private static int indexDone;
     private static int indexTotal;
@@ -103,6 +105,14 @@ public final class ClientRequests {
             pollIndex();
         }
         return index;
+    }
+
+    /**
+     * Calls {@code listener} with every loot index that arrives, including the new one after a
+     * /reload, which is then fetched straight away rather than when the browser next wants it.
+     */
+    public static void onEachIndex(Consumer<LootIndex> listener) {
+        INDEX_LISTENERS.add(listener);
     }
 
     public static boolean indexReady() {
@@ -245,6 +255,7 @@ public final class ClientRequests {
                 index = new CompletableFuture<>();
             }
             index.complete(built);
+            INDEX_LISTENERS.forEach(listener -> listener.accept(built));
         } else if (part.kind() == JesNetwork.KIND_CAPTURE) {
             CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(part.requestId());
             if (future != null) {
@@ -271,6 +282,9 @@ public final class ClientRequests {
             indexDone = 0;
             indexTotal = 0;
             FoundIn.clear();
+            if (!INDEX_LISTENERS.isEmpty()) {
+                index();
+            }
         }
         ODDS_BY_TABLE.clear();
     }

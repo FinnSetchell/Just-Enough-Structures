@@ -85,6 +85,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void foundInRecipesComeFromTheIndex(GameTestHelper helper) {
+        ServiceTests.foundInRecipesComeFromTheIndex(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void impossibleLocateIsQuick(GameTestHelper helper) {
         ServiceTests.impossibleLocateIsQuick(helper);
     }

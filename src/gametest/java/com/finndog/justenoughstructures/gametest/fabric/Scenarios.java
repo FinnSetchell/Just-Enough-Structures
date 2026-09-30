@@ -16,11 +16,13 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.compat.jei.JesJeiPlugin;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
 
@@ -221,28 +223,31 @@ final class Scenarios {
     }
 
     /**
-     * JEI's own screens, as a reference for matching its look: the inventory with its item list,
-     * then the recipes and uses of whatever is in the top left of that list.
+     * JEI with the plugin: the inventory with JEI's item list, then the structures diamonds are found
+     * in, once the loot index has arrived. With every dev mod installed the index takes a few minutes.
      */
     private static Director jei(Minecraft mc) {
         Director d = new Director(mc, null);
-        Supplier<int[]> firstItem = () -> new int[]{mc.getWindow().getGuiScaledWidth() - 152, 37};
         d.then(pause(40))
                 .then(pressKey(GLFW.GLFW_KEY_E))
                 .then(until(() -> mc.screen != null, 40))
                 .then(pause(40))
-                .then(moveTo(firstItem, 10))
-                .then(pause(10))
                 .then(shoot("j01_inventory"))
-                .then(pressKey(GLFW.GLFW_KEY_R))
-                .then(pause(40))
-                .then(shoot("j02_recipes"))
+                .then(until(FoundIn::ready, 12000))
+                .then(run(() -> JesJeiPlugin.showFoundIn(new ItemStack(Items.DIAMOND))))
+                .then(pause(60))
+                .then(shoot("j02_found_in_diamond"))
+                // The first row's name, where JEI puts it in a 1600 x 900 window at GUI scale 2.
+                .then(moveTo(() -> new int[]{mc.getWindow().getGuiScaledWidth() / 2 - 20, 121}, 6))
+                .then(pause(10))
+                .then(shoot("j03_row_tooltip"))
+                .then(click())
+                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> idle(mc), 400))
+                .then(shoot("j04_opened_in_browser"))
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
                 .then(pause(20))
-                .then(moveTo(firstItem, 4))
-                .then(pressKey(GLFW.GLFW_KEY_U))
-                .then(pause(40))
-                .then(shoot("j03_uses"));
+                .then(shoot("j05_back_in_jei"));
         return d;
     }
 

@@ -30,6 +30,10 @@ val gametest: SourceSet = sourceSets.create("gametest") {
 repositories {
     maven("https://maven.terraformersmc.com/releases") { name = "TerraformersMC" }
     maven("https://maven.shedaniel.me/") { name = "Shedaniel" }
+    maven("https://maven.blamejared.com/") {
+        name = "BlameJared"
+        content { includeGroup("mezz.jei") }
+    }
     maven("https://api.modrinth.com/maven") {
         name = "Modrinth"
         content { includeGroup("maven.modrinth") }
@@ -69,6 +73,8 @@ dependencies {
 
     modImplementation("net.fabricmc:fabric-loader:${prop("deps.fabric_loader")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${prop("deps.fabric_api")}")
+    // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
+    modCompileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }

@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.finndog.justenoughstructures.loot.LootOdds;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -71,22 +70,8 @@ final class FoundInPopup {
         return rows;
     }
 
-    /** The best chance, per container, of any loot table in the structure giving the item; -1 until known. */
     private double chance(Row row) {
-        double best = -1;
-        for (ResourceLocation table : row.tables()) {
-            LootOdds odds = ClientRequests.odds(table).getNow(null);
-            if (odds == null) {
-                continue;
-            }
-            best = Math.max(best, 0);
-            for (LootOdds.Row r : odds.rows()) {
-                if (r.example().is(item.getItem())) {
-                    best = Math.max(best, (double) r.hits() / odds.rolls());
-                }
-            }
-        }
-        return best;
+        return FoundIn.chance(item.getItem(), row.tables());
     }
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
@@ -124,7 +109,7 @@ final class FoundInPopup {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
             double chance = chance(row);
-            String pct = chance < 0 ? "..." : chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
+            String pct = FoundIn.percent(chance);
             Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), 0xFF202020);
             g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, 0xFF202020, false);
             // Which of its loot tables, unless that only repeats the structure's name.

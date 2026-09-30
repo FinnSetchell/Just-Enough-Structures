@@ -15,6 +15,9 @@ public final class JesClient {
 
     /** Called every client tick by the loader. */
     public static void tick(Minecraft minecraft) {
+        // Keeps asking for the loot index while it's being built, even with the browser shut, as
+        // the JEI plugin waits on it too.
+        ClientRequests.tick();
         while (OPEN.consumeClick()) {
             if (minecraft.player != null && minecraft.screen == null) {
                 minecraft.setScreen(new JesScreen());

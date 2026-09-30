@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.compat.jei.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
@@ -135,6 +136,24 @@ public final class ServiceTests {
         helper.assertTrue(pyramidItems.contains(new ResourceLocation("enchanted_book")), "books enchanted by the table should count as enchanted books");
         Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(new ResourceLocation("chests/shipwreck_map"), Set.of());
         helper.assertTrue(mapItems.contains(new ResourceLocation("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
+        helper.succeed();
+    }
+
+    /** JEI gets one entry per item per structure, listing every table in the structure that gives it. */
+    public static void foundInRecipesComeFromTheIndex(GameTestHelper helper) {
+        ResourceLocation a = new ResourceLocation("test", "a");
+        ResourceLocation b = new ResourceLocation("test", "b");
+        ResourceLocation t1 = new ResourceLocation("test", "chests/one");
+        ResourceLocation t2 = new ResourceLocation("test", "chests/two");
+        LootIndex index = new LootIndex(
+                Map.of(b, Set.of(t2), a, Set.of(t1, t2)),
+                Map.of(t1, Set.of(new ResourceLocation("diamond"), new ResourceLocation("gold_ingot")),
+                        t2, Set.of(new ResourceLocation("diamond"), new ResourceLocation("test", "not_an_item"))));
+        List<FoundInRecipe> recipes = FoundInRecipe.fromIndex(index, ResourceLocation::toString);
+        List<String> got = recipes.stream()
+                .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size())
+                .toList();
+        helper.assertTrue(got.equals(List.of("a diamond 2", "a gold_ingot 1", "b diamond 1")), "expected diamonds from both tables in a, gold in a and diamonds in b, got " + got);
         helper.succeed();
     }
 
