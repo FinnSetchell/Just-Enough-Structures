@@ -133,5 +133,6 @@
   "screen.justenoughstructures.next_structure": "Next structure",
   "screen.justenoughstructures.previous_mod": "Previous mod",
   "screen.justenoughstructures.next_mod": "Next mod",
-  "screen.justenoughstructures.locate_busy": "Still looking for the last one"
+  "screen.justenoughstructures.locate_busy": "Still looking for the last one",
+  "screen.justenoughstructures.locate_hidden": "This server keeps that structure hidden"
 }

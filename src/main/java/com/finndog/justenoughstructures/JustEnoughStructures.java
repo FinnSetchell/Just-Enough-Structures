@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures;
 
+import java.nio.file.Path;
 import java.util.function.Function;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ public final class JustEnoughStructures {
     public static final Logger LOGGER = LoggerFactory.getLogger("Just Enough Structures");
 
     private static Function<String, String> modNames = namespace -> namespace;
+    private static Path configDir = Path.of("config");
 
     private JustEnoughStructures() {
     }
@@ -32,5 +34,15 @@ public final class JustEnoughStructures {
 
     public static String modName(String namespace) {
         return "minecraft".equals(namespace) ? "Minecraft" : modNames.apply(namespace);
+    }
+
+    /** Set by the loader: the game's config folder. */
+    public static void setConfigDir(Path dir) {
+        configDir = dir;
+    }
+
+    /** Where this mod keeps its files, inside the config folder. */
+    public static Path configDir() {
+        return configDir.resolve(MOD_ID);
     }
 }

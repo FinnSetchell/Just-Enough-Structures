@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
@@ -64,7 +65,6 @@ public class JesScreen extends Screen {
     // One frame of the recovery compass. The item itself spins forever when there's no death point.
     private static final ResourceLocation LOCATE_ICON = new ResourceLocation("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
-    private static boolean maximised;
 
     private final StructureList list = new StructureList();
     private final StructureViewport viewport = new StructureViewport();
@@ -94,12 +94,10 @@ public class JesScreen extends Screen {
     private FoundInPopup foundIn;
     private String pendingTable;
 
-    private boolean spin = true;
-    private boolean markers = true;
-    private boolean ground = true;
     private Component locateText;
     private boolean locateFound;
     private boolean locating;
+    private int locateAccess;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
     private int lastViewW;
@@ -128,6 +126,7 @@ public class JesScreen extends Screen {
 
     public JesScreen() {
         super(Component.translatable("screen.justenoughstructures.title"));
+        ClientState.load();
     }
 
     // ------------------------------------------------------------------ setup
@@ -138,7 +137,7 @@ public class JesScreen extends Screen {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
-        sides = !maximised && width >= 330;
+        sides = !ClientState.maximised && width >= 330;
         int leftW = sides ? clamp(width / 4, 118, 175) : 0;
         int rightW = sides ? clamp(width / 4, 138, 200) : 0;
         listX = PAD;
@@ -191,20 +190,16 @@ public class JesScreen extends Screen {
 
         // Over the preview's top right corner, like a 3D viewer's controls.
         int overlayRight = viewX + viewW - 2;
-        maximiseButton = addRenderableWidget(new IconButton(overlayRight - 20, viewY + 2, maximised ? RESTORE_ICON : MAXIMISE_ICON,
-                Component.translatable(maximised ? "screen.justenoughstructures.restore" : "screen.justenoughstructures.maximise"), b -> {
-            maximised = !maximised;
+        maximiseButton = addRenderableWidget(new IconButton(overlayRight - 20, viewY + 2, ClientState.maximised ? RESTORE_ICON : MAXIMISE_ICON,
+                Component.translatable(ClientState.maximised ? "screen.justenoughstructures.restore" : "screen.justenoughstructures.maximise"), b -> {
+            ClientState.maximised = !ClientState.maximised;
+            ClientState.save();
             rebuildWidgets();
         }));
-        // Only operators can use it at all, so only they are told about Ctrl-click.
-        Component locateLabel = Component.translatable("screen.justenoughstructures.locate");
-        if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
-            locateLabel = locateLabel.copy().append("\n").append(Component.translatable("screen.justenoughstructures.locate_teleport_hint")
-                    .withStyle(ChatFormatting.GRAY));
-        }
-        locateButton = addRenderableWidget(new IconButton(overlayRight - 42, viewY + 2, LOCATE_ICON, locateLabel,
-                b -> locate(hasControlDown())));
-        locateButton.active = !locating;
+        locateButton = addRenderableWidget(new IconButton(overlayRight - 42, viewY + 2, LOCATE_ICON, Component.empty(),
+                b -> locate(hasControlDown() && ClientRequests.canTeleport())));
+        locateAccess = -1;
+        updateLocateButton();
 
         int bx = viewX;
         boolean roomy = viewW >= 250;
@@ -215,18 +210,21 @@ public class JesScreen extends Screen {
         addRenderableWidget(new IconButton(bx, toolbarY, RESET_ICON,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
         bx += 22;
-        spinButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> SPIN_ICON, () -> spin, spinLabel(), b -> {
-            spin = !spin;
+        spinButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> SPIN_ICON, () -> ClientState.spin, spinLabel(), b -> {
+            ClientState.spin = !ClientState.spin;
+            ClientState.save();
             spinButton.setLabel(spinLabel());
         }));
         bx += 22;
-        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> markers, markersLabel(), b -> {
-            markers = !markers;
+        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> ClientState.markers, markersLabel(), b -> {
+            ClientState.markers = !ClientState.markers;
+            ClientState.save();
             markersButton.setLabel(markersLabel());
         }));
         bx += 22;
-        groundButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> GROUND_ICON, () -> ground, groundLabel(), b -> {
-            ground = !ground;
+        groundButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> GROUND_ICON, () -> ClientState.ground, groundLabel(), b -> {
+            ClientState.ground = !ClientState.ground;
+            ClientState.save();
             groundButton.setLabel(groundLabel());
             updateGround();
         }));
@@ -271,6 +269,27 @@ public class JesScreen extends Screen {
     public void tick() {
         super.tick();
         ClientRequests.tick();
+        updateLocateButton();
+    }
+
+    /**
+     * Greys out locate for players the server doesn't let use it, and only mentions Ctrl-click to
+     * those who can teleport. Checked every tick, as the server's settings arrive after the screen
+     * opens and a player can be opped while it's open.
+     */
+    private void updateLocateButton() {
+        int access = !ClientRequests.canLocate() ? 0 : ClientRequests.canTeleport() ? 2 : 1;
+        if (access != locateAccess) {
+            locateAccess = access;
+            Component label = Component.translatable("screen.justenoughstructures.locate");
+            String extra = access == 0 ? "locate_no_permission" : access == 2 ? "locate_teleport_hint" : null;
+            if (extra != null) {
+                label = label.copy().append("\n").append(Component.translatable("screen.justenoughstructures." + extra)
+                        .withStyle(ChatFormatting.GRAY));
+            }
+            locateButton.setLabel(label);
+        }
+        locateButton.active = access > 0 && !locating;
     }
 
     private void onCatalog(List<StructureCatalog.Entry> entries) {
@@ -358,7 +377,7 @@ public class JesScreen extends Screen {
             case VOID -> Integer.MIN_VALUE;
         };
         int local = surface - s.origin().getY();
-        viewport.setGround(ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
+        viewport.setGround(ClientState.ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
     }
 
     /** The search help only while the box is empty, so it never covers what a search found. */
@@ -380,7 +399,7 @@ public class JesScreen extends Screen {
         locateButton.active = false;
         ClientRequests.locate(id, teleport).thenAccept(reply -> {
             locating = false;
-            locateButton.active = true;
+            updateLocateButton();
             if (reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_teleported")) {
                 // They've gone there, so get out of the way and say where they are.
                 minecraft.gui.setOverlayMessage(reply, false);
@@ -551,7 +570,7 @@ public class JesScreen extends Screen {
     }
 
     public void setSpin(boolean on) {
-        spin = on;
+        ClientState.spin = on;
         if (spinButton != null) {
             spinButton.setLabel(spinLabel());
         }
@@ -718,7 +737,7 @@ public class JesScreen extends Screen {
         long now = System.nanoTime();
         float seconds = Math.min(0.1f, (now - lastFrame) / 1e9f);
         lastFrame = now;
-        if (spin && view != null && !(pressedInViewport && dragged)) {
+        if (ClientState.spin && view != null && !(pressedInViewport && dragged)) {
             viewport.spin(seconds * 12f);
         }
 
@@ -904,7 +923,7 @@ public class JesScreen extends Screen {
 
         StructureSnapshot s = result.snapshot();
         g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
-        if (markers) {
+        if (ClientState.markers) {
             placeMarkers(s);
             for (Marker m : markerRects) {
                 boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size();
@@ -1290,15 +1309,15 @@ public class JesScreen extends Screen {
     }
 
     private Component spinLabel() {
-        return Component.translatable(spin ? "screen.justenoughstructures.spin_on" : "screen.justenoughstructures.spin_off");
+        return Component.translatable(ClientState.spin ? "screen.justenoughstructures.spin_on" : "screen.justenoughstructures.spin_off");
     }
 
     private Component groundLabel() {
-        return Component.translatable(ground ? "screen.justenoughstructures.ground_on" : "screen.justenoughstructures.ground_off");
+        return Component.translatable(ClientState.ground ? "screen.justenoughstructures.ground_on" : "screen.justenoughstructures.ground_off");
     }
 
     private Component markersLabel() {
-        return Component.translatable(markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
+        return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
     }
 
     private static int clamp(int value, int min, int max) {

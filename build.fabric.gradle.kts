@@ -205,7 +205,8 @@ tasks {
         val dir = layout.buildDirectory.dir("autoshot")
         doFirst {
             val root = dir.get().asFile
-            delete(File(root, "saves"), File(root, "screenshots"))
+            // The browser remembers its toggles in config, which would carry over from the last run.
+            delete(File(root, "saves"), File(root, "screenshots"), File(root, "config/$modId"))
             root.mkdirs()
             // Skip first-launch screens and keep the game running when the window isn't focused. No
             // clouds, so the world behind the screen doesn't change from frame to frame.

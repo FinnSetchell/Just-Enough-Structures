@@ -57,6 +57,13 @@ final class FabricClientNetworking {
             client.execute(() -> ClientRequests.onLocate(requestId, reply));
         });
 
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.SETTINGS, (client, handler, buf, responder) -> {
+            int locate = buf.readVarInt();
+            int teleport = buf.readVarInt();
+            boolean reloaded = buf.readBoolean();
+            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded));
+        });
+
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
     }
 }

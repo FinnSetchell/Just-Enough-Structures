@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.google.gson.JsonElement;
@@ -65,8 +66,6 @@ final class InfoPanel {
     private static final int TEXT = Gui.LABEL;
     private static final int RARE = 0xFF8A5A00;
     private static final int GOOD = 0xFF2E5B1D;
-    private static boolean showDetails;
-    private static boolean rarestFirst;
 
     private final Font font;
     private final Consumer<String> onSelectTable;
@@ -150,7 +149,7 @@ final class InfoPanel {
     }
 
     static void showDetails(boolean shown) {
-        showDetails = shown;
+        ClientState.details = shown;
     }
 
     ItemStack hoveredStack() {
@@ -286,12 +285,15 @@ final class InfoPanel {
 
         // Everything a datapack author wants and a player doesn't, folded away by default.
         cy += 2;
-        Component toggle = Component.translatable(showDetails ? "screen.justenoughstructures.details_hide" : "screen.justenoughstructures.details_show");
+        Component toggle = Component.translatable(ClientState.details ? "screen.justenoughstructures.details_hide" : "screen.justenoughstructures.details_show");
         boolean over = inside(mouseX, mouseY, x + 2, cy - 1, width - 4, font.lineHeight + 3, clipTop, clipHeight);
         g.drawString(font, toggle, x + PAD, cy, over ? 0xFF1F3F8F : 0xFF3A55A0, false);
-        hotspots.add(new Hotspot(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> showDetails = !showDetails));
+        hotspots.add(new Hotspot(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> {
+            ClientState.details = !ClientState.details;
+            ClientState.save();
+        }));
         cy += font.lineHeight + 5;
-        if (!showDetails) {
+        if (!ClientState.details) {
             return cy;
         }
         cy = field(g, cy, "id", entry.id().toString());
@@ -509,14 +511,17 @@ final class InfoPanel {
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName).getString(),
                 x, cy, contentRight - x, 13);
         cy += 16;
-        Component sortLabel = Component.translatable(rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
+        Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
         int sortWidth = (int) (font.width(sortLabel) * 0.75f) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, 9, clipTop, clipHeight);
         Gui.small(g, font, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
         if (overSort) {
-            hoveredText = List.of(Component.translatable(rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
+            hoveredText = List.of(Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
         }
-        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, 9, () -> rarestFirst = !rarestFirst));
+        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, 9, () -> {
+            ClientState.rarestFirst = !ClientState.rarestFirst;
+            ClientState.save();
+        }));
         cy += 10;
         if (odds == null) {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
@@ -525,7 +530,7 @@ final class InfoPanel {
             return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<LootOdds.Row> rows = new ArrayList<>(odds.rows());
-        if (rarestFirst) {
+        if (ClientState.rarestFirst) {
             rows.sort(Comparator.comparingInt(LootOdds.Row::hits));
         }
         Map<String, Integer> nameCounts = new HashMap<>();

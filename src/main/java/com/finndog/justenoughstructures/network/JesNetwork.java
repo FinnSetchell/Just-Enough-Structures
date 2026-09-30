@@ -25,6 +25,7 @@ public final class JesNetwork {
     public static final ResourceLocation ODDS = JustEnoughStructures.id("odds");
     public static final ResourceLocation INDEX_PROGRESS = JustEnoughStructures.id("index_progress");
     public static final ResourceLocation LOCATE = JustEnoughStructures.id("locate");
+    public static final ResourceLocation SETTINGS = JustEnoughStructures.id("settings");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;

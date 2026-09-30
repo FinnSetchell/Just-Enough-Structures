@@ -47,9 +47,9 @@ final class FabricNetworking {
             JesServer.queueLocate(server, player, requestId, structure, teleport);
         });
 
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> JesServer.invalidate());
+        ServerLifecycleEvents.SERVER_STARTED.register(JesServer::reload);
         // Stops the loot index and drops what belonged to that world when it closes.
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> JesServer.invalidate());
-        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.invalidate());
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.reload(server));
     }
 }

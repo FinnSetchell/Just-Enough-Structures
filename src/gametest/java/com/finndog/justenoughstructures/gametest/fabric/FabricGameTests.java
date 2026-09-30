@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
+import com.finndog.justenoughstructures.gametest.SettingsTests;
 import java.util.Collection;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -108,5 +109,25 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void unknownLootTableIsEmpty(GameTestHelper helper) {
         ServiceTests.unknownLootTableIsEmpty(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void browserStateSurvivesARestart(GameTestHelper helper) {
+        SettingsTests.browserStateSurvivesARestart(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void serverSettingsReadTheirFile(GameTestHelper helper) {
+        SettingsTests.serverSettingsReadTheirFile(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void hiddenStructuresStayHidden(GameTestHelper helper) {
+        SettingsTests.hiddenStructuresStayHidden(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void locateLevelsComeFromTheSettings(GameTestHelper helper) {
+        SettingsTests.locateLevelsComeFromTheSettings(helper);
     }
 }

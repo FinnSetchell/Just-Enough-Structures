@@ -29,6 +29,15 @@ Press **K** (you can change it in Controls) to open the browser.
 - With cheats on (or as an operator), the recovery compass button finds the nearest one.
   Ctrl-click it to teleport there.
 
+The browser remembers how you left it: spin, markers, the ground, maximise and so on.
+
+## Server settings
+
+`config/justenoughstructures/server.json5` is written the first time a server or world starts.
+It can hide structures, or every structure from a mod, so they can't be browsed, previewed or
+located, and it sets who can locate and teleport. Out of the box that's operators, the same as
+`/locate` and `/tp`. Edit it and run `/reload` to apply the changes.
+
 ## Requirements
 
 - Minecraft 1.20.1

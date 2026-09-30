@@ -10,6 +10,7 @@ public final class JustEnoughStructuresFabric implements ModInitializer {
         JustEnoughStructures.setModNames(namespace -> FabricLoader.getInstance().getModContainer(namespace)
                 .map(mod -> mod.getMetadata().getName())
                 .orElse(namespace));
+        JustEnoughStructures.setConfigDir(FabricLoader.getInstance().getConfigDir());
         JustEnoughStructures.init();
         FabricNetworking.registerServer();
     }

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -39,6 +40,9 @@ public final class ClientRequests {
     private static int indexDone;
     private static int indexTotal;
     private static long lastIndexPoll;
+    // What the server needs to locate and teleport. Until it says, the same as /locate and /tp.
+    private static int locatePermission = 2;
+    private static int teleportPermission = 2;
 
     private ClientRequests() {
     }
@@ -75,6 +79,18 @@ public final class ClientRequests {
         indexDone = 0;
         indexTotal = 0;
         FoundIn.clear();
+        locatePermission = 2;
+        teleportPermission = 2;
+    }
+
+    public static boolean canLocate() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player != null && mc.player.hasPermissions(locatePermission);
+    }
+
+    public static boolean canTeleport() {
+        Minecraft mc = Minecraft.getInstance();
+        return canLocate() && mc.player.hasPermissions(teleportPermission);
     }
 
     /**
@@ -235,6 +251,28 @@ public final class ClientRequests {
                 future.complete(Codecs.readCapture(buf));
             }
         }
+    }
+
+    /**
+     * The server's locate settings. After a /reload the structure list and loot may have changed
+     * too, so what's cached is dropped and fetched again the next time it's wanted.
+     */
+    public static void onSettings(int locate, int teleport, boolean reloaded) {
+        locatePermission = locate;
+        teleportPermission = teleport;
+        if (!reloaded) {
+            return;
+        }
+        if (catalog != null && catalog.isDone()) {
+            catalog = null;
+        }
+        if (index != null && index.isDone()) {
+            index = null;
+            indexDone = 0;
+            indexTotal = 0;
+            FoundIn.clear();
+        }
+        ODDS_BY_TABLE.clear();
     }
 
     public static void onLoot(int requestId, List<ItemStack> items) {

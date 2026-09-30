@@ -73,6 +73,8 @@ public final class JesServer {
     });
     private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
     private static final Set<UUID> LOCATING = ConcurrentHashMap.newKeySet();
+    // Players who've opened the browser this session, so they have the mod and hear about a /reload.
+    private static final Set<UUID> BROWSING = ConcurrentHashMap.newKeySet();
     private static volatile byte[] index;
     private static volatile int indexGeneration;
     private static volatile int indexDone;
@@ -80,6 +82,29 @@ public final class JesServer {
     private static boolean indexing;
 
     private JesServer() {
+    }
+
+    /**
+     * Reads the server settings again and starts over, when the server starts and after /reload.
+     * Mentions hidden ids that aren't structures, which are usually typos.
+     */
+    public static void reload(MinecraftServer server) {
+        ServerConfig.Settings settings = ServerConfig.load();
+        var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        for (ResourceLocation id : settings.hiddenStructures()) {
+            if (!structures.containsKey(id)) {
+                JustEnoughStructures.LOGGER.warn("{} is set to be hidden, but there's no structure with that id", id);
+            }
+        }
+        invalidate();
+        for (UUID id : BROWSING) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                BROWSING.remove(id);
+            } else {
+                sendSettings(player, true);
+            }
+        }
     }
 
     /** Called when the server starts and after /reload, since structures and loot can change. */
@@ -108,11 +133,14 @@ public final class JesServer {
         if (!indexing) {
             indexing = true;
             int generation = indexGeneration;
+            List<ResourceLocation> ids = server.registryAccess().registryOrThrow(Registries.STRUCTURE).keySet().stream()
+                    .filter(id -> !ServerConfig.hides(id))
+                    .toList();
             indexDone = 0;
-            indexTotal = server.registryAccess().registryOrThrow(Registries.STRUCTURE).size();
+            indexTotal = ids.size();
             INDEXER.execute(() -> {
                 long started = System.nanoTime();
-                LootIndex built = LootIndex.build(server, done -> indexDone = done, () -> generation != indexGeneration || !server.isRunning());
+                LootIndex built = LootIndex.build(server, ids, done -> indexDone = done, () -> generation != indexGeneration || !server.isRunning());
                 if (built == null || generation != indexGeneration) {
                     return;
                 }
@@ -135,14 +163,39 @@ public final class JesServer {
     public static void onRequestCatalog(ServerPlayer player) {
         MinecraftServer server = player.getServer();
         if (catalog == null) {
-            List<StructureCatalog.Entry> entries = StructureCatalog.build(server.registryAccess());
+            List<StructureCatalog.Entry> entries = visibleCatalog(server);
             catalog = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCatalog(buf, entries)));
         }
+        BROWSING.add(player.getUUID());
+        sendSettings(player, false);
         sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
+    }
+
+    /** Who can locate and teleport, so the browser only offers what the server will allow. */
+    private static void sendSettings(ServerPlayer player, boolean reloaded) {
+        ServerConfig.Settings settings = ServerConfig.get();
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(settings.locatePermission());
+        buf.writeVarInt(settings.teleportPermission());
+        buf.writeBoolean(reloaded);
+        JesNetwork.send(player, JesNetwork.SETTINGS, buf);
+    }
+
+    /** Every structure, less the ones the server hides. */
+    public static List<StructureCatalog.Entry> visibleCatalog(MinecraftServer server) {
+        return StructureCatalog.build(server.registryAccess()).stream()
+                .filter(entry -> !ServerConfig.hides(entry.id()))
+                .toList();
     }
 
     public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed) {
         MinecraftServer server = player.getServer();
+        if (ServerConfig.hides(structure)) {
+            CaptureResult hidden = CaptureResult.failure("This server keeps this structure hidden", List.of(), 0);
+            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
+                    Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
+            return;
+        }
         String key = structure + "@" + seed;
         byte[] cached;
         synchronized (CAPTURE_CACHE) {
@@ -210,11 +263,6 @@ public final class JesServer {
     private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};
 
     /**
-     * Finds the nearest structure of this kind in the player's dimension, like /locate, and with
-     * {@code teleport} takes the player there, like /tp. Both need the permission those commands
-     * do. Runs on the server thread because structure lookups load chunk data.
-     */
-    /**
      * Queues a locate on the server thread, unless this player already has one waiting: each is a
      * full structure search, so repeated clicks mustn't pile them up.
      */
@@ -244,13 +292,23 @@ public final class JesServer {
         JesNetwork.send(player, JesNetwork.LOCATE, buf);
     }
 
-    /** What to tell the player who asked, after teleporting them if they wanted and are allowed to. */
+    /**
+     * Finds the nearest structure of this kind in the player's dimension, like /locate, and with
+     * {@code teleport} takes the player there, like /tp. Each needs the permission level the server
+     * settings give it; a player who can locate but not teleport just gets told where it is.
+     * Returns what to tell the player. Runs on the server thread because structure lookups load
+     * chunk data.
+     */
     public static Component locateFor(ServerPlayer player, ResourceLocation id, boolean teleport) {
-        if (!player.hasPermissions(2)) {
+        ServerConfig.Settings settings = ServerConfig.get();
+        if (!player.hasPermissions(settings.locatePermission())) {
             return Component.translatable("screen.justenoughstructures.locate_no_permission");
         }
+        if (settings.hides(id)) {
+            return Component.translatable("screen.justenoughstructures.locate_hidden");
+        }
         Located found = find(player.serverLevel(), player.blockPosition(), id);
-        if (!teleport || found.pos() == null) {
+        if (!teleport || !player.hasPermissions(settings.teleportPermission()) || found.pos() == null) {
             return found.message();
         }
         Optional<BlockPos> spot = standingSpot(player.serverLevel(), found.pos().getX(), found.pos().getZ());
