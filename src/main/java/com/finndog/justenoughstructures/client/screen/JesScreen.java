@@ -81,6 +81,7 @@ public class JesScreen extends Screen {
     private IconButton maximiseButton;
     private IconButton locateButton;
     private IconButton compassButton;
+    private Boolean compassPointing;
     private LayerSlider slider;
     private Button chestReroll;
     private Button chestPrev;
@@ -218,7 +219,14 @@ public class JesScreen extends Screen {
         // With a structure compass mod installed, hands the structure over to the compass in your hand.
         CompassLink compass = CompassLink.get();
         compassButton = compass == null ? null : addRenderableWidget(new IconButton(overlayRight - 64, viewY + 2, compass.icon(),
-                Component.translatable("screen.justenoughstructures.compass_open"), b -> openInCompass()));
+                Component.empty(), b -> {
+            if (hasControlDown() && ClientRequests.canPointCompass()) {
+                pointCompass();
+            } else {
+                openInCompass();
+            }
+        }));
+        compassPointing = null;
         updateCompassButton();
 
         int bx = viewX;
@@ -578,6 +586,11 @@ public class JesScreen extends Screen {
     /** Ctrl-clicking the locate button, which a scripted click can't do: it reads the real keyboard. */
     public void locateAndTeleport() {
         locate(true);
+    }
+
+    /** Ctrl-clicking the compass button, which a scripted click can't do either. */
+    public void pointCompassNow() {
+        pointCompass();
     }
 
     /** The Loot tab with {@code table} picked, as clicking its row would. */
@@ -1356,11 +1369,42 @@ public class JesScreen extends Screen {
         return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
     }
 
-    /** Only there while the player holds a compass it can open. */
+    /** Only there while the player holds a compass it can open. Ctrl-click is mentioned when the server can do it. */
     private void updateCompassButton() {
-        if (compassButton != null) {
-            compassButton.visible = selected != null && CompassLink.get().holding(minecraft.player);
+        if (compassButton == null) {
+            return;
         }
+        compassButton.visible = selected != null && CompassLink.get().holding(minecraft.player);
+        boolean pointing = ClientRequests.canPointCompass();
+        if (!Boolean.valueOf(pointing).equals(compassPointing)) {
+            compassPointing = pointing;
+            Component label = Component.translatable("screen.justenoughstructures.compass_open");
+            if (pointing) {
+                label = label.copy().append("\n").append(Component.translatable("screen.justenoughstructures.compass_point_hint")
+                        .withStyle(ChatFormatting.GRAY));
+            }
+            compassButton.setLabel(label);
+        }
+    }
+
+    /** Ctrl-click: the compass starts searching straight away, and the browser gets out of the way. */
+    private void pointCompass() {
+        if (selected == null) {
+            return;
+        }
+        ResourceLocation id = selected.id();
+        ClientRequests.pointCompass(id).thenAccept(reply -> {
+            if (reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("compass_now_searching")) {
+                minecraft.gui.setOverlayMessage(reply, false);
+                minecraft.setScreen(null);
+                return;
+            }
+            if (selected != null && selected.id().equals(id)) {
+                locateText = reply;
+                locateFound = false;
+                locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+            }
+        });
     }
 
     private void openInCompass() {

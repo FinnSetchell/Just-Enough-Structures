@@ -19,6 +19,7 @@ public final class JesNetwork {
     public static final ResourceLocation REQUEST_ODDS = JustEnoughStructures.id("request_odds");
     public static final ResourceLocation REQUEST_INDEX = JustEnoughStructures.id("request_index");
     public static final ResourceLocation REQUEST_LOCATE = JustEnoughStructures.id("request_locate");
+    public static final ResourceLocation REQUEST_COMPASS = JustEnoughStructures.id("request_compass");
 
     public static final ResourceLocation TRANSFER = JustEnoughStructures.id("transfer");
     public static final ResourceLocation LOOT = JustEnoughStructures.id("loot");

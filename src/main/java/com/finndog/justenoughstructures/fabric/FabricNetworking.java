@@ -45,6 +45,12 @@ final class FabricNetworking {
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_INDEX, (server, player, handler, buf, responder) ->
                 server.execute(() -> JesServer.onRequestIndex(player)));
 
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_COMPASS, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation structure = buf.readResourceLocation();
+            JesServer.queueCompass(server, player, requestId, structure);
+        });
+
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_LOCATE, (server, player, handler, buf, responder) -> {
             int requestId = buf.readVarInt();
             ResourceLocation structure = buf.readResourceLocation();

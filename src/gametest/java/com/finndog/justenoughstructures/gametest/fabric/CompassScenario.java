@@ -22,7 +22,8 @@ import org.lwjgl.glfw.GLFW;
 /**
  * Explorer's Compass and the browser, both ways: the browser opens the compass on a structure,
  * the compass's Preview button opens that structure in the browser, and closing the browser goes
- * back to the compass as it was. Needs Explorer's Compass, so only with the dev mods.
+ * back to the compass as it was. Then Ctrl-click, which sets the compass searching straight away.
+ * Needs Explorer's Compass, so only with the dev mods.
  */
 final class CompassScenario {
     private CompassScenario() {
@@ -53,7 +54,19 @@ final class CompassScenario {
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
                 .then(until(() -> onCompassScreen(mc), 40))
                 .then(pause(10))
-                .then(shoot("c04_back_in_compass"));
+                .then(shoot("c04_back_in_compass"))
+                // Ctrl-click: the compass starts searching straight away. Only villages and
+                // strongholds can generate in the superflat world.
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(until(() -> mc.screen == null, 40))
+                .then(run(() -> JesScreen.startOn(new ResourceLocation("village_plains"))))
+                .then(pressKey(GLFW.GLFW_KEY_K))
+                .then(until(() -> browser(mc) != null, 40))
+                .then(until(() -> browser(mc).idle(), 400))
+                .then(run(() -> browser(mc).pointCompassNow()))
+                .then(until(() -> mc.screen == null, 100))
+                .then(pause(20))
+                .then(shoot("c05_compass_searching"));
         return d;
     }
 

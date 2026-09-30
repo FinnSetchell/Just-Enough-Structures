@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
+import com.finndog.justenoughstructures.gametest.CompassTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
 import com.finndog.justenoughstructures.gametest.SettingsTests;
@@ -102,6 +103,11 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
         ServiceTests.hiddenStructuresLeaveTheLootIndex(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void compassOnlySearchesWhereItCould(GameTestHelper helper) {
+        CompassTests.compassOnlySearchesWhereItCould(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

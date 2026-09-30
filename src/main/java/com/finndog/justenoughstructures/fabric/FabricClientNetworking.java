@@ -61,7 +61,8 @@ final class FabricClientNetworking {
             int locate = buf.readVarInt();
             int teleport = buf.readVarInt();
             boolean reloaded = buf.readBoolean();
-            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded));
+            boolean compass = buf.readBoolean();
+            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass));
         });
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));

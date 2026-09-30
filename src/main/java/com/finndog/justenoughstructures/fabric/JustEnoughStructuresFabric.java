@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassSearch;
 import net.fabricmc.api.ModInitializer;
 import java.util.stream.Collectors;
 import net.fabricmc.loader.api.FabricLoader;
@@ -17,5 +18,8 @@ public final class JustEnoughStructuresFabric implements ModInitializer {
                 .collect(Collectors.toMap(mod -> mod.getMetadata().getId(), mod -> mod.getMetadata().getVersion().getFriendlyString(), (a, b) -> a)));
         JustEnoughStructures.init();
         FabricNetworking.registerServer();
+        if (FabricLoader.getInstance().isModLoaded("explorerscompass")) {
+            ExplorersCompassSearch.install();
+        }
     }
 }

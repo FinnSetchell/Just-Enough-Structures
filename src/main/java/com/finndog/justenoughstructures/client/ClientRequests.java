@@ -45,6 +45,7 @@ public final class ClientRequests {
     // What the server needs to locate and teleport. Until it says, the same as /locate and /tp.
     private static int locatePermission = 2;
     private static int teleportPermission = 2;
+    private static boolean compassSearch;
 
     private ClientRequests() {
     }
@@ -83,6 +84,24 @@ public final class ClientRequests {
         FoundIn.clear();
         locatePermission = 2;
         teleportPermission = 2;
+        compassSearch = false;
+    }
+
+    /** Whether the server can set a held structure compass searching. */
+    public static boolean canPointCompass() {
+        return compassSearch;
+    }
+
+    /** Asks the server to set the held compass searching for the structure. Answers like a locate. */
+    public static CompletableFuture<Component> pointCompass(ResourceLocation structure) {
+        int id = nextRequestId++;
+        CompletableFuture<Component> future = new CompletableFuture<>();
+        LOCATES.put(id, future);
+        send(JesNetwork.REQUEST_COMPASS, buf -> {
+            buf.writeVarInt(id);
+            buf.writeResourceLocation(structure);
+        });
+        return future;
     }
 
     public static boolean canLocate() {
@@ -270,9 +289,10 @@ public final class ClientRequests {
      * The server's locate settings. After a /reload the structure list and loot may have changed
      * too, so what's cached is dropped and fetched again the next time it's wanted.
      */
-    public static void onSettings(int locate, int teleport, boolean reloaded) {
+    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass) {
         locatePermission = locate;
         teleportPermission = teleport;
+        compassSearch = compass;
         if (!reloaded) {
             return;
         }

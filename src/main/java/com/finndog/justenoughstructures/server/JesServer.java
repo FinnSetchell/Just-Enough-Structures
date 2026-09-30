@@ -68,6 +68,7 @@ public final class JesServer {
     private static final Set<UUID> LOCATING = ConcurrentHashMap.newKeySet();
     // Players who've opened the browser this session, so they have the mod and hear about a /reload.
     private static final Set<UUID> BROWSING = ConcurrentHashMap.newKeySet();
+    private static CompassSearch compassSearch;
 
     private JesServer() {
     }
@@ -138,6 +139,11 @@ public final class JesServer {
         sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
     }
 
+    /** Set by the loader when a structure compass mod is installed. */
+    public static void setCompassSearch(CompassSearch search) {
+        compassSearch = search;
+    }
+
     /** Who can locate and teleport, so the browser only offers what the server will allow. */
     private static void sendSettings(ServerPlayer player, boolean reloaded) {
         ServerConfig.Settings settings = ServerConfig.get();
@@ -145,6 +151,7 @@ public final class JesServer {
         buf.writeVarInt(settings.locatePermission());
         buf.writeVarInt(settings.teleportPermission());
         buf.writeBoolean(reloaded);
+        buf.writeBoolean(compassSearch != null);
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 
@@ -261,6 +268,27 @@ public final class JesServer {
                 LOCATING.remove(uuid);
             }
         });
+    }
+
+    /** Sets the player's compass searching for a structure, on the server thread, and answers like a locate. */
+    public static void queueCompass(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id) {
+        server.execute(() -> {
+            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            buf.writeVarInt(requestId);
+            buf.writeComponent(compassFor(player, id));
+            JesNetwork.send(player, JesNetwork.LOCATE, buf);
+        });
+    }
+
+    /** What to tell the player after trying to set their compass searching. */
+    public static Component compassFor(ServerPlayer player, ResourceLocation id) {
+        if (compassSearch == null) {
+            return Component.translatable("screen.justenoughstructures.compass_unsupported");
+        }
+        if (ServerConfig.hides(id)) {
+            return Component.translatable("screen.justenoughstructures.locate_hidden");
+        }
+        return compassSearch.search(player, id);
     }
 
     public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {

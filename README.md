@@ -38,8 +38,9 @@ structure to open it in the browser.
 With [Explorer's Compass](https://modrinth.com/mod/explorers-compass) installed, its structure
 screen gets a **Preview** button that opens the picked structure in the browser, and Esc takes you
 back. The other way round, while you hold the compass the browser has a button that opens the
-compass on the structure you're looking at. Searching is left to the compass, with its own costs
-and rules, and the Info tab shows what the compass in your hand has found.
+compass on the structure you're looking at, and Ctrl-clicking it sets the compass searching
+straight away. Searching is left to the compass, with its own costs and rules, and the Info tab
+shows what the compass in your hand has found.
 
 ## Server settings
 
