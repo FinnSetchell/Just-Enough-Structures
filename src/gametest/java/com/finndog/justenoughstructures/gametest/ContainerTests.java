@@ -160,6 +160,40 @@ public final class ContainerTests {
         helper.succeed();
     }
 
+    /** Turning container changes off in the settings leaves templates alone, keeps the saved changes, and uses them again once it's back on. */
+    public static void patchesCanBeTurnedOff(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureTemplate tower = server.getStructureManager().get(TOWER).orElse(null);
+        helper.assertTrue(tower != null, "the watchtower template didn't load");
+        StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
+        helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
+        String original = chest.nbt().getString("LootTable");
+        ResourceLocation block = BuiltInRegistries.BLOCK.getKey(chest.state().getBlock());
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerConfig.Settings before = ServerConfig.get();
+        freshFolder();
+        try {
+            ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), block, original, IGLOO));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, 0, false));
+            StructureTemplate off = copy(tower);
+            ContainerPatches.apply(TOWER, off);
+            helper.assertTrue(original.equals(tableAt(off, chest.pos())), "a change was used with changes turned off");
+            helper.assertTrue(ContainerPatches.summary().isEmpty(), "the loot index still counts changes that are turned off");
+            expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), IGLOO), "container.turned_off");
+            ServerConfig.Settings reread = ServerConfig.parse(ServerConfig.render(ServerConfig.get()), "the test");
+            helper.assertFalse(reread.containerChanges(), "the switch didn't survive being written to the file and read back");
+
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, 0, true));
+            StructureTemplate on = copy(tower);
+            ContainerPatches.apply(TOWER, on);
+            helper.assertTrue(IGLOO.toString().equals(tableAt(on, chest.pos())), "the kept change wasn't used once turned back on");
+        } finally {
+            ServerConfig.set(before);
+            leaveFolder();
+        }
+        helper.succeed();
+    }
+
     /** Containers placed from a template know where in it they came from. Ones structure code places don't. */
     public static void containersKnowTheirTemplate(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

@@ -230,6 +230,11 @@ public final class FabricGameTests implements FabricGameTest {
         ContainerTests.patchesAreChecked(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void patchesCanBeTurnedOff(GameTestHelper helper) {
+        ContainerTests.patchesCanBeTurnedOff(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void containersKnowTheirTemplate(GameTestHelper helper) {
         ContainerTests.containersKnowTheirTemplate(helper);

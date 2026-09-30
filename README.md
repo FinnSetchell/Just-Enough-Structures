@@ -94,7 +94,8 @@ file.
 
 A change applies wherever that template is used, which can be more than one structure. Only
 containers placed from a template can be changed on their own; ones a structure's code places,
-like the desert pyramid's chests, get an **Edit table** link instead.
+like the desert pyramid's chests, get an **Edit table** link instead. Setting `container_changes`
+to `false` in `server.json5` stops using every change from the next `/reload` without losing them.
 
 ## For mod and modpack authors
 

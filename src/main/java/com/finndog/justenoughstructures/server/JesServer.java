@@ -103,6 +103,15 @@ public final class JesServer {
         }
     }
 
+    /**
+     * Before the world loads, so the settings and container changes are in place for the first
+     * chunks it generates, not just from the first /reload.
+     */
+    public static void starting() {
+        ServerConfig.load();
+        ContainerPatches.load();
+    }
+
     /** Called when the server starts and after /reload, since structures and loot can change. */
     public static void invalidate() {
         ContainerPatches.load();
@@ -227,6 +236,9 @@ public final class JesServer {
         }
         if (!LootOverrides.exists(server, table)) {
             return Component.translatable("screen.justenoughstructures.container.no_table", table.toString());
+        }
+        if (!ServerConfig.get().containerChanges()) {
+            return Component.translatable("screen.justenoughstructures.container.turned_off");
         }
         // The template may already be patched, in which case what it had first is what the patch remembers.
         ContainerPatches.Patch existing = ContainerPatches.find(template, pos);

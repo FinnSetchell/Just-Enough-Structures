@@ -85,6 +85,7 @@ final class FabricNetworking {
         });
 
         ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new StructureInfoLoader());
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> JesServer.starting());
         ServerLifecycleEvents.SERVER_STARTED.register(JesServer::reload);
         // Stops the loot index and drops what belonged to that world when it closes.
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> JesServer.stop());

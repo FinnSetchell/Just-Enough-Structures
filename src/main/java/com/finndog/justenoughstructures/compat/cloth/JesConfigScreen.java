@@ -36,7 +36,7 @@ public final class JesConfigScreen {
         server.hiddenStructures().stream().map(ResourceLocation::toString).sorted().forEach(hidden::add);
         // Filled in by the entries as they save, then written out together.
         ServerEdit edit = new ServerEdit(new ArrayList<>(hidden), server.locatePermission(), server.teleportPermission(), server.showLootLocations(),
-                server.editPermission());
+                server.editPermission(), server.containerChanges());
 
         ConfigBuilder builder = ConfigBuilder.create().setParentScreen(parent).setTitle(text("title"));
         ConfigEntryBuilder entries = builder.entryBuilder();
@@ -74,6 +74,9 @@ public final class JesConfigScreen {
         serverSettings.addEntry(entries.startIntSlider(text("edit"), server.editPermission(), 0, 4).setDefaultValue(4)
                 .setTextGetter(JesConfigScreen::permission).setTooltip(text("edit.tooltip"))
                 .setSaveConsumer(value -> edit.edit = value).build());
+        serverSettings.addEntry(entries.startBooleanToggle(text("container_changes"), server.containerChanges()).setDefaultValue(true)
+                .setTooltip(text("container_changes.tooltip"))
+                .setSaveConsumer(value -> edit.containers = value).build());
 
         builder.setSavingRunnable(() -> {
             ClientState.save();
@@ -89,13 +92,15 @@ public final class JesConfigScreen {
         int teleport;
         boolean showLoot;
         int edit;
+        boolean containers;
 
-        ServerEdit(List<String> hidden, int locate, int teleport, boolean showLoot, int edit) {
+        ServerEdit(List<String> hidden, int locate, int teleport, boolean showLoot, int edit, boolean containers) {
             this.hidden = hidden;
             this.locate = locate;
             this.teleport = teleport;
             this.showLoot = showLoot;
             this.edit = edit;
+            this.containers = containers;
         }
     }
 
@@ -110,6 +115,7 @@ public final class JesConfigScreen {
         json.addProperty("teleport_permission", edit.teleport);
         json.addProperty("show_loot_locations", edit.showLoot);
         json.addProperty("edit_permission", edit.edit);
+        json.addProperty("container_changes", edit.containers);
         ServerConfig.Settings settings = ServerConfig.parse(json.toString(), "the settings screen");
         try {
             ServerConfig.save(ServerConfig.file(), settings);

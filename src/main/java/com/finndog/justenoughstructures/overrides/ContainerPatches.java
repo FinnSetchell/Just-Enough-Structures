@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -46,6 +47,9 @@ public final class ContainerPatches {
     }
 
     private static Map<ResourceLocation, List<Patch>> patches() {
+        if (!ServerConfig.get().containerChanges()) {
+            return Map.of();
+        }
         Map<ResourceLocation, List<Patch>> loaded = byTemplate;
         if (loaded == null) {
             load();
