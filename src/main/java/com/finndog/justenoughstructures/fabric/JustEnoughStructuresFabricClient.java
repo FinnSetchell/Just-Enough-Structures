@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.client.JesClient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class JustEnoughStructuresFabricClient implements ClientModInitializer {
     @Override
@@ -11,5 +12,8 @@ public final class JustEnoughStructuresFabricClient implements ClientModInitiali
         FabricClientNetworking.registerClient();
         KeyBindingHelper.registerKeyBinding(JesClient.OPEN);
         ClientTickEvents.END_CLIENT_TICK.register(JesClient::tick);
+        if (FabricLoader.getInstance().isModLoaded("explorerscompass")) {
+            FabricExplorersCompass.register();
+        }
     }
 }

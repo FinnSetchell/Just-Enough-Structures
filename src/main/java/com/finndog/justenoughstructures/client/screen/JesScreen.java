@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
+import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
@@ -79,6 +80,7 @@ public class JesScreen extends Screen {
     private IconButton groundButton;
     private IconButton maximiseButton;
     private IconButton locateButton;
+    private IconButton compassButton;
     private LayerSlider slider;
     private Button chestReroll;
     private Button chestPrev;
@@ -213,6 +215,11 @@ public class JesScreen extends Screen {
                 b -> locate(hasControlDown() && ClientRequests.canTeleport())));
         locateAccess = -1;
         updateLocateButton();
+        // With a structure compass mod installed, hands the structure over to the compass in your hand.
+        CompassLink compass = CompassLink.get();
+        compassButton = compass == null ? null : addRenderableWidget(new IconButton(overlayRight - 64, viewY + 2, compass.icon(),
+                Component.translatable("screen.justenoughstructures.compass_open"), b -> openInCompass()));
+        updateCompassButton();
 
         int bx = viewX;
         boolean roomy = viewW >= 250;
@@ -285,6 +292,7 @@ public class JesScreen extends Screen {
         super.tick();
         updateLocateButton();
         updateMarkersButton();
+        updateCompassButton();
     }
 
     /**
@@ -622,6 +630,7 @@ public class JesScreen extends Screen {
             case "ground" -> groundButton;
             case "maximise" -> maximiseButton;
             case "locate" -> locateButton;
+            case "compass" -> compassButton;
             case "reroll_loot" -> chestReroll;
             case "next" -> chestNext;
             case "done" -> chestClose;
@@ -1345,6 +1354,21 @@ public class JesScreen extends Screen {
             return Component.translatable("screen.justenoughstructures.markers_secret");
         }
         return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
+    }
+
+    /** Only there while the player holds a compass it can open. */
+    private void updateCompassButton() {
+        if (compassButton != null) {
+            compassButton.visible = selected != null && CompassLink.get().holding(minecraft.player);
+        }
+    }
+
+    private void openInCompass() {
+        if (selected != null && !CompassLink.get().open(minecraft.player, selected.id())) {
+            locateText = Component.translatable("screen.justenoughstructures.compass_cant_open");
+            locateFound = false;
+            locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+        }
     }
 
     /** True when the selected structure keeps where its loot is a secret, so its previews come without loot. */

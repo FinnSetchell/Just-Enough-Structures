@@ -21,3 +21,5 @@ deps.fabric_api = "0.92.11+1.20.1"
 deps.modmenu = "7.2.2"
 # Compiled against for the optional JEI plugin, never bundled.
 deps.jei = "15.56.0.205"
+# Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.
+deps.explorers_compass = "qD2j03H6"

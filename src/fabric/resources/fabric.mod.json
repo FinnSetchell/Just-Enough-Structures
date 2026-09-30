@@ -34,6 +34,7 @@
     "java": ">=${java_version}"
   },
   "suggests": {
-    "jei": "*"
+    "jei": "*",
+    "explorerscompass": "*"
   }
 }

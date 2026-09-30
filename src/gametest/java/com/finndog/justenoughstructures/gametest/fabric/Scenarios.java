@@ -41,6 +41,7 @@ final class Scenarios {
             case "spin" -> spin(mc);
             case "teleport" -> teleport(mc);
             case "jei" -> jei(mc);
+            case "compass" -> CompassScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

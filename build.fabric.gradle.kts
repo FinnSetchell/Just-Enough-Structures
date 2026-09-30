@@ -57,8 +57,8 @@ val devMods = mapOf(
         // Other big structure mods
         "repurposed-structures-fabric:jaRcykAY", "towns-and-towers:7ZwnSrVW", "structory:FkaSuQb0", "structory-towers:fTl6NfPL",
         "when-dungeons-arise:Vd5XOXlj", "dungeons-and-taverns:d1sY0JqV", "explorify:CuBdAr31",
-        // Recipe viewer
-        "jei:YRfUnbXb",
+        // Recipe viewer and structure compass
+        "jei:YRfUnbXb", "explorers-compass:qD2j03H6",
         // Libraries the above need
         "moogs-structure-lib:ynssyzOT", "yungs-api:lscV1N5k", "cristel-lib:tBnivdbu", "cloth-config:2xQdCMyG",
         "resourceful-config:2gStMKhM", "midnightlib:rXX4FCV8",
@@ -75,6 +75,8 @@ dependencies {
     modImplementation("net.fabricmc.fabric-api:fabric-api:${prop("deps.fabric_api")}")
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
     modCompileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
+    // Likewise Explorer's Compass, which has no API: the link calls its own search.
+    modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }

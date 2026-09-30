@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
+import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.loot.LootOdds;
@@ -286,6 +287,13 @@ final class InfoPanel {
                     s.size().getX(), s.size().getY(), s.size().getZ()).getString());
             cy = field(g, cy, "loot_here", entry.info().hideLootLocations()
                     ? Component.translatable("screen.justenoughstructures.loot_secret").getString() : lootSummary(s));
+        }
+
+        // What a compass in the player's hand says about it.
+        CompassLink compass = CompassLink.get();
+        Component compassStatus = compass == null ? null : compass.status(Minecraft.getInstance().player, entry.id());
+        if (compassStatus != null) {
+            cy = field(g, cy, "compass", compassStatus.getString());
         }
 
         // Whatever the structure's mod or the modpack wrote about it.
