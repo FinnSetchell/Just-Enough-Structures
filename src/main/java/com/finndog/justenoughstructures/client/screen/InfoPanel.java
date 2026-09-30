@@ -277,10 +277,6 @@ final class InfoPanel {
             }
             cy = field(g, cy, "biomes", shown);
         }
-        String rarity = rarity();
-        if (rarity != null) {
-            cy = field(g, cy, "rarity", rarity);
-        }
         if (result != null && result.succeeded()) {
             StructureSnapshot s = result.snapshot();
             cy = field(g, cy, "size", Component.translatable("screen.justenoughstructures.size_blocks",
@@ -332,30 +328,6 @@ final class InfoPanel {
             cy = field(g, cy, "time", result.millis() + " ms");
         }
         return cy;
-    }
-
-    /** "At most one in each 544 x 544 block area", from the structure set's placement. */
-    private String rarity() {
-        for (StructureCatalog.SetInfo set : entry.sets()) {
-            JsonObject p = set.placement();
-            if (p == null) {
-                continue;
-            }
-            String type = string(p.get("type"));
-            if (p.has("spacing") && p.get("spacing").isJsonPrimitive()) {
-                String blocks = String.format("%,d", p.get("spacing").getAsInt() * 16);
-                String out = Component.translatable("screen.justenoughstructures.rarity_spread", blocks, blocks).getString();
-                if (p.has("frequency") && p.get("frequency").isJsonPrimitive() && p.get("frequency").getAsFloat() < 1f) {
-                    out += " " + Component.translatable("screen.justenoughstructures.rarity_frequency",
-                            Math.round(p.get("frequency").getAsFloat() * 100)).getString();
-                }
-                return out;
-            }
-            if (type.endsWith("concentric_rings")) {
-                return Component.translatable("screen.justenoughstructures.rarity_rings", p.has("count") ? string(p.get("count")) : "?").getString();
-            }
-        }
-        return null;
     }
 
     private String lootSummary(StructureSnapshot s) {
