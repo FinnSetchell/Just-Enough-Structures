@@ -138,6 +138,25 @@ tasks {
         doFirst { delete(world) }
     }
 
+    // IntelliJ 2026.2 turns the dots in a node's name into underscores when it names modules
+    // (JustEnoughStructures.1_20_1-fabric.main), but Loom writes its run configurations for
+    // JustEnoughStructures.1.20.1-fabric.main, which then don't run. Once the IDE has imported the
+    // project, point them at the name it actually uses.
+    named("ideaSyncTask") {
+        val ideaDir = rootProject.file(".idea")
+        val dotted = "${rootProject.name}.${project.name}."
+        val underscored = "${rootProject.name}.${project.name.replace('.', '_')}."
+        doLast {
+            val modules = File(ideaDir, "modules.xml")
+            if (dotted == underscored || !modules.exists() || underscored !in modules.readText()) return@doLast
+            File(ideaDir, "runConfigurations").listFiles { f -> f.extension == "xml" }?.forEach { f ->
+                val text = f.readText()
+                val fixed = text.replace("<module name=\"$dotted", "<module name=\"$underscored")
+                if (fixed != text) f.writeText(fixed)
+            }
+        }
+    }
+
     named("runAutoshot") {
         val dir = layout.buildDirectory.dir("autoshot")
         doFirst {
