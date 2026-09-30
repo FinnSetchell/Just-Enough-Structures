@@ -851,8 +851,8 @@ public class JesScreen extends Screen {
             if (!popupHover.isEmpty()) {
                 g.renderComponentTooltip(font, itemTooltip(popupHover, List.of()), mouseX, mouseY);
             }
-        } else if (overHeaderLine(mouseX, mouseY)) {
-            g.renderTooltip(font, font.split(headerOverflow, 240), mouseX, mouseY);
+        } else if (clippedHeaderLine(mouseX, mouseY) != null) {
+            g.renderTooltip(font, font.split(clippedHeaderLine(mouseX, mouseY), 240), mouseX, mouseY);
         } else if (!headerTooltip(mouseX, mouseY).isEmpty()) {
             g.renderComponentTooltip(font, headerTooltip(mouseX, mouseY), mouseX, mouseY);
         } else if (sides && !info.hoveredStack().isEmpty()) {
@@ -912,8 +912,21 @@ public class JesScreen extends Screen {
     private Component headerOverflow;
     private int headerRoom;
 
-    private boolean overHeaderLine(int mouseX, int mouseY) {
-        return headerOverflow != null && mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 16 && mouseY < viewY + 26;
+    /** The locate line under the mouse when it's cut short, to show in full as a tooltip. */
+    private Component clippedHeaderLine(int mouseX, int mouseY) {
+        boolean over = mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 5 && mouseY < viewY + 16;
+        return over ? headerOverflow : null;
+    }
+
+    /** Where the buttons over the preview's top right corner start, counting only those showing. */
+    private int overlayLeft() {
+        int left = maximiseButton.getX();
+        for (Button b : new Button[]{locateButton, compassButton}) {
+            if (b != null && b.visible) {
+                left = Math.min(left, b.getX());
+            }
+        }
+        return left;
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -992,22 +1005,18 @@ public class JesScreen extends Screen {
             }
         }
 
-        String stats = lootSecret()
-                ? Component.translatable("screen.justenoughstructures.stats_blocks", String.format("%,d", s.blockCount())).getString()
-                : Component.translatable("screen.justenoughstructures.stats", String.format("%,d", s.blockCount()),
-                        s.containers().stream().filter(c -> c.lootTable() != null).count()).getString();
-        int room = viewW - 12 - 46;
-        g.drawString(font, Gui.clip(font, stats, room), viewX + 6, viewY + 6, 0xFFE8E8E8, true);
-        // What locate found, or why it couldn't, under the stats. Failures fade after a while.
+        // What locate found, or why it couldn't. Failures fade after a while. It shares the top of
+        // the preview with the corner buttons, so it stops short of them.
         if (locateText != null && Util.getMillis() > locateUntil) {
             locateText = null;
         }
         headerOverflow = null;
         if (locateText != null) {
-            int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
-            g.drawString(font, Gui.clip(font, locateText.getString(), room), viewX + 6, viewY + 17, colour, true);
-            headerOverflow = font.width(locateText) > room ? locateText : null;
+            int room = Math.max(0, overlayLeft() - 4 - (viewX + 6));
             headerRoom = room;
+            int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
+            g.drawString(font, Gui.clip(font, locateText.getString(), room), viewX + 6, viewY + 6, colour, true);
+            headerOverflow = font.width(locateText) > room ? locateText : null;
         }
         if (viewport.meshing()) {
             int barW = Math.min(120, viewW - 20);
@@ -1091,7 +1100,7 @@ public class JesScreen extends Screen {
         }
         List<StructureSnapshot.Container> shown = new ArrayList<>();
         for (StructureSnapshot.Container c : s.containers()) {
-            if (c.lootTable() != null && c.pos().getY() < view.sliceY()) {
+            if (c.pos().getY() < view.sliceY()) {
                 shown.add(c);
             }
         }

@@ -203,7 +203,11 @@ public final class Gui {
         if (font.width(text) <= width) {
             return text;
         }
-        return font.plainSubstrByWidth(text, Math.max(0, width - font.width("..."))) + "...";
+        // Not even room for the dots: nothing, rather than spilling over whatever is next to it.
+        if (width < font.width("...")) {
+            return "";
+        }
+        return font.plainSubstrByWidth(text, width - font.width("...")) + "...";
     }
 
     /** Draws wrapped text and returns the y below it. */
