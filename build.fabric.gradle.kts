@@ -72,6 +72,7 @@ dependencies {
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
+        modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
         // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:
         // YUNG's (Reflections), Cristel Lib (Jankson) and Cloth Config (basic-math).
         localRuntime("org.reflections:reflections:0.10.2")
