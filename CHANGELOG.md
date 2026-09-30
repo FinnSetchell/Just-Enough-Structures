@@ -7,7 +7,7 @@ First release.
 - Press K to open the structure browser: every structure from vanilla, mods and datapacks, searchable and grouped by mod
 - Structures are built by their own mod's code, so previews match what generates in a world
 - Turn, zoom and move the preview, generate a new layout, and hide its top layers to see inside
-- The spyglass button makes the preview fill the screen
+- The preview can be made to fill the whole screen
 - Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again
 - The Info tab says where a structure spawns, in which biomes and how common it is
 - The Loot tab shows the chance of every item in each chest, from thousands of rolls of the real loot table
