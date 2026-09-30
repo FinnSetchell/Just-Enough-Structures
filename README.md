@@ -49,7 +49,8 @@ loader is its own node under `versions/`.
 and that previews leave the world untouched. `runAutoshot` opens the browser in a throwaway world,
 saves a screenshot of a list of structures to `versions/1.20.1-fabric/build/autoshot/screenshots`
 and quits. Pick the structures with `-Pstructures=minecraft:igloo,mymod:tower` and add `-Pshow` to
-watch it.
+watch it. `-Pmode=open` and `-Pmode=showcase` play a scripted clip instead and save every frame, for
+making GIFs.
 
 Gradle needs Java 21 or newer to run. The Java each node compiles with is downloaded for you.
 

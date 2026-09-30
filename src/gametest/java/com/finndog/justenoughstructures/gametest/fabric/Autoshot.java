@@ -245,8 +245,11 @@ public final class Autoshot implements ClientModInitializer {
     }
 
     private static void createWorld(Minecraft mc) {
+        // Stop the sun moving, so the world behind the screen stays still in recordings.
+        GameRules rules = new GameRules();
+        rules.getRule(GameRules.RULE_DAYLIGHT).set(false, null);
         LevelSettings settings = new LevelSettings("JES autoshot", GameType.CREATIVE, false, Difficulty.PEACEFUL, true,
-                new GameRules(), WorldDataConfiguration.DEFAULT);
+                rules, WorldDataConfiguration.DEFAULT);
         mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, false, false),
                 registries -> registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions());
     }

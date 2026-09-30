@@ -163,19 +163,28 @@ final class Scenarios {
 
     /** Opening the browser and watching a mansion generate and build up. */
     private static Director open(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("mansion"));
+        // Open and close it once first, so the recording isn't of a cold server.
+        JesScreen.startOn(new ResourceLocation("igloo"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(record("open"))
-                .then(pause(14))
+        d.then(pressKey(GLFW.GLFW_KEY_K))
+                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> idle(mc), 400))
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(until(() -> screen(mc) == null, 40))
+                .then(run(() -> JesScreen.startOn(new ResourceLocation("mansion"))))
+                .then(pause(20))
+                .then(record("open"))
+                .then(pause(12))
                 .then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
-                .then(moveTo(offset(viewport, 60, 40), 24))
+                .then(moveTo(offset(viewport, 120, -120), 24))
                 .then(until(() -> idle(mc), 400))
-                .then(pause(10))
+                .then(pause(12))
                 .then(dragBy(-150, 18, 60))
-                .then(pause(14));
+                .then(moveTo(offset(viewport, 170, 150), 16))
+                .then(pause(10));
         return d;
     }
 
@@ -193,27 +202,27 @@ final class Scenarios {
                 .then(moveTo(offset(viewport, 90, 70), 2))
                 .then(pause(10))
                 .then(record("showcase"))
-                .then(pause(6))
+                .then(pause(4))
                 .then(moveTo(viewport, 14))
-                .then(dragBy(110, -10, 30))
-                .then(moveTo(at(mc, s -> s.sliderAt(1f)), 16))
-                .then(dragTo(at(mc, s -> s.sliderAt(0.28f)), 26, 0))
-                .then(pause(8))
-                .then(moveTo(() -> screen(mc).marker(CHEST).orElse(screen(mc).viewportCentre()), 16))
+                .then(dragBy(110, -10, 24))
+                .then(moveTo(at(mc, s -> s.sliderAt(1f)), 14))
+                .then(dragTo(at(mc, s -> s.sliderAt(0.5f)), 18, 0))
                 .then(pause(6))
-                .then(click())
-                .then(pause(12))
-                .then(moveTo(at(mc, s -> s.button("reroll_loot")), 14))
-                .then(click())
-                .then(pause(10))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
-                .then(moveTo(at(mc, s -> s.tab("loot")), 16))
-                .then(click())
-                .then(pause(8))
-                .then(moveTo(() -> screen(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 14))
+                .then(moveTo(() -> screen(mc).marker(CHEST).orElse(screen(mc).viewportCentre()), 14))
                 .then(pause(4))
                 .then(click())
-                .then(pause(18));
+                .then(pause(12))
+                .then(moveTo(at(mc, s -> s.button("reroll_loot")), 12))
+                .then(click())
+                .then(pause(12))
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(moveTo(at(mc, s -> s.tab("loot")), 14))
+                .then(click())
+                .then(pause(6))
+                .then(moveTo(() -> screen(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 16))
+                .then(pause(4))
+                .then(click())
+                .then(pause(14));
         return d;
     }
 }

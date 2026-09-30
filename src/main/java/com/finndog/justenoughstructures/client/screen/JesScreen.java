@@ -50,7 +50,8 @@ public class JesScreen extends Screen {
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
     private static final ItemStack MAXIMISE_ICON = new ItemStack(Items.SPYGLASS);
-    private static final ItemStack LOCATE_ICON = new ItemStack(Items.RECOVERY_COMPASS);
+    // One frame of the recovery compass. The item itself spins forever when there's no death point.
+    private static final ResourceLocation LOCATE_ICON = new ResourceLocation("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
     private static boolean maximised;
 
@@ -152,7 +153,7 @@ public class JesScreen extends Screen {
             maximised = !maximised;
             rebuildWidgets();
         }));
-        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, () -> LOCATE_ICON, null,
+        locateButton = addRenderableWidget(new IconButton(headerRight - 42, PAD + 5, LOCATE_ICON,
                 Component.translatable("screen.justenoughstructures.locate"), b -> locate()));
 
         int bx = viewX;
@@ -757,7 +758,8 @@ public class JesScreen extends Screen {
             return null;
         }
 
-        StructureViewport.Hit hover = viewport.pick(mouseX, mouseY).orElse(null);
+        // No block tooltip while the preview is being dragged around under the cursor.
+        StructureViewport.Hit hover = pressedInViewport && dragged ? null : viewport.pick(mouseX, mouseY).orElse(null);
         List<BlockPos> outlines = new ArrayList<>();
         if (hover != null && hover.entity() == null) {
             outlines.add(hover.pos());

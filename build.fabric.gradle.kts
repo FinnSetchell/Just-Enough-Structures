@@ -144,10 +144,11 @@ tasks {
             val root = dir.get().asFile
             delete(File(root, "saves"), File(root, "screenshots"))
             root.mkdirs()
-            // Skip first-launch screens and keep the game running when the window isn't focused.
+            // Skip first-launch screens and keep the game running when the window isn't focused. No
+            // clouds, so the world behind the screen doesn't change from frame to frame.
             File(root, "options.txt").writeText(
                 "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
-                    "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\n"
+                    "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n"
             )
         }
     }

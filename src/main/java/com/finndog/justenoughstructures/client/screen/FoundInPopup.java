@@ -32,6 +32,7 @@ final class FoundInPopup {
 
     final ItemStack item;
     private List<Row> rows;
+    private boolean sorted;
     private int scroll;
     int x;
     int y;
@@ -60,10 +61,12 @@ final class FoundInPopup {
                 rows.add(new Row(e.getKey(), e.getValue()));
                 e.getValue().forEach(ClientRequests::odds);
             }
+            rows.sort(Comparator.comparing(r -> StructureNames.structure(r.structure())));
         }
-        if (rows != null) {
-            // Best chance first, as the odds come in; alphabetical until then.
+        if (rows != null && !sorted && rows.stream().allMatch(r -> chance(r) >= 0)) {
+            // Best chance first, once every chance is known, so the list only moves once.
             rows.sort(Comparator.comparingDouble((Row r) -> -chance(r)).thenComparing(r -> StructureNames.structure(r.structure())));
+            sorted = true;
         }
         return rows;
     }
