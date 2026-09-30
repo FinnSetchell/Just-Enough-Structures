@@ -17,6 +17,7 @@ import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -24,16 +25,18 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.storage.loot.LootDataType;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.loot.LootTable;
 
 /**
- * Which loot tables each structure uses and which items each table can give. Built by capturing
- * every structure, so it only knows about loot that structures actually place.
+ * Which loot tables each structure uses and which items each table can give. Built from each
+ * structure's template pools where it has them, plus generating it to catch loot set by code, so
+ * it only knows about loot that structures actually place.
  */
 public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure,
                         Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
 
-    /** Seeds captured per structure. Different seeds pick different pieces, so more seeds find more loot. */
+    /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int SEEDS = 4;
 
     /**
@@ -46,23 +49,46 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     public static LootIndex build(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
+        Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        PoolScan scan = new PoolScan(server);
         int done = 0;
         for (ResourceLocation id : ids) {
             if (cancelled.getAsBoolean()) {
                 return null;
             }
             Set<ResourceLocation> found = new TreeSet<>();
-            for (int i = 0; i < SEEDS; i++) {
+            // Jigsaw structures' pieces can all be read without generating anything, which finds
+            // rare pieces too. One generation still runs for loot that code sets as it places.
+            Structure structure = registry.get(id);
+            Set<ResourceLocation> fromPools = null;
+            try {
+                fromPools = structure == null ? null : scan.tables(structure);
+            } catch (RuntimeException e) {
+                JustEnoughStructures.LOGGER.debug("Reading {}'s pools failed", id, e);
+            }
+            if (fromPools != null) {
+                found.addAll(fromPools);
+            }
+            // Otherwise keep generating new layouts until one turns up nothing new.
+            int seeds = fromPools != null ? 1 : SEEDS;
+            for (int i = 0; i < seeds; i++) {
+                if (cancelled.getAsBoolean()) {
+                    return null;
+                }
                 try {
                     CaptureResult result = StructureCapture.capture(server, id, StructureCapture.defaultSeed(id) + i);
                     if (!result.succeeded()) {
                         break;
                     }
+                    int before = found.size();
                     for (StructureSnapshot.Container c : result.snapshot().containers()) {
                         ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());
                         if (table != null) {
                             found.add(table);
                         }
+                    }
+                    if (i > 0 && found.size() == before) {
+                        break;
                     }
                 } catch (RuntimeException e) {
                     JustEnoughStructures.LOGGER.debug("Indexing {} failed", id, e);
