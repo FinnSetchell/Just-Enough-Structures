@@ -16,6 +16,6 @@ First release.
 - Search for an item to find the structures whose loot can give it, with the best chance first
 - The Blocks tab is a material list you can copy, or save the whole structure as a structure file
 - The Mobs tab shows what a structure places, its spawners and what keeps spawning there
-- With cheats on, the recovery compass button finds the nearest one of the structure you're looking at
+- With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, and Ctrl-clicking it takes you there
 - The list fills in with small pictures of each structure as you scroll
 - Has to be installed on the server as well
