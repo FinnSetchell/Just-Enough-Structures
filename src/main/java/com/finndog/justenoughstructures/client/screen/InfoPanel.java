@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
@@ -79,6 +80,8 @@ final class InfoPanel {
     private final Consumer<String> onSelectTable;
     private final Consumer<StructureSnapshot.Container> onOpenContainer;
     private final Consumer<ItemStack> onItemClicked;
+    private Runnable onNewTable = () -> {
+    };
     private Consumer<String> onEditTable = table -> {
     };
 
@@ -158,6 +161,11 @@ final class InfoPanel {
     }
 
     /** What the Loot tab's Edit link does with the picked table. */
+    /** What the Loot tab's New loot table link does. */
+    void onNewTable(Runnable action) {
+        onNewTable = action;
+    }
+
     void onEditTable(Consumer<String> action) {
         onEditTable = action;
     }
@@ -643,10 +651,12 @@ final class InfoPanel {
             String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
             int textWidth = contentRight - x - PAD - 23 - 12;
             Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
-            fine(g, fineClip(detail, textWidth), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+            int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
+            fine(g, fineClip(detail, textWidth - mark), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
             g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
             if (hovered) {
-                hoveredText = List.of(Component.literal(name), Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW));
+                hoveredText = withEditedNote(List.of(Component.literal(name),
+                        Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW)), table);
             }
             if (selected) {
                 selectedCount = containers.size();
@@ -685,12 +695,13 @@ final class InfoPanel {
                 g.renderItem(SECRET_ICON, x + PAD + 2, cy + 3);
                 int textWidth = contentRight - x - PAD - 23 - 12;
                 Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 3, textWidth, TEXT);
-                fine(g, fineClip(Component.translatable("screen.justenoughstructures.not_in_layout").getString(), textWidth),
+                int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
+                fine(g, fineClip(Component.translatable("screen.justenoughstructures.not_in_layout").getString(), textWidth - mark),
                         x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 if (hovered) {
-                    hoveredText = List.of(Component.literal(StructureNames.lootTable(table)),
-                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY));
+                    hoveredText = withEditedNote(List.of(Component.literal(StructureNames.lootTable(table)),
+                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY)), table);
                 }
                 if (selected) {
                     selectedCount = 1;
@@ -700,6 +711,7 @@ final class InfoPanel {
                 cy += rowHeight + 1;
             }
         }
+        cy = newTableLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
 
         return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, selectedCount, selectedName);
     }
@@ -733,13 +745,73 @@ final class InfoPanel {
             }
             Gui.slot(g, x + PAD + 1, cy + 1);
             g.renderItem(SECRET_ICON, x + PAD + 2, cy + 2);
-            Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12, TEXT);
+            int mark = editedMark(g, table, contentRight - 12, cy + 7);
+            Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12 - mark, TEXT);
             g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? TEXT : Gui.LABEL_SOFT, false);
             hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
             cy += rowHeight + 1;
         }
+        cy = newTableLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, 1,
                 Component.translatable("screen.justenoughstructures.container").getString());
+    }
+
+    /**
+     * A short note at the right of a table's row when it's been edited: edited, edited with the
+     * mod's table changed since, or an edit that isn't used. Returns the room it took, 0 if none.
+     */
+    private int editedMark(GuiGraphics g, String table, int right, int top) {
+        LootOverrides.Status status = ClientRequests.overrideStatus(table);
+        if (status == null || status == LootOverrides.Status.NONE) {
+            return 0;
+        }
+        String key = switch (status) {
+            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> "edited_changed";
+            case BROKEN -> "edited_broken";
+            default -> "edited";
+        };
+        int colour = switch (status) {
+            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> 0xFF9A6200;
+            case BROKEN -> 0xFFB02020;
+            default -> GOOD;
+        };
+        String text = Component.translatable("screen.justenoughstructures.loot." + key).getString();
+        int width = secondaryWidth(text);
+        fine(g, text, right - width, top, colour);
+        return width + 4;
+    }
+
+    /** A row's tooltip, with what the editor would say about the table's edit added. */
+    private static List<Component> withEditedNote(List<Component> lines, String table) {
+        LootOverrides.Status status = ClientRequests.overrideStatus(table);
+        if (status == null || status == LootOverrides.Status.NONE) {
+            return lines;
+        }
+        List<Component> out = new ArrayList<>(lines);
+        out.add(1, Component.translatable("screen.justenoughstructures.editor.status." + status.name().toLowerCase(Locale.ROOT))
+                .withStyle(ChatFormatting.GRAY));
+        return out;
+    }
+
+    /**
+     * For players who can edit loot: a link to make a loot table of their own, one that no chest
+     * has yet, to point chests at later or give with /loot.
+     */
+    private int newTableLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        if (!ClientRequests.canEditLoot()) {
+            return cy;
+        }
+        String text = Component.translatable("screen.justenoughstructures.new_table").getString();
+        int linkWidth = secondaryWidth(text) + 2;
+        int linkHeight = secondaryLine() + 2;
+        cy += 2;
+        boolean over = inside(mouseX, mouseY, x + PAD, cy - 1, linkWidth, linkHeight, clipTop, clipHeight);
+        fine(g, text, x + PAD, cy, over ? 0xFF1F3F8F : 0xFF3A55A0);
+        if (over) {
+            hoveredText = List.of(Component.translatable("screen.justenoughstructures.new_table_hint"));
+        }
+        hotspots.add(new Hotspot(x + PAD, cy - 1, linkWidth, linkHeight, onNewTable));
+        return cy + linkHeight;
     }
 
     private int lootOdds(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight, int selectedCount, String selectedName) {

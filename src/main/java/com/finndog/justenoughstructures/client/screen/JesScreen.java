@@ -157,6 +157,7 @@ public class JesScreen extends Screen {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
             info.onEditTable(this::openEditor);
+            info.onNewTable(this::openNewTable);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -290,6 +291,8 @@ public class JesScreen extends Screen {
                 .bounds(0, 0, 44, 20).build());
         layoutPopupButtons();
 
+        // Which tables have edits, to mark them, asked again whenever the browser shows, like after the editor.
+        ClientRequests.requestOverrides();
         if (dropped && catalog != null && selected != null) {
             dropped = false;
             refetch();
@@ -324,6 +327,7 @@ public class JesScreen extends Screen {
                 locateText = null;
                 messageUntilReload = false;
             }
+            ClientRequests.requestOverrides();
             if (selected != null) {
                 select(selected, seed);
             }
@@ -687,6 +691,16 @@ public class JesScreen extends Screen {
         if (id != null) {
             minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(table)));
         }
+    }
+
+    /**
+     * The editor on a new table, named after the structure on show. The id can be changed before
+     * it's saved; if a table by that name was already made, it opens that one to edit instead.
+     */
+    public void openNewTable() {
+        String path = selected == null ? "custom" : selected.id().getPath();
+        ResourceLocation id = new ResourceLocation(JustEnoughStructures.MOD_ID, "chests/" + path.substring(path.lastIndexOf('/') + 1));
+        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
     }
 
     /** The Loot tab with {@code table} picked, as clicking its row would. */

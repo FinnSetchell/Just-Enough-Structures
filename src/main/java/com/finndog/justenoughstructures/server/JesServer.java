@@ -199,6 +199,19 @@ public final class JesServer {
         sendBlob(player, JesNetwork.KIND_TABLE, requestId, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeTable(buf, reply))));
     }
 
+    /** Which loot tables have an override, for players who can edit them, so the browser can mark them. */
+    public static void onRequestOverrides(ServerPlayer player) {
+        Map<ResourceLocation, LootOverrides.Status> statuses = canEdit(player)
+                ? LootOverrides.statuses(player.getServer().getResourceManager()) : Map.of();
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        buf.writeVarInt(statuses.size());
+        statuses.forEach((id, status) -> {
+            buf.writeResourceLocation(id);
+            buf.writeVarInt(status.ordinal());
+        });
+        JesNetwork.send(player, JesNetwork.OVERRIDES, buf);
+    }
+
     /** Keeping an override whose original changed, or turning one off. */
     public static Component tableAction(ServerPlayer player, ResourceLocation id, int action) {
         if (!canEdit(player)) {

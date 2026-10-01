@@ -33,6 +33,9 @@ public final class JesNetwork {
     public static final ResourceLocation LOCATE = JustEnoughStructures.id("locate");
     public static final ResourceLocation SETTINGS = JustEnoughStructures.id("settings");
     public static final ResourceLocation EDIT_REPLY = JustEnoughStructures.id("edit_reply");
+    /** Asks which loot tables have an override, and the answer: each table and how it stands. */
+    public static final ResourceLocation REQUEST_OVERRIDES = JustEnoughStructures.id("request_overrides");
+    public static final ResourceLocation OVERRIDES = JustEnoughStructures.id("overrides");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;

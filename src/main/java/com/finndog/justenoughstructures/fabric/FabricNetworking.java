@@ -54,6 +54,9 @@ final class FabricNetworking {
             server.execute(() -> JesServer.onRequestTable(player, requestId, table));
         });
 
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_OVERRIDES, (server, player, handler, buf, responder) ->
+                server.execute(() -> JesServer.onRequestOverrides(player)));
+
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.TABLE_ACTION, (server, player, handler, buf, responder) -> {
             int requestId = buf.readVarInt();
             ResourceLocation table = buf.readResourceLocation();

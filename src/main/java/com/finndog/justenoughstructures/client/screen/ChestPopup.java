@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.gui.Font;
@@ -98,7 +99,17 @@ final class ChestPopup {
         String table = container.lootTable() == null
                 ? Component.translatable("screen.justenoughstructures.prefilled").getString()
                 : StructureNames.lootTable(container.lootTable());
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, infoTop + 5, Gui.LABEL_SOFT);
+        String label = Component.translatable("screen.justenoughstructures.field.loot_table").getString();
+        Gui.small(g, font, label, x + 7, infoTop + 5, Gui.LABEL_SOFT);
+        // Whether the table's been edited, for players who can edit loot, next to its label.
+        LootOverrides.Status edited = ClientRequests.overrideStatus(container.lootTable());
+        if (edited != null && edited != LootOverrides.Status.NONE) {
+            boolean used = edited == LootOverrides.Status.ACTIVE;
+            Gui.small(g, font, Component.translatable(edited == LootOverrides.Status.BROKEN ? "screen.justenoughstructures.loot.edited_broken"
+                            : used ? "screen.justenoughstructures.loot.edited" : "screen.justenoughstructures.loot.edited_changed").getString(),
+                    x + 7 + Gui.smallWidth(font, label) + 4, infoTop + 5,
+                    edited == LootOverrides.Status.BROKEN ? 0xFFB02020 : used ? 0xFF2E7D1F : 0xFF9A6200);
+        }
         g.drawString(font, Gui.clip(font, table, WIDTH - 14), x + 7, infoTop + 12, 0xFF202020, false);
 
         links.clear();

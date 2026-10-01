@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
@@ -50,6 +51,7 @@ public final class ClientRequests {
     private static int teleportPermission = 2;
     private static boolean compassSearch;
     private static int editPermission = 4;
+    private static Map<ResourceLocation, LootOverrides.Status> overrides = Map.of();
     private static int nextUploadId = 1;
     private static final Map<Integer, CompletableFuture<Codecs.TableReply>> TABLES = new HashMap<>();
     private static final Map<Integer, CompletableFuture<EditReply>> EDITS = new HashMap<>();
@@ -93,6 +95,7 @@ public final class ClientRequests {
         teleportPermission = 2;
         compassSearch = false;
         editPermission = 4;
+        overrides = Map.of();
         TABLES.values().forEach(f -> f.cancel(false));
         TABLES.clear();
         EDITS.values().forEach(f -> f.cancel(false));
@@ -104,6 +107,24 @@ public final class ClientRequests {
     }
 
     /** Whether this player may edit loot tables on this server. */
+    /** Asks which loot tables have an override, for players who can edit them. The answer marks them in the browser. */
+    public static void requestOverrides() {
+        if (serverSupported() && canEditLoot()) {
+            send(JesNetwork.REQUEST_OVERRIDES, buf -> {
+            });
+        }
+    }
+
+    public static void onOverrides(Map<ResourceLocation, LootOverrides.Status> statuses) {
+        overrides = Map.copyOf(statuses);
+    }
+
+    /** How a loot table's override stands, or null if it isn't edited (or this player can't edit loot). */
+    public static LootOverrides.Status overrideStatus(String table) {
+        ResourceLocation id = table == null ? null : ResourceLocation.tryParse(table);
+        return id == null ? null : overrides.get(id);
+    }
+
     public static boolean canEditLoot() {
         Minecraft mc = Minecraft.getInstance();
         return mc.player != null && mc.player.hasPermissions(editPermission);

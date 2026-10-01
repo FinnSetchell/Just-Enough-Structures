@@ -19,8 +19,11 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -114,6 +117,32 @@ public final class LootOverrides {
             status = Status.ACTIVE;
         }
         return new View(id, override, original, baseText(root, id), status);
+    }
+
+    /** Every table with an override here, and how each stands, for the browser to mark the ones that are edited. */
+    public static Map<ResourceLocation, Status> statuses(ResourceManager resources) {
+        Map<ResourceLocation, Status> out = new TreeMap<>();
+        Path data = folder().resolve("data");
+        if (!Files.isDirectory(data)) {
+            return out;
+        }
+        try (Stream<Path> files = Files.walk(data)) {
+            files.filter(f -> f.toString().endsWith(".json")).forEach(f -> {
+                // data/<namespace>/loot_tables/<path>.json
+                Path relative = data.relativize(f);
+                if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals("loot_tables")) {
+                    return;
+                }
+                String path = relative.subpath(2, relative.getNameCount()).toString().replace('\\', '/');
+                ResourceLocation id = ResourceLocation.tryParse(relative.getName(0) + ":" + path.substring(0, path.length() - 5));
+                if (id != null) {
+                    out.put(id, view(resources, id).status());
+                }
+            });
+        } catch (IOException | RuntimeException e) {
+            JesLog.debug("Couldn't list the loot overrides in {}", data, e);
+        }
+        return out;
     }
 
     /** The table as the mods and datapacks have it, leaving out any override, or null if none of them has it. */

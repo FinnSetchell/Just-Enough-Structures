@@ -711,7 +711,14 @@ public final class LootEditorScreen extends Screen {
         Gui.panel(g, PAD, PAD, width - PAD * 2, height - PAD * 2);
         int headerRight = (view == null ? width - PAD - 6 : statusRight) - 4;
         int textX = PAD + 8;
-        g.drawString(font, Gui.clip(font, headerTitle().getString(), headerRight - textX), textX, PAD + 8, Gui.LABEL, false);
+        // Edits not saved yet are marked beside the title, which gives way to the mark if it's long.
+        String unsaved = dirty && view != null ? Component.translatable("screen.justenoughstructures.editor.unsaved").getString() : null;
+        int markRoom = unsaved == null ? 0 : Gui.smallWidth(font, unsaved) + 8;
+        String shownTitle = Gui.clip(font, headerTitle().getString(), headerRight - textX - markRoom);
+        g.drawString(font, shownTitle, textX, PAD + 8, Gui.LABEL, false);
+        if (unsaved != null) {
+            Gui.small(g, font, unsaved, textX + font.width(shownTitle) + 8, PAD + 9, WARN);
+        }
         Component status = message != null ? message : statusText();
         int statusColour = message != null ? messageColour : statusColour();
         int statusX = textX;

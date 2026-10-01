@@ -5,7 +5,10 @@ import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -64,6 +67,20 @@ final class FabricClientNetworking {
             boolean compass = buf.readBoolean();
             int edit = buf.readVarInt();
             client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, edit));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.OVERRIDES, (client, handler, buf, responder) -> {
+            Map<ResourceLocation, LootOverrides.Status> statuses = new HashMap<>();
+            LootOverrides.Status[] all = LootOverrides.Status.values();
+            int count = buf.readVarInt();
+            for (int i = 0; i < count; i++) {
+                ResourceLocation id = buf.readResourceLocation();
+                int status = buf.readVarInt();
+                if (status >= 0 && status < all.length) {
+                    statuses.put(id, all[status]);
+                }
+            }
+            client.execute(() -> ClientRequests.onOverrides(statuses));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(JesNetwork.EDIT_REPLY, (client, handler, buf, responder) -> {
