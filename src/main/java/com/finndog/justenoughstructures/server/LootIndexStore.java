@@ -2,8 +2,8 @@ package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
-import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.google.common.hash.Hasher;
@@ -39,18 +39,25 @@ import net.minecraft.server.packs.resources.ResourceManager;
 /**
  * The loot index, saved to disk so it's only built again when something it comes from changes.
  *
- * <p>Each saved index is named after a fingerprint of the installed mods and every structure,
- * pool, processor, template and loot table file. The fingerprint is worked out in the background
- * when the server starts and after /reload. If a saved index matches, it's loaded in moments.
- * Otherwise a dedicated server builds it straight away, still in the background, and singleplayer
- * waits until someone wants it. Nothing here holds up the server starting or players joining.
+ * <p>The slow half, which loot tables each structure uses, is saved as a {@link StructureScan}
+ * named after a fingerprint of the installed mods and every structure, pool, processor and
+ * template file. Loot tables don't change which tables a structure uses, so they're not in it:
+ * what each table can give is read from the tables after every start and /reload, which is quick.
+ * Containers changed in the browser only send the structures that place those templates through
+ * again. Anything else that changes means generating every structure again, as does anything that
+ * goes wrong along the way.
+ *
+ * <p>All of this runs in the background. If a saved scan matches, the index is ready in moments.
+ * Otherwise a dedicated server builds it straight away and singleplayer waits until someone wants
+ * it, and while it's rebuilt the index from before stays in use. Nothing here holds up the server
+ * starting or players joining.
  */
 public final class LootIndexStore {
     /** Goes up whenever what's saved changes shape, so old files are never read as new ones. */
-    private static final String FORMAT = "1";
+    private static final String FORMAT = "2";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of("structures", "worldgen/structure", "worldgen/template_pool",
-            "worldgen/processor_list", "loot_tables");
+            "worldgen/processor_list");
 
     // The index captures every structure, so it gets its own thread and never holds up previews.
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
@@ -64,6 +71,7 @@ public final class LootIndexStore {
     private static final Set<UUID> WAITING = ConcurrentHashMap.newKeySet();
 
     // Changed on the server thread only.
+    private static StructureScan scan;
     private static LootIndex index;
     private static byte[] payload;
     private static String fingerprint;
@@ -81,7 +89,8 @@ public final class LootIndexStore {
         int generation = GENERATION.incrementAndGet();
         checking = true;
         building = false;
-        String known = index == null ? null : fingerprint;
+        String known = scan == null ? null : fingerprint;
+        StructureScan knownScan = scan;
         Path dir = folder();
         WORKER.execute(() -> {
             long started = System.nanoTime();
@@ -89,31 +98,51 @@ public final class LootIndexStore {
             if (generation != GENERATION.get()) {
                 return;
             }
-            boolean same = current != null && current.equals(known);
-            LootIndex saved = current == null || same ? null : read(dir, current);
+            StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
+            StructureScan updated = null;
+            LootIndex updatedIndex = null;
+            if (base != null) {
+                // Only structures placing templates whose containers were changed are generated
+                // again; what each table can give is read from the loot tables as they are now.
+                try {
+                    updated = LootIndex.update(server, base, () -> generation != GENERATION.get() || !server.isRunning());
+                    if (updated == null) {
+                        return;
+                    }
+                    updatedIndex = LootIndex.of(server, updated);
+                    if (updated != base && current != null) {
+                        write(dir, current, updated);
+                    }
+                } catch (RuntimeException e) {
+                    JesLog.debug("Couldn't bring the saved loot index up to date, so it's built again", e);
+                    updated = null;
+                    updatedIndex = null;
+                }
+            }
             long millis = (System.nanoTime() - started) / 1_000_000L;
+            StructureScan ready = updated;
+            LootIndex readyIndex = updatedIndex;
             server.execute(() -> {
                 if (generation != GENERATION.get()) {
                     return;
                 }
                 checking = false;
-                if (same) {
-                    JesLog.debug("The loot index is still up to date ({} ms to check)", millis);
-                    publish(server);
-                    return;
-                }
                 fingerprint = current;
-                if (saved != null) {
-                    JesLog.debug("Loaded the loot index from {} in {} ms", dir, millis);
-                    index = saved;
+                if (ready != null) {
+                    JesLog.debug("The loot index is up to date in {} ms", millis);
+                    scan = ready;
+                    index = readyIndex;
                     publish(server);
                     return;
                 }
-                index = null;
-                payload = null;
-                // Anyone who had the old one gets the new one, so rebuild for them too.
+                scan = null;
+                // Anyone who had the old one gets the new one, so rebuild for them too. They keep
+                // the old one until it's done.
                 if (server.isDedicatedServer() || wanted || !WAITING.isEmpty()) {
                     build(server, generation);
+                } else {
+                    index = null;
+                    payload = null;
                 }
             });
         });
@@ -122,6 +151,7 @@ public final class LootIndexStore {
     /** When the server stops: drops everything and stops any work in progress. */
     public static void stop() {
         GENERATION.incrementAndGet();
+        scan = null;
         index = null;
         payload = null;
         fingerprint = null;
@@ -155,18 +185,20 @@ public final class LootIndexStore {
         WORKER.execute(() -> {
             long started = System.nanoTime();
             AtomicInteger failed = new AtomicInteger();
-            LootIndex built = LootIndex.build(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed);
-            if (built == null) {
+            StructureScan scanned = LootIndex.scan(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed);
+            if (scanned == null) {
                 return;
             }
+            LootIndex built = LootIndex.of(server, scanned);
             JesLog.debug("Indexed the loot of {} structures in {} s ({} wouldn't generate)", ids.size(),
                     (System.nanoTime() - started) / 1_000_000_000L, failed.get());
             if (key != null) {
-                write(dir, key, built);
+                write(dir, key, scanned);
             }
             server.execute(() -> {
                 if (generation == GENERATION.get()) {
                     building = false;
+                    scan = scanned;
                     index = built;
                     publish(server);
                 }
@@ -207,10 +239,11 @@ public final class LootIndexStore {
     }
 
     /**
-     * A hash of everything the index is built from: the game and mod versions, since structure
-     * code can change with them, the containers changed in the browser, and the bytes of every
-     * file structures and loot come from, in every mod and datapack. Null if the files couldn't be
-     * read.
+     * A hash of everything that decides which loot tables each structure uses: the game and mod
+     * versions, since structure code can change with them, and the bytes of every structure, pool,
+     * processor and template file, in every mod and datapack. Null if the files couldn't be read.
+     * Loot tables and the containers changed in the browser aren't in it; they're brought up to date
+     * without generating everything again.
      */
     public static String fingerprintOf(MinecraftServer server) {
         try {
@@ -218,8 +251,6 @@ public final class LootIndexStore {
             hasher.putString(FORMAT + "|" + SharedConstants.getCurrentVersion().getName() + "|", StandardCharsets.UTF_8);
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) ->
                     hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
-            // Containers pointed at other tables in the browser change what's found where, too.
-            hasher.putString(ContainerPatches.summary() + "|", StandardCharsets.UTF_8);
             ResourceManager resources = server.getResourceManager();
             for (String source : SOURCES) {
                 for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(resources.listResources(source, path -> true)).entrySet()) {
@@ -240,14 +271,14 @@ public final class LootIndexStore {
         return JustEnoughStructures.cacheDir().resolve("loot-index");
     }
 
-    /** The index saved under this fingerprint, or null if there isn't one that reads. */
-    public static LootIndex read(Path dir, String key) {
+    /** The scan saved under this fingerprint, or null if there isn't one that reads. */
+    public static StructureScan read(Path dir, String key) {
         Path file = dir.resolve(key + ".bin");
         if (!Files.exists(file)) {
             return null;
         }
         try {
-            LootIndex saved = Codecs.readIndex(Blobs.fromBytes(Blobs.inflate(Files.readAllBytes(file))));
+            StructureScan saved = Codecs.readScan(Blobs.fromBytes(Blobs.inflate(Files.readAllBytes(file))));
             // Marks it as recently used, so it's kept over older ones.
             Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis()));
             return saved;
@@ -257,12 +288,12 @@ public final class LootIndexStore {
         }
     }
 
-    /** Saves the index under this fingerprint, keeping the few most recently used others. */
-    public static void write(Path dir, String key, LootIndex saved) {
+    /** Saves the scan under this fingerprint, keeping the few most recently used others. */
+    public static void write(Path dir, String key, StructureScan saved) {
         try {
             Files.createDirectories(dir);
             Path temp = dir.resolve(key + ".tmp");
-            Files.write(temp, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeIndex(buf, saved))));
+            Files.write(temp, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeScan(buf, saved))));
             Files.move(temp, dir.resolve(key + ".bin"), StandardCopyOption.REPLACE_EXISTING);
             List<Path> files;
             try (Stream<Path> list = Files.list(dir)) {

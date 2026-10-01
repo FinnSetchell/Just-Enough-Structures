@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -80,13 +81,19 @@ public final class ContainerPatches {
         byTemplate = out;
     }
 
-    /** Every patch in use, one per line in a steady order, so the loot index knows to rebuild when they change. */
-    public static String summary() {
-        List<String> lines = new ArrayList<>();
-        patches().values().forEach(list -> list.forEach(patch -> lines.add(patch.template() + " " + patch.pos().toShortString()
-                + " " + patch.block() + " " + patch.table())));
-        lines.sort(null);
-        return String.join("\n", lines);
+    /**
+     * Each patched template and its patches in use, as text that changes whenever they do, so the
+     * loot index can tell which templates' containers changed.
+     */
+    public static Map<ResourceLocation, String> byTemplate() {
+        Map<ResourceLocation, String> out = new TreeMap<>();
+        patches().forEach((template, list) -> {
+            List<String> lines = new ArrayList<>();
+            list.forEach(patch -> lines.add(patch.pos().toShortString() + " " + patch.block() + " " + patch.table()));
+            lines.sort(null);
+            out.put(template, String.join("\n", lines));
+        });
+        return out;
     }
 
     public static Patch find(ResourceLocation template, BlockPos pos) {

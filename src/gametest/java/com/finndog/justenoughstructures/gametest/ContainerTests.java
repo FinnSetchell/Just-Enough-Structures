@@ -3,6 +3,8 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -14,8 +16,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -33,6 +39,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 public final class ContainerTests {
     private static final ResourceLocation TOWER = new ResourceLocation("pillager_outpost/watchtower");
     private static final ResourceLocation IGLOO = new ResourceLocation("chests/igloo_chest");
+    private static final ResourceLocation OUTPOST = new ResourceLocation("pillager_outpost");
+    private static final ResourceLocation VILLAGE = new ResourceLocation("village_plains");
+    private static final ResourceLocation MARKER = new ResourceLocation("justenoughstructures", "test/marker");
     private static final String DIAMONDS_ONLY = """
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
@@ -93,7 +102,7 @@ public final class ContainerTests {
             // A file broken by hand patches nothing, and saving refuses rather than writing over it.
             Files.writeString(file, "{ not json");
             ContainerPatches.load();
-            helper.assertTrue(ContainerPatches.summary().isEmpty(), "a broken file still had patches");
+            helper.assertTrue(ContainerPatches.byTemplate().isEmpty(), "a broken file still had patches");
             StructureTemplate untouched = copy(tower);
             ContainerPatches.apply(TOWER, untouched);
             helper.assertTrue(original.equals(tableAt(untouched, chest.pos())), "a broken file changed a container");
@@ -178,7 +187,7 @@ public final class ContainerTests {
             StructureTemplate off = copy(tower);
             ContainerPatches.apply(TOWER, off);
             helper.assertTrue(original.equals(tableAt(off, chest.pos())), "a change was used with changes turned off");
-            helper.assertTrue(ContainerPatches.summary().isEmpty(), "the loot index still counts changes that are turned off");
+            helper.assertTrue(ContainerPatches.byTemplate().isEmpty(), "the loot index still counts changes that are turned off");
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), IGLOO), "container.turned_off");
             ServerConfig.Settings reread = ServerConfig.parse(ServerConfig.render(ServerConfig.get()), "the test");
             helper.assertFalse(reread.containerChanges(), "the switch didn't survive being written to the file and read back");
@@ -192,6 +201,81 @@ public final class ContainerTests {
             leaveFolder();
         }
         helper.succeed();
+    }
+
+    /**
+     * Changing a container only sends the structures that place its template through the loot index
+     * again. A table only a fresh scan would drop, added to every structure, shows which ones were.
+     */
+    public static void lootIndexUpdatesOnlyWhatChanged(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureTemplate tower = server.getStructureManager().get(TOWER).orElse(null);
+        helper.assertTrue(tower != null, "the watchtower template didn't load");
+        StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
+        helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
+        freshFolder();
+        try {
+            StructureScan full = LootIndex.scan(server, List.of(OUTPOST, VILLAGE), done -> {
+            }, () -> false, new AtomicInteger());
+            helper.assertTrue(full.templates().getOrDefault(OUTPOST, Set.of()).contains(TOWER),
+                    "the outpost's templates don't include the watchtower: " + full.templates().get(OUTPOST));
+            StructureScan marked = withMarker(full);
+            helper.assertTrue(LootIndex.update(server, marked, () -> false) == marked, "nothing changed, but the scan did");
+
+            ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), BuiltInRegistries.BLOCK.getKey(chest.state().getBlock()),
+                    chest.nbt().getString("LootTable"), IGLOO));
+            StructureScan updated = LootIndex.update(server, marked, () -> false);
+            helper.assertFalse(updated.tables().getOrDefault(OUTPOST, Set.of()).contains(MARKER), "the outpost wasn't generated again for its changed container");
+            helper.assertTrue(updated.tables().getOrDefault(VILLAGE, Set.of()).contains(MARKER), "the village was generated again, though nothing in it changed");
+            helper.assertTrue(updated.patches().equals(ContainerPatches.byTemplate()), "the scan doesn't remember the changes it was made with");
+        } finally {
+            leaveFolder();
+        }
+        helper.succeed();
+    }
+
+    /** After /reload, bringing the loot index up to date finds the table a container was changed to. */
+    public static void lootIndexFollowsContainerChanges(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        freshFolder();
+        StructureScan before = withMarker(LootIndex.scan(server, List.of(OUTPOST, VILLAGE), done -> {
+        }, () -> false, new AtomicInteger()));
+        StructureTemplate tower = server.getStructureManager().get(TOWER).orElse(null);
+        StructureTemplate.StructureBlockInfo chest = tower == null ? null : firstContainer(tower);
+        if (chest == null) {
+            leaveFolder();
+            helper.fail("the watchtower has no container with a loot table");
+            return;
+        }
+        ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), BuiltInRegistries.BLOCK.getKey(chest.state().getBlock()),
+                chest.nbt().getString("LootTable"), IGLOO));
+        CompletableFuture<Void> first = reload(server);
+        AtomicReference<CompletableFuture<Void>> second = new AtomicReference<>();
+        StructureScan[] after = new StructureScan[1];
+        helper.succeedWhen(() -> {
+            helper.assertTrue(first.isDone(), "still reloading");
+            if (second.get() == null) {
+                after[0] = LootIndex.update(server, before, () -> false);
+                ContainerPatches.remove(TOWER, chest.pos());
+                second.set(reload(server));
+            }
+            helper.assertTrue(second.get().isDone(), "still reloading");
+            leaveFolder();
+            helper.assertTrue(after[0].tables().getOrDefault(OUTPOST, Set.of()).contains(IGLOO),
+                    "the outpost's tables don't include the one its chest was changed to: " + after[0].tables().get(OUTPOST));
+            helper.assertTrue(after[0].tables().getOrDefault(VILLAGE, Set.of()).contains(MARKER), "the village was generated again, though nothing in it changed");
+        });
+    }
+
+    /** The scan with a table no structure has added to every structure, which generating one again drops. */
+    private static StructureScan withMarker(StructureScan scan) {
+        Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
+        scan.tables().forEach((id, found) -> {
+            Set<ResourceLocation> marked = new TreeSet<>(found);
+            marked.add(MARKER);
+            tables.put(id, marked);
+        });
+        return new StructureScan(tables, scan.templates(), scan.patches());
     }
 
     /** Containers placed from a template know where in it they came from. Ones structure code places don't. */

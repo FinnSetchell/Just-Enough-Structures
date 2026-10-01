@@ -241,6 +241,17 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
+    public void lootIndexUpdatesOnlyWhatChanged(GameTestHelper helper) {
+        ContainerTests.lootIndexUpdatesOnlyWhatChanged(helper);
+    }
+
+    // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_update", timeoutTicks = 1200)
+    public void lootIndexFollowsContainerChanges(GameTestHelper helper) {
+        ContainerTests.lootIndexFollowsContainerChanges(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void containersKnowTheirTemplate(GameTestHelper helper) {
         ContainerTests.containersKnowTheirTemplate(helper);
     }

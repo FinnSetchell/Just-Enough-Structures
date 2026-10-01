@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import java.io.IOException;
@@ -164,17 +165,19 @@ public final class ServiceTests {
         helper.succeed();
     }
 
-    /** The saved index reads back as it was, a damaged one is rebuilt rather than trusted, and old ones are cleared out. */
+    /** The saved scan reads back as it was, a damaged one is rebuilt rather than trusted, and old ones are cleared out. */
     public static void savedLootIndexReadsBack(GameTestHelper helper) {
         ResourceLocation structure = new ResourceLocation("test", "tower");
         ResourceLocation table = new ResourceLocation("test", "chests/tower");
-        LootIndex index = new LootIndex(Map.of(structure, Set.of(table)), Map.of(table, Set.of(new ResourceLocation("diamond"))));
+        ResourceLocation template = new ResourceLocation("test", "tower/top");
+        StructureScan index = new StructureScan(Map.of(structure, Set.of(table)), Map.of(structure, Set.of(template)),
+                Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"));
         try {
             Path dir = Files.createTempDirectory("jes-index");
             LootIndexStore.write(dir, "abc", index);
-            LootIndex read = LootIndexStore.read(dir, "abc");
-            helper.assertTrue(read != null && read.tablesByStructure().equals(index.tablesByStructure()) && read.itemsByTable().equals(index.itemsByTable()),
-                    "the saved index read back as " + read);
+            StructureScan read = LootIndexStore.read(dir, "abc");
+            helper.assertTrue(read != null && read.tables().equals(index.tables()) && read.templates().equals(index.templates())
+                    && read.patches().equals(index.patches()), "the saved scan read back as " + read);
             helper.assertTrue(LootIndexStore.read(dir, "missing") == null, "an index that was never saved was read");
             Files.write(dir.resolve("broken.bin"), new byte[]{1, 2, 3});
             helper.assertTrue(LootIndexStore.read(dir, "broken") == null, "a damaged file was read as an index");

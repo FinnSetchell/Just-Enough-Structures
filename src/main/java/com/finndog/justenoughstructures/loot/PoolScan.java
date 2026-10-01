@@ -37,7 +37,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * Loot that structure code sets as it generates still needs a real generation to find.
  */
 final class PoolScan {
-    private record Pool(Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
+    private record Pool(Set<ResourceLocation> tables, Set<ResourceLocation> pools, Set<ResourceLocation> templates) {
+    }
+
+    /** The loot tables a structure's pieces can hold and the templates those pieces are. */
+    record Reach(Set<ResourceLocation> tables, Set<ResourceLocation> templates) {
     }
 
     private final MinecraftServer server;
@@ -51,8 +55,8 @@ final class PoolScan {
         this.ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
     }
 
-    /** The loot tables the structure's pieces can hold, or null if it isn't built from template pools. */
-    Set<ResourceLocation> tables(Structure structure) {
+    /** The loot tables the structure's pieces can hold and its templates, or null if it isn't built from template pools. */
+    Reach scan(Structure structure) {
         JsonElement json = Structure.DIRECT_CODEC.encodeStart(ops, structure).result().orElse(null);
         if (json == null) {
             return null;
@@ -63,6 +67,7 @@ final class PoolScan {
             return null;
         }
         Set<ResourceLocation> tables = new HashSet<>();
+        Set<ResourceLocation> templates = new HashSet<>();
         Set<ResourceLocation> seen = new HashSet<>();
         Deque<ResourceLocation> queue = new ArrayDeque<>(starts);
         while (!queue.isEmpty()) {
@@ -72,9 +77,10 @@ final class PoolScan {
             }
             Pool pool = pool(id);
             tables.addAll(pool.tables());
+            templates.addAll(pool.templates());
             queue.addAll(pool.pools());
         }
-        return tables;
+        return new Reach(tables, templates);
     }
 
     private Pool pool(ResourceLocation id) {
@@ -84,6 +90,7 @@ final class PoolScan {
         }
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> next = new HashSet<>();
+        Set<ResourceLocation> locations = new HashSet<>();
         Registry<StructureTemplatePool> registry = server.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
         StructureTemplatePool pool = registry.get(id);
         JsonElement json = pool == null ? null : StructureTemplatePool.DIRECT_CODEC.encodeStart(ops, pool).result().orElse(null);
@@ -91,7 +98,6 @@ final class PoolScan {
             strings(json, "fallback", next::add);
             strings(json, "loot_table", tables::add);
             strings(json, "processors", list -> tables.addAll(processorList(list)));
-            Set<ResourceLocation> locations = new HashSet<>();
             strings(json, "location", locations::add);
             for (ResourceLocation location : locations) {
                 Pool template = template(location);
@@ -100,7 +106,7 @@ final class PoolScan {
             }
         }
         next.remove(new ResourceLocation("empty"));
-        Pool result = new Pool(tables, next);
+        Pool result = new Pool(tables, next, locations);
         pools.put(id, result);
         return result;
     }
@@ -121,7 +127,7 @@ final class PoolScan {
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read structure piece {}", id, e);
         }
-        Pool result = new Pool(tables, next);
+        Pool result = new Pool(tables, next, Set.of());
         templates.put(id, result);
         return result;
     }

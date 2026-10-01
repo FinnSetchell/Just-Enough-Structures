@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -230,6 +231,28 @@ public final class Codecs {
 
     public static LootIndex readIndex(FriendlyByteBuf buf) {
         return new LootIndex(readIdMap(buf), readIdMap(buf));
+    }
+
+    /** The saved half of the loot index, for the server's cache. */
+    public static void writeScan(FriendlyByteBuf buf, StructureScan scan) {
+        writeIdMap(buf, scan.tables());
+        writeIdMap(buf, scan.templates());
+        buf.writeVarInt(scan.patches().size());
+        scan.patches().forEach((template, patches) -> {
+            buf.writeResourceLocation(template);
+            buf.writeUtf(patches);
+        });
+    }
+
+    public static StructureScan readScan(FriendlyByteBuf buf) {
+        Map<ResourceLocation, Set<ResourceLocation>> tables = readIdMap(buf);
+        Map<ResourceLocation, Set<ResourceLocation>> templates = readIdMap(buf);
+        int count = buf.readVarInt();
+        Map<ResourceLocation, String> patches = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            patches.put(buf.readResourceLocation(), buf.readUtf());
+        }
+        return new StructureScan(tables, templates, patches);
     }
 
     private static void writeIdMap(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> map) {

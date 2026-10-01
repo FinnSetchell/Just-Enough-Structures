@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -49,19 +50,68 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     public static LootIndex build(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled) {
-        return build(server, ids, progress, cancelled, new AtomicInteger());
+        StructureScan scan = scan(server, ids, progress, cancelled, new AtomicInteger());
+        return scan == null ? null : of(server, scan);
     }
 
-    /** The same, counting the structures that couldn't be generated in {@code failed}. */
-    public static LootIndex build(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
-                                  AtomicInteger failed) {
+    /**
+     * The slow half: generates each structure, and reads its template pools where it has them, for
+     * the loot tables it uses and the templates it can place. Null if cancelled. Structures that
+     * couldn't be generated are counted in {@code failed}.
+     */
+    public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                     AtomicInteger failed) {
+        // How the containers changed in the browser stand now, which the templates are loaded with.
+        Map<ResourceLocation, String> patches = ContainerPatches.byTemplate();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
-        return JesLog.quietly(() -> index(server, ids, progress, cancelled, failed));
+        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches));
     }
 
-    private static LootIndex index(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
-                                   AtomicInteger failed) {
+    /**
+     * Generates again only the structures that place a template whose changed containers differ
+     * from when {@code base} was made, and keeps the rest. Null if cancelled.
+     */
+    public static StructureScan update(MinecraftServer server, StructureScan base, BooleanSupplier cancelled) {
+        Map<ResourceLocation, String> now = ContainerPatches.byTemplate();
+        Set<ResourceLocation> changed = base.changedTemplates(now);
+        if (changed.isEmpty()) {
+            return base;
+        }
+        Set<ResourceLocation> affected = base.placing(changed);
+        StructureScan part = scan(server, new ArrayList<>(affected), done -> {
+        }, cancelled, new AtomicInteger());
+        if (part == null) {
+            return null;
+        }
+        Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>(base.tables());
+        Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>(base.templates());
+        for (ResourceLocation structure : affected) {
+            tables.remove(structure);
+            templates.remove(structure);
+        }
+        tables.putAll(part.tables());
+        templates.putAll(part.templates());
+        JesLog.debug("Generated {} of {} structures again for the containers changed in {}", affected.size(), base.templates().size(), changed);
+        return new StructureScan(tables, templates, now);
+    }
+
+    /** The index from a scan, with the items each table can give read from the loot tables as they are now. */
+    public static LootIndex of(MinecraftServer server, StructureScan scan) {
+        return JesLog.quietly(() -> {
+            Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
+            for (Set<ResourceLocation> structureTables : scan.tables().values()) {
+                for (ResourceLocation table : structureTables) {
+                    items.computeIfAbsent(table, t -> itemsIn(server, t, new HashSet<>()));
+                }
+            }
+            return new LootIndex(scan.tables(), items);
+        });
+    }
+
+    private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                             AtomicInteger failed, Map<ResourceLocation, String> patches) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
+        Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
         int done = 0;
@@ -70,17 +120,19 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 return null;
             }
             Set<ResourceLocation> found = new TreeSet<>();
+            Set<ResourceLocation> placed = new TreeSet<>();
             // Jigsaw structures' pieces can all be read without generating anything, which finds
             // rare pieces too. One generation still runs for loot that code sets as it places.
             Structure structure = registry.get(id);
-            Set<ResourceLocation> fromPools = null;
+            PoolScan.Reach fromPools = null;
             try {
-                fromPools = structure == null ? null : scan.tables(structure);
+                fromPools = structure == null ? null : scan.scan(structure);
             } catch (RuntimeException e) {
                 JesLog.debug("Reading {}'s pools failed", id, e);
             }
             if (fromPools != null) {
-                found.addAll(fromPools);
+                found.addAll(fromPools.tables());
+                placed.addAll(fromPools.templates());
             }
             // Otherwise keep generating new layouts until one turns up nothing new.
             int seeds = fromPools != null ? 1 : SEEDS;
@@ -101,6 +153,10 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         if (table != null) {
                             found.add(table);
                         }
+                        // The template a container came from, for structures placed without pools.
+                        if (c.source() != null) {
+                            placed.add(c.source().template());
+                        }
                     }
                     if (i > 0 && found.size() == before) {
                         break;
@@ -116,16 +172,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             if (!found.isEmpty()) {
                 tables.put(id, found);
             }
+            if (!placed.isEmpty()) {
+                templates.put(id, placed);
+            }
             progress.accept(++done);
         }
-
-        Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
-        for (Set<ResourceLocation> structureTables : tables.values()) {
-            for (ResourceLocation table : structureTables) {
-                items.computeIfAbsent(table, t -> itemsIn(server, t, new HashSet<>()));
-            }
-        }
-        return new LootIndex(tables, items);
+        return new StructureScan(tables, templates, patches);
     }
 
     /** Every item a table can ever give, found by reading the table rather than rolling it. */
