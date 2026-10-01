@@ -51,6 +51,7 @@ final class Scenarios {
             case "lootfixes" -> LootFixesScenario.build(mc);
             case "markers" -> MarkersScenario.build(mc);
             case "favourites" -> FavouritesScenario.build(mc);
+            case "spawners" -> SpawnersScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

@@ -1,9 +1,11 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,13 +17,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.level.levelgen.structure.Structure;
 
 /** Loader-neutral test bodies for the capture pipeline. */
 public final class CaptureTests {
@@ -81,6 +89,47 @@ public final class CaptureTests {
                 .anyMatch(c -> c.lootTable() != null && c.lootTable().startsWith("minecraft:chests/shipwreck_"));
         helper.assertTrue(shipwreckLoot, "no shipwreck loot table was captured");
         helper.succeed();
+    }
+
+    /**
+     * Spawners whose mob a processor picked from a list carry the whole list: a Repurposed Structures
+     * spawner file, and the lists Moog's Structure Lib processors carry. These structures come from
+     * other mods, so only the ones installed are checked.
+     */
+    public static void spawnerPoolsAreRecorded(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Map<String, Set<String>> expected = Map.of(
+                "repurposed_structures:stronghold_nether", Set.of("minecraft:blaze", "minecraft:zoglin", "minecraft:zombified_piglin"),
+                "mns:small_arena", Set.of("minecraft:zombified_piglin", "minecraft:magma_cube", "minecraft:skeleton"),
+                "mss:small_tower", Set.of("minecraft:witch", "minecraft:wither_skeleton"));
+        Registry<Structure> structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        for (Map.Entry<String, Set<String>> e : expected.entrySet()) {
+            ResourceLocation id = new ResourceLocation(e.getKey());
+            if (!structures.containsKey(id)) {
+                continue;
+            }
+            Set<Set<String>> pools = new HashSet<>();
+            for (int i = 0; i < 4 && !pools.contains(e.getValue()); i++) {
+                CaptureResult result = StructureCapture.capture(server, id, SEED + i);
+                if (result.succeeded()) {
+                    pools.addAll(pools(result.snapshot()));
+                }
+            }
+            helper.assertTrue(pools.contains(e.getValue()), id + "'s spawners pick from " + pools + ", none of them " + e.getValue());
+        }
+        helper.succeed();
+    }
+
+    /** The mobs of each spawner in a snapshot that carries a list. */
+    private static Set<Set<String>> pools(StructureSnapshot snapshot) {
+        Set<Set<String>> out = new HashSet<>();
+        for (CompoundTag tag : snapshot.blockEntities()) {
+            ListTag pool = tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND);
+            if (!pool.isEmpty()) {
+                out.add(pool.stream().map(t -> ((CompoundTag) t).getString("entity")).collect(Collectors.toSet()));
+            }
+        }
+        return out;
     }
 
     public static void sameSeedGivesSameSnapshot(GameTestHelper helper) {

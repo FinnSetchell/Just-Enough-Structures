@@ -251,6 +251,11 @@ public final class FabricGameTests implements FabricGameTest {
         ContainerTests.lootIndexFollowsContainerChanges(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void spawnerPoolsAreRecorded(GameTestHelper helper) {
+        CaptureTests.spawnerPoolsAreRecorded(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void containersKnowTheirTemplate(GameTestHelper helper) {
         ContainerTests.containersKnowTheirTemplate(helper);

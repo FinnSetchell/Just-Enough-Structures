@@ -219,6 +219,8 @@ public final class StructureCapture {
         SANDBOX_STRUCTURES.set(structureManager);
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(seed));
         TemplatePlacements.begin();
+        SpawnerPools.begin();
+        Map<Long, SpawnerPools.Pool> pools = Map.of();
         try {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
                 for (int cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -239,10 +241,12 @@ public final class StructureCapture {
             SANDBOX_STRUCTURES.remove();
             SANDBOX_RANDOM.remove();
             TemplatePlacements.end();
+            pools = SpawnerPools.end();
         }
 
         Map<Long, CompoundTag> sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy());
-        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources);
+        Map<Long, ListTag> spawnerPools = SpawnerPools.resolve(pools, level.getServer().getResourceManager());
+        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources, spawnerPools);
         if (snapshot == null) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.placed_nothing", terrain.name()));
             return null;
@@ -397,7 +401,8 @@ public final class StructureCapture {
     }
 
     private static StructureSnapshot snapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain,
-                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces, Map<Long, CompoundTag> sources) {
+                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces, Map<Long, CompoundTag> sources,
+                                              Map<Long, ListTag> spawnerPools) {
         LongArrayList solid = new LongArrayList();
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
@@ -459,6 +464,10 @@ public final class StructureCapture {
                     CompoundTag source = sources.get(pos.asLong());
                     if (source != null && ContainerSources.matches(source, state, tag)) {
                         tag.put(ContainerSources.TAG, source.copy());
+                    }
+                    ListTag pool = spawnerPools.get(pos.asLong());
+                    if (pool != null && SpawnerPools.matches(pool, tag)) {
+                        tag.put(SpawnerPools.TAG, pool.copy());
                     }
                     blockEntities.add(tag);
                 }

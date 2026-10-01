@@ -1,17 +1,25 @@
 package com.finndog.justenoughstructures.mixin;
 
+import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.TemplatePlacements;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Tells a structure capture which template is placing blocks, so it can trace containers back to it. */
+/**
+ * Tells a structure capture which template is placing blocks, so it can trace containers back to
+ * it, and which processor gave each spawner its mob.
+ */
 @Mixin(StructureTemplate.class)
 public abstract class StructureTemplateMixin {
     @Inject(method = "placeInWorld", at = @At("HEAD"))
@@ -24,5 +32,17 @@ public abstract class StructureTemplateMixin {
     private void justenoughstructures$stopPlacing(ServerLevelAccessor level, BlockPos offset, BlockPos pos, StructurePlaceSettings settings,
                                                   RandomSource random, int flags, CallbackInfoReturnable<Boolean> cir) {
         TemplatePlacements.pop();
+    }
+
+    // Optional, so a mod that rewrites this method costs the Mobs tab its spawner lists rather than crashing.
+    @WrapOperation(method = "processBlockInfos", require = 0, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureProcessor;processBlock(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;"))
+    private static StructureTemplate.StructureBlockInfo justenoughstructures$processBlock(StructureProcessor processor, LevelReader level, BlockPos offset,
+                                                                                         BlockPos pos, StructureTemplate.StructureBlockInfo original,
+                                                                                         StructureTemplate.StructureBlockInfo current, StructurePlaceSettings settings,
+                                                                                         Operation<StructureTemplate.StructureBlockInfo> call) {
+        StructureTemplate.StructureBlockInfo processed = call.call(processor, level, offset, pos, original, current, settings);
+        SpawnerPools.processed(processor, current, processed);
+        return processed;
     }
 }

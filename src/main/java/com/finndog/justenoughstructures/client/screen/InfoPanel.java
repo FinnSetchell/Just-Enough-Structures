@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
@@ -32,6 +33,8 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
@@ -49,6 +52,7 @@ import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** The tabs on the right: what the structure is, its loot, its blocks and its mobs. */
@@ -1030,6 +1034,8 @@ final class InfoPanel {
 
     // ------------------------------------------------------------------ mobs
 
+    private static final String SPAWNER = String.valueOf(BlockEntityType.getKey(BlockEntityType.MOB_SPAWNER));
+
     private int mobs(GuiGraphics g, int cy) {
         if (result == null || !result.succeeded()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
@@ -1040,8 +1046,20 @@ final class InfoPanel {
             placed.merge(tag.getString("id"), 1, Integer::sum);
         }
         Map<String, Integer> spawners = new LinkedHashMap<>();
+        // Spawners whose mob was picked from a list, or that cycle through several, by that list.
+        Map<Map<String, Integer>, Integer> picked = new LinkedHashMap<>();
+        Map<Map<String, Integer>, Integer> mixed = new LinkedHashMap<>();
         for (CompoundTag tag : s.blockEntities()) {
-            if (tag.getString("id").equals("minecraft:spawner")) {
+            if (!tag.getString("id").equals(SPAWNER)) {
+                continue;
+            }
+            Map<String, Integer> pool = weights(tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
+            Map<String, Integer> potentials = weights(tag.getList("SpawnPotentials", Tag.TAG_COMPOUND), "data", "weight");
+            if (pool.size() > 1) {
+                picked.merge(pool, 1, Integer::sum);
+            } else if (potentials.size() > 1) {
+                mixed.merge(potentials, 1, Integer::sum);
+            } else {
                 String mob = tag.getCompound("SpawnData").getCompound("entity").getString("id");
                 spawners.merge(mob.isEmpty() ? "?" : mob, 1, Integer::sum);
             }
@@ -1061,13 +1079,61 @@ final class InfoPanel {
             }
         }
 
-        if (placed.isEmpty() && spawners.isEmpty() && overTime.isEmpty()) {
+        if (placed.isEmpty() && spawners.isEmpty() && picked.isEmpty() && mixed.isEmpty() && overTime.isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = mobSection(g, cy, "placed", placed, true);
-        cy = mobSection(g, cy, "spawners", spawners, true);
+        if (!spawners.isEmpty() || !picked.isEmpty() || !mixed.isEmpty()) {
+            Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_spawners").getString(), x, cy, contentRight - x, 13);
+            cy += 16;
+            for (Map.Entry<String, Integer> e : spawners.entrySet()) {
+                cy = mobRow(g, cy, e.getKey(), Component.translatable("screen.justenoughstructures.times", e.getValue()).getString());
+            }
+            cy = pools(g, cy, picked, "spawner_pool");
+            cy = pools(g, cy, mixed, "spawner_mix");
+            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.mobs_spawners_note"), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
+        }
         cy = mobSection(g, cy, "over_time", overTime, false);
         return cy;
+    }
+
+    /**
+     * Each list of mobs spawners pick from, under a line saying how many spawners here use it, with
+     * every mob's chance.
+     */
+    private int pools(GuiGraphics g, int cy, Map<Map<String, Integer>, Integer> pools, String key) {
+        for (Map.Entry<Map<String, Integer>, Integer> pool : pools.entrySet()) {
+            int count = pool.getValue();
+            Component line = count == 1 ? Component.translatable("screen.justenoughstructures." + key + "_one")
+                    : Component.translatable("screen.justenoughstructures." + key + "_many", count);
+            cy = fineWrapped(g, line, x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
+            int total = pool.getKey().values().stream().mapToInt(Integer::intValue).sum();
+            List<Map.Entry<String, Integer>> mobs = new ArrayList<>(pool.getKey().entrySet());
+            mobs.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+            for (Map.Entry<String, Integer> mob : mobs) {
+                float chance = (float) mob.getValue() / total;
+                String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
+                cy = mobRow(g, cy, mob.getKey(), pct);
+            }
+        }
+        return cy;
+    }
+
+    /**
+     * Mob ids to weights from a list of entries, merging repeats. With no {@code weightKey} the id is
+     * under {@code key}; otherwise {@code key} holds SpawnPotentials' entity data.
+     */
+    private static Map<String, Integer> weights(ListTag list, String key, String weightKey) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (Tag t : list) {
+            CompoundTag entry = (CompoundTag) t;
+            String mob = weightKey == null ? entry.getString(key) : entry.getCompound(key).getCompound("entity").getString("id");
+            int weight = entry.getInt(weightKey == null ? "weight" : weightKey);
+            if (!mob.isEmpty() && weight > 0) {
+                out.merge(mob, weight, Integer::sum);
+            }
+        }
+        return out;
     }
 
     private int mobSection(GuiGraphics g, int cy, String key, Map<String, Integer> mobs, boolean counts) {
@@ -1077,22 +1143,26 @@ final class InfoPanel {
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_" + key).getString(), x, cy, contentRight - x, 13);
         cy += 16;
         for (Map.Entry<String, Integer> e : mobs.entrySet()) {
-            ResourceLocation id = ResourceLocation.tryParse(e.getKey());
-            EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
-            Component name = type != null ? type.getDescription() : Component.literal(e.getKey());
-            Gui.card(g, x, cy, contentRight - x, 22);
-            Gui.slot(g, x + PAD + 1, cy + 2);
-            SpawnEggItem egg = type == null ? null : SpawnEggItem.byId(type);
-            if (egg != null) {
-                g.renderItem(new ItemStack(egg), x + PAD + 2, cy + 3);
-            }
-            String count = counts ? Component.translatable("screen.justenoughstructures.times", e.getValue()).getString() : "";
-            Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(count), TEXT);
-            g.drawString(font, count, contentRight - 4 - font.width(count), cy + 7, Gui.LABEL_SOFT, false);
-            cy += 23;
+            cy = mobRow(g, cy, e.getKey(), counts ? Component.translatable("screen.justenoughstructures.times", e.getValue()).getString() : "");
         }
         Component note = Component.translatable("screen.justenoughstructures.mobs_" + key + "_note");
         return fineWrapped(g, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
+    }
+
+    /** A mob's card: its spawn egg, its name and, on the right, {@code right}. */
+    private int mobRow(GuiGraphics g, int cy, String mob, String right) {
+        ResourceLocation id = ResourceLocation.tryParse(mob);
+        EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
+        Component name = type != null ? type.getDescription() : Component.literal(mob);
+        Gui.card(g, x, cy, contentRight - x, 22);
+        Gui.slot(g, x + PAD + 1, cy + 2);
+        SpawnEggItem egg = type == null ? null : SpawnEggItem.byId(type);
+        if (egg != null) {
+            g.renderItem(new ItemStack(egg), x + PAD + 2, cy + 3);
+        }
+        Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(right), TEXT);
+        g.drawString(font, right, contentRight - 4 - font.width(right), cy + 7, Gui.LABEL_SOFT, false);
+        return cy + 23;
     }
 
     private static boolean inside(int mx, int my, int x, int y, int w, int h, int clipTop, int clipHeight) {
