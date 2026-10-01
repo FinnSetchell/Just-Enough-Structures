@@ -307,7 +307,7 @@
   "screen.justenoughstructures.picker.typed": "Use %s",
   "screen.justenoughstructures.picker.now": "now",
   "screen.justenoughstructures.picker.none": "No loot tables match",
-  "jei.justenoughstructures.found_in": "Found in structures",
-  "jei.justenoughstructures.chance": "%s chance in each container",
-  "jei.justenoughstructures.open": "Click to open it in the structure browser"
+  "viewer.justenoughstructures.found_in": "Found in structures",
+  "viewer.justenoughstructures.chance": "%s chance in each container",
+  "viewer.justenoughstructures.open": "Click to open it in the structure browser"
 }

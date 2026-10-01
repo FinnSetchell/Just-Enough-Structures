@@ -57,14 +57,16 @@ val devMods = mapOf(
         // Other big structure mods
         "repurposed-structures-fabric:jaRcykAY", "towns-and-towers:7ZwnSrVW", "structory:FkaSuQb0", "structory-towers:fTl6NfPL",
         "when-dungeons-arise:Vd5XOXlj", "dungeons-and-taverns:d1sY0JqV", "explorify:CuBdAr31",
-        // Recipe viewer and structure compass
-        "jei:YRfUnbXb", "explorers-compass:qD2j03H6",
+        // Structure compass. The recipe viewer is picked with -Pviewer, below.
+        "explorers-compass:qD2j03H6",
         // Libraries the above need
         "moogs-structure-lib:ynssyzOT", "yungs-api:lscV1N5k", "cristel-lib:tBnivdbu", "cloth-config:2xQdCMyG",
         "resourceful-config:2gStMKhM", "midnightlib:rXX4FCV8",
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
+// Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
+val viewer = findProperty("viewer")?.toString() ?: "jei"
 
 dependencies {
     minecraft("com.mojang:minecraft:$mcBuild")
@@ -82,9 +84,21 @@ dependencies {
     }
     // Likewise Explorer's Compass, which has no API: the link calls its own search.
     modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
+    // And the EMI and REI pages.
+    modCompileOnly("maven.modrinth:emi:${prop("deps.emi")}")
+    modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
+    modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
+        when (viewer) {
+            "emi" -> modLocalRuntime("maven.modrinth:emi:${prop("deps.emi")}")
+            "rei" -> {
+                modLocalRuntime("maven.modrinth:rei:${prop("deps.rei")}")
+                modLocalRuntime("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+            }
+            else -> modLocalRuntime("maven.modrinth:jei:YRfUnbXb")
+        }
         modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
         // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:
         // YUNG's (Reflections), Cristel Lib (Jankson) and Cloth Config (basic-math).

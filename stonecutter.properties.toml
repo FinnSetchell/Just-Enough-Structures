@@ -22,5 +22,10 @@ deps.modmenu = "7.2.2"
 deps.cloth_config = "11.1.136"
 # Compiled against for the optional JEI plugin, never bundled.
 deps.jei = "15.56.0.205"
+# Likewise EMI and REI, and Architectury, which REI's API uses. Modrinth version ids, so the
+# dev runtime can run the same jars: EMI 1.1.24, REI 12.1.785, Architectury 9.2.14.
+deps.emi = "YbXDHf8W"
+deps.rei = "nYcMSS03"
+deps.architectury = "WbL7MStR"
 # Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.
 deps.explorers_compass = "qD2j03H6"

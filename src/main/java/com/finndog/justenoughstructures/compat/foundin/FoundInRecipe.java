@@ -1,4 +1,4 @@
-package com.finndog.justenoughstructures.compat.jei;
+package com.finndog.justenoughstructures.compat.foundin;
 
 import com.finndog.justenoughstructures.loot.LootIndex;
 import java.util.ArrayList;
@@ -16,8 +16,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * An item a structure's loot can give, and which of the structure's loot tables give it. Kept free
- * of JEI's classes so it can be tested without JEI installed.
+ * An item a structure's loot can give, and which of the structure's loot tables give it. Shared by
+ * the JEI, EMI and REI pages, and kept free of their classes so it can be tested without them.
  */
 public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables) {
 

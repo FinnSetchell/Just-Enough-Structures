@@ -26,6 +26,12 @@
     "jei_mod_plugin": [
       "com.finndog.justenoughstructures.compat.jei.JesJeiPlugin"
     ],
+    "emi": [
+      "com.finndog.justenoughstructures.compat.emi.JesEmiPlugin"
+    ],
+    "rei_client": [
+      "com.finndog.justenoughstructures.compat.rei.JesReiPlugin"
+    ],
     "modmenu": [
       "com.finndog.justenoughstructures.fabric.JesModMenu"
     ]
@@ -38,6 +44,8 @@
   },
   "suggests": {
     "jei": "*",
+    "emi": "*",
+    "roughlyenoughitems": "*",
     "explorerscompass": "*",
     "modmenu": "*",
     "cloth-config": "*"

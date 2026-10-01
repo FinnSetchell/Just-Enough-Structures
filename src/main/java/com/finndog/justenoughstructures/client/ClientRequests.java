@@ -32,6 +32,7 @@ public final class ClientRequests {
     private static CompletableFuture<List<StructureCatalog.Entry>> catalog;
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
     private static int reloads;
+    private static boolean indexWanted;
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
     private static final Map<ResourceLocation, CompletableFuture<LootOdds>> ODDS_BY_TABLE = new HashMap<>();
@@ -238,9 +239,22 @@ public final class ClientRequests {
     }
 
     public static void tick() {
+        if (indexWanted && index == null && serverSupported()) {
+            index();
+            // The structure list is what saved thumbnails are checked against, so rows can have pictures.
+            catalog();
+        }
         if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
             pollIndex();
         }
+    }
+
+    /**
+     * For recipe viewers, which load before it's known whether the server has JES: asks for the loot
+     * index as soon as it is, and again on every server joined after.
+     */
+    public static void wantIndex() {
+        indexWanted = true;
     }
 
     private static void pollIndex() {

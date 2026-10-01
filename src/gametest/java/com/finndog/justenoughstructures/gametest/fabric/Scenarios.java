@@ -45,6 +45,7 @@ final class Scenarios {
             case "settings" -> ConfigScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
+            case "viewer" -> ViewerScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

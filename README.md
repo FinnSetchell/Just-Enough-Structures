@@ -34,8 +34,9 @@ The browser remembers how you left it: spin, markers, the ground, maximise and s
 installed, its Config button opens a settings screen for those, and for the server settings of
 worlds you play or host from your game.
 
-With [JEI](https://modrinth.com/mod/jei) installed, an item's recipes get a **Found in structures**
-page listing every structure whose loot can give it, with the chance in each container. Click a
+With [JEI](https://modrinth.com/mod/jei), [EMI](https://modrinth.com/mod/emi) or
+[REI](https://modrinth.com/mod/rei) installed, an item's recipes get a **Found in structures** page
+listing every structure whose loot can give it, with the chance in each container. Click a
 structure to open it in the browser.
 
 With [Explorer's Compass](https://modrinth.com/mod/explorers-compass) installed, its structure
@@ -60,7 +61,7 @@ loot out of the previews it sends, so this can't be undone on the client.
 ## Loading times
 
 Nothing is worked out while the game or server starts, or while players join. Item search and the
-JEI pages need a scan of every structure's loot, which takes a few minutes with a lot of structure
+Found in structures pages need a scan of every structure's loot, which takes a few minutes with a lot of structure
 mods. It runs in the background and is saved in `.cache/justenoughstructures`, so it's only done
 again when mods, their versions or datapacks change. A dedicated server starts it on its own after
 starting up; in singleplayer it waits until something needs it. The pictures in the structure list

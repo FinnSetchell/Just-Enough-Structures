@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.jei;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
+import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import java.util.List;
 import mezz.jei.api.IModPlugin;
@@ -46,6 +47,7 @@ public final class JesJeiPlugin implements IModPlugin {
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesJeiPlugin::show);
+            ClientRequests.wantIndex();
         }
         if (!ClientRequests.serverSupported()) {
             return;
