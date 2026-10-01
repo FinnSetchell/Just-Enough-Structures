@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.CaptureTests;
 import com.finndog.justenoughstructures.gametest.CompassTests;
 import com.finndog.justenoughstructures.gametest.ContainerTests;
+import com.finndog.justenoughstructures.gametest.GridTests;
 import com.finndog.justenoughstructures.gametest.OverrideTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.RealWorldTests;
@@ -250,6 +251,16 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_update", timeoutTicks = 1200)
     public void lootIndexFollowsContainerChanges(GameTestHelper helper) {
         ContainerTests.lootIndexFollowsContainerChanges(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void bigSparseStructuresStayCheap(GameTestHelper helper) {
+        GridTests.bigSparseStructuresStayCheap(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void gridMatchesACapturedVillage(GameTestHelper helper) {
+        GridTests.gridMatchesACapturedVillage(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 200)

@@ -33,14 +33,14 @@ import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
 
 /**
- * A snapshot laid out as a dense grid the block renderer can read from. Anything at or above
+ * A snapshot laid out so the block renderer can read it by position. Anything at or above
  * {@link #sliceY()} reads as air, which is how the layer slider cuts the structure open.
  */
 public final class SnapshotView implements BlockAndTintGetter {
     private final StructureSnapshot snapshot;
     private final Vec3i size;
     private final BlockState[] palette;
-    private final short[] cells;
+    private final BlockGrid blocks;
     private final Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
     private final List<Entity> entities = new ArrayList<>();
     private final Holder<Biome> biome;
@@ -56,12 +56,9 @@ public final class SnapshotView implements BlockAndTintGetter {
         for (int i = 0; i < states.size(); i++) {
             palette[i + 1] = states.get(i);
         }
-        this.cells = new short[size.getX() * size.getY() * size.getZ()];
-        for (int i = 0; i < snapshot.blockCount(); i++) {
-            int packed = snapshot.packedPosition(i);
-            cells[index(StructureSnapshot.unpackX(packed), StructureSnapshot.unpackY(packed), StructureSnapshot.unpackZ(packed))] =
-                    (short) (snapshot.paletteIndex(i) + 1);
-        }
+        this.blocks = new BlockGrid(snapshot);
+        JesLog.debug("Preview of {}: {} blocks in a {}x{}x{} box take {} KB (a grid of the whole box would take {} KB)", snapshot.structureId(),
+                snapshot.blockCount(), size.getX(), size.getY(), size.getZ(), blocks.bytes() / 1024, (long) size.getX() * size.getY() * size.getZ() * 2 / 1024);
         this.biome = biomeFor(snapshot.terrain());
     }
 
@@ -129,11 +126,7 @@ public final class SnapshotView implements BlockAndTintGetter {
 
     /** The block regardless of the slice. */
     public BlockState rawState(int x, int y, int z) {
-        return contains(x, y, z) ? palette[cells[index(x, y, z)]] : Blocks.AIR.defaultBlockState();
-    }
-
-    private int index(int x, int y, int z) {
-        return (y * size.getZ() + z) * size.getX() + x;
+        return contains(x, y, z) ? palette[blocks.get(x, y, z)] : Blocks.AIR.defaultBlockState();
     }
 
     @Override
