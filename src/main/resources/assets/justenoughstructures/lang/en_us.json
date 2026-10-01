@@ -371,7 +371,7 @@
   "config.justenoughstructures.hide_pack_tools": "Hide the Pack tools button",
   "config.justenoughstructures.hide_pack_tools.tooltip": "For players allowed to use Pack tools: hides its button, the icons in a chest's popup and the marks on edited loot tables.",
   "config.justenoughstructures.server": "Server",
-  "config.justenoughstructures.server.about": "For worlds you play or host from this game, saved in config/justenoughstructures/server.json5. A dedicated server has its own copy of that file.",
+  "config.justenoughstructures.server.about": "For worlds you play or host from this game, saved in config/justenoughstructures/server.json5. A dedicated server has its own copy of that file. Also in the browser: Pack tools, then Server rules.",
   "config.justenoughstructures.hidden": "Hidden structures",
   "config.justenoughstructures.hidden.tooltip": "Left out of the browser, previews, locate and loot search. Use a structure's id, or modid:* for every structure from a mod.",
   "config.justenoughstructures.hidden.invalid": "Not a structure id or modid:*",
