@@ -198,7 +198,13 @@ public class JesScreen extends Screen {
         viewY = PAD + 35;
         int toolbarY = height - PAD - 26;
         viewW = centreW - 12;
-        viewH = toolbarY - 4 - viewY;
+        boolean roomy = viewW >= 250;
+        // When the buttons leave the layer slider too little room for its label, it gets a row of its
+        // own under them, as wide as the preview, rather than spilling past the panel's edge.
+        int buttonsWidth = (roomy ? 68 : 36) + 22 + 22 + 22 + 24;
+        boolean sliderRow = viewW - buttonsWidth < LayerSlider.LABEL_WIDTH;
+        int buttonsY = sliderRow ? toolbarY - 22 : toolbarY;
+        viewH = buttonsY - 4 - viewY;
         if (viewW != lastViewW || viewH != lastViewH) {
             // A bigger or smaller preview (maximised, or the window resized) gets zoomed to fit again.
             viewport.refit();
@@ -232,21 +238,20 @@ public class JesScreen extends Screen {
         updateCompassButton();
 
         int bx = viewX;
-        boolean roomy = viewW >= 250;
         rerollButton = addRenderableWidget(Button.builder(Component.translatable(roomy ? "screen.justenoughstructures.reroll" : "screen.justenoughstructures.reroll_short"), b -> reroll())
-                .bounds(bx, toolbarY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
+                .bounds(bx, buttonsY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
                         Component.translatable("screen.justenoughstructures.reroll_tooltip"))).build());
         bx += roomy ? 68 : 36;
-        addRenderableWidget(new IconButton(bx, toolbarY, RESET_ICON,
+        addRenderableWidget(new IconButton(bx, buttonsY, RESET_ICON,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
         bx += 22;
-        spinButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> SPIN_ICON, () -> ClientState.spin, spinLabel(), b -> {
+        spinButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> SPIN_ICON, () -> ClientState.spin, spinLabel(), b -> {
             ClientState.spin = !ClientState.spin;
             ClientState.save();
             spinButton.setLabel(spinLabel());
         }));
         bx += 22;
-        markersButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> MARKERS_ICON, () -> ClientState.markers && !lootSecret(), markersLabel(), b -> {
+        markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> MARKERS_ICON, () -> ClientState.markers && !lootSecret(), markersLabel(), b -> {
             ClientState.markers = !ClientState.markers;
             ClientState.save();
             markersButton.setLabel(markersLabel());
@@ -254,14 +259,15 @@ public class JesScreen extends Screen {
         markersSecret = lootSecret();
         markersButton.active = !markersSecret;
         bx += 22;
-        groundButton = addRenderableWidget(new IconButton(bx, toolbarY, () -> GROUND_ICON, () -> ClientState.ground, groundLabel(), b -> {
+        groundButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> GROUND_ICON, () -> ClientState.ground, groundLabel(), b -> {
             ClientState.ground = !ClientState.ground;
             ClientState.save();
             groundButton.setLabel(groundLabel());
             updateGround();
         }));
         bx += 24;
-        slider = addRenderableWidget(new LayerSlider(bx, toolbarY, Math.max(30, viewX + viewW - bx), 20, shown -> {
+        int sliderX = sliderRow ? viewX : bx;
+        slider = addRenderableWidget(new LayerSlider(sliderX, toolbarY, viewX + viewW - sliderX, 20, shown -> {
             if (view != null) {
                 view.setSliceY(shown);
             }
