@@ -28,6 +28,8 @@ final class DetailsScenario {
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
+                // The details are for datapack authors, so they only show with advanced tooltips (F3+H).
+                .then(run(() -> mc.options.advancedItemTooltips = true))
                 .then(run(() -> browser(mc).showDetails(true)))
                 .then(moveTo(() -> {
                     int[] tab = browser(mc).tab("overview");
@@ -40,7 +42,8 @@ final class DetailsScenario {
                 .then(shoot("d02_details_middle"))
                 .then(wheel(-10))
                 .then(pause(10))
-                .then(shoot("d03_details_bottom"));
+                .then(shoot("d03_details_bottom"))
+                .then(run(() -> mc.options.advancedItemTooltips = false));
         return d;
     }
 
