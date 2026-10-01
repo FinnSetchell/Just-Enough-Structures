@@ -34,6 +34,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
@@ -448,6 +449,26 @@ final class InfoPanel {
         return (int) Math.ceil(font.width(text) * secondaryScale());
     }
 
+    /** Secondary text, at the size of labels and details. */
+    private void fine(GuiGraphics g, String text, int left, int top, int color) {
+        Gui.scaled(g, font, text, left, top, color, secondaryScale());
+    }
+
+    /** Cuts text short to fit {@code width} at the secondary size. */
+    private String fineClip(String text, int width) {
+        return Gui.clip(font, text, (int) (width / secondaryScale()));
+    }
+
+    /** Wrapped text at the secondary size, such as the notes under a list. Returns the y below it. */
+    private int fineWrapped(GuiGraphics g, Component text, int left, int top, int width, int color) {
+        float scale = secondaryScale();
+        for (FormattedCharSequence line : font.split(text, (int) (width / scale))) {
+            Gui.scaled(g, font, line, left, top, color, scale);
+            top += secondaryLine() + 1;
+        }
+        return top;
+    }
+
     /** How tall a line of labels or details is. */
     private int secondaryLine() {
         return (int) Math.ceil(font.lineHeight * secondaryScale());
@@ -585,7 +606,7 @@ final class InfoPanel {
             return secretLoot(g, cy, mouseX, mouseY, clipTop, clipHeight);
         }
         if (result == null || !result.succeeded()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot snapshot = result.snapshot();
         Map<String, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
@@ -593,7 +614,7 @@ final class InfoPanel {
             groups.computeIfAbsent(c.lootTable() == null ? "" : c.lootTable(), k -> new ArrayList<>()).add(c);
         }
         if (groups.isEmpty()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<Map.Entry<String, List<StructureSnapshot.Container>>> sorted = new ArrayList<>(groups.entrySet());
         sorted.sort(Comparator.comparing((Map.Entry<String, List<StructureSnapshot.Container>> e) -> e.getKey().isEmpty())
@@ -604,7 +625,7 @@ final class InfoPanel {
         for (Map.Entry<String, List<StructureSnapshot.Container>> group : sorted) {
             String table = group.getKey();
             List<StructureSnapshot.Container> containers = group.getValue();
-            int rowHeight = 22;
+            int rowHeight = 15 + secondaryLine();
             boolean selected = table.equals(selectedTable);
             boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
             Gui.card(g, x, cy, contentRight - x, rowHeight);
@@ -618,8 +639,8 @@ final class InfoPanel {
             String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
             int textWidth = contentRight - x - PAD - 23 - 12;
             Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
-            Gui.small(g, font, Gui.clipSmall(font, detail, textWidth), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
-            g.drawString(font, ">", contentRight - 9, cy + 7, hovered ? TEXT : Gui.LABEL_SOFT, false);
+            fine(g, fineClip(detail, textWidth), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+            g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
             if (hovered) {
                 hoveredText = List.of(Component.literal(name), Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW));
             }
@@ -643,7 +664,7 @@ final class InfoPanel {
      * lists its loot tables from the loot index instead of from the containers in the layout.
      */
     private int secretLoot(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
-        cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_note"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 3;
+        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_secret_note"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 3;
         Set<ResourceLocation> tables = FoundIn.tablesIn(entry.id());
         if (tables == null) {
             ClientRequests.index();
@@ -651,10 +672,10 @@ final class InfoPanel {
             Component text = progress < 0
                     ? Component.translatable("screen.justenoughstructures.indexing")
                     : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
-            return Gui.wrapped(g, font, text, x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, text, x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         if (tables.isEmpty()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<String> sorted = tables.stream().map(ResourceLocation::toString).sorted(Comparator.comparing(StructureNames::lootTable)).toList();
         for (String table : sorted) {
@@ -678,44 +699,45 @@ final class InfoPanel {
 
     private int lootOdds(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight, int selectedCount, String selectedName) {
         if (selectedTable == null) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.pick_group"), x + PAD, cy + 4, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.pick_group"), x + PAD, cy + 4, textWidth(), Gui.LABEL_SOFT);
         }
         cy += 4;
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName).getString(),
                 x, cy, contentRight - x, 13);
         cy += 16;
         Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
-        int sortWidth = Gui.smallWidth(font, sortLabel.getString()) + 2;
-        boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, 9, clipTop, clipHeight);
-        Gui.small(g, font, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
+        int sortWidth = secondaryWidth(sortLabel.getString()) + 2;
+        int linkHeight = secondaryLine() + 2;
+        boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
+        fine(g, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
         if (overSort) {
             hoveredText = List.of(Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
         }
-        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, 9, () -> {
+        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
             ClientState.rarestFirst = !ClientState.rarestFirst;
             ClientState.save();
         }));
         // Right-aligned on the same line, for players the server lets edit loot tables.
         if (ClientRequests.canEditLoot() && selectedTable != null) {
             String edit = Component.translatable("screen.justenoughstructures.editor.edit_link").getString();
-            int editWidth = Gui.smallWidth(font, edit) + 2;
+            int editWidth = secondaryWidth(edit) + 2;
             int editX = contentRight - 2 - editWidth;
             if (editX > x + PAD + sortWidth + 4) {
-                boolean overEdit = inside(mouseX, mouseY, editX, cy - 1, editWidth, 9, clipTop, clipHeight);
-                Gui.small(g, font, edit, editX, cy, overEdit ? 0xFF1F3F8F : 0xFF3A55A0);
+                boolean overEdit = inside(mouseX, mouseY, editX, cy - 1, editWidth, linkHeight, clipTop, clipHeight);
+                fine(g, edit, editX, cy, overEdit ? 0xFF1F3F8F : 0xFF3A55A0);
                 if (overEdit) {
                     hoveredText = List.of(Component.translatable("screen.justenoughstructures.editor.edit_hint"));
                 }
                 String table = selectedTable;
-                hotspots.add(new Hotspot(editX, cy - 1, editWidth, 9, () -> onEditTable.accept(table)));
+                hotspots.add(new Hotspot(editX, cy - 1, editWidth, linkHeight, () -> onEditTable.accept(table)));
             }
         }
-        cy += 10;
+        cy += linkHeight + 2;
         if (odds == null) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         if (odds.rows().isEmpty()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<LootOdds.Row> rows = new ArrayList<>(odds.rows());
         if (ClientState.rarestFirst) {
@@ -723,52 +745,56 @@ final class InfoPanel {
         }
         Map<String, Integer> nameCounts = new HashMap<>();
         rows.forEach(r -> nameCounts.merge(r.example().getHoverName().getString(), 1, Integer::sum));
+        int rowHeight = 20;
         for (LootOdds.Row row : rows) {
             float chance = (float) row.hits() / odds.rolls();
             boolean rare = chance < 0.1f;
             int rowTop = cy;
-            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, 19, clipTop, clipHeight);
+            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, rowHeight, clipTop, clipHeight);
             if (hovered) {
-                g.fill(x + 2, cy, contentRight, cy + 19, Gui.ROW_HOVER);
+                g.fill(x + 2, cy, contentRight, cy + rowHeight, Gui.ROW_HOVER);
             }
             Gui.slot(g, x + PAD - 1, cy);
             g.renderItem(row.example(), x + PAD, cy + 1);
             int textX = x + PAD + 21;
-            String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
-            int nameWidth = contentRight - textX - font.width(pct) - 6;
             String name = row.example().getHoverName().getString();
             if (nameCounts.getOrDefault(name, 0) > 1) {
                 name = StructureNames.pretty(BuiltInRegistries.ITEM.getKey(row.example().getItem()).getPath());
             }
-            Gui.fitted(g, font, name, textX, cy + 1, nameWidth, rare ? RARE : TEXT);
-            g.drawString(font, pct, contentRight - 2 - font.width(pct), cy + 1, rare ? RARE : TEXT, false);
+            Gui.fitted(g, font, name, textX, cy + 1, contentRight - 2 - textX, rare ? RARE : TEXT);
+            // The second line: how many come at a time, then the bar, then the chance it shows.
+            int lineY = cy + 11;
+            String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
+            int pctX = contentRight - 2 - font.width(pct);
+            g.drawString(font, pct, pctX, lineY, rare ? RARE : TEXT, false);
             float average = (float) row.total() / row.hits();
             String counts = row.min() == row.max()
                     ? Component.translatable("screen.justenoughstructures.count_exact", row.min()).getString()
                     : Component.translatable("screen.justenoughstructures.count_range", row.min(), row.max(), Math.round(average)).getString();
-            Gui.small(g, font, counts, textX, cy + 11, Gui.LABEL_SOFT);
-            int barLeft = textX + Gui.smallWidth(font, counts) + 4;
-            int barRight = contentRight - 2;
+            int countsY = lineY + (font.lineHeight - 1 - secondaryLine()) / 2;
+            fine(g, fineClip(counts, pctX - 4 - textX), textX, countsY, Gui.LABEL_SOFT);
+            int barLeft = textX + secondaryWidth(counts) + 4;
+            int barRight = pctX - 4;
             if (barRight - barLeft > 10) {
-                g.fill(barLeft, cy + 12, barRight, cy + 16, Gui.BAR_BACK);
-                g.fill(barLeft, cy + 12, barLeft + Math.max(1, (int) ((barRight - barLeft) * chance)), cy + 16, rare ? 0xFFC08A20 : Gui.BAR);
+                g.fill(barLeft, lineY + 2, barRight, lineY + 6, Gui.BAR_BACK);
+                g.fill(barLeft, lineY + 2, barLeft + Math.max(1, (int) ((barRight - barLeft) * chance)), lineY + 6, rare ? 0xFFC08A20 : Gui.BAR);
             }
             if (hovered) {
                 hoveredStack = row.example();
                 hoveredExtra = oddsTooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
             }
             ItemStack example = row.example();
-            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, 19, () -> onItemClicked.accept(example)));
-            if (rowTop >= clipTop && rowTop + 19 <= clipTop + clipHeight) {
-                oddsRows.put(example.getItem(), new int[]{x + PAD + 60, rowTop + 9});
+            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, rowHeight, () -> onItemClicked.accept(example)));
+            if (rowTop >= clipTop && rowTop + rowHeight <= clipTop + clipHeight) {
+                oddsRows.put(example.getItem(), new int[]{x + PAD + 60, rowTop + rowHeight / 2});
             }
-            cy += 20;
+            cy += rowHeight + 1;
         }
         if (odds.emptyRolls() > 0) {
-            cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.empty_rolls",
+            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.empty_rolls",
                     String.format("%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         }
-        cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
+        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
                 x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         return cy;
     }
@@ -824,11 +850,11 @@ final class InfoPanel {
 
     private int blocks(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (result == null || !result.succeeded()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot s = result.snapshot();
         List<Map.Entry<Block, Integer>> sorted = Exports.blockCounts(s);
-        cy = Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
+        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
                 x + PAD, cy, textWidth(), TEXT) + 3;
 
         Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
@@ -841,20 +867,21 @@ final class InfoPanel {
         hotspots.add(new Hotspot(bx, cy, w, 13, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 16;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
-            cy = Gui.wrapped(g, font, notice, x + PAD, cy, textWidth(), GOOD) + 2;
+            cy = fineWrapped(g, notice, x + PAD, cy, textWidth(), GOOD) + 2;
         }
 
+        int rowHeight = Math.max(19, 12 + secondaryLine());
         for (Map.Entry<Block, Integer> e : sorted) {
-            if (cy + 18 < clipTop || cy > clipTop + clipHeight) {
+            if (cy + rowHeight < clipTop || cy > clipTop + clipHeight) {
                 // Scrolled out of view: a big structure can use hundreds of kinds of block.
-                cy += 18;
+                cy += rowHeight;
                 continue;
             }
             Block block = e.getKey();
             int count = e.getValue();
-            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, 18, clipTop, clipHeight);
+            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
             if (hovered) {
-                g.fill(x, cy, contentRight, cy + 18, Gui.ROW_HOVER);
+                g.fill(x, cy, contentRight, cy + rowHeight, Gui.ROW_HOVER);
             }
             ItemStack stack = new ItemStack(block.asItem());
             if (stack.isEmpty()) {
@@ -862,9 +889,14 @@ final class InfoPanel {
             }
             Gui.slot(g, x + PAD - 1, cy);
             g.renderItem(stack, x + PAD, cy + 1);
+            int textX = x + PAD + 21;
+            Gui.fitted(g, font, block.getName().getString(), textX, cy + 1, contentRight - 2 - textX, TEXT);
             String amount = String.format("%,d", count);
-            Gui.fitted(g, font, block.getName().getString(), x + PAD + 21, cy + 5, contentRight - x - PAD - 27 - font.width(amount), TEXT);
-            g.drawString(font, amount, contentRight - 2 - font.width(amount), cy + 5, Gui.LABEL_SOFT, false);
+            if (count >= 64) {
+                amount = Component.translatable("screen.justenoughstructures.block_amount", amount,
+                        Component.translatable("screen.justenoughstructures.stacks", count / 64, count % 64)).getString();
+            }
+            fine(g, fineClip(amount, contentRight - 2 - textX), textX, cy + 11, Gui.LABEL_SOFT);
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
                 lines.add(block.getName());
@@ -874,7 +906,7 @@ final class InfoPanel {
                 }
                 hoveredText = lines;
             }
-            cy += 18;
+            cy += rowHeight;
         }
         return cy;
     }
@@ -883,7 +915,7 @@ final class InfoPanel {
 
     private int mobs(GuiGraphics g, int cy) {
         if (result == null || !result.succeeded()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot s = result.snapshot();
         Map<String, Integer> placed = new LinkedHashMap<>();
@@ -913,7 +945,7 @@ final class InfoPanel {
         }
 
         if (placed.isEmpty() && spawners.isEmpty() && overTime.isEmpty()) {
-            return Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = mobSection(g, cy, "placed", placed, true);
         cy = mobSection(g, cy, "spawners", spawners, true);
@@ -943,7 +975,7 @@ final class InfoPanel {
             cy += 23;
         }
         Component note = Component.translatable("screen.justenoughstructures.mobs_" + key + "_note");
-        return Gui.wrapped(g, font, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
+        return fineWrapped(g, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
     }
 
     private static boolean inside(int mx, int my, int x, int y, int w, int h, int clipTop, int clipHeight) {

@@ -125,6 +125,7 @@
   "screen.justenoughstructures.blocks_copy": "Copy list",
   "screen.justenoughstructures.copied": "Copied the list to your clipboard",
   "screen.justenoughstructures.stacks": "%s stacks and %s",
+  "screen.justenoughstructures.block_amount": "%s, or %s",
   "screen.justenoughstructures.mobs_placed": "Placed with it",
   "screen.justenoughstructures.mobs_placed_note": "These are there when it generates.",
   "screen.justenoughstructures.mobs_spawners": "Spawners",

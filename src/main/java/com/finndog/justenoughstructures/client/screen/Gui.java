@@ -173,6 +173,14 @@ public final class Gui {
     }
 
     /** Text drawn at any size, with its top left at x, y. */
+    static void scaled(GuiGraphics g, Font font, FormattedCharSequence text, int x, int y, int color, float scale) {
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(font, text, 0, 0, color, false);
+        g.pose().popPose();
+    }
+
     static void scaled(GuiGraphics g, Font font, String text, int x, int y, int color, float scale) {
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
