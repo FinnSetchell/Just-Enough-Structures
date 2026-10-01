@@ -38,4 +38,5 @@ First release.
   - A single chest in a structure can be switched to a different loot table, or a brand new one, from its popup in the preview
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
+- Just Enough Structures no longer fills the game log with warnings about other mods' structures
 - Has to be installed on the server as well
