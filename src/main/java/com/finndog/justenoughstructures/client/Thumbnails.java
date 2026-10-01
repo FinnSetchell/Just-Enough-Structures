@@ -87,6 +87,9 @@ public final class Thumbnails {
         RenderSystem.bindTexture(target.getColorTextureId());
         drawn.downloadTexture(0, false);
         target.destroyBuffers();
+        // Freeing a render target leaves the window bound instead of the game's main target, and
+        // everything the screen drew after that was lost for the frame, which made the preview flash.
+        Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
         NativeImage small = halve(drawn);
         drawn.close();
 
