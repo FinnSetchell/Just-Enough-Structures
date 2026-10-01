@@ -21,10 +21,21 @@ First release.
 - With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, and Ctrl-clicking it takes you there
 - The list fills in with small pictures of each structure as you scroll
 - The browser remembers how you left it, like whether the preview spins and fills the screen
+- With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
 - Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
-- With JEI installed, looking up how to get an item also lists the structures it's found in, and clicking one opens it in the browser
-- Item search and the JEI pages are ready straight away after the first time, as the loot scan is saved and only redone when mods or datapacks change
+- With JEI, EMI or REI installed, looking up how to get an item also lists the structures it's found in, and clicking one opens it in the browser
+- With Explorer's Compass installed, you can jump between the compass and the browser
+  - The compass's structure list gets a Preview button that opens the structure in the browser
+  - While holding the compass, a button in the browser opens the compass on the structure you're looking at
+  - Ctrl-click that button to set the compass searching for it straight away
+  - The Info tab shows what the compass in your hand has found
+- Item search and the Found in structures pages are ready straight away after the first time, as the loot scan is saved and only redone when mods or datapacks change
 - The structure list keeps its pictures between sessions
+- Modpack makers can edit loot tables in game, from the Loot tab
+  - A form for items, weights, counts and rolls, JSON for everything else, and the odds of your version as you edit
+  - Edits are saved to the config folder and used from the next /reload, so they ship with a modpack
+  - When a mod updates a table you've edited, you can see what changed, merge it in, or keep yours
+  - A single chest in a structure can be switched to a different loot table, or a brand new one, from its popup in the preview
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
 - Has to be installed on the server as well
