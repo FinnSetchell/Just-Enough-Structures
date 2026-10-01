@@ -19,6 +19,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -145,7 +147,7 @@ public final class LootOverrides {
         try {
             parsed = JsonParser.parseString(json);
         } catch (JsonParseException e) {
-            return Component.translatable("screen.justenoughstructures.override.invalid_json", message(e));
+            return jsonProblem(e);
         }
         try {
             LootTable table = LootDataType.TABLE.parser().fromJson(parsed, LootTable.class);
@@ -315,6 +317,35 @@ public final class LootOverrides {
             normalised = json;
         }
         return Hashing.sha256().hashString(normalised, StandardCharsets.UTF_8).toString();
+    }
+
+    private static final Pattern WHERE = Pattern.compile("line (\\d+) column (\\d+)");
+
+    /**
+     * Where the JSON goes wrong and what's likely missing, in place of the parser's own message,
+     * which reads like a Java error. The line and column count from the top of the text as typed.
+     */
+    static Component jsonProblem(JsonParseException e) {
+        String text = String.valueOf(e.getMessage());
+        String reason;
+        if (text.contains("EOFException") || text.contains("End of input")) {
+            reason = "ends_early";
+        } else if (text.contains("Unterminated")) {
+            reason = "unterminated";
+        } else if (text.contains("Expected ':'")) {
+            reason = "colon";
+        } else if (text.contains("Expected name")) {
+            reason = "name";
+        } else if (text.contains("Expected value")) {
+            reason = "value";
+        } else {
+            reason = "other";
+        }
+        Component why = Component.translatable("screen.justenoughstructures.json." + reason);
+        Matcher where = WHERE.matcher(text);
+        return where.find()
+                ? Component.translatable("screen.justenoughstructures.override.invalid_json_at", where.group(1), where.group(2), why)
+                : Component.translatable("screen.justenoughstructures.override.invalid_json", why);
     }
 
     private static String message(Exception e) {

@@ -14,6 +14,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 
 /**
  * Picks the loot table for one container in a structure: any table the structures use, one typed
@@ -30,9 +31,12 @@ public final class TablePickerScreen extends Screen {
 
     private EditBox search;
     private Button use;
+    private Button useReload;
     private List<ResourceLocation> shown = List.of();
     private ResourceLocation typed;
     private ResourceLocation picked;
+    /** Why the server turned the last pick down, shown until something else is picked. */
+    private Component problem;
     private double scroll;
     private boolean indexed;
 
@@ -63,9 +67,20 @@ public final class TablePickerScreen extends Screen {
         int backWidth = font.width(Component.translatable("screen.justenoughstructures.editor.back")) + 12;
         addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.back"), b -> onClose())
                 .bounds(right - backWidth, y, backWidth, 20).build());
+        int x = right - backWidth;
+        // Like the editor's Save & reload, for players who can run /reload: the change applies straight away.
+        useReload = null;
+        if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
+            int reloadWidth = font.width(Component.translatable("screen.justenoughstructures.picker.use_reload")) + 12;
+            x -= reloadWidth + 4;
+            useReload = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use_reload"), b -> apply(true))
+                    .bounds(x, y, reloadWidth, 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.use_reload_hint"))).build());
+        }
         int useWidth = font.width(Component.translatable("screen.justenoughstructures.picker.use")) + 12;
-        use = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use"), b -> apply())
-                .bounds(right - backWidth - 4 - useWidth, y, useWidth, 20).build());
+        use = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use"), b -> apply(false))
+                .bounds(x - 4 - useWidth, y, useWidth, 20)
+                .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.use_hint"))).build());
         refilter();
     }
 
@@ -79,33 +94,57 @@ public final class TablePickerScreen extends Screen {
                 out.add(id);
             }
         }
-        // An id typed in full, like a table just made in the editor, can be picked even if no structure uses it yet.
-        typed = query.contains(":") ? ResourceLocation.tryParse(query) : null;
-        if (typed != null && !all.contains(typed)) {
+        // An id typed in full, like a table just made in the editor, can be picked even if no structure
+        // uses it yet. Typing one in full is taken as picking it.
+        ResourceLocation full = query.contains(":") ? ResourceLocation.tryParse(query) : null;
+        boolean pickedTyped = picked != null && picked.equals(typed);
+        typed = full != null && !all.contains(full) ? full : null;
+        if (typed != null) {
             out.add(0, typed);
-        } else {
-            typed = null;
         }
         shown = out;
         scroll = 0;
+        if (full != null && (picked == null || pickedTyped)) {
+            picked = full;
+        }
         if (picked != null && !shown.contains(picked)) {
             picked = null;
         }
+        problem = null;
         updateUse();
     }
 
     private void updateUse() {
+        boolean active = picked != null && !picked.toString().equals(current);
         if (use != null) {
-            use.active = picked != null && !picked.toString().equals(current);
+            use.active = active;
+        }
+        if (useReload != null) {
+            useReload.active = active;
         }
     }
 
-    private void apply() {
+    /**
+     * Asks the server to point the container at the picked table. If it can't, why stays here to be
+     * fixed; if it can, the browser says so until the change applies.
+     */
+    private void apply(boolean reload) {
         if (picked == null) {
             return;
         }
-        ClientRequests.containerAction(source.template(), source.pos(), picked).thenAccept(reply -> {
-            parent.showMessage(reply.message());
+        ResourceLocation table = picked;
+        ClientRequests.containerAction(source.template(), source.pos(), table).thenAccept(reply -> {
+            if (!JesScreen.replyIs(reply.message(), "container.saved")) {
+                problem = reply.message();
+                return;
+            }
+            String name = StructureNames.lootTable(table.toString());
+            if (reload && minecraft.player != null) {
+                minecraft.player.connection.sendCommand("reload");
+                parent.showMessage(Component.translatable("screen.justenoughstructures.container.saved_reloading", name), true, false);
+            } else {
+                parent.showMessage(Component.translatable("screen.justenoughstructures.container.saved_named", name), true, true);
+            }
             minecraft.setScreen(parent);
         });
     }
@@ -118,7 +157,8 @@ public final class TablePickerScreen extends Screen {
             id = new ResourceLocation("justenoughstructures", "chests/" + path.substring(path.lastIndexOf('/') + 1));
         }
         search.setValue(id.toString());
-        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
+        // Saved under whatever id it ends up with, it's typed in here, which picks it.
+        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), saved -> search.setValue(saved.toString())));
     }
 
     @Override
@@ -152,6 +192,7 @@ public final class TablePickerScreen extends Screen {
             int row = (int) ((mouseY - listTop() - 2 + scroll) / ROW);
             if (row >= 0 && row < shown.size()) {
                 picked = shown.get(row);
+                problem = null;
                 updateUse();
                 return true;
             }
@@ -208,6 +249,15 @@ public final class TablePickerScreen extends Screen {
             y += ROW;
         }
         g.disableScissor();
+        if (problem != null) {
+            // Over the top of the list, where it's seen, until something else is picked.
+            List<FormattedCharSequence> lines = font.split(problem, w - 12);
+            int boxH = Math.min(3, lines.size()) * (font.lineHeight + 1) + 6;
+            g.fill(left + 2, listTop() + 2, right - 2, listTop() + 2 + boxH, 0xF0FFE4E4);
+            for (int i = 0; i < Math.min(3, lines.size()); i++) {
+                g.drawString(font, lines.get(i), left + 6, listTop() + 5 + i * (font.lineHeight + 1), 0xFFB02020, false);
+            }
+        }
         super.render(g, mouseX, mouseY, partialTick);
     }
 
@@ -231,6 +281,6 @@ public final class TablePickerScreen extends Screen {
 
     /** Presses Use it. For the screenshot harness. */
     public void useIt() {
-        apply();
+        apply(false);
     }
 }

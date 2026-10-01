@@ -277,7 +277,11 @@ public final class ClientRequests {
         return catalog;
     }
 
-    public static CompletableFuture<Codecs.CaptureReply> capture(ResourceLocation structure, long seed) {
+    /**
+     * Asks the server for a structure. A preview, the one the player is looking at, goes ahead of the
+     * list's pictures on the server.
+     */
+    public static CompletableFuture<Codecs.CaptureReply> capture(ResourceLocation structure, long seed, boolean preview) {
         int id = nextRequestId++;
         CompletableFuture<Codecs.CaptureReply> future = new CompletableFuture<>();
         CAPTURES.put(id, future);
@@ -285,6 +289,7 @@ public final class ClientRequests {
             buf.writeVarInt(id);
             buf.writeResourceLocation(structure);
             buf.writeLong(seed);
+            buf.writeBoolean(preview);
         });
         return future;
     }

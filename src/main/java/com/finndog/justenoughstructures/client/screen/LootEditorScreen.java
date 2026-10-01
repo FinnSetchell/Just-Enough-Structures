@@ -29,6 +29,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -52,8 +53,17 @@ public final class LootEditorScreen extends Screen {
     private static final String BLANK = "{\"type\": \"minecraft:chest\", \"pools\": []}";
 
     private final Screen parent;
-    private final ResourceLocation tableId;
+    private ResourceLocation tableId;
+    /** The id it was opened with, which tableName is the name of. */
+    private final ResourceLocation openedAs;
     private final String tableName;
+    /** Told the id a table was saved under, for the table picker to pick a new one. Null if no one asked. */
+    private final Consumer<ResourceLocation> onSaved;
+    // A new table's id, which can still be changed until it's saved, and anything wrong with it.
+    private EditBox idBox;
+    private Component idProblem;
+    private int idCheck;
+    private boolean idChecking;
 
     private LootOverrides.View view;
     private Component loadProblem;
@@ -80,14 +90,26 @@ public final class LootEditorScreen extends Screen {
     private EditBox itemBox;
     private int contentTop, contentBottom, treeX, treeW, formX, formW, previewX, previewW;
     private int statusRight;
+    private Component statusTooltip;
     private int suggestionsY;
 
     public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName) {
+        this(parent, tableId, tableName, null);
+    }
+
+    public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName, Consumer<ResourceLocation> onSaved) {
         super(Component.translatable("screen.justenoughstructures.editor.title", tableName));
         this.parent = parent;
         this.tableId = tableId;
+        this.openedAs = tableId;
         this.tableName = tableName;
+        this.onSaved = onSaved;
         load();
+    }
+
+    /** A table no mod or datapack has and that hasn't been saved here yet. */
+    private boolean isNew() {
+        return view != null && view.original() == null && view.current() == null;
     }
 
     private void load() {
@@ -146,6 +168,9 @@ public final class LootEditorScreen extends Screen {
 
     private void changed() {
         dirty = true;
+        if (message != null && messageColour == BAD) {
+            message = null;
+        }
         schedulePreview();
     }
 
@@ -175,8 +200,18 @@ public final class LootEditorScreen extends Screen {
             return;
         }
         addStatusActions();
+        idBox = null;
+        if (isNew()) {
+            int labelWidth = font.width(Component.translatable("screen.justenoughstructures.editor.id")) + 4;
+            int boxX = PAD + 8 + labelWidth;
+            idBox = addRenderableWidget(new EditBox(font, boxX, PAD + 18, Math.max(60, Math.min(240, statusRight - 8 - boxX)), 14,
+                    Component.translatable("screen.justenoughstructures.editor.id")));
+            idBox.setMaxLength(256);
+            idBox.setValue(tableId.toString());
+            idBox.setResponder(this::idChanged);
+        }
         if (raw) {
-            rawBox = addRenderableWidget(new MultiLineEditBox(font, treeX, contentTop, formX + formW - treeX, contentBottom - contentTop,
+            rawBox = addRenderableWidget(new JsonEditBox(font, treeX, contentTop, formX + formW - treeX, contentBottom - contentTop,
                     Component.empty(), Component.translatable("screen.justenoughstructures.editor.json")));
             rawBox.setCharacterLimit(Integer.MAX_VALUE);
             rawBox.setValue(rawText == null ? "" : rawText);
@@ -326,6 +361,8 @@ public final class LootEditorScreen extends Screen {
                 if (id != null && BuiltInRegistries.ITEM.containsKey(id) && !TableDraft.name(entry).equals(id.toString())) {
                     TableDraft.setName(entry, id.toString());
                     changed();
+                } else if (id != null && BuiltInRegistries.ITEM.containsKey(id) && message != null && messageColour == BAD) {
+                    message = null;
                 }
             });
             // Suggestions drop down over the fields below while typing, rather than pushing them down.
@@ -449,14 +486,68 @@ public final class LootEditorScreen extends Screen {
         rebuildWidgets();
     }
 
+    /** What has to be fixed before saving, that the table itself doesn't show: a bad item or id. Null if nothing. */
+    private Component unsaveable() {
+        if (itemBox != null) {
+            String text = itemBox.getValue().trim();
+            ResourceLocation item = ResourceLocation.tryParse(text);
+            if (item == null || !BuiltInRegistries.ITEM.containsKey(item)) {
+                return Component.translatable("screen.justenoughstructures.editor.fix_item", text);
+            }
+        }
+        if (isNew()) {
+            if (idProblem != null) {
+                return idProblem;
+            }
+            if (idChecking) {
+                return Component.translatable("screen.justenoughstructures.editor.id_checking");
+            }
+        }
+        return null;
+    }
+
+    /** A new table's id was typed: it's used once it reads as an id and no table has it already. */
+    private void idChanged(String text) {
+        int check = ++idCheck;
+        ResourceLocation id = text.contains(":") ? ResourceLocation.tryParse(text.trim()) : null;
+        if (id == null) {
+            idProblem = Component.translatable("screen.justenoughstructures.editor.bad_id");
+            idChecking = false;
+            return;
+        }
+        idProblem = null;
+        idChecking = true;
+        ClientRequests.table(id).thenAccept(reply -> {
+            if (check != idCheck) {
+                return;
+            }
+            idChecking = false;
+            LootOverrides.View other = reply.view();
+            if (other != null && (other.original() != null || other.current() != null)) {
+                idProblem = Component.translatable("screen.justenoughstructures.editor.id_taken", id.toString());
+            } else {
+                tableId = id;
+            }
+        });
+    }
+
     private void save(boolean thenReload) {
+        Component problem = unsaveable();
+        if (problem != null) {
+            note(problem, BAD);
+            return;
+        }
         String json = json();
-        ClientRequests.saveTable(tableId, json).thenAccept(reply -> {
+        ResourceLocation savedAs = tableId;
+        ClientRequests.saveTable(savedAs, json).thenAccept(reply -> {
             boolean saved = reply.message() != null && reply.message().getContents() instanceof TranslatableContents t
                     && t.getKey().endsWith("override.saved");
             note(reply.message(), saved ? GOOD : BAD);
             if (saved) {
                 dirty = false;
+                if (onSaved != null) {
+                    onSaved.accept(savedAs);
+                }
                 if (thenReload && minecraft.player != null) {
                     minecraft.player.connection.sendCommand("reload");
                     note(Component.translatable("screen.justenoughstructures.editor.saved_reloaded"), GOOD);
@@ -510,6 +601,9 @@ public final class LootEditorScreen extends Screen {
         }
         if (itemBox != null) {
             itemBox.tick();
+        }
+        if (idBox != null) {
+            idBox.tick();
         }
         if (previewDue > 0 && Util.getMillis() >= previewDue && view != null) {
             previewDue = 0;
@@ -617,10 +711,19 @@ public final class LootEditorScreen extends Screen {
         Gui.panel(g, PAD, PAD, width - PAD * 2, height - PAD * 2);
         int headerRight = (view == null ? width - PAD - 6 : statusRight) - 4;
         int textX = PAD + 8;
-        g.drawString(font, Gui.clip(font, title.getString(), headerRight - textX), textX, PAD + 8, Gui.LABEL, false);
+        g.drawString(font, Gui.clip(font, headerTitle().getString(), headerRight - textX), textX, PAD + 8, Gui.LABEL, false);
         Component status = message != null ? message : statusText();
         int statusColour = message != null ? messageColour : statusColour();
-        g.drawString(font, Gui.clip(font, status.getString(), headerRight - textX), textX, PAD + 21, statusColour, false);
+        int statusX = textX;
+        if (idBox != null) {
+            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.id"), textX, PAD + 21, Gui.LABEL_SOFT, false);
+            statusX = idBox.getX() + idBox.getWidth() + 6;
+            if (idProblem != null) {
+                status = idProblem;
+                statusColour = BAD;
+            }
+        }
+        statusLine(g, status, statusX, headerRight, statusColour, mouseX, mouseY);
 
         if (loadProblem != null) {
             Gui.wrapped(g, font, loadProblem, textX, contentTop + 4, width - PAD * 2 - 16, BAD);
@@ -637,11 +740,50 @@ public final class LootEditorScreen extends Screen {
         if (itemBox != null && itemBox.isFocused() && !suggestions.isEmpty()) {
             renderSuggestions(g, mouseX, mouseY);
         }
+        if (statusTooltip != null) {
+            g.renderTooltip(font, font.split(statusTooltip, 260), mouseX, mouseY);
+            statusTooltip = null;
+        }
+    }
+
+    private Component headerTitle() {
+        if (isNew()) {
+            return Component.translatable("screen.justenoughstructures.editor.new_title");
+        }
+        return Component.translatable("screen.justenoughstructures.editor.title", tableId.equals(openedAs) ? tableName
+                : StructureNames.lootTable(tableId.toString()));
+    }
+
+    /**
+     * The line under the title. When it's too long for one line it goes over two in smaller text,
+     * and anything still left over is in a tooltip, so a message is never just cut off.
+     */
+    private void statusLine(GuiGraphics g, Component status, int x, int right, int colour, int mouseX, int mouseY) {
+        int room = right - x;
+        if (room < 20) {
+            return;
+        }
+        if (font.width(status) <= room) {
+            g.drawString(font, status, x, PAD + 21, colour, false);
+            return;
+        }
+        float scale = Gui.smallScale();
+        List<FormattedCharSequence> lines = font.split(status, (int) (room / scale));
+        int line = (int) Math.ceil(font.lineHeight * scale);
+        for (int i = 0; i < Math.min(2, lines.size()); i++) {
+            Gui.scaled(g, font, lines.get(i), x, PAD + 18 + i * (line + 1), colour, scale);
+        }
+        if (lines.size() > 2 && mouseX >= x && mouseX < right && mouseY >= PAD + 17 && mouseY < PAD + 19 + 2 * (line + 1)) {
+            statusTooltip = status;
+        }
     }
 
     private Component statusText() {
         if (view == null) {
             return Component.empty();
+        }
+        if (isNew()) {
+            return Component.translatable("screen.justenoughstructures.editor.status.new");
         }
         return Component.translatable("screen.justenoughstructures.editor.status." + view.status().name().toLowerCase(Locale.ROOT));
     }
@@ -861,5 +1003,29 @@ public final class LootEditorScreen extends Screen {
 
     public boolean loaded() {
         return view != null || loadProblem != null;
+    }
+
+    /** For the screenshot harness: the JSON view with this text in it. */
+    public void showJson(String text) {
+        if (!raw) {
+            toggleMode();
+        }
+        if (rawBox != null) {
+            rawBox.setValue(text);
+        }
+    }
+
+    /** For the screenshot harness: types into the picked item's box. */
+    public void typeItem(String text) {
+        if (itemBox != null) {
+            itemBox.setValue(text);
+        }
+    }
+
+    /** Save, for the screenshot harness. */
+    public void saveNow() {
+        if (view != null) {
+            save(false);
+        }
     }
 }

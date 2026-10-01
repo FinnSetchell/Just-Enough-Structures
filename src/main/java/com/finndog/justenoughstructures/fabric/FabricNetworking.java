@@ -27,7 +27,8 @@ final class FabricNetworking {
             int requestId = buf.readVarInt();
             ResourceLocation structure = buf.readResourceLocation();
             long seed = buf.readLong();
-            server.execute(() -> JesServer.onRequestCapture(player, requestId, structure, seed));
+            boolean preview = buf.readBoolean();
+            server.execute(() -> JesServer.onRequestCapture(player, requestId, structure, seed, preview));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_LOOT, (server, player, handler, buf, responder) -> {

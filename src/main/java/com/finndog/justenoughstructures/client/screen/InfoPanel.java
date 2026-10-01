@@ -138,6 +138,10 @@ final class InfoPanel {
         this.odds = null;
     }
 
+    String selectedTable() {
+        return selectedTable;
+    }
+
     void setSelectedTable(String table) {
         this.selectedTable = table;
         this.odds = null;
@@ -654,6 +658,47 @@ final class InfoPanel {
                 onOpenContainer.accept(first);
             }));
             cy += rowHeight + 1;
+        }
+
+        // Tables this layout happens not to have, from every layout the structure can generate, so
+        // their odds can be seen and edited without rolling new layouts until one turns up.
+        Set<ResourceLocation> everyTable = FoundIn.tablesIn(entry.id());
+        if (everyTable == null) {
+            ClientRequests.index();
+        } else {
+            List<String> others = everyTable.stream().map(ResourceLocation::toString).filter(t -> !groups.containsKey(t))
+                    .sorted(Comparator.comparing(StructureNames::lootTable)).toList();
+            if (!others.isEmpty()) {
+                cy += 2;
+                fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+                cy += secondaryLine() + 2;
+            }
+            for (String table : others) {
+                int rowHeight = 15 + secondaryLine();
+                boolean selected = table.equals(selectedTable);
+                boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
+                Gui.card(g, x, cy, contentRight - x, rowHeight);
+                if (selected || hovered) {
+                    g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+                }
+                Gui.slot(g, x + PAD + 1, cy + 2);
+                g.renderItem(SECRET_ICON, x + PAD + 2, cy + 3);
+                int textWidth = contentRight - x - PAD - 23 - 12;
+                Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 3, textWidth, TEXT);
+                fine(g, fineClip(Component.translatable("screen.justenoughstructures.not_in_layout").getString(), textWidth),
+                        x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+                g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
+                if (hovered) {
+                    hoveredText = List.of(Component.literal(StructureNames.lootTable(table)),
+                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY));
+                }
+                if (selected) {
+                    selectedCount = 1;
+                    selectedName = Component.translatable("screen.justenoughstructures.container").getString();
+                }
+                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
+                cy += rowHeight + 1;
+            }
         }
 
         return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, selectedCount, selectedName);

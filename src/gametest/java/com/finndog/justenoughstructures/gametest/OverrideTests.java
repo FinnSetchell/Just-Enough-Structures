@@ -78,7 +78,7 @@ public final class OverrideTests {
         MinecraftServer server = helper.getLevel().getServer();
         Path dir = freshFolder();
         try {
-            helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, "{ not json")).endsWith("invalid_json"),
+            helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, "{ not json")).contains("invalid_json"),
                     "broken JSON wasn't refused");
             String unknownEntry = "{\"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:nonsense\"}]}]}";
             helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, unknownEntry)).endsWith("invalid_table"),
@@ -254,7 +254,7 @@ public final class OverrideTests {
             helper.assertTrue(odds != null && odds.rows().size() == 1 && odds.rows().get(0).example().is(Items.DIAMOND)
                     && odds.rows().get(0).hits() == odds.rolls(), "the draft didn't roll a diamond every time: " + rolled.problem());
             JesServer.DraftOdds broken = JesServer.draftOdds(player, IGLOO, "{ not json");
-            helper.assertTrue(broken.odds() == null && key(broken.problem()).endsWith("invalid_json"), "a broken draft was rolled");
+            helper.assertTrue(broken.odds() == null && key(broken.problem()).contains("invalid_json"), "a broken draft was rolled");
         } finally {
             ServerConfig.set(before);
         }

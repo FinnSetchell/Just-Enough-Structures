@@ -103,6 +103,10 @@ public class JesScreen extends Screen {
     private boolean locating;
     private int locateAccess;
     private int seenReloads = ClientRequests.reloads();
+    private int captureRequest;
+    private boolean messageUntilReload;
+    /** Set when the preview was let go because another screen opened over this one. */
+    private boolean dropped;
     private boolean markersSecret;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
@@ -286,6 +290,10 @@ public class JesScreen extends Screen {
                 .bounds(0, 0, 44, 20).build());
         layoutPopupButtons();
 
+        if (dropped && catalog != null && selected != null) {
+            dropped = false;
+            refetch();
+        }
         if (catalog == null && catalogError == null) {
             if (!ClientRequests.serverSupported()) {
                 catalogError = "screen.justenoughstructures.no_server";
@@ -312,6 +320,10 @@ public class JesScreen extends Screen {
         // After a /reload the structure may have changed, like a container pointed at another table, so it's generated again.
         if (ClientRequests.reloads() != seenReloads) {
             seenReloads = ClientRequests.reloads();
+            if (messageUntilReload) {
+                locateText = null;
+                messageUntilReload = false;
+            }
             if (selected != null) {
                 select(selected, seed);
             }
@@ -386,8 +398,29 @@ public class JesScreen extends Screen {
         updateSlider();
         ResourceLocation id = entry.id();
         long wanted = newSeed;
-        ClientRequests.capture(id, newSeed).thenAccept(reply -> {
-            if (selected != null && selected.id().equals(id) && seed == wanted && reply.id().equals(id)) {
+        // Only the newest request counts: an older one for the same structure can come back after it,
+        // skipped by the server because this one replaced it.
+        int request = ++captureRequest;
+        ClientRequests.capture(id, newSeed, true).thenAccept(reply -> {
+            if (request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted && reply.id().equals(id)) {
+                onCaptured(reply.result());
+            }
+        });
+    }
+
+    /**
+     * Asks again for the structure on show, after another screen was opened over this one and it
+     * was let go. The server still has it, so it's quick, and the open chest and picked table stay.
+     */
+    private void refetch() {
+        ResourceLocation id = selected.id();
+        long wanted = seed;
+        if (info.selectedTable() != null) {
+            pendingTable = info.selectedTable();
+        }
+        int request = ++captureRequest;
+        ClientRequests.capture(id, wanted, true).thenAccept(reply -> {
+            if (request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted && reply.id().equals(id)) {
                 onCaptured(reply.result());
             }
         });
@@ -615,7 +648,10 @@ public class JesScreen extends Screen {
             case CHANGE -> minecraft.setScreen(new TablePickerScreen(this, container.source(), container.lootTable(), open.title));
             case EDIT -> openEditor(container.lootTable());
             case UNDO -> ClientRequests.containerAction(container.source().template(), container.source().pos(), null)
-                    .thenAccept(reply -> showMessage(reply.message()));
+                    .thenAccept(reply -> {
+                        boolean undone = replyIs(reply.message(), "container.removed");
+                        showMessage(reply.message(), undone, undone);
+                    });
         }
     }
 
@@ -626,9 +662,23 @@ public class JesScreen extends Screen {
 
     /** Says something in the preview's top line, where locate results go, for a few seconds. */
     public void showMessage(Component text) {
+        showMessage(text, true, false);
+    }
+
+    /**
+     * Says something in the preview's top line, green if it went well and red if not. A change that
+     * only applies from the next /reload stays until then, so it can't be missed.
+     */
+    public void showMessage(Component text, boolean good, boolean untilReload) {
         locateText = text;
-        locateFound = true;
-        locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+        locateFound = good;
+        locateUntil = untilReload ? Long.MAX_VALUE - 1 : System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+        messageUntilReload = untilReload;
+    }
+
+    /** Whether a reply from the server says it did what was asked, by the message's key. */
+    static boolean replyIs(Component reply, String keyEnd) {
+        return reply != null && reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith(keyEnd);
     }
 
     /** The loot table editor, from the Loot tab's Edit link. Coming back returns here. */
@@ -959,10 +1009,12 @@ public class JesScreen extends Screen {
 
     private Component headerOverflow;
     private int headerRoom;
+    private int headerLines = 1;
 
     /** The locate line under the mouse when it's cut short, to show in full as a tooltip. */
     private Component clippedHeaderLine(int mouseX, int mouseY) {
-        boolean over = mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 5 && mouseY < viewY + 16;
+        boolean over = mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 5
+                && mouseY < viewY + 6 + headerLines * (font.lineHeight + 1);
         return over ? headerOverflow : null;
     }
 
@@ -1059,12 +1111,18 @@ public class JesScreen extends Screen {
             locateText = null;
         }
         headerOverflow = null;
+        headerLines = 1;
         if (locateText != null) {
             int room = Math.max(0, overlayLeft() - 4 - (viewX + 6));
             headerRoom = room;
             int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
-            g.drawString(font, Gui.clip(font, locateText.getString(), room), viewX + 6, viewY + 6, colour, true);
-            headerOverflow = font.width(locateText) > room ? locateText : null;
+            List<FormattedCharSequence> lines = room > 20 ? font.split(locateText, room) : List.of();
+            int shown = Math.min(3, lines.size());
+            for (int i = 0; i < shown; i++) {
+                g.drawString(font, lines.get(i), viewX + 6, viewY + 6 + i * (font.lineHeight + 1), colour, true);
+            }
+            headerLines = Math.max(1, shown);
+            headerOverflow = lines.size() > shown ? locateText : null;
         }
         if (viewport.meshing()) {
             int barW = Math.min(120, viewW - 20);
@@ -1409,6 +1467,8 @@ public class JesScreen extends Screen {
         viewport.close();
         thumbnails.close();
         // A big preview can be hundreds of megabytes; don't keep it around once the screen's gone.
+        // Coming back to it, from the loot editor say, fetches it again.
+        dropped = result != null;
         view = null;
         result = null;
         groupedFor = null;

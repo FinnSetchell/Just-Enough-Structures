@@ -48,6 +48,7 @@ final class Scenarios {
             case "viewer" -> ViewerScenario.build(mc);
             case "details" -> DetailsScenario.build(mc);
             case "tabs" -> InfoTabsScenario.build(mc);
+            case "lootfixes" -> LootFixesScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

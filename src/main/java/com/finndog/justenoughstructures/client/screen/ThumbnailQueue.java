@@ -53,7 +53,7 @@ final class ThumbnailQueue {
     private void start(ResourceLocation id) {
         waiting = true;
         current = id;
-        ClientRequests.capture(id, StructureCapture.defaultSeed(id)).thenAccept(reply -> {
+        ClientRequests.capture(id, StructureCapture.defaultSeed(id), false).thenAccept(reply -> {
             waiting = false;
             Minecraft mc = Minecraft.getInstance();
             if (!reply.result().succeeded() || mc.level == null) {

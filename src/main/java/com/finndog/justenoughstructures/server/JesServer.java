@@ -34,8 +34,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -54,12 +56,33 @@ public final class JesServer {
     private static final int MAX_QUEUED_PER_PLAYER = 3;
 
     // Structure generation normally runs on worker threads, so structure code expects to run off the
-    // server thread. One thread keeps a busy screen from flooding the server with work.
-    private static final ExecutorService CAPTURES = Executors.newSingleThreadExecutor(r -> {
+    // server thread. One thread keeps a busy screen from flooding the server with work. Its queue puts
+    // the structure a player is looking at ahead of the list's pictures, which can take a while each.
+    private static final ThreadPoolExecutor CAPTURES = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
+            new PriorityBlockingQueue<>(), r -> {
         Thread t = new Thread(r, "Just Enough Structures capture");
         t.setDaemon(true);
         return t;
     });
+    private static final AtomicLong CAPTURE_ORDER = new AtomicLong();
+    /** Each player's newest preview, so ones they've already moved on from aren't generated. */
+    private static final Map<UUID, Integer> LATEST_PREVIEW = new ConcurrentHashMap<>();
+
+    /** A capture waiting its turn: previews first, then in the order they were asked for. */
+    private record CaptureTask(boolean preview, long order, Runnable work) implements Runnable, Comparable<CaptureTask> {
+        @Override
+        public void run() {
+            work.run();
+        }
+
+        @Override
+        public int compareTo(CaptureTask other) {
+            if (preview != other.preview) {
+                return preview ? -1 : 1;
+            }
+            return Long.compare(order, other.order);
+        }
+    }
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
     private static final Map<String, byte[]> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true) {
@@ -332,7 +355,7 @@ public final class JesServer {
         return hidesLootLocations(structure) ? result.withoutLoot() : result;
     }
 
-    public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed) {
+    public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, boolean preview) {
         MinecraftServer server = player.getServer();
         if (ServerConfig.hides(structure)) {
             CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
@@ -350,8 +373,10 @@ public final class JesServer {
             return;
         }
 
+        // Only the list's pictures count towards a player's limit: the preview they're looking at is
+        // never turned away, and a newer one replaces any they haven't been shown yet.
         AtomicInteger queued = QUEUED.computeIfAbsent(player.getUUID(), id -> new AtomicInteger());
-        if (queued.incrementAndGet() > MAX_QUEUED_PER_PLAYER) {
+        if (!preview && queued.incrementAndGet() > MAX_QUEUED_PER_PLAYER) {
             queued.decrementAndGet();
             CaptureResult busy = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
@@ -360,7 +385,21 @@ public final class JesServer {
         }
 
         UUID playerId = player.getUUID();
-        CAPTURES.execute(() -> {
+        if (preview) {
+            LATEST_PREVIEW.put(playerId, requestId);
+        }
+        CAPTURES.execute(new CaptureTask(preview, CAPTURE_ORDER.getAndIncrement(), () -> {
+            if (preview && !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))) {
+                CaptureResult skipped = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
+                byte[] reply = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
+                server.execute(() -> {
+                    ServerPlayer target = server.getPlayerList().getPlayer(playerId);
+                    if (target != null) {
+                        sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, reply);
+                    }
+                });
+                return;
+            }
             byte[] payload;
             try {
                 CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
@@ -375,7 +414,9 @@ public final class JesServer {
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
                 payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {
-                queued.decrementAndGet();
+                if (!preview) {
+                    queued.decrementAndGet();
+                }
             }
             byte[] done = payload;
             server.execute(() -> {
@@ -384,7 +425,7 @@ public final class JesServer {
                     sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, done);
                 }
             });
-        });
+        }));
     }
 
     public static void onRequestLoot(ServerPlayer player, int requestId, ResourceLocation table, long seed, int size) {

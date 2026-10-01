@@ -13,6 +13,9 @@
     "StructureTemplateMixin",
     "TemplateStructurePieceAccessor"
   ],
+  "client": [
+    "MultiLineEditBoxAccessor"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
