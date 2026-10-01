@@ -201,6 +201,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void oldSettingsFilesGainNewSettings(GameTestHelper helper) {
+        SettingsTests.oldSettingsFilesGainNewSettings(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenStructuresStayHidden(GameTestHelper helper) {
         SettingsTests.hiddenStructuresStayHidden(helper);
     }

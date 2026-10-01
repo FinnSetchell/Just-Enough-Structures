@@ -100,6 +100,45 @@ public final class SettingsTests {
         helper.succeed();
     }
 
+    /** A file from before newer settings existed gains them, keeps its owner's values, and the old one is kept. */
+    public static void oldSettingsFilesGainNewSettings(GameTestHelper helper) {
+        ServerConfig.Settings before = ServerConfig.get();
+        try {
+            Path file = Files.createTempDirectory("jes-config").resolve("server.json5");
+            String old = """
+                    {
+                      "hidden": ["minecraft:igloo"],
+                      "locate_permission": 0,
+                      "teleport_permission": 3
+                    }
+                    """;
+            Files.writeString(file, old);
+            ServerConfig.Settings loaded = ServerConfig.load(file);
+            String now = Files.readString(file);
+            helper.assertTrue(now.contains("\"edit_permission\"") && now.contains("\"container_changes\"") && now.contains("\"show_loot_locations\""),
+                    "the new settings weren't added to the file");
+            helper.assertTrue(now.contains("// Who can use the locate button"), "the file wasn't given the template's comments");
+            ServerConfig.Settings reread = ServerConfig.parse(now, "test");
+            helper.assertTrue(reread.equals(loaded) && loaded.locatePermission() == 0 && loaded.teleportPermission() == 3
+                    && loaded.hides(new ResourceLocation("igloo")), "the owner's values changed: " + reread);
+            Path kept = file.resolveSibling("server.json5.old");
+            helper.assertTrue(Files.exists(kept) && Files.readString(kept).equals(old), "the old file wasn't kept as it was");
+
+            // A complete file is left exactly as it is, and a broken one isn't touched.
+            String complete = now;
+            ServerConfig.load(file);
+            helper.assertTrue(Files.readString(file).equals(complete), "a complete file was written again");
+            Files.writeString(file, "{ not json");
+            ServerConfig.load(file);
+            helper.assertTrue(Files.readString(file).equals("{ not json"), "a broken file was written over");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary file", e);
+        } finally {
+            ServerConfig.set(before);
+        }
+        helper.succeed();
+    }
+
     /** Settings saved from the config screen read back the same, and the file keeps its comments. */
     public static void serverSettingsWriteBack(GameTestHelper helper) {
         ServerConfig.Settings settings = new ServerConfig.Settings(Set.of(new ResourceLocation("igloo"), new ResourceLocation("somemod", "tower")),

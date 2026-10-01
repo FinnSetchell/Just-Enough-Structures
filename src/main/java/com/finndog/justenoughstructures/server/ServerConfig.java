@@ -10,6 +10,7 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -110,13 +111,49 @@ public final class ServerConfig {
                 Files.createDirectories(file.getParent());
                 Files.writeString(file, render(DEFAULTS));
             }
-            current = parse(Files.readString(file), file.toString(), true);
+            String text = Files.readString(file);
+            current = parse(text, file.toString(), true);
+            addMissingSettings(file, text, current);
         } catch (IOException e) {
             JesLog.warnOnce("read:" + file + "|" + e, "Couldn't read {}, using the default settings: {}", file, e.toString());
             JesLog.debug("Couldn't read {}", file, e);
             current = DEFAULTS;
         }
         return current;
+    }
+
+    /** Every setting the file has, in the order it lists them. */
+    private static final List<String> KEYS = List.of("hidden", "locate_permission", "teleport_permission", "show_loot_locations",
+            "edit_permission", "container_changes");
+
+    /**
+     * A file written by an older version doesn't have the settings added since, so its owner can't
+     * see them to change them. It's written again from the template, with its comments and the
+     * owner's own values, and the file as it was is kept beside it. A file that doesn't read is left
+     * alone for its owner to fix.
+     */
+    private static void addMissingSettings(Path file, String text, Settings settings) {
+        JsonObject json;
+        try {
+            JsonElement parsed = JsonParser.parseString(text);
+            if (!parsed.isJsonObject()) {
+                return;
+            }
+            json = parsed.getAsJsonObject();
+        } catch (JsonParseException e) {
+            return;
+        }
+        List<String> missing = KEYS.stream().filter(key -> !json.has(key)).toList();
+        if (missing.isEmpty()) {
+            return;
+        }
+        try {
+            Files.copy(file, file.resolveSibling(file.getFileName() + ".old"), StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(file, render(settings));
+            JesLog.debug("Added {} to {}, keeping the old file as {}.old", missing, file, file.getFileName());
+        } catch (IOException e) {
+            JesLog.debug("Couldn't add {} to {}", missing, file, e);
+        }
     }
 
     /** The settings in the file, without applying them. The defaults if there's no file or it can't be read. */
