@@ -41,8 +41,9 @@ import org.lwjgl.glfw.GLFW;
  * the form doesn't cover can be edited as JSON. Saving writes an override, which applies from the
  * next /reload; the server refuses anything the game couldn't load.
  */
-public final class LootEditorScreen extends Screen {
+public final class LootEditorScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
+    private static final int TOP = NavBar.TOP;
     private static final int ROW = 18;
     private static final int GOOD = 0xFF2E7D1F;
     private static final int BAD = 0xFFB02020;
@@ -53,6 +54,7 @@ public final class LootEditorScreen extends Screen {
     private static final String BLANK = "{\"type\": \"minecraft:chest\", \"pools\": []}";
 
     private final Screen parent;
+    private final NavBar navBar = new NavBar(this);
     private ResourceLocation tableId;
     /** The id it was opened with, which tableName is the name of. */
     private final ResourceLocation openedAs;
@@ -185,7 +187,7 @@ public final class LootEditorScreen extends Screen {
         int left = PAD + 6;
         int right = width - PAD - 6;
         int content = right - left;
-        contentTop = PAD + 38;
+        contentTop = TOP + 38;
         contentBottom = height - PAD - 30;
         // Narrow windows lose the preview rather than squash the form.
         previewW = content >= 420 ? Math.max(110, content * 30 / 100) : 0;
@@ -204,7 +206,7 @@ public final class LootEditorScreen extends Screen {
         if (isNew()) {
             int labelWidth = font.width(Component.translatable("screen.justenoughstructures.editor.id")) + 4;
             int boxX = PAD + 8 + labelWidth;
-            idBox = addRenderableWidget(new EditBox(font, boxX, PAD + 18, Math.max(60, Math.min(240, statusRight - 8 - boxX)), 14,
+            idBox = addRenderableWidget(new EditBox(font, boxX, TOP + 18, Math.max(60, Math.min(240, statusRight - 8 - boxX)), 14,
                     Component.translatable("screen.justenoughstructures.editor.id")));
             idBox.setMaxLength(256);
             idBox.setValue(tableId.toString());
@@ -295,7 +297,7 @@ public final class LootEditorScreen extends Screen {
         List<Button> actions = new ArrayList<>();
         if (view.status() == LootOverrides.Status.ORIGINAL_CHANGED) {
             actions.add(Button.builder(Component.translatable("screen.justenoughstructures.editor.see_changes"),
-                    b -> minecraft.setScreen(new DiffScreen(this, tableName, view.original(), json()))).build());
+                    b -> showChanges()).build());
             actions.add(Button.builder(Component.translatable("screen.justenoughstructures.editor.merge"), b -> merge())
                     .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.merge_hint"))).build());
         }
@@ -309,7 +311,7 @@ public final class LootEditorScreen extends Screen {
             int w = font.width(button.getMessage()) + 12;
             x -= w;
             button.setX(x);
-            button.setY(PAD + 7);
+            button.setY(TOP + 7);
             button.setWidth(w);
             addRenderableWidget(button);
             x -= 4;
@@ -626,7 +628,49 @@ public final class LootEditorScreen extends Screen {
             save(false);
             return true;
         }
+        if (navBar.keyPressed(key, modifiers)) {
+            return true;
+        }
         return super.keyPressed(key, scan, modifiers);
+    }
+
+    /** Where the editor is, for Back and Forward: which table. */
+    private record EditorLayer(ResourceLocation id, String name, boolean isNew) implements Nav.Layer {
+        @Override
+        public Object key() {
+            return java.util.List.of("editor", id);
+        }
+
+        @Override
+        public Component label() {
+            return isNew ? Component.translatable("screen.justenoughstructures.nav.new_table")
+                    : Component.translatable("screen.justenoughstructures.nav.editor", name);
+        }
+
+        @Override
+        public Screen open(Screen below) {
+            return new LootEditorScreen(below, id, name, below instanceof TablePickerScreen picker ? picker::useSaved : null);
+        }
+    }
+
+    @Override
+    public Nav.Layer layer() {
+        return new EditorLayer(openedAs, tableName, isNew());
+    }
+
+    @Override
+    public Screen below() {
+        return parent;
+    }
+
+    @Override
+    public boolean unsaved() {
+        return dirty;
+    }
+
+    @Override
+    public void discard() {
+        dirty = false;
     }
 
     @Override
@@ -644,6 +688,9 @@ public final class LootEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (navBar.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
         if (itemBox != null && itemBox.isFocused() && !suggestions.isEmpty()) {
             int index = (int) ((mouseY - suggestionsY) / ROW);
             if (mouseX >= formX && mouseX < formX + formW && mouseY >= suggestionsY && index >= 0 && index < suggestions.size()) {
@@ -708,22 +755,22 @@ public final class LootEditorScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
-        Gui.panel(g, PAD, PAD, width - PAD * 2, height - PAD * 2);
+        Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int headerRight = (view == null ? width - PAD - 6 : statusRight) - 4;
         int textX = PAD + 8;
         // Edits not saved yet are marked beside the title, which gives way to the mark if it's long.
         String unsaved = dirty && view != null ? Component.translatable("screen.justenoughstructures.editor.unsaved").getString() : null;
         int markRoom = unsaved == null ? 0 : Gui.smallWidth(font, unsaved) + 8;
         String shownTitle = Gui.clip(font, headerTitle().getString(), headerRight - textX - markRoom);
-        g.drawString(font, shownTitle, textX, PAD + 8, Gui.LABEL, false);
+        g.drawString(font, shownTitle, textX, TOP + 8, Gui.LABEL, false);
         if (unsaved != null) {
-            Gui.small(g, font, unsaved, textX + font.width(shownTitle) + 8, PAD + 9, WARN);
+            Gui.small(g, font, unsaved, textX + font.width(shownTitle) + 8, TOP + 9, WARN);
         }
         Component status = message != null ? message : statusText();
         int statusColour = message != null ? messageColour : statusColour();
         int statusX = textX;
         if (idBox != null) {
-            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.id"), textX, PAD + 21, Gui.LABEL_SOFT, false);
+            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.id"), textX, TOP + 21, Gui.LABEL_SOFT, false);
             statusX = idBox.getX() + idBox.getWidth() + 6;
             if (idProblem != null) {
                 status = idProblem;
@@ -747,6 +794,7 @@ public final class LootEditorScreen extends Screen {
         if (itemBox != null && itemBox.isFocused() && !suggestions.isEmpty()) {
             renderSuggestions(g, mouseX, mouseY);
         }
+        navBar.render(g, font, mouseX, mouseY, partialTick);
         if (statusTooltip != null) {
             g.renderTooltip(font, font.split(statusTooltip, 260), mouseX, mouseY);
             statusTooltip = null;
@@ -771,16 +819,16 @@ public final class LootEditorScreen extends Screen {
             return;
         }
         if (font.width(status) <= room) {
-            g.drawString(font, status, x, PAD + 21, colour, false);
+            g.drawString(font, status, x, TOP + 21, colour, false);
             return;
         }
         float scale = Gui.smallScale();
         List<FormattedCharSequence> lines = font.split(status, (int) (room / scale));
         int line = (int) Math.ceil(font.lineHeight * scale);
         for (int i = 0; i < Math.min(2, lines.size()); i++) {
-            Gui.scaled(g, font, lines.get(i), x, PAD + 18 + i * (line + 1), colour, scale);
+            Gui.scaled(g, font, lines.get(i), x, TOP + 18 + i * (line + 1), colour, scale);
         }
-        if (lines.size() > 2 && mouseX >= x && mouseX < right && mouseY >= PAD + 17 && mouseY < PAD + 19 + 2 * (line + 1)) {
+        if (lines.size() > 2 && mouseX >= x && mouseX < right && mouseY >= TOP + 17 && mouseY < TOP + 19 + 2 * (line + 1)) {
             statusTooltip = status;
         }
     }
@@ -987,9 +1035,10 @@ public final class LootEditorScreen extends Screen {
         return false;
     }
 
-    /** See changes, for the screenshot harness. */
+    /** The mod's table and this edit side by side. Public for the screenshot harness. */
     public void showChanges() {
         if (view != null) {
+            Nav.remember();
             minecraft.setScreen(new DiffScreen(this, tableName, view.original(), json()));
         }
     }

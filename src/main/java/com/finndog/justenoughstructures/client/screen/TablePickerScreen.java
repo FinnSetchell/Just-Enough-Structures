@@ -21,13 +21,16 @@ import net.minecraft.util.FormattedCharSequence;
  * by id, or a new one made and saved in the editor first. The change is saved on the server as a
  * patch to the container's template and applies from the next /reload.
  */
-public final class TablePickerScreen extends Screen {
+public final class TablePickerScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
+    private static final int TOP = NavBar.TOP;
     private static final int ROW = 22;
 
     private final JesScreen parent;
     private final StructureSnapshot.Source source;
     private final String current;
+    private final Component containerName;
+    private final NavBar navBar = new NavBar(this);
 
     private EditBox search;
     private Button use;
@@ -45,7 +48,46 @@ public final class TablePickerScreen extends Screen {
         this.parent = parent;
         this.source = source;
         this.current = current;
+        this.containerName = containerName;
         ClientRequests.index();
+    }
+
+    /** Where the picker is, for Back and Forward: which container it's picking for. */
+    private record PickerLayer(StructureSnapshot.Source source, String current, Component containerName) implements Nav.Layer {
+        @Override
+        public Object key() {
+            return List.of("picker", source.template(), source.pos());
+        }
+
+        @Override
+        public Component label() {
+            return Component.translatable("screen.justenoughstructures.nav.picker");
+        }
+
+        @Override
+        public Screen open(Screen below) {
+            return new TablePickerScreen((JesScreen) below, source, current, containerName);
+        }
+
+        @Override
+        public boolean sameScreen(Nav.Layer other) {
+            return key().equals(other.key());
+        }
+    }
+
+    @Override
+    public Nav.Layer layer() {
+        return new PickerLayer(source, current, containerName);
+    }
+
+    @Override
+    public Screen below() {
+        return parent;
+    }
+
+    /** A table just saved in the editor, typed in here, which picks it. */
+    void useSaved(ResourceLocation id) {
+        search.setValue(id.toString());
     }
 
     @Override
@@ -53,7 +95,7 @@ public final class TablePickerScreen extends Screen {
         int left = PAD + 6;
         int right = width - PAD - 6;
         String text = search == null ? "" : search.getValue();
-        search = addRenderableWidget(new EditBox(font, left + 1, PAD + 34, right - left - 2, 16, Component.translatable("screen.justenoughstructures.picker.search")));
+        search = addRenderableWidget(new EditBox(font, left + 1, TOP + 34, right - left - 2, 16, Component.translatable("screen.justenoughstructures.picker.search")));
         search.setMaxLength(256);
         search.setHint(Component.translatable("screen.justenoughstructures.picker.search"));
         search.setValue(text);
@@ -157,8 +199,9 @@ public final class TablePickerScreen extends Screen {
             id = new ResourceLocation("justenoughstructures", "chests/" + path.substring(path.lastIndexOf('/') + 1));
         }
         search.setValue(id.toString());
+        Nav.remember();
         // Saved under whatever id it ends up with, it's typed in here, which picks it.
-        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), saved -> search.setValue(saved.toString())));
+        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), this::useSaved));
     }
 
     @Override
@@ -177,7 +220,7 @@ public final class TablePickerScreen extends Screen {
     }
 
     private int listTop() {
-        return PAD + 56;
+        return TOP + 56;
     }
 
     private int listBottom() {
@@ -186,6 +229,9 @@ public final class TablePickerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (navBar.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
         int left = PAD + 6;
         int right = width - PAD - 6;
         if (mouseX >= left && mouseX < right && mouseY >= listTop() && mouseY < listBottom()) {
@@ -209,13 +255,13 @@ public final class TablePickerScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
-        Gui.panel(g, PAD, PAD, width - PAD * 2, height - PAD * 2);
+        Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = PAD + 6;
         int right = width - PAD - 6;
         int w = right - left;
-        g.drawString(font, Gui.clip(font, title.getString(), w), left + 2, PAD + 8, Gui.LABEL, false);
+        g.drawString(font, Gui.clip(font, title.getString(), w), left + 2, TOP + 8, Gui.LABEL, false);
         String from = Component.translatable("screen.justenoughstructures.picker.from", source.template().toString()).getString();
-        Gui.small(g, font, Gui.clipSmall(font, from, w), left + 2, PAD + 21, Gui.LABEL_SOFT);
+        Gui.small(g, font, Gui.clipSmall(font, from, w), left + 2, TOP + 21, Gui.LABEL_SOFT);
 
         Gui.inset(g, left, listTop(), w, listBottom() - listTop(), Gui.PANEL);
         if (!FoundIn.ready() && shown.isEmpty()) {
@@ -259,6 +305,12 @@ public final class TablePickerScreen extends Screen {
             }
         }
         super.render(g, mouseX, mouseY, partialTick);
+        navBar.render(g, font, mouseX, mouseY, partialTick);
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scanCode, int modifiers) {
+        return navBar.keyPressed(key, modifiers) || super.keyPressed(key, scanCode, modifiers);
     }
 
     @Override

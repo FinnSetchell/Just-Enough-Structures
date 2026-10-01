@@ -16,8 +16,9 @@ import net.minecraft.network.chat.Component;
  * The mod's current table and an edit of it side by side, line by line, with what one has and the
  * other doesn't marked. For deciding what to do when a mod has changed a table since it was edited.
  */
-final class DiffScreen extends Screen {
+final class DiffScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
+    private static final int TOP = NavBar.TOP;
     private static final int LINE = 10;
     private static final int GONE = 0x40FF3030;
     private static final int ADDED = 0x4030C030;
@@ -33,13 +34,48 @@ final class DiffScreen extends Screen {
     }
 
     private final Screen parent;
+    private final String tableName;
+    private final String theirs;
+    private final String yours;
     private final List<Row> rows;
+    private final NavBar navBar = new NavBar(this);
     private double scroll;
 
     DiffScreen(Screen parent, String tableName, String theirs, String yours) {
         super(Component.translatable("screen.justenoughstructures.editor.diff.title", tableName));
         this.parent = parent;
+        this.tableName = tableName;
+        this.theirs = theirs;
+        this.yours = yours;
         this.rows = diff(lines(theirs), lines(yours));
+    }
+
+    /** Where this is, for Back and Forward: the changes to one table, as they were. */
+    private record DiffLayer(String tableName, String theirs, String yours) implements Nav.Layer {
+        @Override
+        public Object key() {
+            return List.of("diff", tableName);
+        }
+
+        @Override
+        public Component label() {
+            return Component.translatable("screen.justenoughstructures.nav.diff", tableName);
+        }
+
+        @Override
+        public Screen open(Screen below) {
+            return new DiffScreen(below, tableName, theirs, yours);
+        }
+    }
+
+    @Override
+    public Nav.Layer layer() {
+        return new DiffLayer(tableName, theirs == null ? "" : theirs, yours == null ? "" : yours);
+    }
+
+    @Override
+    public Screen below() {
+        return parent;
     }
 
     /** The JSON laid out the same way on both sides, so only real differences show. */
@@ -124,13 +160,23 @@ final class DiffScreen extends Screen {
     }
 
     @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return navBar.mouseClicked(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scanCode, int modifiers) {
+        return navBar.keyPressed(key, modifiers) || super.keyPressed(key, scanCode, modifiers);
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         scroll = Math.max(0, Math.min(scroll - delta * LINE * 3, Math.max(0, rows.size() * LINE - (bottom() - top()))));
         return true;
     }
 
     private int top() {
-        return PAD + 32;
+        return TOP + 32;
     }
 
     private int bottom() {
@@ -140,15 +186,15 @@ final class DiffScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
-        Gui.panel(g, PAD, PAD, width - PAD * 2, height - PAD * 2);
+        Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = PAD + 6;
         int column = (width - PAD * 2 - 18) / 2;
         int right = left + column + 6;
-        g.drawString(font, Gui.clip(font, title.getString(), width - PAD * 2 - 16), left, PAD + 8, Gui.LABEL, false);
+        g.drawString(font, Gui.clip(font, title.getString(), width - PAD * 2 - 16), left, TOP + 8, Gui.LABEL, false);
         Gui.band(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.diff.theirs").getString(), column - 8),
-                left, PAD + 18, column, 12);
+                left, TOP + 18, column, 12);
         Gui.band(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.diff.yours").getString(), column - 8),
-                right, PAD + 18, column, 12);
+                right, TOP + 18, column, 12);
         Gui.inset(g, left, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
         Gui.inset(g, right, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
         g.enableScissor(left, top() + 1, right + column, bottom() - 1);
@@ -176,6 +222,7 @@ final class DiffScreen extends Screen {
         }
         g.disableScissor();
         super.render(g, mouseX, mouseY, partialTick);
+        navBar.render(g, font, mouseX, mouseY, partialTick);
     }
 
     @Override

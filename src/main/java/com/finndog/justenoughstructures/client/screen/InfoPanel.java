@@ -92,6 +92,8 @@ final class InfoPanel {
     private final Consumer<ItemStack> onItemClicked;
     private Consumer<String> onOpenTable = table -> {
     };
+    private Runnable beforeMove = () -> {
+    };
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
@@ -171,11 +173,14 @@ final class InfoPanel {
         return tab;
     }
 
-    /** What the Loot tab's Edit link does with the picked table. */
-    /** What the Loot tab's New loot table link does. */
     /** What clicking a loot table this layout doesn't have does: opens it in a popup on its own. */
     void onOpenTable(Consumer<String> action) {
         onOpenTable = action;
+    }
+
+    /** Told just before the panel moves somewhere else, like another tab, so Back can return. */
+    void onMove(Runnable action) {
+        beforeMove = action;
     }
 
     void setTab(Tab tab) {
@@ -266,7 +271,11 @@ final class InfoPanel {
 
     boolean click(double mouseX, double mouseY) {
         if (mouseY >= tabsY && mouseY < tabsY + TAB_SIZE - 3 && mouseX >= tabsX && mouseX < tabsX + TAB_SIZE * Tab.values().length) {
-            setTab(Tab.values()[(int) ((mouseX - tabsX) / TAB_SIZE)]);
+            Tab clicked = Tab.values()[(int) ((mouseX - tabsX) / TAB_SIZE)];
+            if (clicked != tab) {
+                beforeMove.run();
+                setTab(clicked);
+            }
             return true;
         }
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {

@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientState;
+import com.finndog.justenoughstructures.client.screen.Nav;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -85,6 +86,7 @@ public final class ClientRequests {
         LOCATES.clear();
         TRANSFERS.clear();
         Thumbnails.clear();
+        Nav.forget();
         if (index != null) {
             index.cancel(false);
         }

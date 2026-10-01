@@ -15,10 +15,9 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -57,16 +56,16 @@ import net.minecraft.world.level.block.state.properties.Property;
 import org.lwjgl.glfw.GLFW;
 
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
-public class JesScreen extends Screen {
+public class JesScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
+    /** Where the panels start, below the Back and Forward bar. */
+    private static final int TOP = NavBar.TOP;
     /** How far the details panel sits down to make room for its tabs, as JEI's recipe panel does. */
     private static final int TABS = 21;
     private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
-    private static final ResourceLocation BACK_ICON = JustEnoughStructures.id("textures/gui/back.png");
-    private static final int HISTORY = 20;
     private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
     /** How long a locate that found nothing stays in the header. */
     private static final long LOCATE_FAILURE_MILLIS = 8000;
@@ -105,9 +104,9 @@ public class JesScreen extends Screen {
     private String pendingTable;
     /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
     private StructureViewport.Camera pendingCamera;
-    /** Where each jump from a Found-in list was made from, newest last, for Back. */
-    private final Deque<Place> history = new ArrayDeque<>();
-    private IconButton backButton;
+    /** A popup to open once the structure being gone back to arrives. */
+    private Popup pendingPopup;
+    private final NavBar navBar = new NavBar(this);
     /** The blocks the details panel's hovered row is about, tinted in the preview, and what they were found for. */
     private Highlight highlight;
     private String highlightKey;
@@ -172,6 +171,7 @@ public class JesScreen extends Screen {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
             info.onOpenTable(this::openTable);
+            info.onMove(Nav::remember);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -199,22 +199,22 @@ public class JesScreen extends Screen {
         updateSearchHelp();
         search.visible = sides;
         addRenderableWidget(search);
-        listY = PAD + 6;
+        listY = TOP + 6;
         listH = searchY - 4 - listY;
         list.layout(listX + 6, listY, listW - 12, listH);
 
         // Two title rows: previous/next mod around the mod's name, previous/next structure around its own.
-        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 4, true,
+        addRenderableWidget(new ArrowButton(centreX + 6, TOP + 4, true,
                 Component.translatable("screen.justenoughstructures.previous_mod"), b -> step(-1, true)));
-        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 4, false,
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, TOP + 4, false,
                 Component.translatable("screen.justenoughstructures.next_mod"), b -> step(1, true)));
-        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 19, true,
+        addRenderableWidget(new ArrowButton(centreX + 6, TOP + 19, true,
                 Component.translatable("screen.justenoughstructures.previous_structure"), b -> step(-1, false)));
-        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 19, false,
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, TOP + 19, false,
                 Component.translatable("screen.justenoughstructures.next_structure"), b -> step(1, false)));
 
         viewX = centreX + 6;
-        viewY = PAD + 35;
+        viewY = TOP + 35;
         int toolbarY = height - PAD - 26;
         viewW = centreW - 12;
         boolean roomy = viewW >= 250;
@@ -256,10 +256,6 @@ public class JesScreen extends Screen {
         compassPointing = null;
         updateCompassButton();
 
-        // Over the preview's top left corner, back to where a Found-in list was left from.
-        backButton = addRenderableWidget(new IconButton(viewX + 2, viewY + 2, BACK_ICON, Component.empty(), b -> back()));
-        updateBackButton();
-
         int bx = viewX;
         rerollButton = addRenderableWidget(Button.builder(Component.translatable(roomy ? "screen.justenoughstructures.reroll" : "screen.justenoughstructures.reroll_short"), b -> reroll())
                 .bounds(bx, buttonsY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
@@ -293,7 +289,7 @@ public class JesScreen extends Screen {
         updateSlider();
 
         // The details panel starts lower, so its tabs can sit on top of it the way JEI's do.
-        info.layout(infoX + 6, PAD + TABS + 6, infoW - 12, height - PAD * 2 - TABS - 12, infoX + 2, PAD);
+        info.layout(infoX + 6, TOP + TABS + 6, infoW - 12, height - TOP - PAD - TABS - 12, infoX + 2, TOP);
 
         chestReroll = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll_loot"), b -> rerollLoot())
                 .bounds(0, 0, 70, 20).build());
@@ -394,11 +390,25 @@ public class JesScreen extends Screen {
         }
         for (StructureCatalog.Entry entry : catalog) {
             if (entry.id().equals(id)) {
+                if (entry != selected) {
+                    Nav.remember();
+                }
                 select(entry, defaultSeed(id));
                 return true;
             }
         }
         return false;
+    }
+
+    private StructureCatalog.Entry find(ResourceLocation id) {
+        if (catalog != null) {
+            for (StructureCatalog.Entry entry : catalog) {
+                if (entry.id().equals(id)) {
+                    return entry;
+                }
+            }
+        }
+        return null;
     }
 
     private void select(StructureCatalog.Entry entry, long newSeed) {
@@ -410,6 +420,8 @@ public class JesScreen extends Screen {
         lastSelected = entry.id();
         seed = newSeed;
         pendingCamera = null;
+        pendingTable = null;
+        pendingPopup = null;
         list.setSelected(entry.id());
         list.revealSelected();
         info.setEntry(entry);
@@ -449,6 +461,11 @@ public class JesScreen extends Screen {
     }
 
     private void onCaptured(CaptureResult captured) {
+        if (minecraft == null || minecraft.screen != this) {
+            // Arrived after another screen was opened over this one: it's asked for again on coming back.
+            dropped = true;
+            return;
+        }
         result = captured;
         info.setResult(captured);
         if (pendingTable != null) {
@@ -466,6 +483,9 @@ public class JesScreen extends Screen {
             updateGround();
         }
         updateSlider();
+        if (pendingPopup != null) {
+            showPopup(pendingPopup);
+        }
     }
 
     /** Where the flat ground the structure was generated on sits, as a local height, if it cuts through it. */
@@ -566,6 +586,11 @@ public class JesScreen extends Screen {
         if (result == null || !result.succeeded()) {
             return;
         }
+        Nav.remember();
+        showContainer(container);
+    }
+
+    private void showContainer(StructureSnapshot.Container container) {
         List<StructureSnapshot.Container> same = sameTable(container);
         ChestPopup.View keep = popup != null && popup.container != null ? popup.view : ChestPopup.View.ROLL;
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container), same.indexOf(container), same.size());
@@ -587,6 +612,12 @@ public class JesScreen extends Screen {
         if (ResourceLocation.tryParse(table) == null) {
             return;
         }
+        Nav.remember();
+        showTable(table);
+    }
+
+    private void showTable(String table) {
+        foundIn = null;
         popup = ChestPopup.forTable(table);
         popup.place(width, height, font);
         layoutPopupButtons();
@@ -631,7 +662,7 @@ public class JesScreen extends Screen {
         List<StructureSnapshot.Container> same = sameTable(popup.container);
         if (same.size() > 1) {
             int next = Math.floorMod(same.indexOf(popup.container) + direction, same.size());
-            openContainer(same.get(next));
+            showContainer(same.get(next));
         }
     }
 
@@ -650,6 +681,11 @@ public class JesScreen extends Screen {
         if (stack.isEmpty()) {
             return;
         }
+        Nav.remember();
+        showFoundIn(stack);
+    }
+
+    private void showFoundIn(ItemStack stack) {
         closePopup();
         foundIn = new FoundInPopup(stack);
         foundIn.place(width, height);
@@ -657,73 +693,180 @@ public class JesScreen extends Screen {
     }
 
     private void pickFromFoundIn(FoundInPopup.Row row) {
-        FoundInPopup from = foundIn;
+        StructureCatalog.Entry entry = find(row.structure());
+        if (entry != null) {
+            // Remembered with the list still open, so Back comes back to it.
+            Nav.remember();
+            foundIn = null;
+            select(entry, defaultSeed(entry.id()));
+            info.setTab(InfoPanel.Tab.LOOT);
+            pendingTable = row.tables().iterator().next().toString();
+        }
         foundIn = null;
-        if (catalog == null) {
-            return;
+    }
+
+    // ------------------------------------------------------------------ back and forward
+
+    /** A popup open over the browser, as history keeps it. */
+    private sealed interface Popup {
+        Object key();
+    }
+
+    /** A container's popup, found again by where the container is, as the same layout comes out the same. */
+    private record ContainerPopup(BlockPos pos, boolean entity, ChestPopup.View view, Component title) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("container", pos, entity);
         }
-        for (StructureCatalog.Entry entry : catalog) {
-            if (entry.id().equals(row.structure())) {
-                remember(from);
-                select(entry, defaultSeed(entry.id()));
-                info.setTab(InfoPanel.Tab.LOOT);
-                pendingTable = row.tables().iterator().next().toString();
-                return;
-            }
+    }
+
+    private record TablePopup(String table) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("table", table);
         }
+    }
+
+    private record FoundInList(ItemStack item) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("found_in", BuiltInRegistries.ITEM.getKey(item.getItem()));
+        }
+    }
+
+    /** The browser as it was: the structure and layout, the tab, the picked table, the camera and any popup. */
+    private record BrowserLayer(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera,
+                                Popup popup, Component label) implements Nav.Layer {
+        @Override
+        public Object key() {
+            return Arrays.asList(id, seed, tab, popup == null ? null : popup.key());
+        }
+
+        @Override
+        public Screen open(Screen below) {
+            throw new UnsupportedOperationException("The browser is always under the other screens");
+        }
+    }
+
+    @Override
+    public Nav.Layer layer() {
+        if (selected == null) {
+            return null;
+        }
+        Popup open = currentPopup();
+        String name = StructureNames.structure(selected.id());
+        Component label;
+        if (open instanceof FoundInList list) {
+            label = Component.translatable("screen.justenoughstructures.nav.found_in", list.item().getHoverName());
+        } else if (open instanceof ContainerPopup container) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, container.title());
+        } else if (open instanceof TablePopup table) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, StructureNames.lootTable(table.table()));
+        } else if (info.tab() != InfoPanel.Tab.OVERVIEW) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, info.tab().label());
+        } else {
+            label = Component.literal(name);
+        }
+        String table = info.selectedTable() != null ? info.selectedTable() : pendingTable;
+        return new BrowserLayer(selected.id(), seed, info.tab(), table, view == null ? pendingCamera : viewport.camera(), open, label);
+    }
+
+    @Override
+    public Screen below() {
+        return null;
+    }
+
+    /** The popup showing, or the one waiting for its structure. */
+    private Popup currentPopup() {
+        if (foundIn != null) {
+            return new FoundInList(foundIn.item);
+        }
+        if (popup != null) {
+            return popup.container != null
+                    ? new ContainerPopup(popup.container.pos(), popup.container.entity(), popup.view, popup.title)
+                    : new TablePopup(popup.table);
+        }
+        return pendingPopup;
+    }
+
+    /** Whether history can come back to {@code layer}: its structure can be gone since, after a /reload. */
+    boolean canRestore(Nav.Layer layer) {
+        return layer instanceof BrowserLayer place && find(place.id()) != null;
     }
 
     /**
-     * A structure as it was being looked at: its layout, tab, loot table and camera, and the Found-in
-     * list that was open over it.
+     * Comes back to a place in history. Behind another screen, or about to be, it only notes where to
+     * be, and the structure is generated once it shows.
      */
-    private record Place(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera, FoundInPopup foundIn) {
-    }
-
-    /** Saves where the browser is now, so Back can return to it. */
-    private void remember(FoundInPopup from) {
-        if (selected == null) {
+    void restorePlace(Nav.Layer layer, boolean shownAfter) {
+        StructureCatalog.Entry entry = layer instanceof BrowserLayer place ? find(place.id()) : null;
+        if (entry == null) {
             return;
         }
-        history.addLast(new Place(selected.id(), seed, info.tab(), info.selectedTable(), view == null ? null : viewport.camera(), from));
-        while (history.size() > HISTORY) {
-            history.removeFirst();
-        }
-        updateBackButton();
-    }
-
-    /** Returns to where the last Found-in jump was made from, with the Found-in list open again. */
-    private void back() {
+        BrowserLayer place = (BrowserLayer) layer;
         closePopup();
         foundIn = null;
-        while (!history.isEmpty()) {
-            Place place = history.removeLast();
-            StructureCatalog.Entry entry = catalog == null ? null
-                    : catalog.stream().filter(e -> e.id().equals(place.id())).findFirst().orElse(null);
-            if (entry == null) {
-                // Gone since, after a /reload. The one before it is the next best place.
-                continue;
+        boolean showing = shownAfter && minecraft != null && minecraft.screen == this;
+        if (!showing) {
+            if (selected != entry) {
+                locateText = null;
+                locateUntil = Long.MAX_VALUE;
+                info.setEntry(entry);
             }
-            select(entry, place.seed());
+            selected = entry;
+            lastSelected = entry.id();
+            seed = place.seed();
+            list.setSelected(entry.id());
+            list.revealSelected();
+            // Anything still on its way is for where it was.
+            captureRequest++;
             info.setTab(place.tab());
-            pendingTable = place.table();
+            info.setSelectedTable(place.table());
             pendingCamera = place.camera();
-            if (place.foundIn() != null) {
-                foundIn = place.foundIn();
-                foundIn.place(width, height);
-            }
-            break;
-        }
-        updateBackButton();
-    }
-
-    private void updateBackButton() {
-        if (backButton == null) {
+            pendingPopup = place.popup();
+            dropped = true;
             return;
         }
-        backButton.visible = !history.isEmpty();
-        if (!history.isEmpty()) {
-            backButton.setLabel(Component.translatable("screen.justenoughstructures.back", StructureNames.structure(history.peekLast().id())));
+        if (selected != entry || seed != place.seed()) {
+            select(entry, place.seed());
+            info.setTab(place.tab());
+            pendingCamera = place.camera();
+            pendingTable = place.table();
+            pendingPopup = place.popup();
+            return;
+        }
+        info.setTab(place.tab());
+        if (place.table() != null && !place.table().equals(info.selectedTable())) {
+            selectTable(place.table());
+        }
+        if (place.popup() != null) {
+            showPopup(place.popup());
+        }
+    }
+
+    /** Opens a popup history kept, once there's a structure to open it on. */
+    private void showPopup(Popup open) {
+        pendingPopup = null;
+        if (open instanceof FoundInList list) {
+            showFoundIn(list.item());
+            return;
+        }
+        if (result == null) {
+            pendingPopup = open;
+            return;
+        }
+        if (open instanceof TablePopup table) {
+            showTable(table.table());
+        } else if (open instanceof ContainerPopup wanted && result.succeeded()) {
+            for (StructureSnapshot.Container c : result.snapshot().containers()) {
+                if (c.pos().equals(wanted.pos()) && c.entity() == wanted.entity()) {
+                    showContainer(c);
+                    popup.switchTo(wanted.view());
+                    popup.place(width, height, font);
+                    layoutPopupButtons();
+                    return;
+                }
+            }
         }
     }
 
@@ -796,9 +939,9 @@ public class JesScreen extends Screen {
         highlightFor = null;
     }
 
-    /** Where text along the top of the preview starts, clear of the Back button. */
+    /** Where text along the top of the preview starts. */
     private int headerTextX() {
-        return backButton != null && backButton.visible ? viewX + 26 : viewX + 6;
+        return viewX + 6;
     }
 
     public void closeContainer() {
@@ -868,6 +1011,7 @@ public class JesScreen extends Screen {
     private void openEditor(String table) {
         ResourceLocation id = ResourceLocation.tryParse(table);
         if (id != null) {
+            Nav.remember();
             minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(table)));
         }
     }
@@ -879,6 +1023,7 @@ public class JesScreen extends Screen {
     public void openNewTable() {
         String path = selected == null ? "custom" : selected.id().getPath();
         ResourceLocation id = new ResourceLocation(JustEnoughStructures.MOD_ID, "chests/" + path.substring(path.lastIndexOf('/') + 1));
+        Nav.remember();
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
     }
 
@@ -914,11 +1059,19 @@ public class JesScreen extends Screen {
     }
 
     public boolean canGoBack() {
-        return !history.isEmpty();
+        return Nav.canGoBack();
+    }
+
+    public boolean canGoForward() {
+        return Nav.canGoForward();
     }
 
     public int[] backButton() {
-        return new int[]{backButton.getX() + backButton.getWidth() / 2, backButton.getY() + backButton.getHeight() / 2};
+        return navBar.backCentre();
+    }
+
+    public int[] forwardButton() {
+        return navBar.forwardCentre();
     }
 
     public Optional<int[]> foundInRow(int index) {
@@ -1106,11 +1259,11 @@ public class JesScreen extends Screen {
 
         renderBackground(g);
         if (sides) {
-            Gui.panel(g, listX, PAD, listW, height - PAD * 2);
+            Gui.panel(g, listX, TOP, listW, height - TOP - PAD);
             Gui.searchBox(g, listX + 6, searchY, listW - 12, 20);
-            Gui.panel(g, infoX, PAD + TABS, infoW, height - PAD * 2 - TABS);
+            Gui.panel(g, infoX, TOP + TABS, infoW, height - TOP - PAD - TABS);
         }
-        Gui.panel(g, centreX, PAD, centreW, height - PAD * 2);
+        Gui.panel(g, centreX, TOP, centreW, height - TOP - PAD);
 
         boolean popupOpen = popup != null;
         boolean anyPopup = popupOpen || foundIn != null;
@@ -1157,6 +1310,7 @@ public class JesScreen extends Screen {
             foundIn.render(g, font, mouseX, mouseY);
             g.pose().popPose();
         }
+        navBar.render(g, font, mouseX, mouseY, partialTick);
 
         if (foundIn != null) {
             return;
@@ -1204,8 +1358,8 @@ public class JesScreen extends Screen {
         int bandW = centreW - 38;
         String top = selected == null ? title.getString() : StructureNames.mod(selected.id().getNamespace());
         String bottom = selected == null ? "" : StructureNames.structure(selected.id());
-        Gui.band(g, font, top, bandX, PAD + 4, bandW, 13);
-        Gui.band(g, font, bottom, bandX, PAD + 19, bandW, 13);
+        Gui.band(g, font, top, bandX, TOP + 4, bandW, 13);
+        Gui.band(g, font, bottom, bandX, TOP + 19, bandW, 13);
     }
 
     /** The full name when a title row had to cut it short, for its tooltip. */
@@ -1215,10 +1369,10 @@ public class JesScreen extends Screen {
         }
         String name = StructureNames.structure(selected.id());
         String mod = StructureNames.mod(selected.id().getNamespace());
-        if (mouseY >= PAD + 4 && mouseY < PAD + 17 && font.width(mod) > centreW - 42) {
+        if (mouseY >= TOP + 4 && mouseY < TOP + 17 && font.width(mod) > centreW - 42) {
             return List.of(Component.literal(mod));
         }
-        if (mouseY >= PAD + 19 && mouseY < PAD + 32 && font.width(name) > centreW - 42) {
+        if (mouseY >= TOP + 19 && mouseY < TOP + 32 && font.width(name) > centreW - 42) {
             return List.of(Component.literal(name));
         }
         return List.of();
@@ -1227,7 +1381,10 @@ public class JesScreen extends Screen {
     /** Previous or next structure in the list, or the first of the previous or next mod. */
     private void step(int dir, boolean byMod) {
         if (selected != null) {
-            list.step(selected.id(), dir, byMod).ifPresent(e -> select(e, defaultSeed(e.id())));
+            list.step(selected.id(), dir, byMod).ifPresent(e -> {
+                Nav.remember();
+                select(e, defaultSeed(e.id()));
+            });
         }
     }
 
@@ -1550,8 +1707,7 @@ public class JesScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == GLFW.GLFW_MOUSE_BUTTON_4 && !history.isEmpty()) {
-            back();
+        if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
         if (foundIn != null) {
@@ -1596,6 +1752,7 @@ public class JesScreen extends Screen {
             if (clicked.isPresent()) {
                 StructureList.Pick pick = clicked.get();
                 if (pick.entry() != null && pick.entry() != selected) {
+                    Nav.remember();
                     select(pick.entry(), defaultSeed(pick.entry().id()));
                 } else if (!pick.item().isEmpty()) {
                     openFoundIn(pick.item());
@@ -1677,7 +1834,10 @@ public class JesScreen extends Screen {
         }
         if (search.isFocused()) {
             if (key == GLFW.GLFW_KEY_ENTER) {
-                list.firstShown().ifPresent(e -> select(e, defaultSeed(e.id())));
+                list.firstShown().filter(e -> e != selected).ifPresent(e -> {
+                    Nav.remember();
+                    select(e, defaultSeed(e.id()));
+                });
                 return true;
             }
             return super.keyPressed(key, scanCode, modifiers);
@@ -1686,8 +1846,7 @@ public class JesScreen extends Screen {
             reroll();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_BACKSPACE && !history.isEmpty()) {
-            back();
+        if (navBar.keyPressed(key, modifiers)) {
             return true;
         }
         return super.keyPressed(key, scanCode, modifiers);
@@ -1706,7 +1865,7 @@ public class JesScreen extends Screen {
         clearHighlight();
         // A big preview can be hundreds of megabytes; don't keep it around once the screen's gone.
         // Coming back to it, from the loot editor say, fetches it again.
-        dropped = result != null;
+        dropped = dropped || result != null;
         view = null;
         result = null;
         groupedFor = null;
