@@ -254,9 +254,10 @@ public final class StructureViewport implements AutoCloseable {
 
     /**
      * Renders into the target and draws it at the given GUI rectangle. {@code outlines} are block
-     * positions to draw a box around.
+     * positions to draw a box around, and {@code highlight} blocks to tint, or null.
      */
-    public void render(GuiGraphics graphics, int x, int y, int width, int height, float partialTick, Collection<BlockPos> outlines) {
+    public void render(GuiGraphics graphics, int x, int y, int width, int height, float partialTick, Collection<BlockPos> outlines,
+                       Highlight highlight) {
         this.x = x;
         this.y = y;
         this.width = width;
@@ -281,11 +282,11 @@ public final class StructureViewport implements AutoCloseable {
         if (mesh.building()) {
             mesh.buildSome(6_000_000L, eye);
         }
-        drawScene(target, partialTick, outlines);
+        drawScene(target, partialTick, outlines, highlight);
         blit(graphics);
     }
 
-    private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines) {
+    private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines, Highlight highlight) {
         into.setClearColor(0f, 0f, 0f, 0f);
         into.clear(Minecraft.ON_OSX);
         into.bindWrite(true);
@@ -305,6 +306,9 @@ public final class StructureViewport implements AutoCloseable {
         try {
             mesh.draw(viewMatrix, projection, eye);
             drawDynamic(partialTick, outlines);
+            if (highlight != null) {
+                highlight.draw(viewMatrix, projection, view.sliceY());
+            }
         } finally {
             lightTexture.turnOffLightLayer();
             RenderSystem.setShaderFogStart(fogStart);
@@ -335,7 +339,7 @@ public final class StructureViewport implements AutoCloseable {
             width = pixels;
             height = pixels;
             fitToView();
-            drawScene(thumbnail, 0f, List.of());
+            drawScene(thumbnail, 0f, List.of(), null);
         } finally {
             yaw = keepYaw;
             pitch = keepPitch;

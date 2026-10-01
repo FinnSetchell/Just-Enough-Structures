@@ -10,10 +10,13 @@ import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.client.FoundIn;
+import com.finndog.justenoughstructures.client.render.Highlight;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -24,10 +27,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -109,6 +114,9 @@ final class InfoPanel {
     private ItemStack hoveredStack = ItemStack.EMPTY;
     private List<Component> hoveredExtra = List.of();
     private List<Component> hoveredText = List.of();
+    private Hovered hoveredBlocks;
+    /** Where each row that tints the preview was last drawn, by its key, for the screenshot harness. */
+    private final Map<String, int[]> highlightRows = new HashMap<>();
 
     private record Hotspot(int x, int y, int w, int h, Runnable action) {
     }
@@ -196,6 +204,22 @@ final class InfoPanel {
         return hoveredText;
     }
 
+    /**
+     * The blocks a row is about, for the preview to tint while it's hovered: {@code key} says which,
+     * and {@code positions} finds them in a snapshot, as {@link BlockPos#asLong}.
+     */
+    record Hovered(String key, Function<StructureSnapshot, LongSet> positions) {
+    }
+
+    /** What the row under the mouse is about in the preview, or null. */
+    Hovered hoveredBlocks() {
+        return hoveredBlocks;
+    }
+
+    int[] highlightRow(String key) {
+        return highlightRows.get(key);
+    }
+
     int[] tabCentre(Tab t) {
         return new int[]{tabsX + t.ordinal() * TAB_SIZE + TAB_SIZE / 2, tabsY + TAB_SIZE / 2};
     }
@@ -210,6 +234,8 @@ final class InfoPanel {
         hoveredStack = ItemStack.EMPTY;
         hoveredExtra = List.of();
         hoveredText = List.of();
+        hoveredBlocks = null;
+        highlightRows.clear();
 
         // JEI's category tabs: icons only, the selected one joined to the panel below.
         for (Tab t : Tab.values()) {
@@ -232,7 +258,7 @@ final class InfoPanel {
             case OVERVIEW -> overview(g, cursor, mouseX, mouseY, top, bodyHeight);
             case LOOT -> loot(g, cursor, mouseX, mouseY, top, bodyHeight);
             case BLOCKS -> blocks(g, cursor, mouseX, mouseY, top, bodyHeight);
-            case ENTITIES -> mobs(g, cursor);
+            case ENTITIES -> mobs(g, cursor, mouseX, mouseY, top, bodyHeight);
         };
         g.disableScissor();
         contentHeight = end - cursor + 2;
@@ -661,7 +687,9 @@ final class InfoPanel {
             if (hovered) {
                 hoveredText = withEditedNote(List.of(Component.literal(name),
                         Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW)), table);
+                hoveredBlocks = new Hovered("loot:" + table, s -> positionsOf(containers));
             }
+            highlightRows.put("loot:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
             if (selected) {
                 selectedCount = containers.size();
                 selectedName = icon.getHoverName().getString().toLowerCase(Locale.ROOT);
@@ -1026,17 +1054,43 @@ final class InfoPanel {
                     lines.add(Component.literal(BuiltInRegistries.BLOCK.getKey(block).toString()).withStyle(ChatFormatting.DARK_GRAY));
                 }
                 hoveredText = lines;
+                if (count <= Highlight.MAX_BLOCKS) {
+                    hoveredBlocks = new Hovered("block:" + BuiltInRegistries.BLOCK.getKey(block), snapshot -> positionsOf(snapshot, block));
+                }
             }
+            highlightRows.put("block:" + BuiltInRegistries.BLOCK.getKey(block), new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
             cy += rowHeight;
         }
         return cy;
+    }
+
+    /** Where every block of a kind is in a snapshot. */
+    private static LongSet positionsOf(StructureSnapshot snapshot, Block block) {
+        boolean[] matches = new boolean[snapshot.palette().size()];
+        for (int i = 0; i < matches.length; i++) {
+            matches[i] = snapshot.palette().get(i).is(block);
+        }
+        LongSet out = new LongOpenHashSet();
+        for (int i = 0; i < snapshot.blockCount(); i++) {
+            if (matches[snapshot.paletteIndex(i)]) {
+                int packed = snapshot.packedPosition(i);
+                out.add(BlockPos.asLong(StructureSnapshot.unpackX(packed), StructureSnapshot.unpackY(packed), StructureSnapshot.unpackZ(packed)));
+            }
+        }
+        return out;
+    }
+
+    private static LongSet positionsOf(List<StructureSnapshot.Container> containers) {
+        LongSet out = new LongOpenHashSet();
+        containers.forEach(c -> out.add(c.pos().asLong()));
+        return out;
     }
 
     // ------------------------------------------------------------------ mobs
 
     private static final String SPAWNER = String.valueOf(BlockEntityType.getKey(BlockEntityType.MOB_SPAWNER));
 
-    private int mobs(GuiGraphics g, int cy) {
+    private int mobs(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (result == null || !result.succeeded()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
@@ -1049,20 +1103,27 @@ final class InfoPanel {
         // Spawners whose mob was picked from a list, or that cycle through several, by that list.
         Map<Map<String, Integer>, Integer> picked = new LinkedHashMap<>();
         Map<Map<String, Integer>, Integer> mixed = new LinkedHashMap<>();
+        // Where the spawners of each row are, to show them in the preview while it's hovered.
+        Map<Object, LongSet> where = new HashMap<>();
         for (CompoundTag tag : s.blockEntities()) {
             if (!tag.getString("id").equals(SPAWNER)) {
                 continue;
             }
             Map<String, Integer> pool = weights(tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
             Map<String, Integer> potentials = weights(tag.getList("SpawnPotentials", Tag.TAG_COMPOUND), "data", "weight");
+            Object row;
             if (pool.size() > 1) {
                 picked.merge(pool, 1, Integer::sum);
+                row = pool;
             } else if (potentials.size() > 1) {
                 mixed.merge(potentials, 1, Integer::sum);
+                row = potentials;
             } else {
                 String mob = tag.getCompound("SpawnData").getCompound("entity").getString("id");
                 spawners.merge(mob.isEmpty() ? "?" : mob, 1, Integer::sum);
+                row = mob.isEmpty() ? "?" : mob;
             }
+            where.computeIfAbsent(row, k -> new LongOpenHashSet()).add(BlockPos.asLong(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")));
         }
         Map<String, Integer> overTime = new LinkedHashMap<>();
         JsonObject def = entry == null ? null : entry.definition();
@@ -1087,10 +1148,13 @@ final class InfoPanel {
             Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_spawners").getString(), x, cy, contentRight - x, 13);
             cy += 16;
             for (Map.Entry<String, Integer> e : spawners.entrySet()) {
-                cy = mobRow(g, cy, e.getKey(), Component.translatable("screen.justenoughstructures.times", e.getValue()).getString());
+                int top = cy;
+                boolean over = where.containsKey(e.getKey()) && inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
+                cy = mobRow(g, cy, e.getKey(), Component.translatable("screen.justenoughstructures.times", e.getValue()).getString(), over);
+                hoverSpawners(mouseX, mouseY, top, cy, clipTop, clipHeight, "spawners:" + e.getKey(), where.get(e.getKey()));
             }
-            cy = pools(g, cy, picked, "spawner_pool");
-            cy = pools(g, cy, mixed, "spawner_mix");
+            cy = pools(g, cy, picked, "spawner_pool", mouseX, mouseY, clipTop, clipHeight, where);
+            cy = pools(g, cy, mixed, "spawner_mix", mouseX, mouseY, clipTop, clipHeight, where);
             cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.mobs_spawners_note"), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
         }
         cy = mobSection(g, cy, "over_time", overTime, false);
@@ -1101,8 +1165,10 @@ final class InfoPanel {
      * Each list of mobs spawners pick from, under a line saying how many spawners here use it, with
      * every mob's chance.
      */
-    private int pools(GuiGraphics g, int cy, Map<Map<String, Integer>, Integer> pools, String key) {
+    private int pools(GuiGraphics g, int cy, Map<Map<String, Integer>, Integer> pools, String key,
+                      int mouseX, int mouseY, int clipTop, int clipHeight, Map<Object, LongSet> where) {
         for (Map.Entry<Map<String, Integer>, Integer> pool : pools.entrySet()) {
+            int top = cy;
             int count = pool.getValue();
             Component line = count == 1 ? Component.translatable("screen.justenoughstructures." + key + "_one")
                     : Component.translatable("screen.justenoughstructures." + key + "_many", count);
@@ -1113,10 +1179,20 @@ final class InfoPanel {
             for (Map.Entry<String, Integer> mob : mobs) {
                 float chance = (float) mob.getValue() / total;
                 String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
-                cy = mobRow(g, cy, mob.getKey(), pct);
+                boolean over = where.containsKey(pool.getKey()) && inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
+                cy = mobRow(g, cy, mob.getKey(), pct, over);
             }
+            hoverSpawners(mouseX, mouseY, top, cy, clipTop, clipHeight, key + ":" + pool.getKey(), where.get(pool.getKey()));
         }
         return cy;
+    }
+
+    /** Shows a row's spawners in the preview while anywhere from {@code top} to {@code bottom} is hovered. */
+    private void hoverSpawners(int mouseX, int mouseY, int top, int bottom, int clipTop, int clipHeight, String key, LongSet positions) {
+        highlightRows.put(key, new int[]{x + (contentRight - x) / 2, bottom - 11});
+        if (positions != null && inside(mouseX, mouseY, x, top, contentRight - x, bottom - top, clipTop, clipHeight)) {
+            hoveredBlocks = new Hovered(key, s -> positions);
+        }
     }
 
     /**
@@ -1151,10 +1227,18 @@ final class InfoPanel {
 
     /** A mob's card: its spawn egg, its name and, on the right, {@code right}. */
     private int mobRow(GuiGraphics g, int cy, String mob, String right) {
+        return mobRow(g, cy, mob, right, false);
+    }
+
+    /** {@code hovered} rows are lit, for the ones that show something in the preview. */
+    private int mobRow(GuiGraphics g, int cy, String mob, String right, boolean hovered) {
         ResourceLocation id = ResourceLocation.tryParse(mob);
         EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
         Component name = type != null ? type.getDescription() : Component.literal(mob);
         Gui.card(g, x, cy, contentRight - x, 22);
+        if (hovered) {
+            g.fill(x + 1, cy + 1, contentRight - 1, cy + 21, Gui.ROW_HOVER);
+        }
         Gui.slot(g, x + PAD + 1, cy + 2);
         SpawnEggItem egg = type == null ? null : SpawnEggItem.byId(type);
         if (egg != null) {

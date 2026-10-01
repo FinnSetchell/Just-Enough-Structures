@@ -9,21 +9,25 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Thumbnails;
+import com.finndog.justenoughstructures.client.render.Highlight;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
@@ -104,6 +108,10 @@ public class JesScreen extends Screen {
     /** Where each jump from a Found-in list was made from, newest last, for Back. */
     private final Deque<Place> history = new ArrayDeque<>();
     private IconButton backButton;
+    /** The blocks the details panel's hovered row is about, tinted in the preview, and what they were found for. */
+    private Highlight highlight;
+    private String highlightKey;
+    private StructureSnapshot highlightFor;
 
     private Component locateText;
     private boolean locateFound;
@@ -689,6 +697,75 @@ public class JesScreen extends Screen {
         }
     }
 
+    /**
+     * The blocks the row under the mouse in the details panel is about, such as every block of a kind
+     * or a group of chests, found once and kept while that row stays hovered. It's from the panel as
+     * last drawn, a frame behind, which can't be seen.
+     */
+    private Highlight highlight() {
+        InfoPanel.Hovered hovered = sides && popup == null && foundIn == null ? info.hoveredBlocks() : null;
+        StructureSnapshot shown = view == null ? null : view.snapshot();
+        if (hovered == null || shown == null) {
+            clearHighlight();
+            return null;
+        }
+        if (!hovered.key().equals(highlightKey) || shown != highlightFor) {
+            clearHighlight();
+            highlightKey = hovered.key();
+            highlightFor = shown;
+            LongSet positions = hovered.positions().apply(shown);
+            highlight = positions == null || positions.isEmpty() || positions.size() > Highlight.MAX_BLOCKS ? null : new Highlight(positions);
+        }
+        return highlight;
+    }
+
+    /** Up to this many highlighted blocks each get a ring, as they can be a few pixels across from far out. */
+    private static final int RINGED = 64;
+
+    /**
+     * A small ring over each of a handful of highlighted blocks, so a lone spawner deep inside a big
+     * structure can still be found. Containers with a marker showing don't need one, as the marker
+     * lights up instead.
+     */
+    private void ringHighlighted(GuiGraphics g, StructureSnapshot s) {
+        if (highlight == null || highlight.positions().size() > RINGED) {
+            return;
+        }
+        Set<BlockPos> marked = new HashSet<>();
+        if (ClientState.markers && !lootSecret()) {
+            s.containers().forEach(c -> marked.add(c.pos()));
+        }
+        int slice = view.sliceY();
+        for (long packed : highlight.positions()) {
+            BlockPos pos = BlockPos.of(packed);
+            if (pos.getY() >= slice || marked.contains(pos)) {
+                continue;
+            }
+            Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            if (at.isEmpty()) {
+                continue;
+            }
+            int cx = Math.round(at.get()[0]);
+            int cy = Math.round(at.get()[1]);
+            for (int[] ring : new int[][]{{5, 0xFF000000}, {4, 0xFFFFE066}, {3, 0xFF000000}}) {
+                int r = ring[0];
+                g.fill(cx - r, cy - r, cx + r, cy - r + 1, ring[1]);
+                g.fill(cx - r, cy + r - 1, cx + r, cy + r, ring[1]);
+                g.fill(cx - r, cy - r, cx - r + 1, cy + r, ring[1]);
+                g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
+            }
+        }
+    }
+
+    private void clearHighlight() {
+        if (highlight != null) {
+            highlight.close();
+        }
+        highlight = null;
+        highlightKey = null;
+        highlightFor = null;
+    }
+
     /** Where text along the top of the preview starts, clear of the Back button. */
     private int headerTextX() {
         return backButton != null && backButton.visible ? viewX + 26 : viewX + 6;
@@ -800,6 +877,11 @@ public class JesScreen extends Screen {
         return list.rowCentre(id);
     }
 
+    /** Where the details panel last drew a row that tints the preview, such as "block:minecraft:chest". */
+    public Optional<int[]> highlightRow(String key) {
+        return Optional.ofNullable(info.highlightRow(key));
+    }
+
     public boolean canGoBack() {
         return !history.isEmpty();
     }
@@ -881,6 +963,14 @@ public class JesScreen extends Screen {
 
     public boolean foundInOpen() {
         return foundIn != null;
+    }
+
+    /** Shows only the bottom {@code shown} layers, as dragging the slider there would. */
+    public void setLayers(int shown) {
+        if (view != null) {
+            view.setSliceY(shown);
+            updateSlider();
+        }
     }
 
     public int sliceLayers() {
@@ -1168,7 +1258,7 @@ public class JesScreen extends Screen {
         if (popup != null && !popup.container.entity()) {
             outlines.add(popup.container.pos());
         }
-        viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines);
+        viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines, highlight());
         if (!viewport.meshing() && !Thumbnails.has(selected.id())) {
             TextureTarget thumbnail = viewport.renderThumbnail(Thumbnails.renderSize());
             if (thumbnail != null) {
@@ -1181,7 +1271,9 @@ public class JesScreen extends Screen {
         if (ClientState.markers) {
             placeMarkers(s);
             for (Marker m : markerRects) {
-                boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size();
+                // Lit up like one under the mouse while a row about its container is hovered, as it hides the block.
+                boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()
+                        || highlight != null && m.containers().stream().anyMatch(c -> highlight.contains(c.pos()));
                 int size = m.size();
                 g.pose().pushPose();
                 // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
@@ -1203,6 +1295,8 @@ public class JesScreen extends Screen {
                 g.pose().popPose();
             }
         }
+
+        ringHighlighted(g, s);
 
         // What locate found, or why it couldn't. Failures fade after a while. It shares the top of
         // the preview with the corner buttons, so it stops short of them.
@@ -1573,6 +1667,7 @@ public class JesScreen extends Screen {
     public void removed() {
         viewport.close();
         thumbnails.close();
+        clearHighlight();
         // A big preview can be hundreds of megabytes; don't keep it around once the screen's gone.
         // Coming back to it, from the loot editor say, fetches it again.
         dropped = result != null;
