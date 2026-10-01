@@ -9,6 +9,7 @@ First release.
 - Turn, zoom and move the preview, generate a new layout, and hide its top layers to see inside
 - The preview can be made to fill the whole screen
 - Arrows above the preview step through structures and jump between mods
+- Star a structure to keep it in a Favourites section at the top of the list
 - Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again
 - The Info tab says where a structure spawns and in which biomes
 - The Loot tab shows the chance of every item in each chest, from thousands of rolls of the real loot table
