@@ -183,7 +183,7 @@ public final class JesServer {
     // ------------------------------------------------------------------ loot table editing
 
     private static boolean canEdit(ServerPlayer player) {
-        return player.hasPermissions(ServerConfig.get().editPermission());
+        return PackToolsAccess.allowed(player);
     }
 
     /** A loot table for the editor, as it is now and as the mods have it. */
@@ -337,7 +337,7 @@ public final class JesServer {
         compassSearch = search;
     }
 
-    /** Who can locate and teleport, so the browser only offers what the server will allow. */
+    /** Who can locate and teleport, and whether this player can use Pack tools, so the browser only offers what the server will allow. */
     private static void sendSettings(ServerPlayer player, boolean reloaded) {
         ServerConfig.Settings settings = ServerConfig.get();
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
@@ -345,7 +345,7 @@ public final class JesServer {
         buf.writeVarInt(settings.teleportPermission());
         buf.writeBoolean(reloaded);
         buf.writeBoolean(compassSearch != null);
-        buf.writeVarInt(settings.editPermission());
+        buf.writeBoolean(PackToolsAccess.allowed(player));
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 

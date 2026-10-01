@@ -244,11 +244,11 @@ public final class OverrideTests {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
             JesServer.DraftOdds refused = JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY);
             helper.assertTrue(refused.odds() == null && key(refused.problem()).endsWith("no_permission"), "a player who can't edit got odds");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, 0));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
             JesServer.DraftOdds rolled = JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY);
             LootOdds odds = rolled.odds();
             helper.assertTrue(odds != null && odds.rows().size() == 1 && odds.rows().get(0).example().is(Items.DIAMOND)

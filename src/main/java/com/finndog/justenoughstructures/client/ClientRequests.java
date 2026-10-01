@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -50,7 +51,7 @@ public final class ClientRequests {
     private static int locatePermission = 2;
     private static int teleportPermission = 2;
     private static boolean compassSearch;
-    private static int editPermission = 4;
+    private static boolean packTools;
     private static Map<ResourceLocation, LootOverrides.Status> overrides = Map.of();
     private static int nextUploadId = 1;
     private static final Map<Integer, CompletableFuture<Codecs.TableReply>> TABLES = new HashMap<>();
@@ -94,7 +95,7 @@ public final class ClientRequests {
         locatePermission = 2;
         teleportPermission = 2;
         compassSearch = false;
-        editPermission = 4;
+        packTools = false;
         overrides = Map.of();
         TABLES.values().forEach(f -> f.cancel(false));
         TABLES.clear();
@@ -106,10 +107,9 @@ public final class ClientRequests {
     public record EditReply(Component message, LootOdds odds) {
     }
 
-    /** Whether this player may edit loot tables on this server. */
     /** Asks which loot tables have an override, for players who can edit them. The answer marks them in the browser. */
     public static void requestOverrides() {
-        if (serverSupported() && canEditLoot()) {
+        if (serverSupported() && canUsePackTools()) {
             send(JesNetwork.REQUEST_OVERRIDES, buf -> {
             });
         }
@@ -125,9 +125,17 @@ public final class ClientRequests {
         return id == null ? null : overrides.get(id);
     }
 
-    public static boolean canEditLoot() {
-        Minecraft mc = Minecraft.getInstance();
-        return mc.player != null && mc.player.hasPermissions(editPermission);
+    /** Whether the server lets this player use Pack tools: edit loot tables and chests, hide structures and change its settings. */
+    public static boolean canUsePackTools() {
+        return packTools;
+    }
+
+    /**
+     * Whether the browser shows Pack tools: its button, the popup's icons and the marks on edited
+     * tables. Not for players who can't use it, nor for those who've hidden it in the settings.
+     */
+    public static boolean showsPackTools() {
+        return packTools && !ClientState.hidePackTools;
     }
 
     /** A loot table for the editor: as it is now, as the mods have it, and whether it's overridden. */
@@ -428,11 +436,11 @@ public final class ClientRequests {
      * The server's locate settings. After a /reload the structure list and loot may have changed
      * too, so what's cached is dropped and fetched again the next time it's wanted.
      */
-    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, int edit) {
+    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, boolean canUsePackTools) {
         locatePermission = locate;
         teleportPermission = teleport;
         compassSearch = compass;
-        editPermission = edit;
+        packTools = canUsePackTools;
         if (!reloaded) {
             return;
         }

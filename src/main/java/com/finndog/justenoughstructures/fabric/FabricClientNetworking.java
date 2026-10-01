@@ -65,8 +65,8 @@ final class FabricClientNetworking {
             int teleport = buf.readVarInt();
             boolean reloaded = buf.readBoolean();
             boolean compass = buf.readBoolean();
-            int edit = buf.readVarInt();
-            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, edit));
+            boolean packTools = buf.readBoolean();
+            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, packTools));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(JesNetwork.OVERRIDES, (client, handler, buf, responder) -> {

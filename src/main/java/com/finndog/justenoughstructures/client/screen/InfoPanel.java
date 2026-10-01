@@ -830,7 +830,7 @@ final class InfoPanel {
      * has yet, to point chests at later or give with /loot.
      */
     private int newTableLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
-        if (!ClientRequests.canEditLoot()) {
+        if (!ClientRequests.showsPackTools()) {
             return cy;
         }
         String text = Component.translatable("screen.justenoughstructures.new_table").getString();
@@ -867,7 +867,7 @@ final class InfoPanel {
             ClientState.save();
         }));
         // Right-aligned on the same line, for players the server lets edit loot tables.
-        if (ClientRequests.canEditLoot() && selectedTable != null) {
+        if (ClientRequests.showsPackTools() && selectedTable != null) {
             String edit = Component.translatable("screen.justenoughstructures.editor.edit_link").getString();
             int editWidth = secondaryWidth(edit) + 2;
             int editX = contentRight - 2 - editWidth;

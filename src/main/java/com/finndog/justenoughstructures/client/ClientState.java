@@ -29,6 +29,8 @@ public final class ClientState {
     public static boolean maximised;
     public static boolean details;
     public static boolean rarestFirst;
+    /** For players allowed Pack tools who'd rather not see it: no button, no popup icons, no marks on edited tables. */
+    public static boolean hidePackTools;
     /** Structure ids the player starred, shown at the top of the list in every world that has them. */
     public static final Set<String> favourites = new LinkedHashSet<>();
     private static boolean loaded;
@@ -65,6 +67,7 @@ public final class ClientState {
             maximised = flag(json, "maximised", maximised);
             details = flag(json, "details", details);
             rarestFirst = flag(json, "rarest_first", rarestFirst);
+            hidePackTools = flag(json, "hide_pack_tools", hidePackTools);
             if (json != null && json.has("favourites") && json.get("favourites").isJsonArray()) {
                 favourites.clear();
                 for (JsonElement id : json.getAsJsonArray("favourites")) {
@@ -86,6 +89,7 @@ public final class ClientState {
         json.addProperty("maximised", maximised);
         json.addProperty("details", details);
         json.addProperty("rarest_first", rarestFirst);
+        json.addProperty("hide_pack_tools", hidePackTools);
         JsonArray starred = new JsonArray();
         favourites.forEach(starred::add);
         json.add("favourites", starred);

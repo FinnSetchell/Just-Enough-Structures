@@ -20,8 +20,8 @@ import org.slf4j.helpers.MessageFormatter;
 
 /**
  * The server owner's settings, from {@code config/justenoughstructures/server.json5}: structures to
- * keep out of the browser, and who can find and teleport to them. Read when the server starts and
- * again on /reload.
+ * keep out of the browser, who can find and teleport to them, and who can use Pack tools. Read when
+ * the server starts and again on /reload.
  */
 public final class ServerConfig {
     public static final String FILE_NAME = "server.json5";
@@ -47,10 +47,18 @@ public final class ServerConfig {
               // own datapack file can hide just its loot instead.
               "show_loot_locations": %s,
 
-              // Who can edit loot tables in the browser, saved as overrides in
-              // config/justenoughstructures/loot_overrides. 4 is the server owner, or singleplayer
-              // with cheats on.
-              "edit_permission": %s,
+              // Who can use Pack tools on this server: editing loot tables and chests, hiding
+              // structures and these settings. Anyone a permissions mod gives the
+              // justenoughstructures.pack_tools permission can, and so can these. In singleplayer,
+              // having cheats on is enough.
+              "pack_tools": {
+                // By name. Matched by UUID once they have joined, so a rename doesn't lock anyone out.
+                "players": %s,
+                // A permission level that also gets it: -1 for none, or 0 to 4. /op gives level 4
+                // unless op-permission-level in server.properties says otherwise, so any level here
+                // lets every operator in.
+                "permission_level": %s
+              },
 
               // False stops using the containers pointed at other loot tables in the browser, so every
               // structure is as its mod made it. They're kept in loot_overrides/containers.json, and
@@ -60,7 +68,7 @@ public final class ServerConfig {
             """;
 
     /** What {@link #get()} returns until a file is read, and whatever a file leaves out. */
-    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true, 4, true);
+    public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true, PackTools.NONE, true);
 
     private static volatile Settings current = DEFAULTS;
 
@@ -72,14 +80,26 @@ public final class ServerConfig {
      * @param hiddenMods       namespaces whose every structure is hidden
      */
     public record Settings(Set<ResourceLocation> hiddenStructures, Set<String> hiddenMods, int locatePermission, int teleportPermission,
-                           boolean showLootLocations, int editPermission, boolean containerChanges) {
+                           boolean showLootLocations, PackTools packTools, boolean containerChanges) {
         public Settings(Set<ResourceLocation> hiddenStructures, Set<String> hiddenMods, int locatePermission, int teleportPermission,
-                        boolean showLootLocations, int editPermission) {
-            this(hiddenStructures, hiddenMods, locatePermission, teleportPermission, showLootLocations, editPermission, true);
+                        boolean showLootLocations, PackTools packTools) {
+            this(hiddenStructures, hiddenMods, locatePermission, teleportPermission, showLootLocations, packTools, true);
         }
 
         public boolean hides(ResourceLocation id) {
             return hiddenMods.contains(id.getNamespace()) || hiddenStructures.contains(id);
+        }
+    }
+
+    /**
+     * Who can use Pack tools besides anyone a permissions mod allows: players by name, and anyone
+     * with {@code permissionLevel}, or nobody else at -1.
+     */
+    public record PackTools(List<String> players, int permissionLevel) {
+        public static final PackTools NONE = new PackTools(List.of(), -1);
+
+        public static PackTools level(int permissionLevel) {
+            return new PackTools(List.of(), permissionLevel);
         }
     }
 
@@ -124,7 +144,7 @@ public final class ServerConfig {
 
     /** Every setting the file has, in the order it lists them. */
     private static final List<String> KEYS = List.of("hidden", "locate_permission", "teleport_permission", "show_loot_locations",
-            "edit_permission", "container_changes");
+            "pack_tools", "container_changes");
 
     /**
      * A file written by an older version doesn't have the settings added since, so its owner can't
@@ -178,7 +198,7 @@ public final class ServerConfig {
         settings.hiddenMods().stream().sorted().forEach(mod -> hidden.add(mod + ":*"));
         settings.hiddenStructures().stream().map(ResourceLocation::toString).sorted().forEach(hidden::add);
         return TEMPLATE.formatted(GSON.toJson(hidden), settings.locatePermission(), settings.teleportPermission(), settings.showLootLocations(),
-                settings.editPermission(), settings.containerChanges());
+                GSON.toJson(settings.packTools().players()), settings.packTools().permissionLevel(), settings.containerChanges());
     }
 
     /** Reads the settings without reporting their mistakes in the game's log. */
@@ -229,7 +249,7 @@ public final class ServerConfig {
                 level(json, "locate_permission", DEFAULTS.locatePermission(), source, report),
                 level(json, "teleport_permission", DEFAULTS.teleportPermission(), source, report),
                 flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source, report),
-                level(json, "edit_permission", DEFAULTS.editPermission(), source, report),
+                packTools(json.get("pack_tools"), source, report),
                 flag(json, "container_changes", DEFAULTS.containerChanges(), source, report));
     }
 
@@ -255,6 +275,49 @@ public final class ServerConfig {
         }
         problem(report, source, "{}: {} should be true or false, not {}", source, key, value);
         return fallback;
+    }
+
+    /** The pack_tools section: names that look like player names, and a level from -1 to 4. */
+    private static PackTools packTools(JsonElement value, String source, boolean report) {
+        if (value == null) {
+            return DEFAULTS.packTools();
+        }
+        if (!value.isJsonObject()) {
+            problem(report, source, "{}: pack_tools should be a section, like {\"players\": [], \"permission_level\": -1}", source);
+            return DEFAULTS.packTools();
+        }
+        JsonObject section = value.getAsJsonObject();
+        List<String> players = new ArrayList<>();
+        JsonElement names = section.get("players");
+        if (names != null && names.isJsonArray()) {
+            for (JsonElement name : names.getAsJsonArray()) {
+                String text = name.isJsonPrimitive() && name.getAsJsonPrimitive().isString() ? name.getAsString().trim() : "";
+                if (isPlayerName(text)) {
+                    if (players.stream().noneMatch(text::equalsIgnoreCase)) {
+                        players.add(text);
+                    }
+                } else {
+                    problem(report, source, "{}: {} in pack_tools.players isn't a player's name", source, name);
+                }
+            }
+        } else if (names != null) {
+            problem(report, source, "{}: pack_tools.players should be a list of names, like [\"Steve\"]", source);
+        }
+        int level = DEFAULTS.packTools().permissionLevel();
+        JsonElement levelValue = section.get("permission_level");
+        if (levelValue != null) {
+            if (levelValue.isJsonPrimitive() && levelValue.getAsJsonPrimitive().isNumber() && levelValue.getAsInt() >= -1 && levelValue.getAsInt() <= 4) {
+                level = levelValue.getAsInt();
+            } else {
+                problem(report, source, "{}: pack_tools.permission_level should be -1 for none, or 0 to 4, not {}", source, levelValue);
+            }
+        }
+        return new PackTools(List.copyOf(players), level);
+    }
+
+    /** Letters, digits and underscores, 1 to 16 of them, as Minecraft allows. */
+    public static boolean isPlayerName(String name) {
+        return name.matches("[A-Za-z0-9_]{1,16}");
     }
 
     private static int level(JsonObject json, String key, int fallback, String source, boolean report) {

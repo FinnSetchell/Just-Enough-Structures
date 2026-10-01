@@ -115,7 +115,7 @@ final class ChestPopup {
         links.clear();
         hoveredAction = null;
         hoveredHint = null;
-        boolean canEdit = ClientRequests.canEditLoot();
+        boolean canEdit = ClientRequests.showsPackTools();
         if (canEdit && container.source() != null) {
             link(g, font, Action.CHANGE, "container.change", "container.change_hint", infoTop + 5, mouseX, mouseY);
         } else if (canEdit && container.lootTable() != null) {

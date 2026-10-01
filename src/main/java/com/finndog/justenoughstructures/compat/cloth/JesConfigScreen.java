@@ -37,7 +37,7 @@ public final class JesConfigScreen {
         server.hiddenStructures().stream().map(ResourceLocation::toString).sorted().forEach(hidden::add);
         // Filled in by the entries as they save, then written out together.
         ServerEdit edit = new ServerEdit(new ArrayList<>(hidden), server.locatePermission(), server.teleportPermission(), server.showLootLocations(),
-                server.editPermission(), server.containerChanges());
+                new ArrayList<>(server.packTools().players()), server.packTools().permissionLevel(), server.containerChanges());
 
         ConfigBuilder builder = ConfigBuilder.create().setParentScreen(parent).setTitle(text("title"));
         ConfigEntryBuilder entries = builder.entryBuilder();
@@ -56,6 +56,9 @@ public final class JesConfigScreen {
                 .setSaveConsumer(value -> ClientState.details = value).build());
         browser.addEntry(entries.startBooleanToggle(text("rarest_first"), ClientState.rarestFirst).setDefaultValue(false)
                 .setSaveConsumer(value -> ClientState.rarestFirst = value).build());
+        browser.addEntry(entries.startBooleanToggle(text("hide_pack_tools"), ClientState.hidePackTools).setDefaultValue(false)
+                .setTooltip(text("hide_pack_tools.tooltip"))
+                .setSaveConsumer(value -> ClientState.hidePackTools = value).build());
 
         ConfigCategory serverSettings = builder.getOrCreateCategory(text("server"));
         serverSettings.addEntry(entries.startTextDescription(text("server.about")).build());
@@ -72,9 +75,13 @@ public final class JesConfigScreen {
         serverSettings.addEntry(entries.startBooleanToggle(text("show_loot"), server.showLootLocations()).setDefaultValue(true)
                 .setTooltip(text("show_loot.tooltip"))
                 .setSaveConsumer(value -> edit.showLoot = value).build());
-        serverSettings.addEntry(entries.startIntSlider(text("edit"), server.editPermission(), 0, 4).setDefaultValue(4)
-                .setTextGetter(JesConfigScreen::permission).setTooltip(text("edit.tooltip"))
-                .setSaveConsumer(value -> edit.edit = value).build());
+        serverSettings.addEntry(entries.startStrList(text("pack_tools_players"), new ArrayList<>(server.packTools().players())).setDefaultValue(List.of())
+                .setTooltip(text("pack_tools_players.tooltip"))
+                .setCellErrorSupplier(name -> ServerConfig.isPlayerName(name.trim()) ? Optional.empty() : Optional.of(text("pack_tools_players.invalid")))
+                .setSaveConsumer(value -> edit.packToolsPlayers = value).build());
+        serverSettings.addEntry(entries.startIntSlider(text("pack_tools_level"), server.packTools().permissionLevel(), -1, 4).setDefaultValue(-1)
+                .setTextGetter(level -> level < 0 ? text("pack_tools_level.none") : permission(level)).setTooltip(text("pack_tools_level.tooltip"))
+                .setSaveConsumer(value -> edit.packToolsLevel = value).build());
         serverSettings.addEntry(entries.startBooleanToggle(text("container_changes"), server.containerChanges()).setDefaultValue(true)
                 .setTooltip(text("container_changes.tooltip"))
                 .setSaveConsumer(value -> edit.containers = value).build());
@@ -92,15 +99,17 @@ public final class JesConfigScreen {
         int locate;
         int teleport;
         boolean showLoot;
-        int edit;
+        List<String> packToolsPlayers;
+        int packToolsLevel;
         boolean containers;
 
-        ServerEdit(List<String> hidden, int locate, int teleport, boolean showLoot, int edit, boolean containers) {
+        ServerEdit(List<String> hidden, int locate, int teleport, boolean showLoot, List<String> packToolsPlayers, int packToolsLevel, boolean containers) {
             this.hidden = hidden;
             this.locate = locate;
             this.teleport = teleport;
             this.showLoot = showLoot;
-            this.edit = edit;
+            this.packToolsPlayers = packToolsPlayers;
+            this.packToolsLevel = packToolsLevel;
             this.containers = containers;
         }
     }
@@ -115,7 +124,12 @@ public final class JesConfigScreen {
         json.addProperty("locate_permission", edit.locate);
         json.addProperty("teleport_permission", edit.teleport);
         json.addProperty("show_loot_locations", edit.showLoot);
-        json.addProperty("edit_permission", edit.edit);
+        JsonObject packTools = new JsonObject();
+        JsonArray players = new JsonArray();
+        edit.packToolsPlayers.stream().map(String::trim).filter(name -> !name.isEmpty()).forEach(players::add);
+        packTools.add("players", players);
+        packTools.addProperty("permission_level", edit.packToolsLevel);
+        json.add("pack_tools", packTools);
         json.addProperty("container_changes", edit.containers);
         ServerConfig.Settings settings = ServerConfig.parse(json.toString(), "the settings screen");
         try {

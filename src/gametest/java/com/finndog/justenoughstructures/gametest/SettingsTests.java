@@ -8,19 +8,23 @@ import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.server.JesServer;
+import com.finndog.justenoughstructures.server.PackToolsAccess;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.mojang.authlib.GameProfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
@@ -125,7 +129,7 @@ public final class SettingsTests {
             Files.writeString(file, old);
             ServerConfig.Settings loaded = ServerConfig.load(file);
             String now = Files.readString(file);
-            helper.assertTrue(now.contains("\"edit_permission\"") && now.contains("\"container_changes\"") && now.contains("\"show_loot_locations\""),
+            helper.assertTrue(now.contains("\"pack_tools\"") && now.contains("\"container_changes\"") && now.contains("\"show_loot_locations\""),
                     "the new settings weren't added to the file");
             helper.assertTrue(now.contains("// Who can use the locate button"), "the file wasn't given the template's comments");
             ServerConfig.Settings reread = ServerConfig.parse(now, "test");
@@ -149,10 +153,50 @@ public final class SettingsTests {
         helper.succeed();
     }
 
+    /**
+     * Who gets Pack tools on a server: a listed name goes to the first player to join with it and
+     * stays with them after a rename, someone else taking the name doesn't get it, and a permission
+     * level or a permissions mod's node lets players in too.
+     */
+    public static void packToolsFollowTheRules(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerConfig.Settings before = ServerConfig.get();
+        PackToolsAccess.PermissionCheck permissions = PackToolsAccess.permissions();
+        UUID steve = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        try {
+            PackToolsAccess.forget();
+            PackToolsAccess.setPermissions(null);
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, new ServerConfig.PackTools(List.of("Steve"), -1)));
+            helper.assertTrue(PackToolsAccess.allowed(player(helper, steve, "Steve")), "Steve, listed by name, wasn't let in");
+            helper.assertFalse(PackToolsAccess.allowed(player(helper, other, "steve")), "someone else using Steve's name was let in");
+            helper.assertTrue(PackToolsAccess.allowed(player(helper, steve, "Steve_Renamed")), "Steve lost access after a rename");
+            helper.assertFalse(PackToolsAccess.allowed(player(helper, other, "Alex")), "a player who isn't listed was let in");
+
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            helper.assertTrue(PackToolsAccess.allowed(player(helper, other, "Alex")), "permission level 0 didn't let everyone in");
+
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.NONE));
+            helper.assertFalse(PackToolsAccess.allowed(player(helper, other, "Alex")), "nobody's listed, yet Alex was let in");
+            PackToolsAccess.setPermissions((player, node) -> player.getUUID().equals(other) && node.equals(PackToolsAccess.NODE));
+            helper.assertTrue(PackToolsAccess.allowed(player(helper, other, "Alex")), "the permissions mod's node didn't let Alex in");
+            helper.assertFalse(PackToolsAccess.allowed(player(helper, steve, "Steve")), "the node let in someone it wasn't given to");
+        } finally {
+            PackToolsAccess.setPermissions(permissions);
+            PackToolsAccess.forget();
+            ServerConfig.set(before);
+        }
+        helper.succeed();
+    }
+
+    private static ServerPlayer player(GameTestHelper helper, UUID id, String name) {
+        return new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), new GameProfile(id, name));
+    }
+
     /** Settings saved from the config screen read back the same, and the file keeps its comments. */
     public static void serverSettingsWriteBack(GameTestHelper helper) {
         ServerConfig.Settings settings = new ServerConfig.Settings(Set.of(new ResourceLocation("igloo"), new ResourceLocation("somemod", "tower")),
-                Set.of("othermod"), 0, 4, false, 3);
+                Set.of("othermod"), 0, 4, false, new ServerConfig.PackTools(List.of("Steve", "Alex_2"), 3));
         String written = ServerConfig.render(settings);
         helper.assertTrue(written.contains("// Who can use the locate button"), "the saved file lost its comments");
         ServerConfig.Settings read = ServerConfig.parse(written, "test");
@@ -164,7 +208,7 @@ public final class SettingsTests {
     public static void hiddenStructuresStayHidden(GameTestHelper helper) {
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(new ResourceLocation("igloo")), Set.of(), 0, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(new ResourceLocation("igloo")), Set.of(), 0, 2, true, ServerConfig.PackTools.level(4)));
             List<ResourceLocation> ids = JesServer.visibleCatalog(helper.getLevel().getServer()).stream().map(StructureCatalog.Entry::id).toList();
             helper.assertFalse(ids.contains(new ResourceLocation("igloo")), "a hidden structure is in the list");
             helper.assertTrue(ids.contains(new ResourceLocation("desert_pyramid")), "a structure that isn't hidden is missing");
@@ -173,7 +217,7 @@ public final class SettingsTests {
             Component reply = JesServer.locateFor(player, new ResourceLocation("igloo"), false);
             helper.assertTrue(key(reply).endsWith("locate_hidden"), "locating a hidden structure got " + reply.getString());
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of("minecraft"), 2, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of("minecraft"), 2, 2, true, ServerConfig.PackTools.level(4)));
             helper.assertTrue(JesServer.visibleCatalog(helper.getLevel().getServer()).stream().noneMatch(e -> e.id().getNamespace().equals("minecraft")),
                     "hiding a whole mod left some of its structures in the list");
         } finally {
@@ -188,12 +232,12 @@ public final class SettingsTests {
         try {
             ServerPlayer player = helper.makeMockServerPlayerInLevel();
             Vec3 start = player.position();
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, ServerConfig.PackTools.level(4)));
             Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);
             helper.assertFalse(key(reply).endsWith("locate_no_permission"), "locating was refused with locate_permission at 0");
             helper.assertTrue(player.position().equals(start), "a player who isn't an operator was moved");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 3, 3, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 3, 3, true, ServerConfig.PackTools.level(4)));
             reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), false);
             helper.assertTrue(key(reply).endsWith("locate_no_permission"), "locating wasn't refused at level 3, got " + reply.getString());
         } finally {
@@ -245,7 +289,7 @@ public final class SettingsTests {
         // The server switch hides every structure's.
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, false, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, false, ServerConfig.PackTools.level(4)));
             helper.assertTrue(JesServer.hidesLootLocations(new ResourceLocation("desert_pyramid")), "show_loot_locations false didn't hide the desert pyramid's");
             helper.assertTrue(JesServer.visibleCatalog(helper.getLevel().getServer()).stream().allMatch(e -> e.info().hideLootLocations()),
                     "show_loot_locations false left some structures' loot locations showing");

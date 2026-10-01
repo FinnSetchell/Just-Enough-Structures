@@ -41,7 +41,7 @@ public final class CompassTests {
 
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(PYRAMID), Set.of(), 2, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(PYRAMID), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
             helper.assertTrue(key(JesServer.compassFor(player, PYRAMID)).endsWith("locate_hidden"), "the compass was set searching for a hidden structure");
         } finally {
             ServerConfig.set(before);

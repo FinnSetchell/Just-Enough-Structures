@@ -216,7 +216,7 @@ public final class ServiceTests {
                 Map.of(shared, Set.of(new ResourceLocation("bread")), own, Set.of(new ResourceLocation("diamond"))));
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(hidden), Set.of(), 2, 2, true, 4));
+            ServerConfig.set(new ServerConfig.Settings(Set.of(hidden), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
             LootIndex visible = LootIndexStore.visible(full);
             helper.assertTrue(visible.tablesByStructure().keySet().equals(Set.of(shown)), "the hidden structure is still in the index");
             helper.assertTrue(visible.itemsByTable().keySet().equals(Set.of(shared)), "a loot table only the hidden structure uses is still there");

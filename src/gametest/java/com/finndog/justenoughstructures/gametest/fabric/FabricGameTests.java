@@ -198,6 +198,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void packToolsFollowTheRules(GameTestHelper helper) {
+        SettingsTests.packToolsFollowTheRules(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsWriteBack(GameTestHelper helper) {
         SettingsTests.serverSettingsWriteBack(helper);
     }
