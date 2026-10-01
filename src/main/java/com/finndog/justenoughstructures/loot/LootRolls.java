@@ -33,8 +33,12 @@ public final class LootRolls {
 
     /** Fills a container of {@code size} slots the way a chest is filled when it's first opened. */
     public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, long seed, int size) {
+        return fill(level, level.getServer().getLootData().getLootTable(tableId), seed, size);
+    }
+
+    /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
+    public static List<ItemStack> fill(ServerLevel level, LootTable table, long seed, int size) {
         return JesLog.quietly(() -> {
-            LootTable table = level.getServer().getLootData().getLootTable(tableId);
             SimpleContainer container = new SimpleContainer(size);
             table.fill(container, chestParams(level), seed);
             List<ItemStack> out = new ArrayList<>(size);

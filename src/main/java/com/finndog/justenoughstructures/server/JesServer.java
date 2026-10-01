@@ -273,6 +273,15 @@ public final class JesServer {
         return new DraftOdds(null, LootRolls.odds(player.serverLevel(), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode()));
     }
 
+    /** One roll of an edit that isn't saved yet, or nothing if it can't be rolled. */
+    public static List<ItemStack> draftRoll(ServerPlayer player, Codecs.DraftRoll roll) {
+        int size = Math.max(1, Math.min(roll.size(), MAX_CONTAINER_SLOTS));
+        if (!canEdit(player) || LootOverrides.check(roll.draft().id(), roll.draft().json()) != null) {
+            return java.util.Collections.nCopies(size, ItemStack.EMPTY);
+        }
+        return LootRolls.fill(player.serverLevel(), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
+    }
+
     public static Component saveTable(ServerPlayer player, ResourceLocation id, String json) {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
@@ -376,6 +385,20 @@ public final class JesServer {
             return;
         }
         server.execute(() -> {
+            if (done.kind() == JesNetwork.KIND_DRAFT_ROLL) {
+                Codecs.DraftRoll roll;
+                try {
+                    roll = Codecs.readDraftRoll(Blobs.fromBytes(Blobs.inflate(done.bytes())));
+                } catch (RuntimeException e) {
+                    JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
+                    return;
+                }
+                FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+                buf.writeVarInt(done.requestId());
+                Codecs.writeItems(buf, draftRoll(player, roll));
+                JesNetwork.send(player, JesNetwork.LOOT, buf);
+                return;
+            }
             Codecs.Draft draft;
             try {
                 draft = Codecs.readDraft(Blobs.fromBytes(Blobs.inflate(done.bytes())));

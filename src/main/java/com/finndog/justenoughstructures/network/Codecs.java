@@ -405,6 +405,20 @@ public final class Codecs {
     public record Draft(ResourceLocation id, String json) {
     }
 
+    /** An edit to roll once, into a container of {@code size} slots. */
+    public record DraftRoll(Draft draft, long seed, int size) {
+    }
+
+    public static void writeDraftRoll(FriendlyByteBuf buf, ResourceLocation id, String json, long seed, int size) {
+        writeDraft(buf, id, json);
+        buf.writeLong(seed);
+        buf.writeVarInt(size);
+    }
+
+    public static DraftRoll readDraftRoll(FriendlyByteBuf buf) {
+        return new DraftRoll(readDraft(buf), buf.readLong(), buf.readVarInt());
+    }
+
     public static Draft readDraft(FriendlyByteBuf buf) {
         return new Draft(buf.readResourceLocation(), readText(buf));
     }

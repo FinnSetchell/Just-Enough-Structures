@@ -257,18 +257,32 @@ public final class ClientRequests {
         return future;
     }
 
+    /** Fills a container of {@code size} slots from an edit that isn't saved yet, as {@link #loot} does from a saved table. */
+    public static CompletableFuture<List<ItemStack>> draftRoll(ResourceLocation id, String json, long seed, int size) {
+        int requestId = nextRequestId++;
+        CompletableFuture<List<ItemStack>> future = new CompletableFuture<>();
+        LOOT.put(requestId, future);
+        sendUpload(JesNetwork.KIND_DRAFT_ROLL, requestId, buf -> Codecs.writeDraftRoll(buf, id, json, seed, size));
+        return future;
+    }
+
     private static CompletableFuture<EditReply> upload(int kind, ResourceLocation id, String json) {
         int requestId = nextRequestId++;
         CompletableFuture<EditReply> future = new CompletableFuture<>();
         EDITS.put(requestId, future);
-        byte[] compressed = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeDraft(buf, id, json)));
+        sendUpload(kind, requestId, buf -> Codecs.writeDraft(buf, id, json));
+        return future;
+    }
+
+    /** Something bigger than one packet, sent in parts. */
+    private static void sendUpload(int kind, int requestId, Consumer<FriendlyByteBuf> writer) {
+        byte[] compressed = Blobs.deflate(Blobs.toBytes(writer::accept));
         List<byte[]> parts = Blobs.split(compressed, Blobs.UPLOAD_PART_SIZE);
         int transferId = nextUploadId++;
         for (int i = 0; i < parts.size(); i++) {
             Blobs.Part part = new Blobs.Part(transferId, kind, requestId, i, parts.size(), parts.get(i));
             send(JesNetwork.UPLOAD, part::write);
         }
-        return future;
     }
 
     public static void onEditReply(int requestId, Component message, LootOdds odds) {

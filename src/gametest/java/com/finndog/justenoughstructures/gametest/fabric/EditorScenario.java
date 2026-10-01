@@ -6,6 +6,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -47,6 +48,34 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).pick(0, 1)))
                 .then(pause(40))
                 .then(shoot("e03_editor_entry"))
+                .then(moveTo(() -> at(mc, "+ Add function"), 8))
+                .then(click())
+                .then(pause(30))
+                .then(shoot("e03b_function_added"))
+                // Typing a weight into its field, and making the new function's count a range.
+                .then(moveTo(() -> field(mc, "pools.0.entries.1.weight"), 8))
+                .then(click())
+                .then(pressKey(GLFW.GLFW_KEY_BACKSPACE))
+                .then(pressKey(GLFW.GLFW_KEY_BACKSPACE))
+                .then(type("40", 2))
+                .then(pause(10))
+                .then(shoot("e03e_typing_weight"))
+                .then(pressKey(GLFW.GLFW_KEY_ENTER))
+                .then(moveTo(() -> field(mc, "pools.0.entries.1.functions.1.count#kind"), 8))
+                .then(click())
+                .then(pause(10))
+                .then(shoot("e03f_provider_list"))
+                .then(moveTo(() -> option(mc, "uniform"), 8))
+                .then(click())
+                .then(pause(30))
+                .then(shoot("e03g_count_range"))
+                .then(run(() -> editor(mc).openItemPicker()))
+                .then(pause(20))
+                .then(shoot("e03c_item_picker"))
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(run(() -> editor(mc).pick(-1, -1)))
+                .then(pause(20))
+                .then(shoot("e03d_table_card"))
                 // The JSON/Form toggle is the toolbar's first button, at the bottom left.
                 .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
                 .then(click())
@@ -68,6 +97,21 @@ final class EditorScenario {
                 .then(pause(40))
                 .then(shoot("e07_merged"));
         return d;
+    }
+
+    private static int[] field(Minecraft mc, String path) {
+        int[] at = editor(mc) == null ? null : editor(mc).fieldAt(path);
+        return at == null ? new int[]{0, 0} : at;
+    }
+
+    private static int[] option(Minecraft mc, String option) {
+        int[] at = editor(mc) == null ? null : editor(mc).optionAt(option);
+        return at == null ? new int[]{0, 0} : at;
+    }
+
+    private static int[] at(Minecraft mc, String label) {
+        int[] at = editor(mc) == null ? null : editor(mc).buttonAt(label);
+        return at == null ? new int[]{0, 0} : at;
     }
 
     /**

@@ -219,6 +219,11 @@ public final class FabricGameTests implements FabricGameTest {
         PackToolsTests.changesWaitForReload(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
+    public void draftsRollIntoAChest(GameTestHelper helper) {
+        PackToolsTests.draftsRollIntoAChest(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsWriteBack(GameTestHelper helper) {
         SettingsTests.serverSettingsWriteBack(helper);

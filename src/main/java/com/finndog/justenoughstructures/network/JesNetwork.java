@@ -49,6 +49,8 @@ public final class JesNetwork {
     public static final int KIND_DRAFT = 4;
     public static final int KIND_SAVE = 5;
     public static final int KIND_TOOLS = 6;
+    /** An upload: an edited loot table to fill one container from, answered like {@link #LOOT}. */
+    public static final int KIND_DRAFT_ROLL = 7;
 
     /** What {@link #TABLE_ACTION} asks for. */
     public static final int ACTION_KEEP = 0;
