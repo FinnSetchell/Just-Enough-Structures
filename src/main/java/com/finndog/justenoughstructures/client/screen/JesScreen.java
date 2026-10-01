@@ -58,7 +58,6 @@ public class JesScreen extends Screen {
     /** How far the details panel sits down to make room for its tabs, as JEI's recipe panel does. */
     private static final int TABS = 21;
     private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
-    private static final ItemStack SPIN_ICON = new ItemStack(Items.CLOCK);
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
@@ -79,7 +78,6 @@ public class JesScreen extends Screen {
 
     private EditBox search;
     private Button rerollButton;
-    private IconButton spinButton;
     private IconButton markersButton;
     private IconButton groundButton;
     private IconButton maximiseButton;
@@ -215,7 +213,7 @@ public class JesScreen extends Screen {
         boolean roomy = viewW >= 250;
         // When the buttons leave the layer slider too little room for its label, it gets a row of its
         // own under them, as wide as the preview, rather than spilling past the panel's edge.
-        int buttonsWidth = (roomy ? 68 : 36) + 22 + 22 + 22 + 24;
+        int buttonsWidth = (roomy ? 68 : 36) + 22 + 22 + 24;
         boolean sliderRow = viewW - buttonsWidth < LayerSlider.LABEL_WIDTH;
         int buttonsY = sliderRow ? toolbarY - 22 : toolbarY;
         viewH = buttonsY - 4 - viewY;
@@ -262,12 +260,6 @@ public class JesScreen extends Screen {
         bx += roomy ? 68 : 36;
         addRenderableWidget(new IconButton(bx, buttonsY, RESET_ICON,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
-        bx += 22;
-        spinButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> SPIN_ICON, () -> ClientState.spin, spinLabel(), b -> {
-            ClientState.spin = !ClientState.spin;
-            ClientState.save();
-            spinButton.setLabel(spinLabel());
-        }));
         bx += 22;
         markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> MARKERS_ICON, () -> ClientState.markers && !lootSecret(), markersLabel(), b -> {
             ClientState.markers = !ClientState.markers;
@@ -802,9 +794,6 @@ public class JesScreen extends Screen {
 
     public void setSpin(boolean on) {
         ClientState.spin = on;
-        if (spinButton != null) {
-            spinButton.setLabel(spinLabel());
-        }
     }
 
     public Optional<int[]> structureRow(ResourceLocation id) {
@@ -843,7 +832,6 @@ public class JesScreen extends Screen {
     public int[] button(String name) {
         Button b = switch (name) {
             case "reroll" -> rerollButton;
-            case "spin" -> spinButton;
             case "markers" -> markersButton;
             case "ground" -> groundButton;
             case "maximise" -> maximiseButton;
@@ -985,7 +973,9 @@ public class JesScreen extends Screen {
         long now = System.nanoTime();
         float seconds = Math.min(0.1f, (now - lastFrame) / 1e9f);
         lastFrame = now;
-        if (ClientState.spin && view != null && !(pressedInViewport && dragged)) {
+        // Turns slowly while the mouse is away, and stops where it is once the mouse is over it.
+        boolean overPreview = mouseX >= viewX && mouseX < viewX + viewW && mouseY >= viewY && mouseY < viewY + viewH;
+        if (ClientState.spin && view != null && !overPreview && !(pressedInViewport && dragged)) {
             viewport.spin(seconds * 12f);
         }
 
@@ -1593,9 +1583,6 @@ public class JesScreen extends Screen {
         super.removed();
     }
 
-    private Component spinLabel() {
-        return Component.translatable(ClientState.spin ? "screen.justenoughstructures.spin_on" : "screen.justenoughstructures.spin_off");
-    }
 
     private Component groundLabel() {
         return Component.translatable(ClientState.ground ? "screen.justenoughstructures.ground_on" : "screen.justenoughstructures.ground_off");

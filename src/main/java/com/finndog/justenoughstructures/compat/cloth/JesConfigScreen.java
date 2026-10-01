@@ -44,7 +44,7 @@ public final class JesConfigScreen {
 
         ConfigCategory browser = builder.getOrCreateCategory(text("browser"));
         browser.addEntry(entries.startTextDescription(text("browser.about")).build());
-        browser.addEntry(entries.startBooleanToggle(text("spin"), ClientState.spin).setDefaultValue(true)
+        browser.addEntry(entries.startBooleanToggle(text("spin"), ClientState.spin).setDefaultValue(true).setTooltip(text("spin.tooltip"))
                 .setSaveConsumer(value -> ClientState.spin = value).build());
         browser.addEntry(entries.startBooleanToggle(text("markers"), ClientState.markers).setDefaultValue(true)
                 .setSaveConsumer(value -> ClientState.markers = value).build());

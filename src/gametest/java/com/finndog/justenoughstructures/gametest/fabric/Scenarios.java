@@ -53,6 +53,7 @@ final class Scenarios {
             case "favourites" -> FavouritesScenario.build(mc);
             case "spawners" -> SpawnersScenario.build(mc);
             case "back" -> BackScenario.build(mc);
+            case "hover_spin" -> SpinScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

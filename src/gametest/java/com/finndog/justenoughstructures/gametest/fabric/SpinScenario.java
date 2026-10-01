@@ -1,0 +1,46 @@
+package com.finndog.justenoughstructures.gametest.fabric;
+
+import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+
+import com.finndog.justenoughstructures.client.screen.JesScreen;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import org.lwjgl.glfw.GLFW;
+
+/**
+ * The preview turning on its own while the mouse is away from it, and holding still while the
+ * mouse is over it: two shots a couple of seconds apart each way.
+ */
+final class SpinScenario {
+    private SpinScenario() {
+    }
+
+    static Director build(Minecraft mc) {
+        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        Director d = new Director(mc, null);
+        d.then(pressKey(GLFW.GLFW_KEY_K))
+                .then(until(() -> browser(mc) != null, 40))
+                .then(until(() -> browser(mc).idle(), 600))
+                .then(run(() -> browser(mc).setSpin(true)))
+                .then(moveTo(() -> browser(mc).searchBox(), 10))
+                .then(pause(10))
+                .then(shoot("p01_away"))
+                .then(pause(40))
+                .then(shoot("p02_away_later"))
+                .then(moveTo(() -> browser(mc).viewportCentre(), 10))
+                .then(pause(10))
+                .then(shoot("p03_over"))
+                .then(pause(40))
+                .then(shoot("p04_over_later"));
+        return d;
+    }
+
+    private static JesScreen browser(Minecraft mc) {
+        return mc.screen instanceof JesScreen s ? s : null;
+    }
+}

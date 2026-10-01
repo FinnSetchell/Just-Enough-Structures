@@ -17,8 +17,9 @@ Press **K** (you can change it in Controls) to open the browser.
 - Search the list on the left. A search also finds items in structures' loot: click one to see
   every structure it can come from, best chance first. `@mod` shows one mod's structures and
   `$item` shows the structures whose loot can give an item.
-- Drag to turn the preview, shift-drag or right-drag to move it, scroll to zoom. The button in
-  the top corner makes the preview fill the screen.
+- Drag to turn the preview, shift-drag or right-drag to move it, scroll to zoom. It turns slowly
+  on its own while the mouse is away from it. The button in the top corner makes the preview fill
+  the screen.
 - **New layout** generates the structure again from a new seed. **Layers** hides the top of it
   so you can see inside.
 - Click a chest, barrel or suspicious block (or the marker floating over it) to open it and see a
@@ -29,10 +30,10 @@ Press **K** (you can change it in Controls) to open the browser.
 - With cheats on (or as an operator), the recovery compass button finds the nearest one.
   Ctrl-click it to teleport there.
 
-The browser remembers how you left it: spin, markers, the ground, maximise and so on. With
+The browser remembers how you left it: markers, the ground, maximise and so on. With
 [Mod Menu](https://modrinth.com/mod/modmenu) and [Cloth Config](https://modrinth.com/mod/cloth-config)
-installed, its Config button opens a settings screen for those, and for the server settings of
-worlds you play or host from your game.
+installed, its Config button opens a settings screen for those, where the preview can also be
+kept from spinning, and for the server settings of worlds you play or host from your game.
 
 With [JEI](https://modrinth.com/mod/jei), [EMI](https://modrinth.com/mod/emi) or
 [REI](https://modrinth.com/mod/rei) installed, an item's recipes get a **Found in structures** page
