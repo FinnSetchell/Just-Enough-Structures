@@ -171,8 +171,7 @@ public class JesScreen extends Screen {
     protected void init() {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
-            info.onEditTable(this::openEditor);
-            info.onNewTable(this::openNewTable);
+            info.onOpenTable(this::openTable);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -365,6 +364,11 @@ public class JesScreen extends Screen {
             locateButton.setLabel(label);
         }
         locateButton.active = access > 0 && !locating;
+        // Only offered to players allowed to locate. The compass button moves up to take its place.
+        locateButton.visible = access > 0;
+        if (compassButton != null) {
+            compassButton.setX((locateButton.visible ? locateButton.getX() : maximiseButton.getX()) - 22);
+        }
     }
 
     private void onCatalog(List<StructureCatalog.Entry> entries) {
@@ -563,10 +567,11 @@ public class JesScreen extends Screen {
             return;
         }
         List<StructureSnapshot.Container> same = sameTable(container);
-        popup = new ChestPopup(container, containerTitle(container), containerSize(container), same.indexOf(container), same.size());
-        popup.place(width, height);
+        ChestPopup.View keep = popup != null && popup.container != null ? popup.view : ChestPopup.View.ROLL;
+        popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container), same.indexOf(container), same.size());
+        popup.view = keep;
+        popup.place(width, height, font);
         layoutPopupButtons();
-        selectTable(container.lootTable());
         if (container.lootTable() == null) {
             popup.items = prefilledItems(container);
             return;
@@ -574,11 +579,33 @@ public class JesScreen extends Screen {
         popup.seed = container.lootSeed() != 0 ? container.lootSeed()
                 : seed ^ (container.pos().asLong() * 0x9E3779B97F4A7C15L);
         rollPopup();
+        fetchPopupOdds();
+    }
+
+    /** Opens a loot table this layout doesn't have in a popup on its own: its chances, and a roll of it. */
+    public void openTable(String table) {
+        if (ResourceLocation.tryParse(table) == null) {
+            return;
+        }
+        popup = ChestPopup.forTable(table);
+        popup.place(width, height, font);
+        layoutPopupButtons();
+        popup.seed = ThreadLocalRandom.current().nextLong();
+        rollPopup();
+        fetchPopupOdds();
+    }
+
+    private void fetchPopupOdds() {
+        ChestPopup current = popup;
+        ResourceLocation table = current.table == null ? null : ResourceLocation.tryParse(current.table);
+        if (table != null) {
+            ClientRequests.odds(table).thenAccept(odds -> current.odds = odds);
+        }
     }
 
     private void rollPopup() {
         ChestPopup current = popup;
-        ResourceLocation table = ResourceLocation.tryParse(current.container.lootTable());
+        ResourceLocation table = current.table == null ? null : ResourceLocation.tryParse(current.table);
         if (table == null) {
             current.items = List.of();
             return;
@@ -587,15 +614,18 @@ public class JesScreen extends Screen {
         ClientRequests.loot(table, current.seed, current.size).thenAccept(items -> current.items = items);
     }
 
+    /** Rolls the table again, showing the roll. */
     private void rerollLoot() {
-        if (popup != null && popup.container.lootTable() != null) {
+        if (popup != null && popup.table != null) {
+            popup.switchTo(ChestPopup.View.ROLL);
+            popup.place(width, height, font);
             popup.seed = ThreadLocalRandom.current().nextLong();
             rollPopup();
         }
     }
 
     private void stepContainer(int direction) {
-        if (popup == null) {
+        if (popup == null || popup.container == null) {
             return;
         }
         List<StructureSnapshot.Container> same = sameTable(popup.container);
@@ -608,7 +638,7 @@ public class JesScreen extends Screen {
     private List<StructureSnapshot.Container> sameTable(StructureSnapshot.Container container) {
         List<StructureSnapshot.Container> out = new ArrayList<>();
         for (StructureSnapshot.Container c : result.snapshot().containers()) {
-            if (Objects.equals(c.lootTable(), container.lootTable())) {
+            if (Objects.equals(c.lootTable(), container.lootTable()) && c.id().equals(container.id())) {
                 out.add(c);
             }
         }
@@ -793,23 +823,24 @@ public class JesScreen extends Screen {
         pointCompass();
     }
 
-    /** The chest popup's links: change which table this one container uses, edit its table, or undo a change. */
-    private void containerAction(ChestPopup open, ChestPopup.Action action) {
-        StructureSnapshot.Container container = open.container;
-        switch (action) {
-            case CHANGE -> minecraft.setScreen(new TablePickerScreen(this, container.source(), container.lootTable(), open.title));
-            case EDIT -> openEditor(container.lootTable());
-            case UNDO -> ClientRequests.containerAction(container.source().template(), container.source().pos(), null)
-                    .thenAccept(reply -> {
-                        boolean undone = replyIs(reply.message(), "container.removed");
-                        showMessage(reply.message(), undone, undone);
-                    });
-        }
+    /** The chest popup's tabs: one roll, or every item's chance. */
+    private void popupAction(ChestPopup open, ChestPopup.Action action) {
+        open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
+        open.place(width, height, font);
+        layoutPopupButtons();
     }
 
-    /** Where a link on the open chest popup is, for the screenshot harness, or null. */
+    /** Where a tab on the open chest popup is ("roll" or "odds"), for the screenshot harness, or null. */
     public int[] popupLink(String name) {
-        return popup == null ? null : popup.linkCentre(ChestPopup.Action.valueOf(name.toUpperCase(java.util.Locale.ROOT)));
+        if (popup == null) {
+            return null;
+        }
+        for (ChestPopup.Action action : ChestPopup.Action.values()) {
+            if (action.name().equalsIgnoreCase(name)) {
+                return popup.linkCentre(action);
+            }
+        }
+        return null;
     }
 
     /** Says something in the preview's top line, where locate results go, for a few seconds. */
@@ -992,10 +1023,14 @@ public class JesScreen extends Screen {
         if (!show || chestReroll == null) {
             return;
         }
-        int rowY = popup.buttonRowY();
+        int rowY = popup.buttonRowY(font);
         chestReroll.setX(popup.x + 6);
         chestReroll.setY(rowY);
-        chestReroll.active = popup.container.lootTable() != null;
+        chestReroll.active = popup.table != null;
+        // A table on its own has no others like it to step through, so Roll again takes their room.
+        boolean steps = popup.container != null;
+        chestReroll.setWidth(steps ? 70 : ChestPopup.WIDTH - 12 - 48);
+        chestPrev.visible = chestNext.visible = steps;
         chestPrev.setX(popup.x + 80);
         chestPrev.setY(rowY);
         chestNext.setX(popup.x + 102);
@@ -1108,7 +1143,9 @@ public class JesScreen extends Screen {
             popupHover = popup.render(g, font, mouseX, mouseY);
             layoutPopupButtons();
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
-                b.render(g, mouseX, mouseY, partialTick);
+                if (b.visible) {
+                    b.render(g, mouseX, mouseY, partialTick);
+                }
             }
             g.pose().popPose();
         }
@@ -1134,9 +1171,7 @@ public class JesScreen extends Screen {
     private void renderTooltips(GuiGraphics g, int mouseX, int mouseY, boolean popupOpen, ItemStack popupHover, StructureViewport.Hit hover) {
         if (popupOpen) {
             if (!popupHover.isEmpty()) {
-                g.renderComponentTooltip(font, itemTooltip(popupHover, List.of()), mouseX, mouseY);
-            } else if (popup.hoveredHint != null) {
-                g.renderTooltip(font, font.split(popup.hoveredHint, 200), mouseX, mouseY);
+                g.renderComponentTooltip(font, itemTooltip(popupHover, popup.hoveredExtra), mouseX, mouseY);
             }
         } else if (clippedHeaderLine(mouseX, mouseY) != null) {
             g.renderTooltip(font, font.split(clippedHeaderLine(mouseX, mouseY), 240), mouseX, mouseY);
@@ -1255,7 +1290,7 @@ public class JesScreen extends Screen {
         if (hover != null && hover.entity() == null) {
             outlines.add(hover.pos());
         }
-        if (popup != null && !popup.container.entity()) {
+        if (popup != null && popup.container != null && !popup.container.entity()) {
             outlines.add(popup.container.pos());
         }
         viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines, highlight());
@@ -1453,7 +1488,7 @@ public class JesScreen extends Screen {
     private List<Component> hoverLines(StructureViewport.Hit hit) {
         List<Component> lines = new ArrayList<>();
         StructureSnapshot.Container container = containerAt(hit);
-        boolean details = hasShiftDown();
+        boolean details = Gui.advanced();
         if (hit.entity() != null) {
             lines.add(hit.entity().getName());
         } else {
@@ -1535,10 +1570,10 @@ public class JesScreen extends Screen {
             }
             ChestPopup.Action action = popup.actionAt(mouseX, mouseY);
             if (action != null) {
-                containerAction(popup, action);
+                popupAction(popup, action);
                 return true;
             }
-            if (!popup.contains(mouseX, mouseY)) {
+            if (!popup.contains(mouseX, mouseY, font)) {
                 closePopup();
             } else if (!popupHovered.isEmpty()) {
                 openFoundIn(popupHovered);
@@ -1613,6 +1648,7 @@ public class JesScreen extends Screen {
             return true;
         }
         if (popup != null) {
+            popup.scroll(mouseX, mouseY, delta);
             return true;
         }
         if (view != null && viewport.contains(mouseX, mouseY)) {

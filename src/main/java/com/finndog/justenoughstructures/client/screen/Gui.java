@@ -225,6 +225,47 @@ public final class Gui {
         return smallScale() != 0.75f || Math.round(Minecraft.getInstance().getWindow().getGuiScale()) % 4 == 0;
     }
 
+    /**
+     * The size of secondary text, like labels and details under a row: small where small text is
+     * sharp, and full size at GUI scales 1 and 2, where it isn't.
+     */
+    static float fineScale() {
+        return smallIsSharp() ? smallScale() : 1f;
+    }
+
+    /** Secondary text, at {@link #fineScale()}. */
+    static void fine(GuiGraphics g, Font font, String text, int x, int y, int color) {
+        scaled(g, font, text, x, y, color, fineScale());
+    }
+
+    static int fineWidth(Font font, String text) {
+        return (int) Math.ceil(font.width(text) * fineScale());
+    }
+
+    static int fineLine(Font font) {
+        return (int) Math.ceil(font.lineHeight * fineScale());
+    }
+
+    /** Cuts text short to fit {@code width} at the secondary size. */
+    static String fineClip(Font font, String text, int width) {
+        return clip(font, text, (int) (width / fineScale()));
+    }
+
+    /** Wrapped secondary text. Returns the y below it. */
+    static int fineWrapped(GuiGraphics g, Font font, Component text, int x, int y, int width, int color) {
+        float scale = fineScale();
+        for (FormattedCharSequence line : font.split(text, (int) (width / scale))) {
+            scaled(g, font, line, x, y, color, scale);
+            y += fineLine(font) + 1;
+        }
+        return y;
+    }
+
+    /** Whether advanced tooltips are on (F3+H), which brings ids and details back, as vanilla does for items. */
+    static boolean advanced() {
+        return Minecraft.getInstance().options.advancedItemTooltips;
+    }
+
     /** How wide text is when drawn small. */
     public static int smallWidth(Font font, String text) {
         return (int) Math.ceil(font.width(text) * smallScale());

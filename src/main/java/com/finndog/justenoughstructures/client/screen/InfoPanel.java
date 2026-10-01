@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.ChatFormatting;
@@ -89,9 +90,7 @@ final class InfoPanel {
     private final Consumer<String> onSelectTable;
     private final Consumer<StructureSnapshot.Container> onOpenContainer;
     private final Consumer<ItemStack> onItemClicked;
-    private Runnable onNewTable = () -> {
-    };
-    private Consumer<String> onEditTable = table -> {
+    private Consumer<String> onOpenTable = table -> {
     };
 
     private Tab tab = Tab.OVERVIEW;
@@ -174,12 +173,9 @@ final class InfoPanel {
 
     /** What the Loot tab's Edit link does with the picked table. */
     /** What the Loot tab's New loot table link does. */
-    void onNewTable(Runnable action) {
-        onNewTable = action;
-    }
-
-    void onEditTable(Consumer<String> action) {
-        onEditTable = action;
+    /** What clicking a loot table this layout doesn't have does: opens it in a popup on its own. */
+    void onOpenTable(Consumer<String> action) {
+        onOpenTable = action;
     }
 
     void setTab(Tab tab) {
@@ -359,7 +355,11 @@ final class InfoPanel {
             cy = Gui.wrapped(g, font, info.notes(), x + PAD, cy, textWidth(), TEXT) + 3;
         }
 
-        // Everything a datapack author wants and a player doesn't, folded away by default.
+        // Everything a datapack author wants and a player doesn't: only with advanced tooltips (F3+H),
+        // as vanilla does with ids, and folded away even then.
+        if (!Gui.advanced()) {
+            return cy;
+        }
         cy += 2;
         Component toggle = Component.translatable(ClientState.details ? "screen.justenoughstructures.details_hide" : "screen.justenoughstructures.details_show");
         boolean over = inside(mouseX, mouseY, x + 2, cy - 1, width - 4, font.lineHeight + 3, clipTop, clipHeight);
@@ -651,77 +651,74 @@ final class InfoPanel {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot snapshot = result.snapshot();
+        // One row per kind of container and loot table, so a chest and a barrel on the same table are told apart.
         Map<String, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
         for (StructureSnapshot.Container c : snapshot.containers()) {
-            groups.computeIfAbsent(c.lootTable() == null ? "" : c.lootTable(), k -> new ArrayList<>()).add(c);
+            groups.computeIfAbsent((c.lootTable() == null ? "" : c.lootTable()) + "|" + c.id(), k -> new ArrayList<>()).add(c);
         }
-        if (groups.isEmpty()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
-        }
-        List<Map.Entry<String, List<StructureSnapshot.Container>>> sorted = new ArrayList<>(groups.entrySet());
-        sorted.sort(Comparator.comparing((Map.Entry<String, List<StructureSnapshot.Container>> e) -> e.getKey().isEmpty())
-                .thenComparing(e -> -e.getValue().size()));
-
-        int selectedCount = 1;
-        String selectedName = null;
-        for (Map.Entry<String, List<StructureSnapshot.Container>> group : sorted) {
-            String table = group.getKey();
-            List<StructureSnapshot.Container> containers = group.getValue();
-            int rowHeight = 15 + secondaryLine();
-            boolean selected = table.equals(selectedTable);
-            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
-            Gui.card(g, x, cy, contentRight - x, rowHeight);
-            if (selected || hovered) {
-                g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
-            }
-            ItemStack icon = containerIcon(snapshot, containers.get(0));
-            Gui.slot(g, x + PAD + 1, cy + 2);
-            g.renderItem(icon, x + PAD + 2, cy + 3);
-            String name = Component.translatable("screen.justenoughstructures.name_times", icon.getHoverName(), containers.size()).getString();
-            String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
-            int textWidth = contentRight - x - PAD - 23 - 12;
-            Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
-            int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
-            fine(g, fineClip(detail, textWidth - mark), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
-            g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
-            if (hovered) {
-                hoveredText = withEditedNote(List.of(Component.literal(name),
-                        Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW)), table);
-                hoveredBlocks = new Hovered("loot:" + table, s -> positionsOf(containers));
-            }
-            highlightRows.put("loot:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
-            if (selected) {
-                selectedCount = containers.size();
-                selectedName = icon.getHoverName().getString().toLowerCase(Locale.ROOT);
-            }
-            StructureSnapshot.Container first = containers.get(0);
-            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> {
-                onSelectTable.accept(table.isEmpty() ? null : table);
-                onOpenContainer.accept(first);
-            }));
-            cy += rowHeight + 1;
-        }
-
         // Tables this layout happens not to have, from every layout the structure can generate, so
-        // their odds can be seen and edited without rolling new layouts until one turns up.
+        // what they hold can be seen without rolling new layouts until one turns up.
         Set<ResourceLocation> everyTable = FoundIn.tablesIn(entry.id());
         if (everyTable == null) {
             ClientRequests.index();
-        } else {
-            List<String> others = everyTable.stream().map(ResourceLocation::toString).filter(t -> !groups.containsKey(t))
-                    .sorted(Comparator.comparing(StructureNames::lootTable)).toList();
-            if (!others.isEmpty()) {
-                cy += 2;
-                fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
-                cy += secondaryLine() + 2;
-            }
-            for (String table : others) {
-                int rowHeight = 15 + secondaryLine();
-                boolean selected = table.equals(selectedTable);
+        }
+        List<String> others = everyTable == null ? List.of() : everyTable.stream().map(ResourceLocation::toString)
+                .filter(t -> snapshot.containers().stream().noneMatch(c -> t.equals(c.lootTable())))
+                .sorted(Comparator.comparing(StructureNames::lootTable)).toList();
+        if (groups.isEmpty() && others.isEmpty()) {
+            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+        }
+
+        int rowHeight = 15 + secondaryLine();
+        if (!groups.isEmpty()) {
+            fine(g, Component.translatable("screen.justenoughstructures.containers_here").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+            cy += secondaryLine() + 2;
+            List<List<StructureSnapshot.Container>> sorted = new ArrayList<>(groups.values());
+            sorted.sort(Comparator.comparing((List<StructureSnapshot.Container> list) -> list.get(0).lootTable() == null)
+                    .thenComparing(list -> -list.size()));
+            for (List<StructureSnapshot.Container> containers : sorted) {
+                StructureSnapshot.Container first = containers.get(0);
+                String table = first.lootTable() == null ? "" : first.lootTable();
                 boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
                 Gui.card(g, x, cy, contentRight - x, rowHeight);
-                if (selected || hovered) {
-                    g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+                if (hovered) {
+                    g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, Gui.ROW_HOVER);
+                }
+                ItemStack icon = containerIcon(snapshot, first);
+                Gui.slot(g, x + PAD + 1, cy + 2);
+                g.renderItem(icon, x + PAD + 2, cy + 3);
+                String name = Component.translatable("screen.justenoughstructures.name_times", icon.getHoverName(), containers.size()).getString();
+                String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
+                int textWidth = contentRight - x - PAD - 23 - 12;
+                Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
+                int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
+                fine(g, fineClip(detail, textWidth - mark), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+                g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
+                String key = "loot:" + table + "|" + first.id();
+                if (hovered) {
+                    List<Component> lines = new ArrayList<>(List.of(Component.literal(name),
+                            Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW)));
+                    if (Gui.advanced() && !table.isEmpty()) {
+                        lines.add(Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
+                    }
+                    hoveredText = withEditedNote(lines, table);
+                    hoveredBlocks = new Hovered(key, s -> positionsOf(containers));
+                }
+                highlightRows.put("loot:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
+                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenContainer.accept(first)));
+                cy += rowHeight + 1;
+            }
+        }
+
+        if (!others.isEmpty()) {
+            cy += 2;
+            fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+            cy += secondaryLine() + 2;
+            for (String table : others) {
+                boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
+                Gui.card(g, x, cy, contentRight - x, rowHeight);
+                if (hovered) {
+                    g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, Gui.ROW_HOVER);
                 }
                 Gui.slot(g, x + PAD + 1, cy + 2);
                 g.renderItem(SECRET_ICON, x + PAD + 2, cy + 3);
@@ -732,20 +729,152 @@ final class InfoPanel {
                         x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 if (hovered) {
-                    hoveredText = withEditedNote(List.of(Component.literal(StructureNames.lootTable(table)),
-                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY)), table);
+                    List<Component> lines = new ArrayList<>(List.of(Component.literal(StructureNames.lootTable(table)),
+                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY)));
+                    if (Gui.advanced()) {
+                        lines.add(Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
+                    }
+                    hoveredText = withEditedNote(lines, table);
                 }
-                if (selected) {
-                    selectedCount = 1;
-                    selectedName = Component.translatable("screen.justenoughstructures.container").getString();
-                }
-                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
+                highlightRows.put("other:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
+                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenTable.accept(table)));
                 cy += rowHeight + 1;
             }
         }
-        cy = newTableLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
+        return lootTotals(g, cy, snapshot, mouseX, mouseY, clipTop, clipHeight);
+    }
 
-        return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, selectedCount, selectedName);
+    /** One item's chance across every container in the layout, built up a table at a time. */
+    private static final class Total {
+        final ItemStack example;
+        double none = 1;
+        double amount;
+        final List<Component> from = new ArrayList<>();
+        final Map<String, Integer> variants = new TreeMap<>();
+
+        Total(ItemStack example) {
+            this.example = example;
+        }
+
+        float chance() {
+            return (float) (1 - none);
+        }
+    }
+
+    /**
+     * What the whole layout can give: for each item, the chance of at least one across every
+     * container, and how many come in all, from each table's chance in one roll and how many
+     * containers use it.
+     */
+    private int lootTotals(GuiGraphics g, int cy, StructureSnapshot snapshot, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        // How many containers use each table, by kind, and how many of each kind there are in all.
+        Map<String, Map<String, Integer>> perTable = new LinkedHashMap<>();
+        Map<String, Integer> perKind = new LinkedHashMap<>();
+        for (StructureSnapshot.Container c : snapshot.containers()) {
+            if (c.lootTable() == null) {
+                continue;
+            }
+            String kind = containerIcon(snapshot, c).getHoverName().getString();
+            perTable.computeIfAbsent(c.lootTable(), k -> new LinkedHashMap<>()).merge(kind, 1, Integer::sum);
+            perKind.merge(kind, 1, Integer::sum);
+        }
+        if (perTable.isEmpty()) {
+            return cy;
+        }
+        cy += 4;
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.whole_structure").getString(), x, cy, contentRight - x, 13);
+        cy += 16;
+        int containers = perKind.values().stream().mapToInt(Integer::intValue).sum();
+        String what = counted(perKind);
+        Component counts = containers == 1 ? Component.translatable("screen.justenoughstructures.whole_only_one", what)
+                : Component.translatable("screen.justenoughstructures.whole_together", what);
+        cy = fineWrapped(g, counts, x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 1;
+        cy = sortLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
+
+        // Every table's chances are needed before the totals mean anything.
+        Map<String, LootOdds> odds = new LinkedHashMap<>();
+        for (String table : perTable.keySet()) {
+            ResourceLocation id = ResourceLocation.tryParse(table);
+            LootOdds found = id == null ? null : ClientRequests.odds(id).getNow(null);
+            if (found == null) {
+                return fineWrapped(g, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            }
+            odds.put(table, found);
+        }
+        Map<Item, Total> totals = new LinkedHashMap<>();
+        for (Map.Entry<String, LootOdds> e : odds.entrySet()) {
+            LootOdds table = e.getValue();
+            Map<String, Integer> kinds = perTable.get(e.getKey());
+            int n = kinds.values().stream().mapToInt(Integer::intValue).sum();
+            for (LootOdds.Row row : table.rows()) {
+                float p = (float) row.hits() / table.rolls();
+                Total total = totals.computeIfAbsent(row.example().getItem(), item -> new Total(row.example()));
+                total.none *= Math.pow(1 - p, n);
+                total.amount += n * (double) row.total() / table.rolls();
+                total.from.add(Component.literal("  ").append(Component.translatable("screen.justenoughstructures.tip_from_table",
+                        StructureNames.lootTable(e.getKey()), String.format("%.1f%%", p * 100), counted(kinds))).withStyle(ChatFormatting.DARK_AQUA));
+                row.variants().forEach((variant, level) -> total.variants.merge(variant, level, Math::max));
+            }
+        }
+        List<Total> rows = new ArrayList<>(totals.values());
+        rows.sort(ClientState.rarestFirst ? Comparator.comparingDouble(Total::chance) : Comparator.comparingDouble((Total t) -> -t.chance()));
+        for (Total total : rows) {
+            float chance = total.chance();
+            String amount = total.amount >= 0.95
+                    ? Component.translatable("screen.justenoughstructures.in_all", Math.max(1, Math.round(total.amount))).getString()
+                    : Component.translatable("screen.justenoughstructures.on_average", String.format("%.1f", total.amount)).getString();
+            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
+            if (cy + OddsList.ROW >= clipTop && cy <= clipTop + clipHeight) {
+                OddsList.drawRow(g, font, total.example, total.example.getHoverName().getString(), amount, chance, x, cy, contentRight, hovered);
+            }
+            if (hovered) {
+                List<Component> lines = new ArrayList<>();
+                lines.add(Component.translatable("screen.justenoughstructures.tip_at_least_one", String.format("%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
+                lines.add((total.amount >= 0.95
+                        ? Component.translatable("screen.justenoughstructures.tip_in_all", Math.max(1, Math.round(total.amount)))
+                        : Component.translatable("screen.justenoughstructures.tip_on_average", String.format("%.1f", total.amount))).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("screen.justenoughstructures.tip_from").withStyle(ChatFormatting.GRAY));
+                lines.addAll(total.from);
+                lines.addAll(OddsList.variantLines(total.variants));
+                hoveredStack = total.example;
+                hoveredExtra = lines;
+            }
+            ItemStack example = total.example;
+            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example)));
+            if (cy >= clipTop && cy + OddsList.ROW <= clipTop + clipHeight) {
+                oddsRows.put(example.getItem(), new int[]{x + PAD + 60, cy + OddsList.ROW / 2});
+            }
+            cy += OddsList.ROW + 1;
+        }
+        return cy;
+    }
+
+    /** "7 x Suspicious Sand and 4 x Chest", most first. */
+    private static String counted(Map<String, Integer> kinds) {
+        List<String> parts = kinds.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .map(e -> Component.translatable("screen.justenoughstructures.count_of", e.getValue(), e.getKey()).getString()).toList();
+        if (parts.size() < 2) {
+            return String.join("", parts);
+        }
+        return Component.translatable("screen.justenoughstructures.and", String.join(", ", parts.subList(0, parts.size() - 1)),
+                parts.get(parts.size() - 1)).getString();
+    }
+
+    /** "Most likely first" or "Rarest first", which switches the order. Returns the y below it. */
+    private int sortLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
+        int sortWidth = secondaryWidth(sortLabel.getString()) + 2;
+        int linkHeight = secondaryLine() + 2;
+        boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
+        fine(g, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
+        if (overSort) {
+            hoveredText = List.of(Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
+        }
+        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
+            ClientState.rarestFirst = !ClientState.rarestFirst;
+            ClientState.save();
+        }));
+        return cy + linkHeight + 2;
     }
 
     /**
@@ -767,6 +896,9 @@ final class InfoPanel {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<String> sorted = tables.stream().map(ResourceLocation::toString).sorted(Comparator.comparing(StructureNames::lootTable)).toList();
+        if (selectedTable == null || !sorted.contains(selectedTable)) {
+            onSelectTable.accept(sorted.get(0));
+        }
         for (String table : sorted) {
             int rowHeight = 20;
             boolean selected = table.equals(selectedTable);
@@ -780,10 +912,12 @@ final class InfoPanel {
             int mark = editedMark(g, table, contentRight - 12, cy + 7);
             Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12 - mark, TEXT);
             g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? TEXT : Gui.LABEL_SOFT, false);
+            if (hovered && Gui.advanced()) {
+                hoveredText = List.of(Component.literal(StructureNames.lootTable(table)), Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
+            }
             hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
             cy += rowHeight + 1;
         }
-        cy = newTableLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, 1,
                 Component.translatable("screen.justenoughstructures.container").getString());
     }
@@ -793,7 +927,7 @@ final class InfoPanel {
      * mod's table changed since, or an edit that isn't used. Returns the room it took, 0 if none.
      */
     private int editedMark(GuiGraphics g, String table, int right, int top) {
-        LootOverrides.Status status = ClientRequests.overrideStatus(table);
+        LootOverrides.Status status = ClientRequests.showsPackTools() ? ClientRequests.overrideStatus(table) : null;
         if (status == null || status == LootOverrides.Status.NONE) {
             return 0;
         }
@@ -815,7 +949,7 @@ final class InfoPanel {
 
     /** A row's tooltip, with what the editor would say about the table's edit added. */
     private static List<Component> withEditedNote(List<Component> lines, String table) {
-        LootOverrides.Status status = ClientRequests.overrideStatus(table);
+        LootOverrides.Status status = ClientRequests.showsPackTools() ? ClientRequests.overrideStatus(table) : null;
         if (status == null || status == LootOverrides.Status.NONE) {
             return lines;
         }
@@ -825,161 +959,47 @@ final class InfoPanel {
         return out;
     }
 
-    /**
-     * For players who can edit loot: a link to make a loot table of their own, one that no chest
-     * has yet, to point chests at later or give with /loot.
-     */
-    private int newTableLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
-        if (!ClientRequests.showsPackTools()) {
-            return cy;
-        }
-        String text = Component.translatable("screen.justenoughstructures.new_table").getString();
-        int linkWidth = secondaryWidth(text) + 2;
-        int linkHeight = secondaryLine() + 2;
-        cy += 2;
-        boolean over = inside(mouseX, mouseY, x + PAD, cy - 1, linkWidth, linkHeight, clipTop, clipHeight);
-        fine(g, text, x + PAD, cy, over ? 0xFF1F3F8F : 0xFF3A55A0);
-        if (over) {
-            hoveredText = List.of(Component.translatable("screen.justenoughstructures.new_table_hint"));
-        }
-        hotspots.add(new Hotspot(x + PAD, cy - 1, linkWidth, linkHeight, onNewTable));
-        return cy + linkHeight;
-    }
-
     private int lootOdds(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight, int selectedCount, String selectedName) {
         if (selectedTable == null) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.pick_group"), x + PAD, cy + 4, textWidth(), Gui.LABEL_SOFT);
+            return cy;
         }
         cy += 4;
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName).getString(),
                 x, cy, contentRight - x, 13);
         cy += 16;
-        Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
-        int sortWidth = secondaryWidth(sortLabel.getString()) + 2;
-        int linkHeight = secondaryLine() + 2;
-        boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
-        fine(g, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
-        if (overSort) {
-            hoveredText = List.of(Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
-        }
-        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
-            ClientState.rarestFirst = !ClientState.rarestFirst;
-            ClientState.save();
-        }));
-        // Right-aligned on the same line, for players the server lets edit loot tables.
-        if (ClientRequests.showsPackTools() && selectedTable != null) {
-            String edit = Component.translatable("screen.justenoughstructures.editor.edit_link").getString();
-            int editWidth = secondaryWidth(edit) + 2;
-            int editX = contentRight - 2 - editWidth;
-            if (editX > x + PAD + sortWidth + 4) {
-                boolean overEdit = inside(mouseX, mouseY, editX, cy - 1, editWidth, linkHeight, clipTop, clipHeight);
-                fine(g, edit, editX, cy, overEdit ? 0xFF1F3F8F : 0xFF3A55A0);
-                if (overEdit) {
-                    hoveredText = List.of(Component.translatable("screen.justenoughstructures.editor.edit_hint"));
-                }
-                String table = selectedTable;
-                hotspots.add(new Hotspot(editX, cy - 1, editWidth, linkHeight, () -> onEditTable.accept(table)));
-            }
-        }
-        cy += linkHeight + 2;
+        cy = sortLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         if (odds == null) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         if (odds.rows().isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
-        List<LootOdds.Row> rows = new ArrayList<>(odds.rows());
-        if (ClientState.rarestFirst) {
-            rows.sort(Comparator.comparingInt(LootOdds.Row::hits));
-        }
-        Map<String, Integer> nameCounts = new HashMap<>();
-        rows.forEach(r -> nameCounts.merge(r.example().getHoverName().getString(), 1, Integer::sum));
-        int rowHeight = 20;
+        List<LootOdds.Row> rows = OddsList.sorted(odds, ClientState.rarestFirst);
+        Map<LootOdds.Row, String> names = OddsList.names(rows);
         for (LootOdds.Row row : rows) {
             float chance = (float) row.hits() / odds.rolls();
-            boolean rare = chance < 0.1f;
-            int rowTop = cy;
-            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, rowHeight, clipTop, clipHeight);
-            if (hovered) {
-                g.fill(x + 2, cy, contentRight, cy + rowHeight, Gui.ROW_HOVER);
-            }
-            Gui.slot(g, x + PAD - 1, cy);
-            g.renderItem(row.example(), x + PAD, cy + 1);
-            int textX = x + PAD + 21;
-            String name = row.example().getHoverName().getString();
-            if (nameCounts.getOrDefault(name, 0) > 1) {
-                name = StructureNames.pretty(BuiltInRegistries.ITEM.getKey(row.example().getItem()).getPath());
-            }
-            Gui.fitted(g, font, name, textX, cy + 1, contentRight - 2 - textX, rare ? RARE : TEXT);
-            // The second line: how many come at a time, then the bar, then the chance it shows.
-            int lineY = cy + 11;
-            String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
-            int pctX = contentRight - 2 - font.width(pct);
-            g.drawString(font, pct, pctX, lineY, rare ? RARE : TEXT, false);
-            float average = (float) row.total() / row.hits();
-            String counts = row.min() == row.max()
-                    ? Component.translatable("screen.justenoughstructures.count_exact", row.min()).getString()
-                    : Component.translatable("screen.justenoughstructures.count_range", row.min(), row.max(), Math.round(average)).getString();
-            int countsY = lineY + (font.lineHeight - 1 - secondaryLine()) / 2;
-            fine(g, fineClip(counts, pctX - 4 - textX), textX, countsY, Gui.LABEL_SOFT);
-            int barLeft = textX + secondaryWidth(counts) + 4;
-            int barRight = pctX - 4;
-            if (barRight - barLeft > 10) {
-                g.fill(barLeft, lineY + 2, barRight, lineY + 6, Gui.BAR_BACK);
-                g.fill(barLeft, lineY + 2, barLeft + Math.max(1, (int) ((barRight - barLeft) * chance)), lineY + 6, rare ? 0xFFC08A20 : Gui.BAR);
-            }
+            boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
+            OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, cy, contentRight, hovered);
             if (hovered) {
                 hoveredStack = row.example();
-                hoveredExtra = oddsTooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
+                hoveredExtra = OddsList.tooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
             }
             ItemStack example = row.example();
-            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, rowHeight, () -> onItemClicked.accept(example)));
-            if (rowTop >= clipTop && rowTop + rowHeight <= clipTop + clipHeight) {
-                oddsRows.put(example.getItem(), new int[]{x + PAD + 60, rowTop + rowHeight / 2});
+            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example)));
+            if (cy >= clipTop && cy + OddsList.ROW <= clipTop + clipHeight) {
+                oddsRows.put(example.getItem(), new int[]{x + PAD + 60, cy + OddsList.ROW / 2});
             }
-            cy += rowHeight + 1;
+            cy += OddsList.ROW + 1;
         }
         if (odds.emptyRolls() > 0) {
             cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.empty_rolls",
                     String.format("%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         }
-        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
-                x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
+        if (Gui.advanced()) {
+            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
+                    x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
+        }
         return cy;
-    }
-
-    private static List<Component> oddsTooltip(LootOdds.Row row, float chance, int containers, String containerName) {
-        List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable("screen.justenoughstructures.tip_chance", containerName, String.format("%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
-        if (containers > 1) {
-            double atLeastOne = 1 - Math.pow(1 - chance, containers);
-            lines.add(Component.translatable("screen.justenoughstructures.tip_total", containers, containerName,
-                    String.format("%.0f%%", atLeastOne * 100)).withStyle(ChatFormatting.GRAY));
-        }
-        List<Component> variants = new ArrayList<>();
-        for (Map.Entry<String, Integer> e : row.variants().entrySet()) {
-            String key = e.getKey();
-            if (key.startsWith("enchantment:")) {
-                Enchantment enchantment = BuiltInRegistries.ENCHANTMENT.get(ResourceLocation.tryParse(key.substring(12)));
-                if (enchantment != null) {
-                    variants.add(enchantment.getFullname(e.getValue()));
-                }
-            } else if (key.startsWith("potion:")) {
-                Potion potion = BuiltInRegistries.POTION.get(ResourceLocation.tryParse(key.substring(7)));
-                variants.add(Component.translatable(potion.getName("item.minecraft.potion.effect.")));
-            }
-        }
-        if (!variants.isEmpty()) {
-            lines.add(Component.translatable("screen.justenoughstructures.tip_variants").withStyle(ChatFormatting.GRAY));
-            int shown = Math.min(8, variants.size());
-            for (int i = 0; i < shown; i++) {
-                lines.add(Component.literal("  ").append(variants.get(i).copy().withStyle(ChatFormatting.DARK_AQUA)));
-            }
-            if (variants.size() > shown) {
-                lines.add(Component.translatable("screen.justenoughstructures.and_more", variants.size() - shown).withStyle(ChatFormatting.DARK_GRAY));
-            }
-        }
-        return lines;
     }
 
     /** The block's own item for block containers (so suspicious sand looks like sand), otherwise by id. */
