@@ -221,7 +221,7 @@ final class ToolsUi {
             }
         }
         g.drawString(font, label, x + 12, y + 1, TEXT, false);
-        spot(x, y - 1, w, 11, action);
+        spot(x, y - 1, w, 11, action, label.getString());
         tooltip(x, y - 1, w, 11, tip);
         return w;
     }

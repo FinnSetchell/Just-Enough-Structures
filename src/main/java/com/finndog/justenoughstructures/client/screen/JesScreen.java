@@ -381,12 +381,22 @@ public class JesScreen extends Screen implements Nav.Page {
      * secret.
      */
     private void onNewCatalog(List<StructureCatalog.Entry> entries) {
+        List<StructureCatalog.Entry> before = catalog;
         catalog = entries;
         list.setEntries(entries);
         StructureCatalog.Entry now = selected == null ? null : find(selected.id());
         if (now == null) {
-            if (!entries.isEmpty()) {
-                select(entries.get(0), defaultSeed(entries.get(0).id()));
+            // Gone, like a structure just hidden: the next one along that's still here takes its place.
+            StructureCatalog.Entry next = null;
+            int at = before == null || selected == null ? -1 : before.indexOf(selected);
+            for (int i = at + 1; at >= 0 && i < before.size() && next == null; i++) {
+                next = find(before.get(i).id());
+            }
+            if (next == null && !entries.isEmpty()) {
+                next = entries.get(0);
+            }
+            if (next != null) {
+                select(next, defaultSeed(next.id()));
             }
             return;
         }

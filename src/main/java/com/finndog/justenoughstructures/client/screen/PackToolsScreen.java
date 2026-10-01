@@ -474,6 +474,10 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
         pickChest();
     }
 
+    public void typeNotes(String text) {
+        ((ToolsStructures) sections.get(Section.STRUCTURES)).typeNotes(text);
+    }
+
     /** Where a button or link with this label was last drawn, or null. */
     public int[] buttonAt(String label) {
         return ui.centre(label);

@@ -143,6 +143,13 @@ final class ToolsStructures extends ToolsSection {
         }
     }
 
+    /** Types notes as if into the box, for the screenshot harness. */
+    void typeNotes(String text) {
+        if (notesBox != null) {
+            notesBox.setValue(text);
+        }
+    }
+
     @Override
     void tick() {
         if (search != null) {
