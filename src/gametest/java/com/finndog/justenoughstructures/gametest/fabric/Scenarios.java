@@ -52,6 +52,7 @@ final class Scenarios {
             case "markers" -> MarkersScenario.build(mc);
             case "favourites" -> FavouritesScenario.build(mc);
             case "spawners" -> SpawnersScenario.build(mc);
+            case "back" -> BackScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

@@ -139,6 +139,15 @@ final class FoundInPopup {
         return Optional.empty();
     }
 
+    /** Where a row showing now is, or nothing if there's no such row yet. */
+    Optional<int[]> rowCentre(int index) {
+        List<Row> list = rows();
+        if (list == null || index < 0 || index >= Math.min(VISIBLE_ROWS, list.size() - scroll)) {
+            return Optional.empty();
+        }
+        return Optional.of(new int[]{x + WIDTH / 2, y + 30 + index * ROW + ROW / 2});
+    }
+
     /** The structures showing right now, to make pictures for. */
     List<ResourceLocation> visibleStructures() {
         List<Row> list = rows();

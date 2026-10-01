@@ -102,6 +102,23 @@ public final class StructureViewport implements AutoCloseable {
         return mesh == null ? 0f : mesh.progress();
     }
 
+    /** Where the camera is looking from, to put it back later. */
+    public record Camera(float yaw, float pitch, float distance, float focusX, float focusY, float focusZ) {
+    }
+
+    public Camera camera() {
+        return new Camera(yaw, pitch, distance, focus.x, focus.y, focus.z);
+    }
+
+    /** Puts the camera back where {@link #camera()} found it, instead of fitting the structure to the view. */
+    public void setCamera(Camera camera) {
+        yaw = camera.yaw();
+        pitch = camera.pitch();
+        distance = camera.distance();
+        focus.set(camera.focusX(), camera.focusY(), camera.focusZ());
+        needsFit = false;
+    }
+
     public void resetCamera() {
         yaw = 225f;
         pitch = 30f;

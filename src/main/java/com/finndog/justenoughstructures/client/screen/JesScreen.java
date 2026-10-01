@@ -13,8 +13,10 @@ import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,6 +62,8 @@ public class JesScreen extends Screen {
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
+    private static final ResourceLocation BACK_ICON = JustEnoughStructures.id("textures/gui/back.png");
+    private static final int HISTORY = 20;
     private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
     /** How long a locate that found nothing stays in the header. */
     private static final long LOCATE_FAILURE_MILLIS = 8000;
@@ -97,6 +101,11 @@ public class JesScreen extends Screen {
     private ChestPopup popup;
     private FoundInPopup foundIn;
     private String pendingTable;
+    /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
+    private StructureViewport.Camera pendingCamera;
+    /** Where each jump from a Found-in list was made from, newest last, for Back. */
+    private final Deque<Place> history = new ArrayDeque<>();
+    private IconButton backButton;
 
     private Component locateText;
     private boolean locateFound;
@@ -241,6 +250,10 @@ public class JesScreen extends Screen {
         }));
         compassPointing = null;
         updateCompassButton();
+
+        // Over the preview's top left corner, back to where a Found-in list was left from.
+        backButton = addRenderableWidget(new IconButton(viewX + 2, viewY + 2, BACK_ICON, Component.empty(), b -> back()));
+        updateBackButton();
 
         int bx = viewX;
         rerollButton = addRenderableWidget(Button.builder(Component.translatable(roomy ? "screen.justenoughstructures.reroll" : "screen.justenoughstructures.reroll_short"), b -> reroll())
@@ -392,6 +405,7 @@ public class JesScreen extends Screen {
         selected = entry;
         lastSelected = entry.id();
         seed = newSeed;
+        pendingCamera = null;
         list.setSelected(entry.id());
         list.revealSelected();
         info.setEntry(entry);
@@ -441,6 +455,10 @@ public class JesScreen extends Screen {
             view = new SnapshotView(captured.snapshot());
             view.createRenderables(minecraft.level);
             viewport.setView(view);
+            if (pendingCamera != null) {
+                viewport.setCamera(pendingCamera);
+                pendingCamera = null;
+            }
             updateGround();
         }
         updateSlider();
@@ -609,18 +627,79 @@ public class JesScreen extends Screen {
     }
 
     private void pickFromFoundIn(FoundInPopup.Row row) {
+        FoundInPopup from = foundIn;
         foundIn = null;
         if (catalog == null) {
             return;
         }
         for (StructureCatalog.Entry entry : catalog) {
             if (entry.id().equals(row.structure())) {
+                remember(from);
                 select(entry, defaultSeed(entry.id()));
                 info.setTab(InfoPanel.Tab.LOOT);
                 pendingTable = row.tables().iterator().next().toString();
                 return;
             }
         }
+    }
+
+    /**
+     * A structure as it was being looked at: its layout, tab, loot table and camera, and the Found-in
+     * list that was open over it.
+     */
+    private record Place(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera, FoundInPopup foundIn) {
+    }
+
+    /** Saves where the browser is now, so Back can return to it. */
+    private void remember(FoundInPopup from) {
+        if (selected == null) {
+            return;
+        }
+        history.addLast(new Place(selected.id(), seed, info.tab(), info.selectedTable(), view == null ? null : viewport.camera(), from));
+        while (history.size() > HISTORY) {
+            history.removeFirst();
+        }
+        updateBackButton();
+    }
+
+    /** Returns to where the last Found-in jump was made from, with the Found-in list open again. */
+    private void back() {
+        closePopup();
+        foundIn = null;
+        while (!history.isEmpty()) {
+            Place place = history.removeLast();
+            StructureCatalog.Entry entry = catalog == null ? null
+                    : catalog.stream().filter(e -> e.id().equals(place.id())).findFirst().orElse(null);
+            if (entry == null) {
+                // Gone since, after a /reload. The one before it is the next best place.
+                continue;
+            }
+            select(entry, place.seed());
+            info.setTab(place.tab());
+            pendingTable = place.table();
+            pendingCamera = place.camera();
+            if (place.foundIn() != null) {
+                foundIn = place.foundIn();
+                foundIn.place(width, height);
+            }
+            break;
+        }
+        updateBackButton();
+    }
+
+    private void updateBackButton() {
+        if (backButton == null) {
+            return;
+        }
+        backButton.visible = !history.isEmpty();
+        if (!history.isEmpty()) {
+            backButton.setLabel(Component.translatable("screen.justenoughstructures.back", StructureNames.structure(history.peekLast().id())));
+        }
+    }
+
+    /** Where text along the top of the preview starts, clear of the Back button. */
+    private int headerTextX() {
+        return backButton != null && backButton.visible ? viewX + 26 : viewX + 6;
     }
 
     public void closeContainer() {
@@ -730,6 +809,18 @@ public class JesScreen extends Screen {
 
     public Optional<int[]> structureRow(ResourceLocation id) {
         return list.rowCentre(id);
+    }
+
+    public boolean canGoBack() {
+        return !history.isEmpty();
+    }
+
+    public int[] backButton() {
+        return new int[]{backButton.getX() + backButton.getWidth() / 2, backButton.getY() + backButton.getHeight() / 2};
+    }
+
+    public Optional<int[]> foundInRow(int index) {
+        return foundIn == null ? Optional.empty() : foundIn.rowCentre(index);
     }
 
     public Optional<int[]> favouriteStar(ResourceLocation id) {
@@ -1031,7 +1122,7 @@ public class JesScreen extends Screen {
 
     /** The locate line under the mouse when it's cut short, to show in full as a tooltip. */
     private Component clippedHeaderLine(int mouseX, int mouseY) {
-        boolean over = mouseX >= viewX + 6 && mouseX < viewX + 6 + headerRoom && mouseY >= viewY + 5
+        boolean over = mouseX >= headerTextX() && mouseX < headerTextX() + headerRoom && mouseY >= viewY + 5
                 && mouseY < viewY + 6 + headerLines * (font.lineHeight + 1);
         return over ? headerOverflow : null;
     }
@@ -1131,13 +1222,13 @@ public class JesScreen extends Screen {
         headerOverflow = null;
         headerLines = 1;
         if (locateText != null) {
-            int room = Math.max(0, overlayLeft() - 4 - (viewX + 6));
+            int room = Math.max(0, overlayLeft() - 4 - headerTextX());
             headerRoom = room;
             int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
             List<FormattedCharSequence> lines = room > 20 ? font.split(locateText, room) : List.of();
             int shown = Math.min(3, lines.size());
             for (int i = 0; i < shown; i++) {
-                g.drawString(font, lines.get(i), viewX + 6, viewY + 6 + i * (font.lineHeight + 1), colour, true);
+                g.drawString(font, lines.get(i), headerTextX(), viewY + 6 + i * (font.lineHeight + 1), colour, true);
             }
             headerLines = Math.max(1, shown);
             headerOverflow = lines.size() > shown ? locateText : null;
@@ -1340,6 +1431,10 @@ public class JesScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_4 && !history.isEmpty()) {
+            back();
+            return true;
+        }
         if (foundIn != null) {
             if (foundIn.contains(mouseX, mouseY)) {
                 foundIn.click(mouseX, mouseY).ifPresent(this::pickFromFoundIn);
@@ -1469,6 +1564,10 @@ public class JesScreen extends Screen {
         }
         if (key == GLFW.GLFW_KEY_R && popup == null) {
             reroll();
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_BACKSPACE && !history.isEmpty()) {
+            back();
             return true;
         }
         return super.keyPressed(key, scanCode, modifiers);

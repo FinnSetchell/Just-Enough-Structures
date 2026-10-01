@@ -12,6 +12,7 @@
   "screen.justenoughstructures.controls": "Drag to turn, shift-drag to move, scroll to zoom, click a chest to open it",
   "screen.justenoughstructures.reroll": "New layout",
   "screen.justenoughstructures.reroll_tooltip": "Generate it again from a new seed to see another layout (R)",
+  "screen.justenoughstructures.back": "Back to %s (Backspace)",
   "screen.justenoughstructures.reset": "Reset the view",
   "screen.justenoughstructures.spin_on": "Turning slowly (click to stop)",
   "screen.justenoughstructures.spin_off": "Standing still (click to turn slowly)",
