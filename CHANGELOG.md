@@ -19,6 +19,7 @@ First release.
   - Searching for an item now finds loot in every piece a structure can have
 - The Blocks tab is a material list you can copy
 - The Mobs tab shows what a structure places, its spawners and what keeps spawning there
+  - Spawners that get a random mob list every mob they could have, with each one's chance
 - With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, and Ctrl-clicking it takes you there
 - The list fills in with small pictures of each structure as you scroll
 - The browser remembers how you left it, like whether the preview spins and fills the screen
