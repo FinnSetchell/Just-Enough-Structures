@@ -189,15 +189,15 @@ public class JesScreen extends Screen {
         listH = searchY - 4 - listY;
         list.layout(listX + 6, listY, listW - 12, listH);
 
-        // JEI's two title rows: previous/next structure around its name, previous/next mod around the mod's.
+        // Two title rows: previous/next mod around the mod's name, previous/next structure around its own.
         addRenderableWidget(new ArrowButton(centreX + 6, PAD + 4, true,
-                Component.translatable("screen.justenoughstructures.previous_structure"), b -> step(-1, false)));
-        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 4, false,
-                Component.translatable("screen.justenoughstructures.next_structure"), b -> step(1, false)));
-        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 19, true,
                 Component.translatable("screen.justenoughstructures.previous_mod"), b -> step(-1, true)));
-        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 19, false,
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 4, false,
                 Component.translatable("screen.justenoughstructures.next_mod"), b -> step(1, true)));
+        addRenderableWidget(new ArrowButton(centreX + 6, PAD + 19, true,
+                Component.translatable("screen.justenoughstructures.previous_structure"), b -> step(-1, false)));
+        addRenderableWidget(new ArrowButton(centreX + centreW - 19, PAD + 19, false,
+                Component.translatable("screen.justenoughstructures.next_structure"), b -> step(1, false)));
 
         viewX = centreX + 6;
         viewY = PAD + 35;
@@ -992,14 +992,14 @@ public class JesScreen extends Screen {
         return lines;
     }
 
-    /** JEI's title rows: the structure's name, then its mod's, each in white on a dark band. */
+    /** The title rows: the mod's name, then the structure's, each in white on a dark band. */
     private void renderHeader(GuiGraphics g) {
         int bandX = centreX + 19;
         int bandW = centreW - 38;
-        String name = selected == null ? title.getString() : StructureNames.structure(selected.id());
-        String mod = selected == null ? "" : StructureNames.mod(selected.id().getNamespace());
-        Gui.band(g, font, name, bandX, PAD + 4, bandW, 13);
-        Gui.band(g, font, mod, bandX, PAD + 19, bandW, 13);
+        String top = selected == null ? title.getString() : StructureNames.mod(selected.id().getNamespace());
+        String bottom = selected == null ? "" : StructureNames.structure(selected.id());
+        Gui.band(g, font, top, bandX, PAD + 4, bandW, 13);
+        Gui.band(g, font, bottom, bandX, PAD + 19, bandW, 13);
     }
 
     /** The full name when a title row had to cut it short, for its tooltip. */
@@ -1009,11 +1009,11 @@ public class JesScreen extends Screen {
         }
         String name = StructureNames.structure(selected.id());
         String mod = StructureNames.mod(selected.id().getNamespace());
-        if (mouseY >= PAD + 4 && mouseY < PAD + 17 && font.width(name) > centreW - 42) {
-            return List.of(Component.literal(name));
-        }
-        if (mouseY >= PAD + 19 && mouseY < PAD + 32 && font.width(mod) > centreW - 42) {
+        if (mouseY >= PAD + 4 && mouseY < PAD + 17 && font.width(mod) > centreW - 42) {
             return List.of(Component.literal(mod));
+        }
+        if (mouseY >= PAD + 19 && mouseY < PAD + 32 && font.width(name) > centreW - 42) {
+            return List.of(Component.literal(name));
         }
         return List.of();
     }
