@@ -56,6 +56,7 @@ final class Scenarios {
             case "hover_spin" -> SpinScenario.build(mc);
             case "highlight" -> HighlightScenario.build(mc);
             case "loot_tab" -> LootTabScenario.build(mc);
+            case "pack_tools" -> PackToolsScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

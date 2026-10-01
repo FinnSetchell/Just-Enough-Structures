@@ -12,6 +12,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
@@ -20,8 +21,9 @@ import net.minecraft.server.MinecraftServer;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Pointing one container at another loot table: the popup's Change link, the table picker, the
- * popup after /reload with its Undo link, and the Edit table link on a chest placed by code.
+ * Pointing one container at another loot table, from Pack tools: picking the chest in the browser,
+ * its popup's Change link, the table picker, the chest in Pack tools waiting for /reload and after
+ * it, Undo, and the Edit table link on a chest placed by code.
  */
 final class ContainerScenario {
     private static final int[] reloadsBefore = new int[1];
@@ -35,6 +37,7 @@ final class ContainerScenario {
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> captured(mc), 400))
+                .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() != null)))
                 .then(pause(40))
                 .then(moveTo(() -> link(mc, "change"), 10))
@@ -50,29 +53,42 @@ final class ContainerScenario {
                 .then(pause(10))
                 .then(shoot("k03_picked"))
                 .then(run(() -> picker(mc).useIt()))
-                .then(until(() -> browser(mc) != null, 40))
-                .then(pause(20))
+                .then(until(() -> tools(mc) != null && tools(mc).loaded(), 100))
+                .then(pause(30))
                 .then(shoot("k04_saved"))
                 .then(run(() -> reload(mc)))
                 .then(until(() -> ClientRequests.reloads() > reloadsBefore[0], 1200))
-                .then(until(() -> captured(mc), 600))
-                .then(run(() -> open(mc, c -> c.source() != null && c.source().patchedFrom() != null)))
                 .then(pause(40))
-                .then(moveTo(() -> link(mc, "undo"), 10))
+                .then(moveTo(() -> button(mc, "Undo"), 10))
                 .then(pause(10))
                 .then(shoot("k05_changed"))
                 .then(click())
-                .then(pause(20))
+                .then(pause(30))
                 .then(shoot("k06_undone"))
+                .then(run(() -> reload(mc)))
+                .then(until(() -> ClientRequests.reloads() > reloadsBefore[0], 1200))
+                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(until(() -> browser(mc) != null, 40))
                 // The test datapack hides the jungle pyramid's loot, so the desert pyramid shows a chest placed by code.
                 .then(run(() -> browser(mc).select(new ResourceLocation("desert_pyramid"))))
                 .then(until(() -> captured(mc), 600))
+                .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() == null && c.lootTable() != null)))
                 .then(pause(40))
-                .then(moveTo(() -> link(mc, "edit"), 10))
+                .then(moveTo(() -> link(mc, "change"), 10))
                 .then(pause(10))
                 .then(shoot("k07_edit_table"));
         return d;
+    }
+
+    /** Where a button in Pack tools is, or the middle of the screen if it isn't shown. */
+    private static int[] button(Minecraft mc, String label) {
+        int[] at = tools(mc) == null ? null : tools(mc).buttonAt(label);
+        return at != null ? at : new int[]{mc.getWindow().getGuiScaledWidth() / 2, mc.getWindow().getGuiScaledHeight() / 2};
+    }
+
+    private static PackToolsScreen tools(Minecraft mc) {
+        return mc.screen instanceof PackToolsScreen s ? s : null;
     }
 
     /** Where a popup link is, or the middle of the screen if it isn't shown, so a missing link shows up in the shot. */

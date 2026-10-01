@@ -29,13 +29,22 @@ final class ChestPopup {
 
     enum View { ROLL, ODDS }
 
-    /** What the tabs on the popup do. */
+    /** What the tabs and links on the popup do. */
     enum Action {
         /** Show one roll of the table. */
         ROLL,
         /** Show every item's chance. */
-        ODDS
+        ODDS,
+        /** Point the container at another table, while picking a chest for Pack tools. */
+        CHANGE,
+        /** Open the container in Pack tools. */
+        TOOLS_CONTAINER,
+        /** Open its loot table in Pack tools. */
+        TOOLS_TABLE
     }
+
+    private static final ItemStack PAPER = new ItemStack(net.minecraft.world.item.Items.PAPER);
+    private static final int ICON = 14;
 
     /** The container, or null for a loot table on its own. */
     final StructureSnapshot.Container container;
@@ -61,6 +70,12 @@ final class ChestPopup {
     Action hoveredAction;
     /** Lines to add to the tooltip of the hovered item, in the list of chances. */
     List<Component> hoveredExtra = List.of();
+    /** The tooltip of a link or icon under the mouse, or null. */
+    List<Component> hoveredTip;
+    /** Set while the player is picking a chest for Pack tools to change: the popup offers Change. */
+    boolean picking;
+    /** The block or entity it is, for the icon that opens it in Pack tools. */
+    ItemStack icon = ItemStack.EMPTY;
     private final Map<Action, int[]> links = new EnumMap<>(Action.class);
 
     private ChestPopup(StructureSnapshot.Container container, String table, Component title, int size, int index, int count, String kind, View view) {
@@ -94,9 +109,18 @@ final class ChestPopup {
         return view == View.ODDS ? Math.max(rows * 18, ODDS_HEIGHT) : rows * 18;
     }
 
+    /** Whether Pack tools' icons sit beside the label, which then needs room for them. */
+    private boolean showsIcons() {
+        return packTools && !picking;
+    }
+
+    private int labelRow(Font font) {
+        return showsIcons() ? ICON + 2 : Gui.fineLine(font) + 2;
+    }
+
     private int infoHeight(Font font) {
         int fine = Gui.fineLine(font);
-        int height = 5 + fine + 2 + font.lineHeight + 1 + noteLines(font).size() * (fine + 1) + 3 + 20 + 6;
+        int height = 5 + labelRow(font) + font.lineHeight + 1 + noteLines(font).size() * (fine + 1) + 3 + 20 + 6;
         if (Gui.advanced() && table != null) {
             height += fine + 1;
         }
@@ -178,6 +202,7 @@ final class ChestPopup {
         links.clear();
         hoveredAction = null;
         hoveredExtra = List.of();
+        hoveredTip = null;
         int body = bodyHeight();
         int header = headerHeight(font);
 
@@ -221,8 +246,40 @@ final class ChestPopup {
         int infoTop = y + header + body + 7;
         Gui.panel(g, x, infoTop, WIDTH, infoHeight(font));
         int cy = infoTop + 5;
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, cy, Gui.LABEL_SOFT);
-        cy += Gui.fineLine(font) + 2;
+        int labelY = showsIcons() ? cy + (ICON - Gui.fineLine(font)) / 2 : cy;
+        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, labelY, Gui.LABEL_SOFT);
+        int iconRight = x + WIDTH - 7;
+        if (picking && container != null) {
+            // Picking a chest to change: the way on to the table picker, or why it can't be.
+            boolean byCode = container.entity() || container.source() == null || table == null;
+            String key = byCode ? "container.edit_table" : "container.change";
+            String text = Component.translatable("screen.justenoughstructures." + key).getString();
+            int w = Gui.fineWidth(font, text);
+            int left = iconRight - w;
+            boolean over = mouseX >= left && mouseX < iconRight && mouseY >= cy - 1 && mouseY < cy + Gui.fineLine(font) + 1;
+            Gui.fine(g, font, text, left, cy, over ? 0xFF2040C0 : 0xFF3A55A0);
+            if (over) {
+                g.fill(left, cy + Gui.fineLine(font), iconRight, cy + Gui.fineLine(font) + 1, 0xFF2040C0);
+                hoveredTip = List.of(Component.translatable(byCode ? (table == null ? "screen.justenoughstructures.tools.cant_change_items"
+                        : "screen.justenoughstructures.container.edit_table_hint") : "screen.justenoughstructures.container.change_hint"));
+            }
+            if (!byCode || table != null) {
+                links.put(Action.CHANGE, new int[]{left, cy - 1, w, Gui.fineLine(font) + 2});
+            }
+        } else if (showsIcons()) {
+            // Pack tools' shortcuts: the table, and the container itself, each with a wrench on it.
+            if (table != null) {
+                iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY,
+                        List.of(Component.translatable("screen.justenoughstructures.tools.open_table"),
+                                Component.translatable("screen.justenoughstructures.tools.open_table_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
+            }
+            if (container != null) {
+                toolsIcon(g, Action.TOOLS_CONTAINER, icon.isEmpty() ? new ItemStack(net.minecraft.world.item.Items.CHEST) : icon, iconRight - 2, cy,
+                        mouseX, mouseY, List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
+                                Component.translatable("screen.justenoughstructures.tools.open_container_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
+            }
+        }
+        cy += labelRow(font);
         String tableName = table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
         int mark = packTools ? editedMark(g, font, table, x + WIDTH - 7, cy + 1) : 0;
         g.drawString(font, Gui.clip(font, tableName, WIDTH - 14 - mark), x + 7, cy, 0xFF202020, false);
@@ -293,6 +350,28 @@ final class ChestPopup {
         }
         g.disableScissor();
         return hovered;
+    }
+
+    /** An item with a small wrench on it, that opens something in Pack tools. Returns its left edge. */
+    private int toolsIcon(GuiGraphics g, Action action, ItemStack stack, int right, int top, int mouseX, int mouseY, List<Component> tip) {
+        int left = right - ICON;
+        boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
+        if (over) {
+            g.fill(left, top, right, top + ICON, 0xFF555555);
+            g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
+            hoveredTip = tip;
+        }
+        g.pose().pushPose();
+        g.pose().translate(left + 1, top + 1, 0);
+        g.pose().scale(0.75f, 0.75f, 1);
+        g.renderItem(stack, 0, 0);
+        g.pose().popPose();
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 200);
+        g.blit(PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
+        g.pose().popPose();
+        links.put(action, new int[]{left, top, ICON, ICON});
+        return left;
     }
 
     /** A tab by the popup's name, its right edge at {@code right}. Returns its left edge. */

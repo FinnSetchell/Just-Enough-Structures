@@ -19,6 +19,7 @@ import net.minecraft.world.item.Item;
 public final class FoundIn {
     private static Map<ResourceLocation, Map<ResourceLocation, Set<ResourceLocation>>> byItem = Map.of();
     private static LootIndex index;
+    private static Map<ResourceLocation, Set<ResourceLocation>> byTable = Map.of();
     private static final Map<ResourceLocation, String> NAMES = new HashMap<>();
 
     private FoundIn() {
@@ -36,11 +37,16 @@ public final class FoundIn {
             }
         }
         byItem = out;
+        Map<ResourceLocation, Set<ResourceLocation>> tables = new HashMap<>();
+        built.tablesByStructure().forEach((structure, used) -> used.forEach(table ->
+                tables.computeIfAbsent(table, t -> new TreeSet<>()).add(structure)));
+        byTable = tables;
         index = built;
     }
 
     static void clear() {
         byItem = Map.of();
+        byTable = Map.of();
         index = null;
     }
 
@@ -56,6 +62,11 @@ public final class FoundIn {
     /** The loot tables the structure uses, or null until the index is here. */
     public static Set<ResourceLocation> tablesIn(ResourceLocation structure) {
         return index == null ? null : index.tablesByStructure().getOrDefault(structure, Set.of());
+    }
+
+    /** The structures that use a loot table, or none until the index is here. */
+    public static Set<ResourceLocation> structuresUsing(ResourceLocation table) {
+        return byTable.getOrDefault(table, Set.of());
     }
 
     /** Structure id to the loot tables in it that can give this item. Empty if none do. */

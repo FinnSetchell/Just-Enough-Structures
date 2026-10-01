@@ -106,6 +106,11 @@ public class JesScreen extends Screen implements Nav.Page {
     private StructureViewport.Camera pendingCamera;
     /** A popup to open once the structure being gone back to arrives. */
     private Popup pendingPopup;
+    /** Picking a chest for Pack tools to change: markers show, and a chest's popup offers Change. */
+    private boolean picking;
+    private Button toolsButton;
+    /** Where the Cancel button on the picking strip was last drawn. */
+    private int[] pickCancel;
     private final NavBar navBar = new NavBar(this);
     /** The blocks the details panel's hovered row is about, tinted in the preview, and what they were found for. */
     private Highlight highlight;
@@ -291,6 +296,11 @@ public class JesScreen extends Screen implements Nav.Page {
 
         // The details panel starts lower, so its tabs can sit on top of it the way JEI's do.
         info.layout(infoX + 6, TOP + TABS + 6, infoW - 12, height - TOP - PAD - TABS - 12, infoX + 2, TOP);
+        // Pack tools, for those who can use it, at the end of the row of tabs.
+        int toolsX = infoX + 2 + InfoPanel.Tab.values().length * 24 + 4;
+        int toolsW = infoX + infoW - 2 - toolsX;
+        toolsButton = addRenderableWidget(new ToolsButton(toolsX, TOP + 1, Math.max(20, toolsW), b -> openTools(PackToolsScreen.Section.OVERVIEW, null)));
+        updateToolsButton();
 
         chestReroll = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll_loot"), b -> rerollLoot())
                 .bounds(0, 0, 70, 20).build());
@@ -323,9 +333,22 @@ public class JesScreen extends Screen implements Nav.Page {
         }
     }
 
+    private void updateToolsButton() {
+        if (toolsButton != null) {
+            toolsButton.visible = sides && ClientRequests.showsPackTools() && toolsButton.getWidth() >= 20;
+        }
+    }
+
+    /** Opens Pack tools on a section, and on something in it if given. */
+    void openTools(PackToolsScreen.Section section, Object selection) {
+        Nav.remember();
+        minecraft.setScreen(new PackToolsScreen(this, section, selection));
+    }
+
     @Override
     public void tick() {
         super.tick();
+        updateToolsButton();
         updateLocateButton();
         updateMarkersButton();
         updateCompassButton();
@@ -630,6 +653,8 @@ public class JesScreen extends Screen implements Nav.Page {
         ChestPopup.View keep = popup != null && popup.container != null ? popup.view : ChestPopup.View.ROLL;
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container), same.indexOf(container), same.size());
         popup.view = keep;
+        popup.picking = picking;
+        popup.icon = InfoPanel.containerIcon(result.snapshot(), container);
         popup.place(width, height, font);
         layoutPopupButtons();
         if (container.lootTable() == null) {
@@ -771,10 +796,10 @@ public class JesScreen extends Screen implements Nav.Page {
 
     /** The browser as it was: the structure and layout, the tab, the picked table, the camera and any popup. */
     private record BrowserLayer(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera,
-                                Popup popup, Component label) implements Nav.Layer {
+                                Popup popup, Component label, boolean picking) implements Nav.Layer {
         @Override
         public Object key() {
-            return Arrays.asList(id, seed, tab, popup == null ? null : popup.key());
+            return Arrays.asList(id, seed, tab, popup == null ? null : popup.key(), picking);
         }
 
         @Override
@@ -802,8 +827,11 @@ public class JesScreen extends Screen implements Nav.Page {
         } else {
             label = Component.literal(name);
         }
+        if (picking && open == null) {
+            label = Component.translatable("screen.justenoughstructures.nav.picking", name);
+        }
         String table = info.selectedTable() != null ? info.selectedTable() : pendingTable;
-        return new BrowserLayer(selected.id(), seed, info.tab(), table, view == null ? pendingCamera : viewport.camera(), open, label);
+        return new BrowserLayer(selected.id(), seed, info.tab(), table, view == null ? pendingCamera : viewport.camera(), open, label, picking);
     }
 
     @Override
@@ -841,6 +869,7 @@ public class JesScreen extends Screen implements Nav.Page {
         BrowserLayer place = (BrowserLayer) layer;
         closePopup();
         foundIn = null;
+        picking = place.picking();
         boolean showing = shownAfter && minecraft != null && minecraft.screen == this;
         if (!showing) {
             if (selected != entry) {
@@ -1003,9 +1032,81 @@ public class JesScreen extends Screen implements Nav.Page {
 
     /** The chest popup's tabs: one roll, or every item's chance. */
     private void popupAction(ChestPopup open, ChestPopup.Action action) {
-        open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
-        open.place(width, height, font);
-        layoutPopupButtons();
+        switch (action) {
+            case ROLL, ODDS -> {
+                open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
+                open.place(width, height, font);
+                layoutPopupButtons();
+            }
+            case CHANGE -> changeContainer(open);
+            case TOOLS_CONTAINER -> openTools(PackToolsScreen.Section.CHESTS, chestRef(open));
+            case TOOLS_TABLE -> {
+                ResourceLocation table = ResourceLocation.tryParse(open.table);
+                if (table != null) {
+                    openTools(PackToolsScreen.Section.LOOT, table);
+                }
+            }
+        }
+    }
+
+    private ToolsChests.ChestRef chestRef(ChestPopup open) {
+        return ToolsChests.ChestRef.of(selected.id(), seed, open.container, open.title, open.size);
+    }
+
+    /**
+     * Change, on a chest picked for Pack tools: the table picker, which then goes to the chest in
+     * Pack tools. One the structure's code places can only have its table edited.
+     */
+    private void changeContainer(ChestPopup open) {
+        StructureSnapshot.Container container = open.container;
+        if (container == null || open.table == null) {
+            return;
+        }
+        if (container.entity() || container.source() == null) {
+            openEditor(open.table);
+            return;
+        }
+        ToolsChests.ChestRef ref = chestRef(open);
+        Nav.remember();
+        minecraft.setScreen(new TablePickerScreen(this, container.source(), open.table, open.title, (message, untilReload) -> {
+            picking = false;
+            PackToolsScreen tools = new PackToolsScreen(this, PackToolsScreen.Section.CHESTS, ref);
+            tools.say(message, true);
+            return tools;
+        }));
+    }
+
+    /** Starts picking a chest to change, from Pack tools. */
+    void startPicking() {
+        picking = true;
+        closePopup();
+        foundIn = null;
+    }
+
+    public boolean picking() {
+        return picking;
+    }
+
+    /** Starts picking a chest, as Pack tools' button does. For the screenshot harness. */
+    public void pickForTools() {
+        startPicking();
+    }
+
+    /** The structure on show, or null. */
+    ResourceLocation selectedStructure() {
+        return selected == null ? null : selected.id();
+    }
+
+    /** Opens a structure from Pack tools, on a tab and with a table picked if given. */
+    void showFromTools(ResourceLocation structure, InfoPanel.Tab tab, String table) {
+        long layout = selected != null && selected.id().equals(structure) ? seed : defaultSeed(structure);
+        restorePlace(new BrowserLayer(structure, layout, tab, table, null, null, Component.empty(), false), true);
+    }
+
+    /** Opens a container from Pack tools, in the layout it was picked from, with its popup open. */
+    void showContainerFromTools(ToolsChests.ChestRef ref) {
+        Popup open = ref.pos() == null ? null : new ContainerPopup(ref.pos(), ref.entity(), ChestPopup.View.ROLL, ref.title());
+        restorePlace(new BrowserLayer(ref.structure(), ref.seed(), InfoPanel.Tab.LOOT, ref.table(), null, open, Component.empty(), false), true);
     }
 
     /** Where a tab on the open chest popup is ("roll" or "odds"), for the screenshot harness, or null. */
@@ -1141,6 +1242,7 @@ public class JesScreen extends Screen implements Nav.Page {
             case "reroll_loot" -> chestReroll;
             case "next" -> chestNext;
             case "done" -> chestClose;
+            case "tools" -> toolsButton;
             default -> throw new IllegalArgumentException(name);
         };
         return new int[]{b.getX() + b.getWidth() / 2, b.getY() + b.getHeight() / 2};
@@ -1361,6 +1463,10 @@ public class JesScreen extends Screen implements Nav.Page {
         if (popupOpen) {
             if (!popupHover.isEmpty()) {
                 g.renderComponentTooltip(font, itemTooltip(popupHover, popup.hoveredExtra), mouseX, mouseY);
+            } else if (popup.hoveredTip != null) {
+                List<FormattedCharSequence> lines = new ArrayList<>();
+                popup.hoveredTip.forEach(line -> lines.addAll(font.split(line, 220)));
+                g.renderTooltip(font, lines, mouseX, mouseY);
             }
         } else if (clippedHeaderLine(mouseX, mouseY) != null) {
             g.renderTooltip(font, font.split(clippedHeaderLine(mouseX, mouseY), 240), mouseX, mouseY);
@@ -1495,7 +1601,7 @@ public class JesScreen extends Screen implements Nav.Page {
 
         StructureSnapshot s = result.snapshot();
         g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
-        if (ClientState.markers) {
+        if (ClientState.markers || picking) {
             placeMarkers(s);
             for (Marker m : markerRects) {
                 // Lit up like one under the mouse while a row about its container is hovered, as it hides the block.
@@ -1532,7 +1638,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         headerOverflow = null;
         headerLines = 1;
-        if (locateText != null) {
+        if (locateText != null && !picking) {
             int room = Math.max(0, overlayLeft() - 4 - headerTextX());
             headerRoom = room;
             int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
@@ -1552,6 +1658,8 @@ public class JesScreen extends Screen implements Nav.Page {
             Gui.small(g, font, building, viewX + (viewW - Gui.smallWidth(font, building)) / 2, by - 9, 0xFFE0E0E0);
             g.fill(bx - 1, by - 1, bx + barW + 1, by + 5, 0xFF000000);
             g.fill(bx, by, bx + (int) (barW * viewport.meshProgress()), by + 4, 0xFF7FD06A);
+        } else if (picking) {
+            pickingStrip(g, mouseX, mouseY);
         } else {
             String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
             String hint = Component.translatable(controls).getString();
@@ -1569,6 +1677,28 @@ public class JesScreen extends Screen implements Nav.Page {
             }
         }
         return hover;
+    }
+
+    /** Along the bottom of the preview while picking a chest: what to do, and a way out. */
+    private void pickingStrip(GuiGraphics g, int mouseX, int mouseY) {
+        int top = viewY + viewH - 18;
+        g.fill(viewX, top, viewX + viewW, viewY + viewH, 0xFF6AB0E9);
+        Component cancel = Component.translatable("gui.cancel");
+        int cancelW = font.width(cancel) + 10;
+        int cancelX = viewX + viewW - cancelW - 2;
+        boolean over = mouseX >= cancelX && mouseX < cancelX + cancelW && mouseY >= top + 2 && mouseY < top + 16;
+        g.blitNineSliced(new ResourceLocation("textures/gui/widgets.png"), cancelX, top + 2, cancelW, 14, 20, 4, 200, 20, 0, over ? 86 : 66);
+        g.drawString(font, cancel, cancelX + 5, top + 5, 0xFFFFFFFF, true);
+        pickCancel = new int[]{cancelX, top + 2, cancelW, 14};
+        String text = Component.translatable("screen.justenoughstructures.tools.picking").getString();
+        g.drawString(font, Gui.clip(font, text, cancelX - viewX - 10), viewX + 5, top + 5, 0xFF04263F, false);
+    }
+
+    /** Stops picking, back to Pack tools' chests. */
+    private void cancelPicking() {
+        Nav.remember();
+        picking = false;
+        minecraft.setScreen(new PackToolsScreen(this, PackToolsScreen.Section.CHESTS, null));
     }
 
     /**
@@ -1753,6 +1883,11 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return true;
         }
+        if (picking && popup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+                && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
+            cancelPicking();
+            return true;
+        }
         if (popup != null) {
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
@@ -1858,6 +1993,10 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (key == GLFW.GLFW_KEY_ESCAPE && popup != null) {
             closePopup();
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_ESCAPE && picking) {
+            picking = false;
             return true;
         }
         if (key == GLFW.GLFW_KEY_U && !search.isFocused()) {
@@ -1983,5 +2122,25 @@ public class JesScreen extends Screen implements Nav.Page {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    /** Pack tools' button at the end of the tabs: a wrench, and its name when there's room. */
+    private static final class ToolsButton extends Button {
+        ToolsButton(int x, int y, int width, OnPress onPress) {
+            super(x, y, width, 18, Component.translatable("screen.justenoughstructures.tools.title"), onPress, DEFAULT_NARRATION);
+            setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.tools.title").append("\n")
+                    .append(Component.translatable("screen.justenoughstructures.tools.button_hint").withStyle(ChatFormatting.GRAY))));
+        }
+
+        @Override
+        public void renderString(GuiGraphics g, net.minecraft.client.gui.Font font, int colour) {
+            boolean label = font.width(getMessage()) + 12 + 10 <= getWidth();
+            int contentW = label ? 12 + 3 + font.width(getMessage()) : 12;
+            int x = getX() + (getWidth() - contentW) / 2;
+            g.blit(PackToolsScreen.WRENCH, x, getY() + 3, 0, 0, 12, 12, 12, 12);
+            if (label) {
+                g.drawString(font, getMessage(), x + 15, getY() + 5, colour, true);
+            }
+        }
     }
 }

@@ -26,7 +26,8 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
     private static final int TOP = NavBar.TOP;
     private static final int ROW = 22;
 
-    private final JesScreen parent;
+    private final Screen parent;
+    private final Used onUsed;
     private final StructureSnapshot.Source source;
     private final String current;
     private final Component containerName;
@@ -43,9 +44,18 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
     private double scroll;
     private boolean indexed;
 
-    TablePickerScreen(JesScreen parent, StructureSnapshot.Source source, String current, Component containerName) {
+    /**
+     * What happens once a table is picked and saved: told what to say, and whether it waits for a
+     * /reload, it gives the screen to go to, or null for the one the picker was opened from.
+     */
+    interface Used {
+        Screen used(Component message, boolean untilReload);
+    }
+
+    TablePickerScreen(Screen parent, StructureSnapshot.Source source, String current, Component containerName, Used onUsed) {
         super(Component.translatable("screen.justenoughstructures.picker.title", containerName));
         this.parent = parent;
+        this.onUsed = onUsed;
         this.source = source;
         this.current = current;
         this.containerName = containerName;
@@ -66,7 +76,7 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
 
         @Override
         public Screen open(Screen below) {
-            return new TablePickerScreen((JesScreen) below, source, current, containerName);
+            return new TablePickerScreen(below, source, current, containerName, saysSo(below));
         }
 
         @Override
@@ -83,6 +93,19 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
     @Override
     public Screen below() {
         return parent;
+    }
+
+    /** Says it's done where the picker goes back to: the browser's top line, or Pack tools' title row. */
+    static Used saysSo(Screen parent) {
+        return (message, untilReload) -> {
+            if (parent instanceof JesScreen browser) {
+                browser.showMessage(message, true, untilReload);
+            } else if (parent instanceof PackToolsScreen tools) {
+                tools.say(message, true);
+                tools.refresh();
+            }
+            return null;
+        };
     }
 
     /** A table just saved in the editor, typed in here, which picks it. */
@@ -112,7 +135,7 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
         int x = right - backWidth;
         // Like the editor's Save & reload, for players who can run /reload: the change applies straight away.
         useReload = null;
-        if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
+        if (ClientRequests.canUsePackTools()) {
             int reloadWidth = font.width(Component.translatable("screen.justenoughstructures.picker.use_reload")) + 12;
             x -= reloadWidth + 4;
             useReload = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use_reload"), b -> apply(true))
@@ -181,13 +204,14 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
                 return;
             }
             String name = StructureNames.lootTable(table.toString());
-            if (reload && minecraft.player != null) {
-                minecraft.player.connection.sendCommand("reload");
-                parent.showMessage(Component.translatable("screen.justenoughstructures.container.saved_reloading", name), true, false);
+            Screen next;
+            if (reload) {
+                ClientRequests.reloadServer();
+                next = onUsed.used(Component.translatable("screen.justenoughstructures.container.saved_reloading", name), false);
             } else {
-                parent.showMessage(Component.translatable("screen.justenoughstructures.container.saved_named", name), true, true);
+                next = onUsed.used(Component.translatable("screen.justenoughstructures.container.saved_named", name), true);
             }
-            minecraft.setScreen(parent);
+            minecraft.setScreen(next != null ? next : parent);
         });
     }
 

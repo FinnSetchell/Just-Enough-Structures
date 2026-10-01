@@ -157,17 +157,21 @@ final class NavBar {
             }
         }
 
-        /** Two pixels thick and seven tall, like a letter, with a shadow like one. */
         private void chevron(GuiGraphics g, int x, int y, int colour) {
-            int shadow = (colour & 0xFF000000) | ((colour & 0xFCFCFC) >> 2);
-            for (int pass = 0; pass < 2; pass++) {
-                int offset = pass == 0 ? 1 : 0;
-                int c = pass == 0 ? shadow : colour;
-                for (int row = 0; row < 7; row++) {
-                    int dx = Math.abs(3 - row);
-                    int px = pointsBack ? x + dx : x + CHEVRON - 2 - dx;
-                    g.fill(px + offset, y + row + offset, px + 2 + offset, y + row + 1 + offset, c);
-                }
+            NavBar.chevron(g, x, y, colour, pointsBack);
+        }
+    }
+
+    /** An arrow head five wide, two pixels thick and seven tall, like a letter, with a shadow like one. */
+    static void chevron(GuiGraphics g, int x, int y, int colour, boolean pointsBack) {
+        int shadow = (colour & 0xFF000000) | ((colour & 0xFCFCFC) >> 2);
+        for (int pass = 0; pass < 2; pass++) {
+            int offset = pass == 0 ? 1 : 0;
+            int c = pass == 0 ? shadow : colour;
+            for (int row = 0; row < 7; row++) {
+                int dx = Math.abs(3 - row);
+                int px = pointsBack ? x + dx : x + 3 - dx;
+                g.fill(px + offset, y + row + offset, px + 2 + offset, y + row + 1 + offset, c);
             }
         }
     }

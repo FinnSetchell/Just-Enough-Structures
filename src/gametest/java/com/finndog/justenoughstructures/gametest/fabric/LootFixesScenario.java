@@ -73,6 +73,7 @@ final class LootFixesScenario {
                 .then(run(() -> mc.setScreen(opened[0])))
                 .then(run(() -> browser(mc).select(new ResourceLocation("pillager_outpost"))))
                 .then(until(() -> browser(mc).idle() && browser(mc).result() != null, 600))
+                .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> browser(mc).result().snapshot().containers().stream().filter(c -> c.source() != null).findFirst()
                         .ifPresent(browser(mc)::openContainer)))
                 .then(pause(30))

@@ -73,6 +73,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page {
     private boolean raw;
     private String rawText;
     private boolean dirty;
+    /** Merge in what the mod changed as soon as the table's here, as Pack tools' Merge asks. */
+    private boolean mergeWhenLoaded;
     private Component message;
     private int messageColour;
 
@@ -124,6 +126,10 @@ public final class LootEditorScreen extends Screen implements Nav.Page {
             if (draft == null && rawText == null) {
                 startFrom(view.current() != null ? view.current() : BLANK, view.status() == LootOverrides.Status.BROKEN);
                 dirty = false;
+            }
+            if (mergeWhenLoaded) {
+                mergeWhenLoaded = false;
+                merge();
             }
             if (minecraft != null && minecraft.screen == this) {
                 rebuildWidgets();
@@ -258,7 +264,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page {
         x -= buttonWidth("back");
         addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.back"), b -> onClose())
                 .bounds(x, y, buttonWidth("back"), 20).build());
-        boolean canReload = minecraft.player != null && minecraft.player.hasPermissions(2);
+        boolean canReload = ClientRequests.canUsePackTools();
         if (canReload) {
             x -= buttonWidth("save_reload") + 4;
             Button saveReload = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.save_reload"),
@@ -550,8 +556,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page {
                 if (onSaved != null) {
                     onSaved.accept(savedAs);
                 }
-                if (thenReload && minecraft.player != null) {
-                    minecraft.player.connection.sendCommand("reload");
+                if (thenReload) {
+                    ClientRequests.reloadServer();
                     note(Component.translatable("screen.justenoughstructures.editor.saved_reloaded"), GOOD);
                 }
                 refresh();
@@ -1041,6 +1047,11 @@ public final class LootEditorScreen extends Screen implements Nav.Page {
             Nav.remember();
             minecraft.setScreen(new DiffScreen(this, tableName, view.original(), json()));
         }
+    }
+
+    /** Merges what the mod changed into the edit once the table's loaded, for Pack tools' Merge. */
+    void mergeWhenLoaded() {
+        mergeWhenLoaded = true;
     }
 
     /** Merge, for the screenshot harness. */
