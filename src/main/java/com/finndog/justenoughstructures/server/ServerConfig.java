@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -14,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
+import org.slf4j.helpers.MessageFormatter;
 
 /**
  * The server owner's settings, from {@code config/justenoughstructures/server.json5}: structures to
@@ -108,9 +110,10 @@ public final class ServerConfig {
                 Files.createDirectories(file.getParent());
                 Files.writeString(file, render(DEFAULTS));
             }
-            current = parse(Files.readString(file), file.toString());
+            current = parse(Files.readString(file), file.toString(), true);
         } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read {}, using the default settings", file, e);
+            JesLog.warnOnce("read:" + file + "|" + e, "Couldn't read {}, using the default settings: {}", file, e.toString());
+            JesLog.debug("Couldn't read {}", file, e);
             current = DEFAULTS;
         }
         return current;
@@ -119,9 +122,9 @@ public final class ServerConfig {
     /** The settings in the file, without applying them. The defaults if there's no file or it can't be read. */
     public static Settings read(Path file) {
         try {
-            return Files.exists(file) ? parse(Files.readString(file), file.toString()) : DEFAULTS;
+            return Files.exists(file) ? parse(Files.readString(file), file.toString(), false) : DEFAULTS;
         } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read {}", file, e);
+            JesLog.debug("Couldn't read {}", file, e);
             return DEFAULTS;
         }
     }
@@ -141,11 +144,18 @@ public final class ServerConfig {
                 settings.editPermission(), settings.containerChanges());
     }
 
+    /** Reads the settings without reporting their mistakes in the game's log. */
+    public static Settings parse(String text, String source) {
+        return parse(text, source, false);
+    }
+
     /**
      * Reads the settings, tolerating comments. A mistake in one setting is logged and that setting
-     * keeps its default, so a typo doesn't throw away the rest of the file.
+     * keeps its default, so a typo doesn't throw away the rest of the file. With {@code report} each
+     * mistake is a warning in the game's log, once, for the server's own file; otherwise they only go
+     * to the debug log.
      */
-    public static Settings parse(String text, String source) {
+    public static Settings parse(String text, String source, boolean report) {
         JsonObject json;
         try {
             JsonElement parsed = JsonParser.parseString(text);
@@ -154,7 +164,7 @@ public final class ServerConfig {
             }
             json = parsed.getAsJsonObject();
         } catch (JsonParseException e) {
-            JustEnoughStructures.LOGGER.warn("{} isn't valid, using the default settings: {}", source, e.getMessage());
+            problem(report, source, "{} isn't valid, using the default settings: {}", source, e.getMessage());
             return DEFAULTS;
         }
 
@@ -171,22 +181,34 @@ public final class ServerConfig {
                 } else if (id != null) {
                     structures.add(id);
                 } else {
-                    JustEnoughStructures.LOGGER.warn("{}: {} in hidden isn't a structure id or modid:*", source, element);
+                    problem(report, source, "{}: {} in hidden isn't a structure id or modid:*", source, element);
                 }
             }
         } else if (hidden != null) {
-            JustEnoughStructures.LOGGER.warn("{}: hidden should be a list, like [\"minecraft:ancient_city\"]", source);
+            problem(report, source, "{}: hidden should be a list, like [\"minecraft:ancient_city\"]", source);
         }
 
         return new Settings(Set.copyOf(structures), Set.copyOf(mods),
-                level(json, "locate_permission", DEFAULTS.locatePermission(), source),
-                level(json, "teleport_permission", DEFAULTS.teleportPermission(), source),
-                flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source),
-                level(json, "edit_permission", DEFAULTS.editPermission(), source),
-                flag(json, "container_changes", DEFAULTS.containerChanges(), source));
+                level(json, "locate_permission", DEFAULTS.locatePermission(), source, report),
+                level(json, "teleport_permission", DEFAULTS.teleportPermission(), source, report),
+                flag(json, "show_loot_locations", DEFAULTS.showLootLocations(), source, report),
+                level(json, "edit_permission", DEFAULTS.editPermission(), source, report),
+                flag(json, "container_changes", DEFAULTS.containerChanges(), source, report));
     }
 
-    private static boolean flag(JsonObject json, String key, boolean fallback, String source) {
+    /**
+     * The server loads its file when it starts and again on every /reload, so a mistake is only
+     * worth one warning. Anywhere else, like the settings screen checking its own values, it's noise.
+     */
+    private static void problem(boolean report, String source, String format, Object... args) {
+        if (report) {
+            JesLog.warnOnce(source + "|" + MessageFormatter.arrayFormat(format, args).getMessage(), format, args);
+        } else {
+            JesLog.debug(format, args);
+        }
+    }
+
+    private static boolean flag(JsonObject json, String key, boolean fallback, String source, boolean report) {
         JsonElement value = json.get(key);
         if (value == null) {
             return fallback;
@@ -194,11 +216,11 @@ public final class ServerConfig {
         if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean()) {
             return value.getAsBoolean();
         }
-        JustEnoughStructures.LOGGER.warn("{}: {} should be true or false, not {}", source, key, value);
+        problem(report, source, "{}: {} should be true or false, not {}", source, key, value);
         return fallback;
     }
 
-    private static int level(JsonObject json, String key, int fallback, String source) {
+    private static int level(JsonObject json, String key, int fallback, String source, boolean report) {
         JsonElement value = json.get(key);
         if (value == null) {
             return fallback;
@@ -209,7 +231,7 @@ public final class ServerConfig {
                 return level;
             }
         }
-        JustEnoughStructures.LOGGER.warn("{}: {} should be a permission level from 0 to 4, not {}", source, key, value);
+        problem(report, source, "{}: {} should be a permission level from 0 to 4, not {}", source, key, value);
         return fallback;
     }
 }

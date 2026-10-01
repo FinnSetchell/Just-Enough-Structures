@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -100,7 +100,9 @@ public final class StructureCapture {
             return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
         }
         try {
-            return captureLocked(server, structureId, seed);
+            // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
+            // not this mod's problem, so they go to the debug log.
+            return JesLog.quietly(() -> captureLocked(server, structureId, seed));
         } finally {
             LOCK.unlock();
         }
@@ -135,7 +137,7 @@ public final class StructureCapture {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
             } catch (RuntimeException | LinkageError e) {
-                JustEnoughStructures.LOGGER.warn("Capturing {} on {} terrain failed", structureId, terrain, e);
+                JesLog.debug("Capturing {} on {} terrain failed", structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
                 lastError = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
             }

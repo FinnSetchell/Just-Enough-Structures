@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -269,7 +270,7 @@ public final class JesServer {
             try {
                 draft = Codecs.readDraft(Blobs.fromBytes(Blobs.inflate(done.bytes())));
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.warn("Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
+                JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
                 return;
             }
             if (done.kind() == JesNetwork.KIND_DRAFT) {
@@ -370,7 +371,7 @@ public final class JesServer {
                     }
                 }
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.error("Previewing {} failed", structure, e);
+                JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
                 payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {

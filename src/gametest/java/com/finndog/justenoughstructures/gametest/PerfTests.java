@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -81,10 +82,10 @@ public final class PerfTests {
         JustEnoughStructures.LOGGER.info("Perf: captured {} structures in {} ms ({} failed), loot index in {} ms ({} tables); details in {}",
                 rows.size(), captureMillis, failed, indexMillis, index == null ? 0 : index.itemsByTable().size(), out);
         rows.stream().sorted(Comparator.comparingLong(Row::millis).reversed()).limit(10).forEach(r ->
-                JustEnoughStructures.LOGGER.info("Perf: slow   {} ms  {} ({} blocks, {} KB)", r.millis(), r.id(), r.blocks(), r.bytes() / 1024));
+                JesLog.debug("Perf: slow   {} ms  {} ({} blocks, {} KB)", r.millis(), r.id(), r.blocks(), r.bytes() / 1024));
         rows.stream().sorted(Comparator.comparingInt(Row::bytes).reversed()).limit(10).forEach(r ->
-                JustEnoughStructures.LOGGER.info("Perf: big    {} KB  {} ({} blocks, {} ms)", r.bytes() / 1024, r.id(), r.blocks(), r.millis()));
-        rows.stream().filter(r -> !r.ok()).forEach(r -> JustEnoughStructures.LOGGER.info("Perf: failed {}: {}", r.id(), r.error()));
+                JesLog.debug("Perf: big    {} KB  {} ({} blocks, {} ms)", r.bytes() / 1024, r.id(), r.blocks(), r.millis()));
+        rows.stream().filter(r -> !r.ok()).forEach(r -> JesLog.debug("Perf: failed {}: {}", r.id(), r.error()));
         // With every installed structure placed, this is where one drawing from the real world's random shows up.
         helper.assertTrue(RealRandoms.places() == 0, RealRandoms.places() + " places drew from a real world's random during captures, see the log");
         helper.succeed();

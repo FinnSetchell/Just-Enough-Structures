@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.client.render;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
@@ -71,29 +71,32 @@ public final class SnapshotView implements BlockAndTintGetter {
      * added to it.
      */
     public void createRenderables(ClientLevel level) {
-        for (CompoundTag tag : snapshot.blockEntities()) {
-            BlockPos pos = new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
-            try {
-                BlockEntity be = BlockEntity.loadStatic(pos, getBlockState(pos), tag);
-                if (be != null) {
-                    be.setLevel(level);
-                    blockEntities.put(pos, be);
+        // Loading other mods' entities makes vanilla warn about things like attributes it doesn't know.
+        JesLog.quietly(() -> {
+            for (CompoundTag tag : snapshot.blockEntities()) {
+                BlockPos pos = new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
+                try {
+                    BlockEntity be = BlockEntity.loadStatic(pos, getBlockState(pos), tag);
+                    if (be != null) {
+                        be.setLevel(level);
+                        blockEntities.put(pos, be);
+                    }
+                } catch (RuntimeException e) {
+                    JesLog.debug("Couldn't recreate block entity {} at {}", tag.getString("id"), pos, e);
                 }
-            } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.debug("Couldn't recreate block entity {} at {}", tag.getString("id"), pos, e);
             }
-        }
-        for (CompoundTag tag : snapshot.entities()) {
-            try {
-                EntityType.create(tag, level).ifPresent(entity -> {
-                    ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
-                    entity.setPos(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
-                    entities.add(entity);
-                });
-            } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.debug("Couldn't recreate entity {}", tag.getString("id"), e);
+            for (CompoundTag tag : snapshot.entities()) {
+                try {
+                    EntityType.create(tag, level).ifPresent(entity -> {
+                        ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
+                        entity.setPos(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
+                        entities.add(entity);
+                    });
+                } catch (RuntimeException e) {
+                    JesLog.debug("Couldn't recreate entity {}", tag.getString("id"), e);
+                }
             }
-        }
+        });
     }
 
     public StructureSnapshot snapshot() {

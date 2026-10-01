@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.client.render;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.Lighting;
@@ -16,8 +16,11 @@ import com.mojang.blaze3d.vertex.VertexSorting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
@@ -50,6 +53,8 @@ public final class StructureViewport implements AutoCloseable {
     private SnapshotView view;
     private SnapshotMesh mesh;
     private TextureTarget target;
+    /** Block entities and entities in this view whose renderer threw. Skipped from then on, as it would throw every frame. */
+    private final Set<Object> failed = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private float yaw;
     private float pitch;
@@ -69,6 +74,7 @@ public final class StructureViewport implements AutoCloseable {
         }
         this.view = newView;
         this.mesh = newView == null ? null : new SnapshotMesh(newView);
+        failed.clear();
         resetCamera();
     }
 
@@ -335,7 +341,7 @@ public final class StructureViewport implements AutoCloseable {
 
         for (BlockEntity be : view.blockEntities().values()) {
             BlockPos pos = be.getBlockPos();
-            if (pos.getY() >= slice) {
+            if (pos.getY() >= slice || failed.contains(be)) {
                 continue;
             }
             BlockEntityRenderer<BlockEntity> renderer = minecraft.getBlockEntityRenderDispatcher().getRenderer(be);
@@ -347,7 +353,8 @@ public final class StructureViewport implements AutoCloseable {
             try {
                 renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.debug("Block entity renderer failed for {}", be, e);
+                failed.add(be);
+                JesLog.debug("Block entity renderer failed for {}", be, e);
             }
             pose.popPose();
         }
@@ -355,7 +362,7 @@ public final class StructureViewport implements AutoCloseable {
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
         entities.setRenderShadow(false);
         for (Entity entity : view.entities()) {
-            if (entity.getY() >= slice) {
+            if (entity.getY() >= slice || failed.contains(entity)) {
                 continue;
             }
             try {
@@ -364,7 +371,8 @@ public final class StructureViewport implements AutoCloseable {
                 // those by a different amount each frame made them shake.
                 entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.debug("Entity renderer failed for {}", entity, e);
+                failed.add(entity);
+                JesLog.debug("Entity renderer failed for {}", entity, e);
             }
         }
         entities.setRenderShadow(true);

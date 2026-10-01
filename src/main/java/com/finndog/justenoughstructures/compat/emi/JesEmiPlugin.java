@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.compat.emi;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
@@ -91,7 +92,7 @@ public final class JesEmiPlugin implements EmiPlugin {
         try {
             EmiReloadManager.reload();
         } catch (LinkageError | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't reload EMI to add the structures items are found in", e);
+            JesLog.warnOnce("emi-reload", "Couldn't reload EMI to add the structures items are found in", e);
         }
     }
 }

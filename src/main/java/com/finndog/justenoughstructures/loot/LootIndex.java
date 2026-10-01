@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import net.minecraft.core.Holder;
@@ -48,6 +49,18 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     public static LootIndex build(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled) {
+        return build(server, ids, progress, cancelled, new AtomicInteger());
+    }
+
+    /** The same, counting the structures that couldn't be generated in {@code failed}. */
+    public static LootIndex build(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                  AtomicInteger failed) {
+        // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
+        return JesLog.quietly(() -> index(server, ids, progress, cancelled, failed));
+    }
+
+    private static LootIndex index(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                   AtomicInteger failed) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
@@ -64,13 +77,14 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             try {
                 fromPools = structure == null ? null : scan.tables(structure);
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.debug("Reading {}'s pools failed", id, e);
+                JesLog.debug("Reading {}'s pools failed", id, e);
             }
             if (fromPools != null) {
                 found.addAll(fromPools);
             }
             // Otherwise keep generating new layouts until one turns up nothing new.
             int seeds = fromPools != null ? 1 : SEEDS;
+            boolean generated = false;
             for (int i = 0; i < seeds; i++) {
                 if (cancelled.getAsBoolean()) {
                     return null;
@@ -80,6 +94,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     if (!result.succeeded()) {
                         break;
                     }
+                    generated = true;
                     int before = found.size();
                     for (StructureSnapshot.Container c : result.snapshot().containers()) {
                         ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());
@@ -91,9 +106,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         break;
                     }
                 } catch (RuntimeException e) {
-                    JustEnoughStructures.LOGGER.debug("Indexing {} failed", id, e);
+                    JesLog.debug("Indexing {} failed", id, e);
                     break;
                 }
+            }
+            if (!generated) {
+                failed.incrementAndGet();
             }
             if (!found.isEmpty()) {
                 tables.put(id, found);
@@ -123,7 +141,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         try {
             walk(server, LootDataType.TABLE.parser().toJsonTree(table), out, seen);
         } catch (RuntimeException e) {
-            JustEnoughStructures.LOGGER.debug("Couldn't read loot table {}", tableId, e);
+            JesLog.debug("Couldn't read loot table {}", tableId, e);
         }
         return out;
     }

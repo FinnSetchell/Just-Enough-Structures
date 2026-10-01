@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
@@ -126,7 +127,7 @@ public final class LootOverrides {
             try (InputStream in = resource.open()) {
                 return new String(in.readAllBytes(), StandardCharsets.UTF_8);
             } catch (IOException e) {
-                JustEnoughStructures.LOGGER.warn("Couldn't read the loot table {} from {}", id, resource.sourcePackId(), e);
+                JesLog.debug("Couldn't read the loot table {} from {}", id, resource.sourcePackId(), e);
                 return null;
             }
         }
@@ -186,7 +187,8 @@ public final class LootOverrides {
             writeMeta(root, meta);
             writeBaseText(root, id, original);
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save the loot override for {}", id, e);
+            JustEnoughStructures.LOGGER.warn("Couldn't save the loot override for {}: {}", id, e.toString());
+            JesLog.debug("Couldn't save the loot override for {}", id, e);
             return Component.translatable("screen.justenoughstructures.override.save_failed", message(e));
         }
         return Component.translatable("screen.justenoughstructures.override.saved");

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -58,7 +59,7 @@ public final class ClientState {
             details = flag(json, "details", details);
             rarestFirst = flag(json, "rarest_first", rarestFirst);
         } catch (IOException | JsonParseException | IllegalStateException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read {}, keeping the defaults", file, e);
+            JesLog.debug("Couldn't read {}, keeping the defaults", file, e);
         }
     }
 
@@ -74,7 +75,7 @@ public final class ClientState {
             Files.createDirectories(file.getParent());
             Files.writeString(file, GSON.toJson(json));
         } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save {}", file, e);
+            JesLog.debug("Couldn't save {}", file, e);
         }
     }
 

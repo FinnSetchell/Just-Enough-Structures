@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.loot.LootIndex;
@@ -97,13 +98,13 @@ public final class LootIndexStore {
                 }
                 checking = false;
                 if (same) {
-                    JustEnoughStructures.LOGGER.info("The loot index is still up to date ({} ms to check)", millis);
+                    JesLog.debug("The loot index is still up to date ({} ms to check)", millis);
                     publish(server);
                     return;
                 }
                 fingerprint = current;
                 if (saved != null) {
-                    JustEnoughStructures.LOGGER.info("Loaded the loot index from {} in {} ms", dir, millis);
+                    JesLog.debug("Loaded the loot index from {} in {} ms", dir, millis);
                     index = saved;
                     publish(server);
                     return;
@@ -153,11 +154,13 @@ public final class LootIndexStore {
         Path dir = folder();
         WORKER.execute(() -> {
             long started = System.nanoTime();
-            LootIndex built = LootIndex.build(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning());
+            AtomicInteger failed = new AtomicInteger();
+            LootIndex built = LootIndex.build(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed);
             if (built == null) {
                 return;
             }
-            JustEnoughStructures.LOGGER.info("Indexed the loot of {} structures in {} s", ids.size(), (System.nanoTime() - started) / 1_000_000_000L);
+            JesLog.debug("Indexed the loot of {} structures in {} s ({} wouldn't generate)", ids.size(),
+                    (System.nanoTime() - started) / 1_000_000_000L, failed.get());
             if (key != null) {
                 write(dir, key, built);
             }
@@ -228,7 +231,7 @@ public final class LootIndexStore {
             }
             return hasher.hash().toString();
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't fingerprint the loot index's sources, so it won't be saved", e);
+            JesLog.debug("Couldn't fingerprint the loot index's sources, so it won't be saved", e);
             return null;
         }
     }
@@ -249,7 +252,7 @@ public final class LootIndexStore {
             Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis()));
             return saved;
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read the saved loot index {}, building it again", file, e);
+            JesLog.debug("Couldn't read the saved loot index {}, building it again", file, e);
             return null;
         }
     }
@@ -271,7 +274,7 @@ public final class LootIndexStore {
                 Files.deleteIfExists(old);
             }
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save the loot index to {}", dir, e);
+            JesLog.debug("Couldn't save the loot index to {}", dir, e);
         }
     }
 }

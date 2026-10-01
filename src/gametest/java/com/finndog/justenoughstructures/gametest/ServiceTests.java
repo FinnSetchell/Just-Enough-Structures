@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -198,7 +198,7 @@ public final class ServiceTests {
         long millis = (System.nanoTime() - started) / 1_000_000L;
         String second = LootIndexStore.fingerprintOf(helper.getLevel().getServer());
         helper.assertTrue(first != null && first.equals(second), "the fingerprint changed from " + first + " to " + second);
-        JustEnoughStructures.LOGGER.info("Fingerprinting the loot index's sources took {} ms", millis);
+        JesLog.debug("Fingerprinting the loot index's sources took {} ms", millis);
         helper.assertTrue(millis < 30_000, "fingerprinting took " + millis + " ms");
         helper.succeed();
     }

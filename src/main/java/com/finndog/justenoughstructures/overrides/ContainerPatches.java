@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.server.ServerConfig;
@@ -70,7 +71,11 @@ public final class ContainerPatches {
                 }
             }
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read the container patches in {}, leaving containers as they are", file(), e);
+            // Read on every /reload, so the same broken file is only worth one warning.
+            Path file = file();
+            JesLog.warnOnce("patches:" + file + "|" + e.getMessage(), "Couldn't read the container patches in {}, leaving containers as they are: {}",
+                    file, e.toString());
+            JesLog.debug("Couldn't read the container patches in {}", file, e);
         }
         byTemplate = out;
     }
@@ -106,12 +111,13 @@ public final class ContainerPatches {
         }
         for (Patch patch : patches) {
             try {
+                // Templates load again after every /reload, so each problem is only worth one warning.
                 if (!applyOne(template, patch)) {
-                    JustEnoughStructures.LOGGER.warn("Not changing the container at {} in {}: there's no {} with a loot table there any more",
-                            patch.pos(), id, patch.block());
+                    JesLog.warnOnce("patch:" + id + "@" + patch.pos().toShortString(),
+                            "Not changing the container at {} in {}: there's no {} with a loot table there any more", patch.pos(), id, patch.block());
                 }
             } catch (RuntimeException e) {
-                JustEnoughStructures.LOGGER.warn("Couldn't change the container at {} in {}", patch.pos(), id, e);
+                JesLog.warnOnce("patch-error:" + id + "@" + patch.pos().toShortString(), "Couldn't change the container at {} in {}", patch.pos(), id, e);
             }
         }
     }
@@ -126,7 +132,8 @@ public final class ContainerPatches {
                 }
                 String now = info.nbt().getString("LootTable");
                 if (!now.equals(patch.original()) && !now.equals(patch.table().toString())) {
-                    JustEnoughStructures.LOGGER.warn("The container at {} in {} had its loot table changed by its mod, from {} to {}; using {} as set in the browser",
+                    JesLog.warnOnce("patch-changed:" + patch.template() + "@" + patch.pos().toShortString(),
+                            "The container at {} in {} had its loot table changed by its mod, from {} to {}; using {} as set in the browser",
                             patch.pos(), patch.template(), patch.original(), now, patch.table());
                 }
                 info.nbt().putString("LootTable", patch.table().toString());
@@ -154,7 +161,8 @@ public final class ContainerPatches {
             json.add("patches", kept);
             write(json);
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save the container patch for {} in {}", patch.pos(), patch.template(), e);
+            JustEnoughStructures.LOGGER.warn("Couldn't save the container patch for {} in {}: {}", patch.pos(), patch.template(), e.toString());
+            JesLog.debug("Couldn't save the container patch for {} in {}", patch.pos(), patch.template(), e);
             return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
         }
         load();

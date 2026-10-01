@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
+import com.finndog.justenoughstructures.JesLog;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,14 +33,16 @@ public final class LootRolls {
 
     /** Fills a container of {@code size} slots the way a chest is filled when it's first opened. */
     public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, long seed, int size) {
-        LootTable table = level.getServer().getLootData().getLootTable(tableId);
-        SimpleContainer container = new SimpleContainer(size);
-        table.fill(container, chestParams(level), seed);
-        List<ItemStack> out = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            out.add(container.getItem(i).copy());
-        }
-        return out;
+        return JesLog.quietly(() -> {
+            LootTable table = level.getServer().getLootData().getLootTable(tableId);
+            SimpleContainer container = new SimpleContainer(size);
+            table.fill(container, chestParams(level), seed);
+            List<ItemStack> out = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                out.add(container.getItem(i).copy());
+            }
+            return out;
+        });
     }
 
     /** Rolls the table {@code rolls} times and counts how often each item turned up. */
@@ -49,6 +52,11 @@ public final class LootRolls {
 
     /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
     public static LootOdds odds(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
+        // Thousands of rolls of another mod's table can mean thousands of the same warning.
+        return JesLog.quietly(() -> roll(level, tableId, table, rolls, seed));
+    }
+
+    private static LootOdds roll(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
         LootParams params = chestParams(level);
         Map<Item, LootOdds.Row> rows = new HashMap<>();
         int empty = 0;

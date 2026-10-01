@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -119,7 +119,7 @@ final class PoolScan {
                 nbt(template.save(new CompoundTag()), tables, next);
             }
         } catch (RuntimeException e) {
-            JustEnoughStructures.LOGGER.debug("Couldn't read structure piece {}", id, e);
+            JesLog.debug("Couldn't read structure piece {}", id, e);
         }
         Pool result = new Pool(tables, next);
         templates.put(id, result);

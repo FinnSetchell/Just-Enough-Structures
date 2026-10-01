@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.compat.cloth;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.server.JesServer;
@@ -120,7 +121,8 @@ public final class JesConfigScreen {
         try {
             ServerConfig.save(ServerConfig.file(), settings);
         } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save {}", ServerConfig.file(), e);
+            JustEnoughStructures.LOGGER.warn("Couldn't save {}: {}", ServerConfig.file(), e.toString());
+            JesLog.debug("Couldn't save {}", ServerConfig.file(), e);
             return;
         }
         MinecraftServer running = Minecraft.getInstance().getSingleplayerServer();

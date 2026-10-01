@@ -136,6 +136,8 @@ loom {
             vmArg("-Dfabric-api.gametest.report-file=${layout.buildDirectory.get().asFile}/gametest/report.xml")
             // -Pperf also captures every installed structure and times it, into build/gametest/perf.csv.
             vmArg("-Djes.perf=${hasProperty("perf")}")
+            // The mod's own debug log, in build/gametest/logs.
+            vmArg("-Djustenoughstructures.debug=true")
         }
         // Opens the structure browser in a throwaway superflat world, saves screenshots to
         // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
@@ -151,6 +153,7 @@ loom {
             vmArg("-Djes.autoshot.hidden=${!hasProperty("show")}")
             vmArg("-Djes.autoshot.mode=${findProperty("mode") ?: "gallery"}")
             vmArg("-Djes.autoshot.gui=${findProperty("gui") ?: 2}")
+            vmArg("-Djustenoughstructures.debug=true")
             programArgs("--width", "${findProperty("width") ?: 1600}", "--height", "${findProperty("height") ?: 900}")
         }
     }

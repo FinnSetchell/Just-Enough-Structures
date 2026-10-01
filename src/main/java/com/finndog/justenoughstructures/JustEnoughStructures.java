@@ -21,6 +21,7 @@ public final class JustEnoughStructures {
     }
 
     public static void init() {
+        JesLog.install();
     }
 
     public static ResourceLocation id(String path) {
@@ -58,6 +59,11 @@ public final class JustEnoughStructures {
     /** Where this mod keeps what it works out once and saves for next time. Safe to delete. */
     public static Path cacheDir() {
         return gameDir.resolve(".cache").resolve(MOD_ID);
+    }
+
+    /** The debug log, next to the game's own logs. Only written with -Djustenoughstructures.debug=true. */
+    public static Path debugLogFile() {
+        return gameDir.resolve("logs").resolve("justenoughstructures-debug.log");
     }
 
     /** Set by the loader: every installed mod's id and version. */

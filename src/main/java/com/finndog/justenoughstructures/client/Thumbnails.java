@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.google.common.hash.Hasher;
@@ -192,7 +193,7 @@ public final class Thumbnails {
             CACHE.put(id, texture);
             return true;
         } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't read the saved thumbnail {}", file, e);
+            JesLog.debug("Couldn't read the saved thumbnail {}", file, e);
             NOT_SAVED.add(id);
             return false;
         }
@@ -218,7 +219,7 @@ public final class Thumbnails {
                 }
                 image.writeToFile(dir.resolve(key + ".png"));
             } catch (IOException | RuntimeException e) {
-                JustEnoughStructures.LOGGER.warn("Couldn't save the thumbnail for {}", id, e);
+                JesLog.debug("Couldn't save the thumbnail for {}", id, e);
             }
         });
     }

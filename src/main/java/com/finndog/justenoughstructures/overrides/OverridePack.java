@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
-import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.JesLog;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -33,11 +33,14 @@ public final class OverridePack implements RepositorySource {
         try {
             LootOverrides.ensurePack(root);
         } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't set up the loot override pack in {}", root, e);
+            JesLog.warnOnce("override-pack", "Couldn't set up the loot override pack in {}: {}", root, e.toString());
+            JesLog.debug("Couldn't set up the loot override pack in {}", root, e);
             return;
         }
+        // The game opens the pack once to read its details and again to load it, so check once for both.
+        Set<ResourceLocation> broken = CheckedResources.findBroken(root);
         Pack pack = Pack.readMetaAndCreate(LootOverrides.PACK_ID, Component.translatable("pack.justenoughstructures.loot_overrides"),
-                true, id -> new CheckedResources(id, root), PackType.SERVER_DATA, Pack.Position.TOP, PackSource.BUILT_IN);
+                true, id -> new CheckedResources(id, root, broken), PackType.SERVER_DATA, Pack.Position.TOP, PackSource.BUILT_IN);
         if (pack != null) {
             out.accept(pack);
         }
@@ -47,9 +50,9 @@ public final class OverridePack implements RepositorySource {
     static final class CheckedResources extends PathPackResources {
         private final Set<ResourceLocation> broken;
 
-        CheckedResources(String id, Path root) {
+        CheckedResources(String id, Path root, Set<ResourceLocation> broken) {
             super(id, root, true);
-            this.broken = findBroken(root);
+            this.broken = broken;
         }
 
         @Override
@@ -66,7 +69,7 @@ public final class OverridePack implements RepositorySource {
             });
         }
 
-        private static Set<ResourceLocation> findBroken(Path root) {
+        static Set<ResourceLocation> findBroken(Path root) {
             Set<ResourceLocation> out = new HashSet<>();
             Path data = root.resolve("data");
             if (!Files.isDirectory(data)) {
@@ -91,11 +94,13 @@ public final class OverridePack implements RepositorySource {
                     }
                     if (problem != null && location != null) {
                         out.add(location);
-                        JustEnoughStructures.LOGGER.warn("Leaving out the loot override {}, the game can't load it: {}", file, problem.getString());
+                        String reason = problem.getString();
+                        JesLog.warnOnce("override:" + file + "|" + reason, "Leaving out the loot override {}, the game can't load it: {}", file, reason);
                     }
                 }
             } catch (IOException e) {
-                JustEnoughStructures.LOGGER.warn("Couldn't check the loot overrides in {}", data, e);
+                JesLog.warnOnce("override-check", "Couldn't check the loot overrides in {}: {}", data, e.toString());
+                JesLog.debug("Couldn't check the loot overrides in {}", data, e);
             }
             return out;
         }
