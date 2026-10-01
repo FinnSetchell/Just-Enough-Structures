@@ -1041,7 +1041,7 @@ public class JesScreen extends Screen {
                 if (m.containers().size() > 1) {
                     String count = String.valueOf(m.containers().size());
                     g.pose().translate(0, 0, 200);
-                    Gui.small(g, font, count, size - (int) (font.width(count) * 0.75f) + 1, size - 5, 0xFFFFFFFF);
+                    Gui.small(g, font, count, size - Gui.smallWidth(font, count) + 1, size - 5, 0xFFFFFFFF);
                 }
                 g.pose().popPose();
             }
@@ -1065,16 +1065,16 @@ public class JesScreen extends Screen {
             int bx = viewX + (viewW - barW) / 2;
             int by = viewY + viewH - 12;
             String building = Component.translatable("screen.justenoughstructures.building").getString();
-            Gui.small(g, font, building, viewX + (viewW - (int) (font.width(building) * 0.75f)) / 2, by - 9, 0xFFE0E0E0);
+            Gui.small(g, font, building, viewX + (viewW - Gui.smallWidth(font, building)) / 2, by - 9, 0xFFE0E0E0);
             g.fill(bx - 1, by - 1, bx + barW + 1, by + 5, 0xFF000000);
             g.fill(bx, by, bx + (int) (barW * viewport.meshProgress()), by + 4, 0xFF7FD06A);
         } else {
             String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
             String hint = Component.translatable(controls).getString();
-            if (font.width(hint) * 0.75f > viewW - 12) {
+            if (Gui.smallWidth(font, hint) > viewW - 12) {
                 hint = Component.translatable(controls + "_short").getString();
             }
-            Gui.small(g, font, Gui.clip(font, hint, (int) ((viewW - 12) / 0.75f)), viewX + 6, viewY + viewH - 10, 0xFFE0E0E0);
+            Gui.small(g, font, Gui.clipSmall(font, hint, viewW - 12), viewX + 6, viewY + viewH - 10, 0xFFE0E0E0);
         }
         g.disableScissor();
 

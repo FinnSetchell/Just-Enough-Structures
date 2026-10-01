@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -166,12 +167,54 @@ public final class Gui {
         g.fill(x + 1, y + 1, x + 2, y + h - 1, 0xFF555555);
     }
 
+    /** Text at {@link #smallScale()}, for labels and other secondary lines. */
     public static void small(GuiGraphics g, Font font, String text, int x, int y, int color) {
+        scaled(g, font, text, x, y, color, smallScale());
+    }
+
+    /** Text drawn at any size, with its top left at x, y. */
+    static void scaled(GuiGraphics g, Font font, String text, int x, int y, int color, float scale) {
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
-        g.pose().scale(0.75f, 0.75f, 1f);
+        g.pose().scale(scale, scale, 1f);
         g.drawString(font, text, 0, 0, color, false);
         g.pose().popPose();
+    }
+
+    /**
+     * The size small text is drawn at: about three quarters, picked at each GUI scale so every pixel
+     * of the font covers a whole number of screen pixels. A plain 0.75 does that only at GUI scale 4
+     * and 8, and at the others the letters come out uneven and hard to read. GUI scales 1 and 2 have
+     * no whole-pixel size near it, so they keep 0.75.
+     */
+    public static float smallScale() {
+        int gui = (int) Math.round(Minecraft.getInstance().getWindow().getGuiScale());
+        float best = 0.75f;
+        float bestOff = Float.MAX_VALUE;
+        for (int pixels = 1; pixels <= gui; pixels++) {
+            float scale = (float) pixels / gui;
+            float off = Math.abs(scale - 0.75f);
+            if (scale >= 0.6f && scale <= 0.8f && off < bestOff - 1e-4f) {
+                best = scale;
+                bestOff = off;
+            }
+        }
+        return best;
+    }
+
+    /** Whether small text is sharp at this GUI scale, which it isn't at 1 and 2. */
+    static boolean smallIsSharp() {
+        return smallScale() != 0.75f || Math.round(Minecraft.getInstance().getWindow().getGuiScale()) % 4 == 0;
+    }
+
+    /** How wide text is when drawn small. */
+    public static int smallWidth(Font font, String text) {
+        return (int) Math.ceil(font.width(text) * smallScale());
+    }
+
+    /** Cuts text short to fit {@code width} once it's drawn small. */
+    public static String clipSmall(Font font, String text, int width) {
+        return clip(font, text, (int) (width / smallScale()));
     }
 
     static void fitted(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {

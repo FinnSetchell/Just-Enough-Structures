@@ -174,7 +174,7 @@ public final class TablePickerScreen extends Screen {
         int w = right - left;
         g.drawString(font, Gui.clip(font, title.getString(), w), left + 2, PAD + 8, Gui.LABEL, false);
         String from = Component.translatable("screen.justenoughstructures.picker.from", source.template().toString()).getString();
-        Gui.small(g, font, Gui.clip(font, from, (int) (w / 0.75f)), left + 2, PAD + 21, Gui.LABEL_SOFT);
+        Gui.small(g, font, Gui.clipSmall(font, from, w), left + 2, PAD + 21, Gui.LABEL_SOFT);
 
         Gui.inset(g, left, listTop(), w, listBottom() - listTop(), Gui.PANEL);
         if (!FoundIn.ready() && shown.isEmpty()) {
@@ -198,9 +198,9 @@ public final class TablePickerScreen extends Screen {
                 String name = id.equals(typed) ? Component.translatable("screen.justenoughstructures.picker.typed", id.toString()).getString()
                         : StructureNames.lootTable(id.toString());
                 String now = id.toString().equals(current) ? Component.translatable("screen.justenoughstructures.picker.now").getString() : "";
-                int nowWidth = now.isEmpty() ? 0 : (int) (font.width(now) * 0.75f) + 4;
+                int nowWidth = now.isEmpty() ? 0 : Gui.smallWidth(font, now) + 4;
                 Gui.fitted(g, font, name, left + 6, y + 3, w - 14 - nowWidth, Gui.LABEL);
-                Gui.small(g, font, Gui.clip(font, id.toString(), (int) ((w - 14 - nowWidth) / 0.75f)), left + 6, y + 12, Gui.LABEL_SOFT);
+                Gui.small(g, font, Gui.clipSmall(font, id.toString(), w - 14 - nowWidth), left + 6, y + 12, Gui.LABEL_SOFT);
                 if (!now.isEmpty()) {
                     Gui.small(g, font, now, right - 6 - nowWidth + 4, y + 7, 0xFF2E7D1F);
                 }

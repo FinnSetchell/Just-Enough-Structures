@@ -32,6 +32,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
@@ -327,40 +329,128 @@ final class InfoPanel {
         if (!ClientState.details) {
             return cy;
         }
-        cy = field(g, cy, "id", entry.id().toString());
-        cy = field(g, cy, "type", entry.type() == null ? "?" : entry.type().toString());
+        // The structure's definition, how its sets place it, and how this layout came out, as small
+        // label and value rows, so a lot fits without the long ids crowding the panel.
+        List<List<String[]>> sections = new ArrayList<>();
+        List<String> titles = new ArrayList<>();
+        List<String[]> definition = new ArrayList<>();
+        definition.add(row("id", entry.id().toString()));
+        definition.add(row("type", entry.type() == null ? "?" : entry.type().toString()));
         if (def != null) {
-            cy = field(g, cy, "step", string(def.get("step")));
-            cy = field(g, cy, "biome_tag", string(def.get("biomes")));
+            definition.add(row("step", string(def.get("step"))));
+            definition.add(row("biomes", string(def.get("biomes"))));
             if (def.has("start_pool")) {
-                cy = field(g, cy, "start_pool", string(def.get("start_pool")));
+                definition.add(row("start_pool", string(def.get("start_pool"))));
             }
             if (def.has("size")) {
-                cy = field(g, cy, "jigsaw_size", string(def.get("size")));
+                definition.add(row("depth", string(def.get("size"))));
             }
-            cy = field(g, cy, "terrain", def.has("terrain_adaptation") ? string(def.get("terrain_adaptation")) : "none");
+            definition.add(row("terrain", def.has("terrain_adaptation") ? string(def.get("terrain_adaptation")) : "none"));
         }
+        titles.add("structure");
+        sections.add(definition);
         for (StructureCatalog.SetInfo set : entry.sets()) {
+            List<String[]> placement = new ArrayList<>();
+            placement.add(row("set", set.setId().toString()));
             JsonObject p = set.placement();
-            StringBuilder placement = new StringBuilder(set.setId().toString());
             if (p != null) {
-                placement.append("\n").append(string(p.get("type")));
+                placement.add(row("type", string(p.get("type"))));
                 for (String key : List.of("spacing", "separation", "salt", "frequency", "distance", "count")) {
                     if (p.has(key)) {
-                        placement.append("\n").append(key).append(": ").append(string(p.get(key)));
+                        placement.add(row(key, string(p.get(key))));
                     }
                 }
             }
-            cy = field(g, cy, "placement", placement.toString());
+            titles.add("placement");
+            sections.add(placement);
         }
         if (result != null && result.succeeded()) {
             StructureSnapshot s = result.snapshot();
-            cy = field(g, cy, "pieces", String.valueOf(s.pieceCount()));
-            cy = field(g, cy, "generated_on", Component.translatable("screen.justenoughstructures.terrain." + s.terrain().name().toLowerCase(Locale.ROOT)).getString());
-            cy = field(g, cy, "seed", Long.toHexString(s.seed()).toUpperCase(Locale.ROOT));
-            cy = field(g, cy, "time", Component.translatable("screen.justenoughstructures.millis", result.millis()).getString());
+            List<String[]> layout = new ArrayList<>();
+            layout.add(row("pieces", String.valueOf(s.pieceCount())));
+            layout.add(row("ground", Component.translatable("screen.justenoughstructures.terrain." + s.terrain().name().toLowerCase(Locale.ROOT)).getString()));
+            layout.add(row("seed", Long.toHexString(s.seed()).toUpperCase(Locale.ROOT)));
+            layout.add(row("time", Component.translatable("screen.justenoughstructures.millis", result.millis()).getString()));
+            titles.add("layout");
+            sections.add(layout);
+        }
+        // Labels sit in a column of their own when that leaves the values enough room, and above
+        // their values when it doesn't.
+        int labelWidth = 0;
+        for (List<String[]> section : sections) {
+            for (String[] r : section) {
+                labelWidth = Math.max(labelWidth, secondaryWidth(r[0]));
+            }
+        }
+        int valueX = textWidth() - labelWidth - 6 >= 90 ? labelWidth + 6 : 0;
+        for (int i = 0; i < sections.size(); i++) {
+            cy = detailTitle(g, cy, Component.translatable("screen.justenoughstructures.detail." + titles.get(i)).getString());
+            for (String[] r : sections.get(i)) {
+                cy = detailRow(g, cy, r[0], r[1], valueX);
+            }
+            cy += 4;
         }
         return cy;
+    }
+
+    private static String[] row(String key, String value) {
+        return new String[]{Component.translatable("screen.justenoughstructures.detail." + key).getString(), value};
+    }
+
+    /** A small heading over a group of detail rows, with a faint rule under it. */
+    private int detailTitle(GuiGraphics g, int cy, String title) {
+        Gui.scaled(g, font, title, x + PAD, cy, TEXT, secondaryScale());
+        int line = secondaryLine();
+        g.fill(x + PAD, cy + line, contentRight - PAD, cy + line + 1, 0x30000000);
+        return cy + line + 3;
+    }
+
+    /**
+     * One detail: the label, and the value in small text beside it, or under it when {@code valueX}
+     * is 0. Ids break at their separators, and their namespace is dimmed so the name stands out.
+     */
+    private int detailRow(GuiGraphics g, int cy, String label, String value, int valueX) {
+        float scale = secondaryScale();
+        int line = secondaryLine();
+        Gui.scaled(g, font, label, x + PAD, cy, Gui.LABEL_SOFT, scale);
+        if (valueX == 0) {
+            cy += line + 1;
+        }
+        int left = x + PAD + (valueX == 0 ? 4 : valueX);
+        int width = (int) ((contentRight - PAD - left) / scale);
+        int namespace = value.contains(" ") ? 0 : value.indexOf(':') + 1;
+        List<String> lines = value.contains(" ")
+                ? font.getSplitter().splitLines(value, width, Style.EMPTY).stream().map(FormattedText::getString).toList()
+                : idLines(value, width);
+        int shown = 0;
+        for (String text : lines) {
+            // The part of this line that's still the namespace, if any.
+            int soft = Math.max(0, Math.min(text.length(), namespace - shown));
+            if (soft > 0) {
+                Gui.scaled(g, font, text.substring(0, soft), left, cy, Gui.LABEL_SOFT, scale);
+            }
+            Gui.scaled(g, font, text.substring(soft), left + secondaryWidth(text.substring(0, soft)), cy, TEXT, scale);
+            shown += text.length();
+            cy += line + 1;
+        }
+        return cy + 1;
+    }
+
+    /**
+     * The size of labels and details: small, unless small text can't be sharp at this GUI scale,
+     * when there's room for them at full size anyway.
+     */
+    private static float secondaryScale() {
+        return Gui.smallIsSharp() ? Gui.smallScale() : 1f;
+    }
+
+    private int secondaryWidth(String text) {
+        return (int) Math.ceil(font.width(text) * secondaryScale());
+    }
+
+    /** How tall a line of labels or details is. */
+    private int secondaryLine() {
+        return (int) Math.ceil(font.lineHeight * secondaryScale());
     }
 
     private String lootSummary(StructureSnapshot s) {
@@ -375,7 +465,7 @@ final class InfoPanel {
         }
         List<String> parts = new ArrayList<>();
         kinds.forEach((name, count) -> parts.add(Component.translatable("screen.justenoughstructures.times_name", count, name).getString()));
-        return String.join(", ", parts);
+        return String.join("\n", parts);
     }
 
     /** The structure's biomes, from a tag, a list or a single id in its definition. */
@@ -415,8 +505,8 @@ final class InfoPanel {
     }
 
     private int field(GuiGraphics g, int cy, String key, String value) {
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.field." + key).getString(), x + PAD, cy, Gui.LABEL_SOFT);
-        cy += 8;
+        Gui.scaled(g, font, Component.translatable("screen.justenoughstructures.field." + key).getString(), x + PAD, cy, Gui.LABEL_SOFT, secondaryScale());
+        cy += secondaryLine() + 1;
         for (String line : value.split("\n")) {
             if (line.contains(" ")) {
                 cy = Gui.wrapped(g, font, Component.literal(line), x + PAD, cy, textWidth(), TEXT);
@@ -435,6 +525,13 @@ final class InfoPanel {
      * mid-word. Done by hand because Minecraft's font draws a zero-width space as a missing glyph.
      */
     private List<String> idLines(String text, int width) {
+        // An id too long for one line goes over two at its colon first, so its name stays whole.
+        int colon = text.indexOf(':');
+        if (font.width(text) > width && colon > 0 && colon < text.length() - 1) {
+            List<String> lines = new ArrayList<>(idLines(text.substring(0, colon + 1), width));
+            lines.addAll(idLines(text.substring(colon + 1), width));
+            return lines;
+        }
         List<String> lines = new ArrayList<>();
         StringBuilder line = new StringBuilder();
         int start = 0;
@@ -521,7 +618,7 @@ final class InfoPanel {
             String detail = table.isEmpty() ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
             int textWidth = contentRight - x - PAD - 23 - 12;
             Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
-            Gui.small(g, font, Gui.clip(font, detail, (int) (textWidth / 0.75f)), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+            Gui.small(g, font, Gui.clipSmall(font, detail, textWidth), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
             g.drawString(font, ">", contentRight - 9, cy + 7, hovered ? TEXT : Gui.LABEL_SOFT, false);
             if (hovered) {
                 hoveredText = List.of(Component.literal(name), Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW));
@@ -588,7 +685,7 @@ final class InfoPanel {
                 x, cy, contentRight - x, 13);
         cy += 16;
         Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
-        int sortWidth = (int) (font.width(sortLabel) * 0.75f) + 2;
+        int sortWidth = Gui.smallWidth(font, sortLabel.getString()) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, 9, clipTop, clipHeight);
         Gui.small(g, font, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
         if (overSort) {
@@ -601,7 +698,7 @@ final class InfoPanel {
         // Right-aligned on the same line, for players the server lets edit loot tables.
         if (ClientRequests.canEditLoot() && selectedTable != null) {
             String edit = Component.translatable("screen.justenoughstructures.editor.edit_link").getString();
-            int editWidth = (int) (font.width(edit) * 0.75f) + 2;
+            int editWidth = Gui.smallWidth(font, edit) + 2;
             int editX = contentRight - 2 - editWidth;
             if (editX > x + PAD + sortWidth + 4) {
                 boolean overEdit = inside(mouseX, mouseY, editX, cy - 1, editWidth, 9, clipTop, clipHeight);
@@ -650,7 +747,7 @@ final class InfoPanel {
                     ? Component.translatable("screen.justenoughstructures.count_exact", row.min()).getString()
                     : Component.translatable("screen.justenoughstructures.count_range", row.min(), row.max(), Math.round(average)).getString();
             Gui.small(g, font, counts, textX, cy + 11, Gui.LABEL_SOFT);
-            int barLeft = textX + (int) (font.width(counts) * 0.75f) + 4;
+            int barLeft = textX + Gui.smallWidth(font, counts) + 4;
             int barRight = contentRight - 2;
             if (barRight - barLeft > 10) {
                 g.fill(barLeft, cy + 12, barRight, cy + 16, Gui.BAR_BACK);

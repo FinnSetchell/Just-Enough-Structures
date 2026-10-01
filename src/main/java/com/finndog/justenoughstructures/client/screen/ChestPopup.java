@@ -114,7 +114,7 @@ final class ChestPopup {
         if (changedFrom != null) {
             int undoRoom = canEdit ? link(g, font, Action.UNDO, "container.undo", "container.undo_hint", infoTop + 23, mouseX, mouseY) + 4 : 0;
             String was = Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.lootTable(changedFrom)).getString();
-            Gui.small(g, font, Gui.clip(font, was, (int) ((WIDTH - 14 - undoRoom) / 0.75f)), x + 7, infoTop + 23, Gui.LABEL_SOFT);
+            Gui.small(g, font, Gui.clipSmall(font, was, WIDTH - 14 - undoRoom), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         } else if (items == null) {
             Gui.small(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 7, infoTop + 23, Gui.LABEL_SOFT);
         } else if (container.lootTable() != null) {
@@ -126,7 +126,7 @@ final class ChestPopup {
     /** Draws a small link at the right of a line and returns how wide it is. */
     private int link(GuiGraphics g, Font font, Action action, String key, String hint, int lineY, int mouseX, int mouseY) {
         String text = Component.translatable("screen.justenoughstructures." + key).getString();
-        int w = (int) (font.width(text) * 0.75f) + 2;
+        int w = Gui.smallWidth(font, text) + 2;
         int lx = x + WIDTH - 7 - w;
         boolean over = mouseX >= lx && mouseX < lx + w && mouseY >= lineY - 1 && mouseY < lineY + 8;
         Gui.small(g, font, text, lx, lineY, over ? 0xFF1F3F8F : 0xFF3A55A0);

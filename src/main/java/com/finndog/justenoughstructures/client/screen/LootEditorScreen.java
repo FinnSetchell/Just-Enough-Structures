@@ -674,7 +674,7 @@ public final class LootEditorScreen extends Screen {
             TableDraft.Range rolls = TableDraft.rolls(pool);
             String rollsText = rolls == null ? Component.translatable("screen.justenoughstructures.editor.rolls_formula").getString()
                     : Component.translatable("screen.justenoughstructures.editor.rolls", range(rolls)).getString();
-            int rollsWidth = (int) (font.width(rollsText) * 0.75f);
+            int rollsWidth = Gui.smallWidth(font, rollsText);
             Gui.fitted(g, font, Component.translatable("screen.justenoughstructures.editor.pool", p + 1).getString(), treeX + 6, y + 5,
                     treeW - 16 - rollsWidth, Gui.LABEL);
             Gui.small(g, font, rollsText, treeX + treeW - 5 - rollsWidth, y + 6, Gui.LABEL_SOFT);
@@ -690,7 +690,7 @@ public final class LootEditorScreen extends Screen {
                 }
                 g.renderItem(icon(entry), rowX + 1, y + 1);
                 String weight = Component.translatable("screen.justenoughstructures.editor.weight", TableDraft.weight(entry)).getString();
-                int weightWidth = (int) (font.width(weight) * 0.75f);
+                int weightWidth = Gui.smallWidth(font, weight);
                 Gui.fitted(g, font, label(entry), rowX + 20, y + 5, rowW - 26 - weightWidth, Gui.LABEL);
                 Gui.small(g, font, weight, rowX + rowW - 3 - weightWidth, y + 6, Gui.LABEL_SOFT);
                 y += ROW;
@@ -766,7 +766,7 @@ public final class LootEditorScreen extends Screen {
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.editor.field.item").getString(), x, y + LABEL_1, Gui.LABEL_SOFT);
         ResourceLocation id = ResourceLocation.tryParse(itemBox == null ? "" : itemBox.getValue().trim());
         if (itemBox != null && (id == null || !BuiltInRegistries.ITEM.containsKey(id)) && suggestions.isEmpty()) {
-            Gui.small(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.unknown_item").getString(), (int) (w / 0.75f)),
+            Gui.small(g, font, Gui.clipSmall(font, Component.translatable("screen.justenoughstructures.editor.unknown_item").getString(), w),
                     x, y + FIELD_1 + 18, BAD);
         }
         Gui.small(g, font, Component.translatable("screen.justenoughstructures.editor.field.weight").getString(), x, y + LABEL_2, Gui.LABEL_SOFT);
