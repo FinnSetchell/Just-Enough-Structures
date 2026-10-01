@@ -10,11 +10,13 @@ import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -176,6 +178,18 @@ public final class StructureCapture {
     private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Structure structure,
                                                SandboxTerrain terrain, long seed, List<Component> attempts) {
         ServerLevel level = levelFor(server, terrain);
+        // Structure code that reaches past the sandbox to the real world gets the sandbox anyway,
+        // from laying the structure out to the last block placed.
+        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + terrain.name().toLowerCase(Locale.ROOT) + " terrain");
+        try {
+            return captureGuarded(server, structureId, structure, terrain, seed, attempts, level, guard);
+        } finally {
+            RealWorldGuard.end(guard);
+        }
+    }
+
+    private static StructureSnapshot captureGuarded(MinecraftServer server, ResourceLocation structureId, Structure structure, SandboxTerrain terrain,
+                                                    long seed, List<Component> attempts, ServerLevel level, RealWorldGuard.Sandbox guard) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
         Holder<Biome> biome = biomeFor(structure, terrain, biomes);
         FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
@@ -215,6 +229,7 @@ public final class StructureCapture {
 
         CaptureRegion region = new CaptureRegion(level, chunks, side);
         region.setCurrentlyGenerating(() -> "Just Enough Structures preview of " + structureId);
+        guard.placing(region);
         StructureManager structureManager = level.structureManager().forWorldGenRegion(region);
         SANDBOX_STRUCTURES.set(structureManager);
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(seed));
@@ -263,6 +278,35 @@ public final class StructureCapture {
     /** What {@code LegacyRandomSourceMixin} draws from in place of a real world's random, or null outside a capture. */
     public static RandomSource sandboxRandom() {
         return SANDBOX_RANDOM.get();
+    }
+
+    /**
+     * Runs {@code action} on this thread as though a structure were being placed into a sandbox of
+     * plain land three chunks across around {@code centre}, with the real world guarded the way it
+     * is during a capture. For tests.
+     */
+    public static <T> T inSandbox(ServerLevel level, ChunkPos centre, Supplier<T> action) {
+        Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
+        Holder<Biome> biome = biomes.getHolderOrThrow(Biomes.PLAINS);
+        SandboxChunkGenerator generator = new SandboxChunkGenerator(new FixedBiomeSource(biome), SandboxTerrain.LAND, level);
+        List<ChunkAccess> chunks = new ArrayList<>();
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                chunks.add(sandboxChunk(new ChunkPos(centre.x + dx, centre.z + dz), level, generator, biomes, biome));
+            }
+        }
+        CaptureRegion region = new CaptureRegion(level, chunks, 1);
+        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, "a test sandbox");
+        SANDBOX_STRUCTURES.set(level.structureManager().forWorldGenRegion(region));
+        SANDBOX_RANDOM.set(new XoroshiroRandomSource(0));
+        try {
+            guard.placing(region);
+            return action.get();
+        } finally {
+            SANDBOX_STRUCTURES.remove();
+            SANDBOX_RANDOM.remove();
+            RealWorldGuard.end(guard);
+        }
     }
 
     private static ServerLevel levelFor(MinecraftServer server, SandboxTerrain terrain) {

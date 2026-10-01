@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.gametest.CompassTests;
 import com.finndog.justenoughstructures.gametest.ContainerTests;
 import com.finndog.justenoughstructures.gametest.OverrideTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
+import com.finndog.justenoughstructures.gametest.RealWorldTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
 import com.finndog.justenoughstructures.gametest.SettingsTests;
 import java.util.Collection;
@@ -249,6 +250,11 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_update", timeoutTicks = 1200)
     public void lootIndexFollowsContainerChanges(GameTestHelper helper) {
         ContainerTests.lootIndexFollowsContainerChanges(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 200)
+    public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
+        RealWorldTests.previewsLeaveTheRealWorldAlone(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
