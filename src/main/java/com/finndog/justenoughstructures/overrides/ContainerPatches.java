@@ -96,6 +96,22 @@ public final class ContainerPatches {
         return out;
     }
 
+    /** Every patch saved, in the order they were saved, whether or not changed containers are in use. */
+    public static synchronized List<Patch> all() {
+        List<Patch> out = new ArrayList<>();
+        try {
+            for (JsonElement element : read(file()).getAsJsonArray("patches")) {
+                Patch patch = parse(element);
+                if (patch != null) {
+                    out.add(patch);
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            JesLog.debug("Couldn't read the container patches in {}", file(), e);
+        }
+        return out;
+    }
+
     public static Patch find(ResourceLocation template, BlockPos pos) {
         for (Patch patch : patches().getOrDefault(template, List.of())) {
             if (patch.pos().equals(pos)) {

@@ -40,6 +40,22 @@ public record StructureInfo(Component notes, String author, boolean hideLootLoca
         return loaded.getOrDefault(id, NONE);
     }
 
+    /** Every structure something is said about. */
+    public static Map<ResourceLocation, StructureInfo> all() {
+        return loaded;
+    }
+
+    /** Puts what's said about one structure in use straight away, as Pack tools saves it, rather than from the next /reload. */
+    public static synchronized void put(ResourceLocation id, StructureInfo info) {
+        Map<ResourceLocation, StructureInfo> next = new HashMap<>(loaded);
+        if (info.notes() == null && info.author() == null && !info.hideLootLocations()) {
+            next.remove(id);
+        } else {
+            next.put(id, info);
+        }
+        loaded = Map.copyOf(next);
+    }
+
     public StructureInfo hidingLoot() {
         return hideLootLocations ? this : new StructureInfo(notes, author, true);
     }

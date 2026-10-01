@@ -3,8 +3,10 @@ package com.finndog.justenoughstructures.fabric;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.JesServer;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
@@ -70,6 +72,25 @@ final class FabricNetworking {
             BlockPos pos = buf.readBlockPos();
             ResourceLocation table = buf.readBoolean() ? buf.readResourceLocation() : null;
             server.execute(() -> JesServer.onContainerAction(player, requestId, template, pos, table));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_TOOLS, (server, player, handler, buf, responder) ->
+                server.execute(() -> JesServer.onRequestTools(player)));
+
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.TOOLS_ACTION, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            int action = buf.readVarInt();
+            if (action == JesNetwork.TOOLS_RULES) {
+                ServerConfig.Settings settings = Codecs.readSettings(buf);
+                server.execute(() -> JesServer.onSaveRules(player, requestId, settings));
+            } else if (action == JesNetwork.TOOLS_STRUCTURE) {
+                ResourceLocation id = buf.readResourceLocation();
+                String notes = buf.readUtf(Codecs.MAX_NOTES);
+                boolean secret = buf.readBoolean();
+                server.execute(() -> JesServer.onSaveStructure(player, requestId, id, notes, secret));
+            } else if (action == JesNetwork.TOOLS_RELOAD) {
+                server.execute(() -> JesServer.onReload(player, requestId));
+            }
         });
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.UPLOAD, (server, player, handler, buf, responder) ->

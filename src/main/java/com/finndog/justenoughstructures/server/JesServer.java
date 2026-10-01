@@ -22,6 +22,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -116,13 +117,34 @@ public final class JesServer {
             }
         }
         invalidate();
+        PackToolsServer.reloaded();
         LootIndexStore.refresh(server);
         for (UUID id : BROWSING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
                 BROWSING.remove(id);
             } else {
-                sendSettings(player, true);
+                sendSettings(player, true, true);
+            }
+        }
+    }
+
+    /**
+     * After Pack tools changed which structures are shown or what's said about them: the list is
+     * built again, previews that showed where secret loot is are dropped, and everyone browsing is
+     * told, along with whether they can still use Pack tools.
+     */
+    public static void structuresChanged(MinecraftServer server) {
+        catalog = null;
+        synchronized (CAPTURE_CACHE) {
+            CAPTURE_CACHE.clear();
+        }
+        for (UUID id : BROWSING) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                BROWSING.remove(id);
+            } else {
+                sendSettings(player, false, true);
             }
         }
     }
@@ -176,7 +198,7 @@ public final class JesServer {
             catalog = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCatalog(buf, entries)));
         }
         BROWSING.add(player.getUUID());
-        sendSettings(player, false);
+        sendSettings(player, false, false);
         sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
     }
 
@@ -217,7 +239,18 @@ public final class JesServer {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        return action == JesNetwork.ACTION_KEEP ? LootOverrides.keep(player.getServer().getResourceManager(), id) : LootOverrides.remove(id);
+        if (action == JesNetwork.ACTION_KEEP) {
+            return LootOverrides.keep(player.getServer().getResourceManager(), id);
+        }
+        Component reply = LootOverrides.remove(id);
+        if (replyIs(reply, "override.removed")) {
+            PackToolsServer.waiting(PackToolsState.tableKey(id));
+        }
+        return reply;
+    }
+
+    private static boolean replyIs(Component reply, String keyEnd) {
+        return reply != null && reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith(keyEnd);
     }
 
     public static void onTableAction(ServerPlayer player, int requestId, ResourceLocation id, int action) {
@@ -244,7 +277,11 @@ public final class JesServer {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        return LootOverrides.save(player.getServer().getResourceManager(), id, json);
+        Component reply = LootOverrides.save(player.getServer().getResourceManager(), id, json);
+        if (replyIs(reply, "override.saved")) {
+            PackToolsServer.waiting(PackToolsState.tableKey(id));
+        }
+        return reply;
     }
 
     /**
@@ -280,14 +317,51 @@ public final class JesServer {
         // The template may already be patched, in which case what it had first is what the patch remembers.
         ContainerPatches.Patch existing = ContainerPatches.find(template, pos);
         String original = existing != null ? existing.original() : container.nbt().getString("LootTable");
-        return ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
+        Component reply = ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
+        if (replyIs(reply, "container.saved")) {
+            PackToolsServer.waiting(PackToolsState.chestKey(template, pos));
+        }
+        return reply;
     }
 
     public static Component unpatchContainer(ServerPlayer player, ResourceLocation template, BlockPos pos) {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        return ContainerPatches.remove(template, pos);
+        Component reply = ContainerPatches.remove(template, pos);
+        if (replyIs(reply, "container.removed")) {
+            PackToolsServer.waiting(PackToolsState.chestKey(template, pos));
+        }
+        return reply;
+    }
+
+    // ------------------------------------------------------------------ Pack tools
+
+    /** Everything Pack tools shows, for a player allowed to use it. */
+    public static void onRequestTools(ServerPlayer player) {
+        if (!canEdit(player)) {
+            return;
+        }
+        PackToolsState state = PackToolsServer.state(player.getServer());
+        sendBlob(player, JesNetwork.KIND_TOOLS, 0, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeTools(buf, state))));
+    }
+
+    public static void onSaveRules(ServerPlayer player, int requestId, ServerConfig.Settings settings) {
+        Component reply = canEdit(player) ? PackToolsServer.saveRules(player.getServer(), settings)
+                : Component.translatable("screen.justenoughstructures.override.no_permission");
+        sendEditReply(player, requestId, reply, null);
+    }
+
+    public static void onSaveStructure(ServerPlayer player, int requestId, ResourceLocation id, String notes, boolean secret) {
+        Component reply = canEdit(player) ? PackToolsServer.saveStructure(player.getServer(), id, notes, secret)
+                : Component.translatable("screen.justenoughstructures.override.no_permission");
+        sendEditReply(player, requestId, reply, null);
+    }
+
+    public static void onReload(ServerPlayer player, int requestId) {
+        Component reply = canEdit(player) ? PackToolsServer.reload(player.getServer())
+                : Component.translatable("screen.justenoughstructures.override.no_permission");
+        sendEditReply(player, requestId, reply, null);
     }
 
     public static void onContainerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, ResourceLocation table) {
@@ -337,8 +411,12 @@ public final class JesServer {
         compassSearch = search;
     }
 
-    /** Who can locate and teleport, and whether this player can use Pack tools, so the browser only offers what the server will allow. */
-    private static void sendSettings(ServerPlayer player, boolean reloaded) {
+    /**
+     * Who can locate and teleport, and whether this player can use Pack tools, so the browser only
+     * offers what the server will allow. {@code reloaded} drops everything the client has from before
+     * a /reload; {@code structuresChanged} only the list of structures.
+     */
+    private static void sendSettings(ServerPlayer player, boolean reloaded, boolean structuresChanged) {
         ServerConfig.Settings settings = ServerConfig.get();
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(settings.locatePermission());
@@ -346,6 +424,7 @@ public final class JesServer {
         buf.writeBoolean(reloaded);
         buf.writeBoolean(compassSearch != null);
         buf.writeBoolean(PackToolsAccess.allowed(player));
+        buf.writeBoolean(structuresChanged);
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 

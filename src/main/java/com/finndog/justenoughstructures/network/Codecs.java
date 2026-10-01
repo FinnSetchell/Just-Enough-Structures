@@ -8,7 +8,10 @@ import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.StructureScan;
+import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.server.PackToolsState;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +37,8 @@ import net.minecraft.world.level.block.state.BlockState;
 /** Wire formats for everything the server sends back. */
 public final class Codecs {
     private static final int MAX_JSON = 1 << 20;
+    /** The longest notes for players Pack tools sends. */
+    public static final int MAX_NOTES = 8192;
 
     private Codecs() {
     }
@@ -52,17 +57,26 @@ public final class Codecs {
                 writeJson(buf, set.placement());
                 buf.writeVarInt(set.weight());
             }
-            StructureInfo info = e.info();
-            buf.writeBoolean(info.notes() != null);
-            if (info.notes() != null) {
-                buf.writeComponent(info.notes());
-            }
-            buf.writeBoolean(info.author() != null);
-            if (info.author() != null) {
-                buf.writeUtf(info.author());
-            }
-            buf.writeBoolean(info.hideLootLocations());
+            writeInfo(buf, e.info());
         }
+    }
+
+    private static void writeInfo(FriendlyByteBuf buf, StructureInfo info) {
+        buf.writeBoolean(info.notes() != null);
+        if (info.notes() != null) {
+            buf.writeComponent(info.notes());
+        }
+        buf.writeBoolean(info.author() != null);
+        if (info.author() != null) {
+            buf.writeUtf(info.author());
+        }
+        buf.writeBoolean(info.hideLootLocations());
+    }
+
+    private static StructureInfo readInfo(FriendlyByteBuf buf) {
+        Component notes = buf.readBoolean() ? buf.readComponent() : null;
+        String author = buf.readBoolean() ? buf.readUtf() : null;
+        return new StructureInfo(notes, author, buf.readBoolean());
     }
 
     public static List<StructureCatalog.Entry> readCatalog(FriendlyByteBuf buf) {
@@ -77,12 +91,86 @@ public final class Codecs {
             for (int s = 0; s < setCount; s++) {
                 sets.add(new StructureCatalog.SetInfo(buf.readResourceLocation(), readJson(buf), buf.readVarInt()));
             }
-            Component notes = buf.readBoolean() ? buf.readComponent() : null;
-            String author = buf.readBoolean() ? buf.readUtf() : null;
-            StructureInfo info = new StructureInfo(notes, author, buf.readBoolean());
-            out.add(new StructureCatalog.Entry(id, type, definition, sets, info));
+            out.add(new StructureCatalog.Entry(id, type, definition, sets, readInfo(buf)));
         }
         return out;
+    }
+
+    // ------------------------------------------------------------------ Pack tools
+
+    public static void writeSettings(FriendlyByteBuf buf, ServerConfig.Settings s) {
+        buf.writeCollection(s.hiddenStructures().stream().sorted().toList(), FriendlyByteBuf::writeResourceLocation);
+        buf.writeCollection(s.hiddenMods().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
+        buf.writeVarInt(s.locatePermission());
+        buf.writeVarInt(s.teleportPermission());
+        buf.writeBoolean(s.showLootLocations());
+        buf.writeCollection(s.packTools().players(), FriendlyByteBuf::writeUtf);
+        buf.writeVarInt(s.packTools().permissionLevel() + 1);
+        buf.writeBoolean(s.containerChanges());
+    }
+
+    public static ServerConfig.Settings readSettings(FriendlyByteBuf buf) {
+        Set<ResourceLocation> structures = Set.copyOf(buf.readList(FriendlyByteBuf::readResourceLocation));
+        Set<String> mods = Set.copyOf(buf.readList(b -> b.readUtf(256)));
+        int locate = buf.readVarInt();
+        int teleport = buf.readVarInt();
+        boolean showLoot = buf.readBoolean();
+        List<String> players = List.copyOf(buf.readList(b -> b.readUtf(64)));
+        int level = buf.readVarInt() - 1;
+        boolean containers = buf.readBoolean();
+        return new ServerConfig.Settings(structures, mods, locate, teleport, showLoot, new ServerConfig.PackTools(players, level), containers);
+    }
+
+    public static void writeTools(FriendlyByteBuf buf, PackToolsState state) {
+        writeSettings(buf, state.settings());
+        buf.writeCollection(state.pending().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
+        buf.writeVarInt(state.overrides().size());
+        state.overrides().forEach((id, status) -> {
+            buf.writeResourceLocation(id);
+            buf.writeEnum(status);
+        });
+        buf.writeVarInt(state.patches().size());
+        for (ContainerPatches.Patch patch : state.patches()) {
+            buf.writeResourceLocation(patch.template());
+            buf.writeBlockPos(patch.pos());
+            buf.writeResourceLocation(patch.block());
+            buf.writeUtf(patch.original());
+            buf.writeResourceLocation(patch.table());
+        }
+        buf.writeVarInt(state.structures().size());
+        state.structures().forEach((id, written) -> {
+            buf.writeResourceLocation(id);
+            writeInfo(buf, written.info());
+            buf.writeBoolean(written.fromPack());
+        });
+        writeCatalog(buf, state.hidden());
+        buf.writeCollection(state.tables(), FriendlyByteBuf::writeResourceLocation);
+    }
+
+    public static PackToolsState readTools(FriendlyByteBuf buf) {
+        ServerConfig.Settings settings = readSettings(buf);
+        Set<String> pending = Set.copyOf(buf.readList(FriendlyByteBuf::readUtf));
+        Map<ResourceLocation, LootOverrides.Status> overrides = new TreeMap<>();
+        int count = buf.readVarInt();
+        for (int i = 0; i < count; i++) {
+            overrides.put(buf.readResourceLocation(), buf.readEnum(LootOverrides.Status.class));
+        }
+        List<ContainerPatches.Patch> patches = new ArrayList<>();
+        count = buf.readVarInt();
+        for (int i = 0; i < count; i++) {
+            patches.add(new ContainerPatches.Patch(buf.readResourceLocation(), buf.readBlockPos(), buf.readResourceLocation(), buf.readUtf(),
+                    buf.readResourceLocation()));
+        }
+        Map<ResourceLocation, PackToolsState.Written> structures = new TreeMap<>();
+        count = buf.readVarInt();
+        for (int i = 0; i < count; i++) {
+            ResourceLocation id = buf.readResourceLocation();
+            StructureInfo info = readInfo(buf);
+            structures.put(id, new PackToolsState.Written(info, buf.readBoolean()));
+        }
+        List<StructureCatalog.Entry> hidden = readCatalog(buf);
+        List<ResourceLocation> tables = buf.readList(FriendlyByteBuf::readResourceLocation);
+        return new PackToolsState(settings, pending, overrides, patches, structures, hidden, tables);
     }
 
     // ------------------------------------------------------------------ captures

@@ -148,6 +148,11 @@ final class InfoPanel {
         this.scroll = 0;
     }
 
+    /** The same structure, as the server describes it now, keeping everything else on show. */
+    void updateEntry(StructureCatalog.Entry entry) {
+        this.entry = entry;
+    }
+
     void setResult(CaptureResult result) {
         this.result = result;
         this.selectedTable = null;

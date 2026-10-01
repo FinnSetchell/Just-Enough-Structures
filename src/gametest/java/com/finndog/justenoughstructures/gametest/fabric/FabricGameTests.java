@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.gametest.CompassTests;
 import com.finndog.justenoughstructures.gametest.ContainerTests;
 import com.finndog.justenoughstructures.gametest.GridTests;
 import com.finndog.justenoughstructures.gametest.OverrideTests;
+import com.finndog.justenoughstructures.gametest.PackToolsTests;
 import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.RealWorldTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
@@ -200,6 +201,22 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE)
     public void packToolsFollowTheRules(GameTestHelper helper) {
         SettingsTests.packToolsFollowTheRules(helper);
+    }
+
+    // These change the server's settings and what's said about the igloo, so they run on their own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
+    public void packToolsRulesSaveAndApply(GameTestHelper helper) {
+        PackToolsTests.rulesSaveAndApply(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
+    public void packToolsNotesGoInThePack(GameTestHelper helper) {
+        PackToolsTests.structureNotesGoInThePack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
+    public void packToolsChangesWaitForReload(GameTestHelper helper) {
+        PackToolsTests.changesWaitForReload(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

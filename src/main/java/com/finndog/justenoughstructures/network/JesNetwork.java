@@ -36,6 +36,10 @@ public final class JesNetwork {
     /** Asks which loot tables have an override, and the answer: each table and how it stands. */
     public static final ResourceLocation REQUEST_OVERRIDES = JustEnoughStructures.id("request_overrides");
     public static final ResourceLocation OVERRIDES = JustEnoughStructures.id("overrides");
+    /** Asks for everything Pack tools shows, which comes back as a {@link #KIND_TOOLS} transfer. */
+    public static final ResourceLocation REQUEST_TOOLS = JustEnoughStructures.id("request_tools");
+    /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
+    public static final ResourceLocation TOOLS_ACTION = JustEnoughStructures.id("tools_action");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;
@@ -44,10 +48,16 @@ public final class JesNetwork {
     /** Uploads: an edited loot table to roll, and one to save. */
     public static final int KIND_DRAFT = 4;
     public static final int KIND_SAVE = 5;
+    public static final int KIND_TOOLS = 6;
 
     /** What {@link #TABLE_ACTION} asks for. */
     public static final int ACTION_KEEP = 0;
     public static final int ACTION_REMOVE = 1;
+
+    /** What {@link #TOOLS_ACTION} asks for. */
+    public static final int TOOLS_RULES = 0;
+    public static final int TOOLS_STRUCTURE = 1;
+    public static final int TOOLS_RELOAD = 2;
 
     private static ServerSender serverSender = (player, channel, buf) -> {
     };

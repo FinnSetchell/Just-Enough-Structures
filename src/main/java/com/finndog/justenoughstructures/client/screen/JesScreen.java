@@ -117,6 +117,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private boolean locating;
     private int locateAccess;
     private int seenReloads = ClientRequests.reloads();
+    private int seenStructureChanges = ClientRequests.structureChanges();
     private int captureRequest;
     private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
@@ -339,6 +340,40 @@ public class JesScreen extends Screen implements Nav.Page {
             if (selected != null) {
                 select(selected, seed);
             }
+        }
+        // Structures hidden or shown, or what's said about them changed, by Pack tools or a /reload.
+        if (ClientRequests.structureChanges() != seenStructureChanges && catalog != null) {
+            seenStructureChanges = ClientRequests.structureChanges();
+            ClientRequests.catalog().thenAccept(entries -> {
+                if (minecraft != null && minecraft.screen == this) {
+                    onNewCatalog(entries);
+                }
+            });
+        }
+    }
+
+    /**
+     * The list again, after structures were hidden, shown or changed. The one on show stays unless
+     * it's gone, and is generated again if what players see of it changed, like its loot becoming a
+     * secret.
+     */
+    private void onNewCatalog(List<StructureCatalog.Entry> entries) {
+        catalog = entries;
+        list.setEntries(entries);
+        StructureCatalog.Entry now = selected == null ? null : find(selected.id());
+        if (now == null) {
+            if (!entries.isEmpty()) {
+                select(entries.get(0), defaultSeed(entries.get(0).id()));
+            }
+            return;
+        }
+        boolean changed = !now.info().equals(selected.info());
+        if (changed) {
+            selected = null;
+            select(now, seed);
+        } else {
+            selected = now;
+            info.updateEntry(now);
         }
     }
 

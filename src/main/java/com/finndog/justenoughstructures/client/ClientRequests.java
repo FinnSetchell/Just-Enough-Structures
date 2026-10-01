@@ -9,6 +9,8 @@ import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.server.PackToolsState;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
@@ -57,6 +59,10 @@ public final class ClientRequests {
     private static int nextUploadId = 1;
     private static final Map<Integer, CompletableFuture<Codecs.TableReply>> TABLES = new HashMap<>();
     private static final Map<Integer, CompletableFuture<EditReply>> EDITS = new HashMap<>();
+    private static int structureChanges;
+    /** Waiting for what Pack tools shows, and the last that arrived. */
+    private static CompletableFuture<PackToolsState> tools;
+    private static PackToolsState lastTools;
 
     private ClientRequests() {
     }
@@ -103,6 +109,65 @@ public final class ClientRequests {
         TABLES.clear();
         EDITS.values().forEach(f -> f.cancel(false));
         EDITS.clear();
+        if (tools != null) {
+            tools.cancel(false);
+        }
+        tools = null;
+        lastTools = null;
+    }
+
+    // ------------------------------------------------------------------ Pack tools
+
+    /** Asks for everything Pack tools shows: the server's rules, edited tables, changed containers and more. */
+    public static CompletableFuture<PackToolsState> tools() {
+        if (tools == null || tools.isDone()) {
+            tools = new CompletableFuture<>();
+            send(JesNetwork.REQUEST_TOOLS, buf -> {
+            });
+        }
+        return tools;
+    }
+
+    /** What Pack tools last heard from the server, or null before it has. */
+    public static PackToolsState lastTools() {
+        return lastTools;
+    }
+
+    /** Saves the server's rules in server.json5. They apply straight away, except using changed containers. */
+    public static CompletableFuture<EditReply> saveRules(ServerConfig.Settings settings) {
+        return toolsAction(JesNetwork.TOOLS_RULES, buf -> Codecs.writeSettings(buf, settings));
+    }
+
+    /** Saves what players are told about a structure. It applies straight away. */
+    public static CompletableFuture<EditReply> saveStructure(ResourceLocation id, String notes, boolean secret) {
+        return toolsAction(JesNetwork.TOOLS_STRUCTURE, buf -> {
+            buf.writeResourceLocation(id);
+            buf.writeUtf(notes.length() > Codecs.MAX_NOTES ? notes.substring(0, Codecs.MAX_NOTES) : notes, Codecs.MAX_NOTES);
+            buf.writeBoolean(secret);
+        });
+    }
+
+    /** Runs /reload on the server, which Pack tools users can do even without the command. */
+    public static CompletableFuture<EditReply> reloadServer() {
+        return toolsAction(JesNetwork.TOOLS_RELOAD, buf -> {
+        });
+    }
+
+    private static CompletableFuture<EditReply> toolsAction(int action, Consumer<FriendlyByteBuf> payload) {
+        int requestId = nextRequestId++;
+        CompletableFuture<EditReply> future = new CompletableFuture<>();
+        EDITS.put(requestId, future);
+        send(JesNetwork.TOOLS_ACTION, buf -> {
+            buf.writeVarInt(requestId);
+            buf.writeVarInt(action);
+            payload.accept(buf);
+        });
+        return future;
+    }
+
+    /** How many times the list of structures has changed since joining, after a /reload or Pack tools, so the browser knows to ask again. */
+    public static int structureChanges() {
+        return structureChanges;
     }
 
     /** What the server said about an edit: a message, and for a draft, what it would give. */
@@ -421,6 +486,11 @@ public final class ClientRequests {
             }
             index.complete(built);
             INDEX_LISTENERS.forEach(listener -> listener.accept(built));
+        } else if (part.kind() == JesNetwork.KIND_TOOLS) {
+            lastTools = Codecs.readTools(buf);
+            if (tools != null) {
+                tools.complete(lastTools);
+            }
         } else if (part.kind() == JesNetwork.KIND_TABLE) {
             CompletableFuture<Codecs.TableReply> future = TABLES.remove(part.requestId());
             if (future != null) {
@@ -438,11 +508,17 @@ public final class ClientRequests {
      * The server's locate settings. After a /reload the structure list and loot may have changed
      * too, so what's cached is dropped and fetched again the next time it's wanted.
      */
-    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, boolean canUsePackTools) {
+    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, boolean canUsePackTools, boolean structuresChanged) {
         locatePermission = locate;
         teleportPermission = teleport;
         compassSearch = compass;
         packTools = canUsePackTools;
+        if (structuresChanged) {
+            structureChanges++;
+            if (catalog != null && catalog.isDone()) {
+                catalog = null;
+            }
+        }
         if (!reloaded) {
             return;
         }
