@@ -732,6 +732,10 @@ public class JesScreen extends Screen {
         return list.rowCentre(id);
     }
 
+    public Optional<int[]> favouriteStar(ResourceLocation id) {
+        return list.starCentre(id);
+    }
+
     public int[] viewportCentre() {
         return new int[]{viewX + viewW / 2, viewY + viewH / 2};
     }

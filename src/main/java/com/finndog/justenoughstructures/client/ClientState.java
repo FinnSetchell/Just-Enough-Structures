@@ -4,16 +4,21 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import net.minecraft.resources.ResourceLocation;
 
 /**
- * How the browser was left: spin, markers, ground, maximise, the Info tab's details and the loot
- * sort order carry over to the next time it's opened, even after a restart. Saved as the player
- * uses it, the way JEI keeps its own state, so there's no settings screen for these.
+ * How the browser was left: spin, markers, ground, maximise, the Info tab's details, the loot
+ * sort order and the player's favourite structures carry over to the next time it's opened, even
+ * after a restart. Saved as the player uses it, the way JEI keeps its own state.
  */
 public final class ClientState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -24,6 +29,8 @@ public final class ClientState {
     public static boolean maximised;
     public static boolean details;
     public static boolean rarestFirst;
+    /** Structure ids the player starred, shown at the top of the list in every world that has them. */
+    public static final Set<String> favourites = new LinkedHashSet<>();
     private static boolean loaded;
 
     private ClientState() {
@@ -58,6 +65,14 @@ public final class ClientState {
             maximised = flag(json, "maximised", maximised);
             details = flag(json, "details", details);
             rarestFirst = flag(json, "rarest_first", rarestFirst);
+            if (json != null && json.has("favourites") && json.get("favourites").isJsonArray()) {
+                favourites.clear();
+                for (JsonElement id : json.getAsJsonArray("favourites")) {
+                    if (id.isJsonPrimitive() && ResourceLocation.tryParse(id.getAsString()) != null) {
+                        favourites.add(id.getAsString());
+                    }
+                }
+            }
         } catch (IOException | JsonParseException | IllegalStateException e) {
             JesLog.debug("Couldn't read {}, keeping the defaults", file, e);
         }
@@ -71,12 +86,27 @@ public final class ClientState {
         json.addProperty("maximised", maximised);
         json.addProperty("details", details);
         json.addProperty("rarest_first", rarestFirst);
+        JsonArray starred = new JsonArray();
+        favourites.forEach(starred::add);
+        json.add("favourites", starred);
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, GSON.toJson(json));
         } catch (IOException e) {
             JesLog.debug("Couldn't save {}", file, e);
         }
+    }
+
+    /** Stars or unstars a structure, and saves straight away. */
+    public static void toggleFavourite(ResourceLocation id) {
+        if (!favourites.remove(id.toString())) {
+            favourites.add(id.toString());
+        }
+        save();
+    }
+
+    public static boolean isFavourite(ResourceLocation id) {
+        return favourites.contains(id.toString());
     }
 
     private static boolean flag(JsonObject json, String key, boolean fallback) {

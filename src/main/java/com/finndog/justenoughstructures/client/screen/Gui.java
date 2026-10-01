@@ -1,9 +1,11 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
@@ -132,6 +134,14 @@ public final class Gui {
         g.fill(x, y, x + w, y + h, BAND);
         String shown = clip(font, text, w - 4);
         g.drawString(font, shown, x + (w - font.width(shown) + 1) / 2, y + (h - 8) / 2, 0xFFFFFFFF, true);
+    }
+
+    // Four 8x8 stars: a favourite and one that isn't, each also as it looks under the mouse.
+    private static final ResourceLocation STAR = JustEnoughStructures.id("textures/gui/favourite.png");
+
+    /** The favourite star, 8 pixels square, its top left at x, y. */
+    static void star(GuiGraphics g, int x, int y, boolean favourite, boolean hovered) {
+        g.blit(STAR, x, y, hovered ? 8 : 0, favourite ? 0 : 8, 8, 8, 16, 16);
     }
 
     /** A small white arrow with a dark shadow, as on JEI's page buttons, pointing left or right. */

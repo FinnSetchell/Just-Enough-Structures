@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
@@ -25,14 +26,17 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * The searchable list on the left: structures grouped by mod under headers that fold away, and,
- * when the search matches loot, the matching items at the top.
+ * The searchable list on the left: the player's favourite structures, then structures grouped by
+ * mod, under headers that fold away, and, when the search matches loot, the matching items at the
+ * top. A star at the end of a structure's row adds it to the favourites or takes it off.
  */
 final class StructureList {
     private static final int ROW = 18;
     private static final int HEADER = 14;
     private static final ItemStack ICON = new ItemStack(Items.FILLED_MAP);
     private static final String LOOT_HEADER = "";
+    /** The favourites' header, which can't clash with a mod's namespace. */
+    private static final String FAVOURITES_HEADER = "*";
     private static final Set<String> COLLAPSED = new HashSet<>();
 
     /** One line in the list: a mod header, a structure, or a loot item matching the search. */
@@ -53,6 +57,7 @@ final class StructureList {
     private int x, y, width, height;
     private ResourceLocation selected;
     private Row hovered;
+    private boolean starHovered;
 
     void setEntries(List<StructureCatalog.Entry> entries) {
         this.all = entries;
@@ -150,6 +155,22 @@ final class StructureList {
             }
         }
 
+        // The starred ones that match the search, under their own header at the top.
+        List<StructureCatalog.Entry> favourites = new ArrayList<>();
+        byMod.values().forEach(entries -> entries.stream().filter(e -> ClientState.isFavourite(e.id())).forEach(favourites::add));
+        if (!favourites.isEmpty()) {
+            favourites.sort(Comparator.comparing(e -> StructureNames.structure(e.id())));
+            out.add(new Row(FAVOURITES_HEADER, favourites.size(), null,
+                    Component.translatable("screen.justenoughstructures.favourites").getString(), null, top, HEADER));
+            top += HEADER;
+            if (!COLLAPSED.contains(FAVOURITES_HEADER) || !lower.isEmpty()) {
+                for (StructureCatalog.Entry entry : favourites) {
+                    out.add(new Row(null, 0, entry, StructureNames.structure(entry.id()), null, top, ROW));
+                    top += ROW;
+                }
+            }
+        }
+
         for (Map.Entry<String, List<StructureCatalog.Entry>> mod : byMod.entrySet()) {
             List<StructureCatalog.Entry> entries = mod.getValue();
             entries.sort(Comparator.comparing(e -> StructureNames.structure(e.id())));
@@ -197,6 +218,7 @@ final class StructureList {
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         hovered = null;
+        starHovered = false;
         if (rows.isEmpty()) {
             Component message = Component.translatable("screen.justenoughstructures.no_matches");
             if (query.contains("$") && !FoundIn.ready()) {
@@ -252,7 +274,15 @@ final class StructureList {
             } else {
                 g.renderItem(ICON, x + 1, top + 1);
             }
-            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24, Gui.LABEL);
+            // The star: always there on favourites, and on the row under the mouse to add one.
+            boolean favourite = ClientState.isFavourite(row.entry().id());
+            boolean showStar = favourite || over;
+            if (showStar) {
+                boolean onStar = over && overStar(mouseX, mouseY, rowRight, top);
+                starHovered |= onStar;
+                Gui.star(g, rowRight - 10, top + 5, favourite, onStar);
+            }
+            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0), Gui.LABEL);
         }
         g.disableScissor();
 
@@ -265,6 +295,10 @@ final class StructureList {
     List<Component> tooltip() {
         if (hovered == null) {
             return List.of();
+        }
+        if (hovered.entry() != null && starHovered) {
+            return List.of(Component.translatable(ClientState.isFavourite(hovered.entry().id())
+                    ? "screen.justenoughstructures.favourite_remove" : "screen.justenoughstructures.favourite_add"));
         }
         if (hovered.entry() != null) {
             ResourceLocation id = hovered.entry().id();
@@ -295,6 +329,13 @@ final class StructureList {
                 continue;
             }
             if (row.entry() != null) {
+                boolean scrolls = contentHeight > height;
+                int rowRight = x + width - (scrolls ? 8 : 0);
+                if (overStar(mouseX, mouseY, rowRight, y - (int) scroll + row.top())) {
+                    ClientState.toggleFavourite(row.entry().id());
+                    rebuild();
+                    return Optional.of(new Pick(null, ItemStack.EMPTY));
+                }
                 return Optional.of(new Pick(row.entry(), ItemStack.EMPTY));
             }
             if (row.item() != null) {
@@ -311,6 +352,11 @@ final class StructureList {
         return Optional.empty();
     }
 
+    /** Whether a point is on the star at the end of a structure's row, a little bigger than the star itself. */
+    private static boolean overStar(double mouseX, double mouseY, int rowRight, int rowTop) {
+        return mouseX >= rowRight - 13 && mouseX < rowRight && mouseY >= rowTop + 2 && mouseY < rowTop + ROW - 2;
+    }
+
     boolean scroll(double mouseX, double mouseY, double delta) {
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
@@ -321,6 +367,12 @@ final class StructureList {
     }
 
     /** Centre of a structure's row on screen, scrolling it into view first. */
+    /** Where the star on a structure's row is, scrolling it into view first. */
+    Optional<int[]> starCentre(ResourceLocation id) {
+        boolean scrolls = contentHeight > height;
+        return rowCentre(id).map(centre -> new int[]{x + width - (scrolls ? 8 : 0) - 6, centre[1]});
+    }
+
     Optional<int[]> rowCentre(ResourceLocation id) {
         for (Row row : rows) {
             if (row.entry() != null && row.entry().id().equals(id)) {

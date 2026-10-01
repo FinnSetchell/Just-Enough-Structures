@@ -50,6 +50,7 @@ final class Scenarios {
             case "tabs" -> InfoTabsScenario.build(mc);
             case "lootfixes" -> LootFixesScenario.build(mc);
             case "markers" -> MarkersScenario.build(mc);
+            case "favourites" -> FavouritesScenario.build(mc);
             default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
         };
     }

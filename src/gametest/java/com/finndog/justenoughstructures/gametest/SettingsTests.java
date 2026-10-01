@@ -14,6 +14,7 @@ import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -30,6 +31,7 @@ public final class SettingsTests {
 
     public static void browserStateSurvivesARestart(GameTestHelper helper) {
         boolean[] before = {ClientState.spin, ClientState.markers, ClientState.ground, ClientState.maximised, ClientState.details, ClientState.rarestFirst};
+        Set<String> favouritesBefore = new LinkedHashSet<>(ClientState.favourites);
         try {
             Path file = Files.createTempDirectory("jes-state").resolve("state.json");
             ClientState.spin = false;
@@ -38,6 +40,9 @@ public final class SettingsTests {
             ClientState.maximised = true;
             ClientState.details = true;
             ClientState.rarestFirst = true;
+            ClientState.favourites.clear();
+            ClientState.favourites.add("minecraft:igloo");
+            ClientState.favourites.add("test:tower");
             ClientState.write(file);
 
             ClientState.spin = true;
@@ -46,17 +51,22 @@ public final class SettingsTests {
             ClientState.maximised = false;
             ClientState.details = false;
             ClientState.rarestFirst = false;
+            ClientState.favourites.clear();
             ClientState.read(file);
             helper.assertTrue(!ClientState.spin && !ClientState.markers && ClientState.ground && ClientState.maximised
                     && ClientState.details && ClientState.rarestFirst, "the saved state didn't come back as it was");
+            helper.assertTrue(ClientState.favourites.equals(Set.of("minecraft:igloo", "test:tower")),
+                    "the favourites came back as " + ClientState.favourites);
 
             // A broken file changes nothing rather than resetting everything.
             Files.writeString(file, "{ this isn't json");
             ClientState.read(file);
-            helper.assertTrue(!ClientState.spin && ClientState.maximised, "a broken file changed the state");
+            helper.assertTrue(!ClientState.spin && ClientState.maximised && ClientState.favourites.size() == 2, "a broken file changed the state");
         } catch (IOException e) {
             throw new AssertionError("couldn't use a temporary file", e);
         } finally {
+            ClientState.favourites.clear();
+            ClientState.favourites.addAll(favouritesBefore);
             ClientState.spin = before[0];
             ClientState.markers = before[1];
             ClientState.ground = before[2];
