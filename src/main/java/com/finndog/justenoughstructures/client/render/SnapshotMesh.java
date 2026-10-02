@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.render;
 
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -87,29 +88,117 @@ public final class SnapshotMesh implements AutoCloseable {
             capY = slice - 1;
         }
         int fullLayers = Math.min(layers.size(), sliced ? slice - 1 : slice);
+        boolean withCap = sliced && layers.size() >= slice - 1;
         for (RenderType type : RenderType.chunkBufferLayers()) {
+            if (!anyOf(type, fullLayers, withCap)) {
+                continue;
+            }
             type.setupRenderState();
             ShaderInstance shader = RenderSystem.getShader();
             if (shader != null) {
-                if (shader.CHUNK_OFFSET != null) {
-                    shader.CHUNK_OFFSET.set(0f, 0f, 0f);
+                // Set up once for every layer of this type, as vanilla does for chunks, rather than
+                // once per layer, which is hundreds of times a frame for a tall structure.
+                prepare(shader, viewMatrix, projection);
+                // The cap, when there is one, is the layer straight above the full ones.
+                int drawn = fullLayers + (withCap ? 1 : 0);
+                if (type == RenderType.translucent()) {
+                    drawFarthestFirst(type, fullLayers, drawn, eye.y());
+                } else {
+                    for (int y = 0; y < drawn; y++) {
+                        drawBuffer(layer(y, fullLayers).get(type));
+                    }
                 }
-                for (int y = 0; y < fullLayers; y++) {
-                    drawBuffer(layers.get(y).get(type), viewMatrix, projection, shader);
-                }
-                if (sliced && layers.size() >= slice - 1) {
-                    drawBuffer(cap.get(type), viewMatrix, projection, shader);
-                }
+                shader.clear();
             }
             type.clearRenderState();
         }
         VertexBuffer.unbind();
     }
 
-    private static void drawBuffer(VertexBuffer buffer, Matrix4f viewMatrix, Matrix4f projection, ShaderInstance shader) {
+    private boolean anyOf(RenderType type, int fullLayers, boolean withCap) {
+        if (withCap && cap.containsKey(type)) {
+            return true;
+        }
+        for (int y = 0; y < fullLayers; y++) {
+            if (layers.get(y).containsKey(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<RenderType, VertexBuffer> layer(int y, int fullLayers) {
+        return y < fullLayers ? layers.get(y) : cap;
+    }
+
+    /** See-through layers furthest from the eye first, so nearer ones blend over them from below as well as above. */
+    private void drawFarthestFirst(RenderType type, int fullLayers, int drawn, float eyeY) {
+        int nearest = Math.max(0, Math.min(drawn - 1, (int) Math.floor(eyeY)));
+        int below = 0;
+        int above = drawn - 1;
+        while (below <= above) {
+            // Whichever end is further from the eye goes next.
+            if (nearest - below >= above - nearest) {
+                drawBuffer(layer(below++, fullLayers).get(type));
+            } else {
+                drawBuffer(layer(above--, fullLayers).get(type));
+            }
+        }
+    }
+
+    /** What vanilla's VertexBuffer.drawWithShader sets before every draw, done once for a whole type. */
+    private static void prepare(ShaderInstance shader, Matrix4f viewMatrix, Matrix4f projection) {
+        for (int i = 0; i < 12; i++) {
+            shader.setSampler("Sampler" + i, RenderSystem.getShaderTexture(i));
+        }
+        if (shader.MODEL_VIEW_MATRIX != null) {
+            shader.MODEL_VIEW_MATRIX.set(viewMatrix);
+        }
+        if (shader.PROJECTION_MATRIX != null) {
+            shader.PROJECTION_MATRIX.set(projection);
+        }
+        if (shader.INVERSE_VIEW_ROTATION_MATRIX != null) {
+            shader.INVERSE_VIEW_ROTATION_MATRIX.set(RenderSystem.getInverseViewRotationMatrix());
+        }
+        if (shader.COLOR_MODULATOR != null) {
+            shader.COLOR_MODULATOR.set(RenderSystem.getShaderColor());
+        }
+        if (shader.GLINT_ALPHA != null) {
+            shader.GLINT_ALPHA.set(RenderSystem.getShaderGlintAlpha());
+        }
+        if (shader.FOG_START != null) {
+            shader.FOG_START.set(RenderSystem.getShaderFogStart());
+        }
+        if (shader.FOG_END != null) {
+            shader.FOG_END.set(RenderSystem.getShaderFogEnd());
+        }
+        if (shader.FOG_COLOR != null) {
+            shader.FOG_COLOR.set(RenderSystem.getShaderFogColor());
+        }
+        if (shader.FOG_SHAPE != null) {
+            shader.FOG_SHAPE.set(RenderSystem.getShaderFogShape().getIndex());
+        }
+        if (shader.TEXTURE_MATRIX != null) {
+            shader.TEXTURE_MATRIX.set(RenderSystem.getTextureMatrix());
+        }
+        if (shader.GAME_TIME != null) {
+            shader.GAME_TIME.set(RenderSystem.getShaderGameTime());
+        }
+        if (shader.SCREEN_SIZE != null) {
+            Window window = Minecraft.getInstance().getWindow();
+            shader.SCREEN_SIZE.set((float) window.getWidth(), (float) window.getHeight());
+        }
+        if (shader.CHUNK_OFFSET != null) {
+            shader.CHUNK_OFFSET.set(0f, 0f, 0f);
+        }
+        RenderSystem.setupShaderLights(shader);
+        shader.apply();
+    }
+
+    private static void drawBuffer(VertexBuffer buffer) {
         if (buffer != null) {
             buffer.bind();
-            buffer.drawWithShader(viewMatrix, projection, shader);
+            buffer.draw();
         }
     }
 
