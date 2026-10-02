@@ -147,7 +147,10 @@ public final class StructureCapture {
         return CaptureResult.failure(lastError, attempts, elapsed(started));
     }
 
-    /** Terrains to try, most likely first, judged by where the structure is allowed to spawn. */
+    /**
+     * Terrains to try, most likely first, judged by where the structure is allowed to spawn. The
+     * other depths of sea and the lava sea only come into it when the usual ground gets nothing.
+     */
     static List<SandboxTerrain> terrainsFor(Structure structure) {
         int nether = 0;
         int end = 0;
@@ -164,15 +167,15 @@ public final class StructureCapture {
             }
         }
         if (total > 0 && nether * 2 > total) {
-            return List.of(SandboxTerrain.NETHER, SandboxTerrain.VOID, SandboxTerrain.LAND);
+            return List.of(SandboxTerrain.NETHER, SandboxTerrain.LAVA_SEA, SandboxTerrain.VOID, SandboxTerrain.LAND);
         }
         if (total > 0 && end * 2 > total) {
             return List.of(SandboxTerrain.END, SandboxTerrain.VOID, SandboxTerrain.LAND);
         }
         if (total > 0 && ocean * 2 > total) {
-            return List.of(SandboxTerrain.OCEAN, SandboxTerrain.LAND, SandboxTerrain.VOID);
+            return List.of(SandboxTerrain.OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.LAND, SandboxTerrain.VOID);
         }
-        return List.of(SandboxTerrain.LAND, SandboxTerrain.OCEAN, SandboxTerrain.VOID);
+        return List.of(SandboxTerrain.LAND, SandboxTerrain.OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.VOID);
     }
 
     private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Structure structure,
@@ -310,7 +313,7 @@ public final class StructureCapture {
     }
 
     private static ServerLevel levelFor(MinecraftServer server, SandboxTerrain terrain) {
-        ServerLevel level = switch (terrain) {
+        ServerLevel level = switch (terrain.kind()) {
             case NETHER -> server.getLevel(Level.NETHER);
             case END -> server.getLevel(Level.END);
             default -> null;
@@ -324,11 +327,11 @@ public final class StructureCapture {
             if (any == null) {
                 any = biome;
             }
-            boolean fits = switch (terrain) {
+            boolean fits = switch (terrain.kind()) {
                 case NETHER -> biome.is(BiomeTags.IS_NETHER);
                 case END -> biome.is(BiomeTags.IS_END);
                 case OCEAN -> biome.is(BiomeTags.IS_OCEAN);
-                case LAND, VOID -> !biome.is(BiomeTags.IS_NETHER) && !biome.is(BiomeTags.IS_END) && !biome.is(BiomeTags.IS_OCEAN);
+                default -> !biome.is(BiomeTags.IS_NETHER) && !biome.is(BiomeTags.IS_END) && !biome.is(BiomeTags.IS_OCEAN);
             };
             if (fits) {
                 return biome;
@@ -337,11 +340,11 @@ public final class StructureCapture {
         if (any != null) {
             return any;
         }
-        return biomes.getHolderOrThrow(switch (terrain) {
+        return biomes.getHolderOrThrow(switch (terrain.kind()) {
             case NETHER -> Biomes.NETHER_WASTES;
             case END -> Biomes.THE_END;
             case OCEAN -> Biomes.OCEAN;
-            case LAND, VOID -> Biomes.PLAINS;
+            default -> Biomes.PLAINS;
         });
     }
 

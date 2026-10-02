@@ -562,13 +562,7 @@ public class JesScreen extends Screen implements Nav.Page {
             return;
         }
         StructureSnapshot s = view.snapshot();
-        int surface = switch (s.terrain()) {
-            case LAND -> 64;
-            case OCEAN -> 43;
-            case NETHER -> 41;
-            case END -> 65;
-            case VOID -> Integer.MIN_VALUE;
-        };
+        int surface = s.terrain().surface();
         int local = surface - s.origin().getY();
         viewport.setGround(ClientState.ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
     }

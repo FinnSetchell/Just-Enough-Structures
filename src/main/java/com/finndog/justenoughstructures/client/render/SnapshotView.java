@@ -197,11 +197,11 @@ public final class SnapshotView implements BlockAndTintGetter {
             throw new IllegalStateException("No client level to borrow biomes from");
         }
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
-        ResourceKey<Biome> key = switch (terrain) {
+        ResourceKey<Biome> key = switch (terrain.kind()) {
             case NETHER -> Biomes.NETHER_WASTES;
             case END -> Biomes.THE_END;
             case OCEAN -> Biomes.OCEAN;
-            case LAND, VOID -> Biomes.PLAINS;
+            default -> Biomes.PLAINS;
         };
         return biomes.getHolderOrThrow(key);
     }
