@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -529,8 +530,15 @@ public class JesScreen extends Screen implements Nav.Page {
         capturing = ClientRequests.capture(id, wanted, true);
         capturing.thenApplyAsync(reply -> request == captureRequest && reply.id().equals(id) ? Prepared.of(reply.result()) : null,
                         Util.backgroundExecutor())
-                .thenAcceptAsync(prepared -> {
-                    if (prepared != null && request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted) {
+                .whenCompleteAsync((prepared, error) -> {
+                    if (request != captureRequest || selected == null || !selected.id().equals(id) || seed != wanted) {
+                        return;
+                    }
+                    if (error != null) {
+                        // Say so rather than showing "Generating" for ever.
+                        JesLog.debug("Couldn't show {}", id, error);
+                        onCaptured(CaptureResult.failure(Component.translatable("screen.justenoughstructures.unreadable"), List.of(), 0), null);
+                    } else if (prepared != null) {
                         onCaptured(prepared.result(), prepared.view());
                     }
                 }, Minecraft.getInstance());
@@ -911,6 +919,9 @@ public class JesScreen extends Screen implements Nav.Page {
             list.revealSelected();
             // Anything still on its way is for where it was.
             captureRequest++;
+            if (capturing != null) {
+                capturing.cancel(false);
+            }
             info.setTab(place.tab());
             info.setSelectedTable(place.table());
             pendingCamera = place.camera();

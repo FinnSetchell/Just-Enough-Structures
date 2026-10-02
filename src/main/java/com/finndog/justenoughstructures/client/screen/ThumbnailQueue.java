@@ -63,8 +63,8 @@ final class ThumbnailQueue {
                     waiting = false;
                     Minecraft mc = Minecraft.getInstance();
                     if (view == null || mc.level == null) {
-                        // Cancelled means the player left the server, not that this one can't be shown.
-                        if (!cancelled(error)) {
+                        // Leaving the server cancels it or takes the level away, which says nothing about this structure.
+                        if (mc.level != null && !cancelled(error)) {
                             FAILED.add(id);
                         }
                         current = null;
