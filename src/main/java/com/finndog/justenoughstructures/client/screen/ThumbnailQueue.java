@@ -9,6 +9,9 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionException;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
@@ -53,19 +56,29 @@ final class ThumbnailQueue {
     private void start(ResourceLocation id) {
         waiting = true;
         current = id;
-        ClientRequests.capture(id, StructureCapture.defaultSeed(id), false).thenAccept(reply -> {
-            waiting = false;
-            Minecraft mc = Minecraft.getInstance();
-            if (!reply.result().succeeded() || mc.level == null) {
-                FAILED.add(id);
-                current = null;
-                return;
-            }
-            SnapshotView view = new SnapshotView(reply.result().snapshot());
-            view.createRenderables(mc.level);
-            viewport = new StructureViewport();
-            viewport.setView(view);
-        });
+        // Laid out off the render thread, as the preview is.
+        ClientRequests.capture(id, StructureCapture.defaultSeed(id), false)
+                .thenApplyAsync(reply -> reply.result().succeeded() ? new SnapshotView(reply.result().snapshot()) : null, Util.backgroundExecutor())
+                .whenCompleteAsync((view, error) -> {
+                    waiting = false;
+                    Minecraft mc = Minecraft.getInstance();
+                    if (view == null || mc.level == null) {
+                        // Cancelled means the player left the server, not that this one can't be shown.
+                        if (!cancelled(error)) {
+                            FAILED.add(id);
+                        }
+                        current = null;
+                        return;
+                    }
+                    view.createRenderables(mc.level);
+                    viewport = new StructureViewport();
+                    viewport.setView(view);
+                }, Minecraft.getInstance());
+    }
+
+    private static boolean cancelled(Throwable error) {
+        return error instanceof CancellationException
+                || error instanceof CompletionException && error.getCause() instanceof CancellationException;
     }
 
     void close() {

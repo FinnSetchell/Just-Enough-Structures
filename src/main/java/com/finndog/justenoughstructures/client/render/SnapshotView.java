@@ -4,10 +4,10 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -35,6 +35,9 @@ import net.minecraft.world.level.material.FluidState;
 /**
  * A snapshot laid out so the block renderer can read it by position. Anything at or above
  * {@link #sliceY()} reads as air, which is how the layer slider cuts the structure open.
+ *
+ * <p>Laying out a big structure takes a while, so it can be made on any thread, but
+ * {@link #createRenderables} has to be called on the render thread before it's drawn.
  */
 public final class SnapshotView implements BlockAndTintGetter {
     private final StructureSnapshot snapshot;
@@ -43,7 +46,8 @@ public final class SnapshotView implements BlockAndTintGetter {
     private final BlockGrid blocks;
     private final Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
     private final List<Entity> entities = new ArrayList<>();
-    private final Holder<Biome> biome;
+    private final float[] fitPoints;
+    private Holder<Biome> biome;
     private int sliceY;
 
     public SnapshotView(StructureSnapshot snapshot) {
@@ -59,7 +63,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         this.blocks = new BlockGrid(snapshot);
         JesLog.debug("Preview of {}: {} blocks in a {}x{}x{} box take {} KB (a grid of the whole box would take {} KB)", snapshot.structureId(),
                 snapshot.blockCount(), size.getX(), size.getY(), size.getZ(), blocks.bytes() / 1024, (long) size.getX() * size.getY() * size.getZ() * 2 / 1024);
-        this.biome = biomeFor(snapshot.terrain());
+        this.fitPoints = findFitPoints(snapshot);
     }
 
     /**
@@ -68,6 +72,7 @@ public final class SnapshotView implements BlockAndTintGetter {
      * added to it.
      */
     public void createRenderables(ClientLevel level) {
+        biome = biomeFor(level, snapshot.terrain());
         // Loading other mods' entities makes vanilla warn about things like attributes it doesn't know.
         JesLog.quietly(() -> {
             for (CompoundTag tag : snapshot.blockEntities()) {
@@ -118,6 +123,60 @@ public final class SnapshotView implements BlockAndTintGetter {
 
     public List<Entity> entities() {
         return entities;
+    }
+
+    /** Block centres, x y z after each other, to fit the camera around. */
+    public float[] fitPoints() {
+        return fitPoints;
+    }
+
+    /**
+     * Block centres to fit the camera around: an even sample of a few thousand, plus the blocks
+     * furthest out in each of 26 directions so spires and far corners are never cut off.
+     */
+    private static float[] findFitPoints(StructureSnapshot s) {
+        int count = s.blockCount();
+        int stride = Math.max(1, count / 3000);
+        int[] extreme = new int[26];
+        float[] best = new float[26];
+        Arrays.fill(best, Float.NEGATIVE_INFINITY);
+        List<Integer> chosen = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            int packed = s.packedPosition(i);
+            int bx = StructureSnapshot.unpackX(packed), by = StructureSnapshot.unpackY(packed), bz = StructureSnapshot.unpackZ(packed);
+            int d = 0;
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) {
+                            continue;
+                        }
+                        float reach = dx * bx + dy * by + dz * bz;
+                        if (reach > best[d]) {
+                            best[d] = reach;
+                            extreme[d] = packed;
+                        }
+                        d++;
+                    }
+                }
+            }
+            if (i % stride == 0) {
+                chosen.add(packed);
+            }
+        }
+        if (count > 0) {
+            for (int packed : extreme) {
+                chosen.add(packed);
+            }
+        }
+        float[] points = new float[chosen.size() * 3];
+        for (int i = 0; i < chosen.size(); i++) {
+            int packed = chosen.get(i);
+            points[i * 3] = StructureSnapshot.unpackX(packed) + 0.5f;
+            points[i * 3 + 1] = StructureSnapshot.unpackY(packed) + 0.5f;
+            points[i * 3 + 2] = StructureSnapshot.unpackZ(packed) + 0.5f;
+        }
+        return points;
     }
 
     public boolean contains(int x, int y, int z) {
@@ -178,7 +237,7 @@ public final class SnapshotView implements BlockAndTintGetter {
 
     @Override
     public int getBlockTint(BlockPos pos, ColorResolver resolver) {
-        return resolver.getColor(biome.value(), pos.getX(), pos.getZ());
+        return biome == null ? 0xFFFFFF : resolver.getColor(biome.value(), pos.getX(), pos.getZ());
     }
 
     @Override
@@ -191,11 +250,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         return 0;
     }
 
-    private static Holder<Biome> biomeFor(SandboxTerrain terrain) {
-        ClientLevel level = Minecraft.getInstance().level;
-        if (level == null) {
-            throw new IllegalStateException("No client level to borrow biomes from");
-        }
+    private static Holder<Biome> biomeFor(ClientLevel level, SandboxTerrain terrain) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
         ResourceKey<Biome> key = switch (terrain.kind()) {
             case NETHER -> Biomes.NETHER_WASTES;

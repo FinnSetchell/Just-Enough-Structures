@@ -1,7 +1,6 @@
 package com.finndog.justenoughstructures.client.render;
 
 import com.finndog.justenoughstructures.JesLog;
-import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -13,8 +12,6 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -148,7 +145,7 @@ public final class StructureViewport implements AutoCloseable {
      * goes by the blocks themselves rather than the bounding box, whose corners are often empty.
      */
     private void fitToView() {
-        float[] points = fitPoints(view.snapshot());
+        float[] points = view.fitPoints();
         Vector4f v = new Vector4f();
         float keepYaw = yaw;
         float low = 2f;
@@ -176,55 +173,6 @@ public final class StructureViewport implements AutoCloseable {
         distance = high;
         homeDistance = Math.max(homeDistance, high);
         updateMatrices();
-    }
-
-    /**
-     * Block centres to fit the camera around: an even sample of a few thousand, plus the blocks
-     * furthest out in each of 26 directions so spires and far corners are never cut off.
-     */
-    private static float[] fitPoints(StructureSnapshot s) {
-        int count = s.blockCount();
-        int stride = Math.max(1, count / 3000);
-        int[] extreme = new int[26];
-        float[] best = new float[26];
-        Arrays.fill(best, Float.NEGATIVE_INFINITY);
-        List<Integer> chosen = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            int packed = s.packedPosition(i);
-            int bx = StructureSnapshot.unpackX(packed), by = StructureSnapshot.unpackY(packed), bz = StructureSnapshot.unpackZ(packed);
-            int d = 0;
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) {
-                            continue;
-                        }
-                        float reach = dx * bx + dy * by + dz * bz;
-                        if (reach > best[d]) {
-                            best[d] = reach;
-                            extreme[d] = packed;
-                        }
-                        d++;
-                    }
-                }
-            }
-            if (i % stride == 0) {
-                chosen.add(packed);
-            }
-        }
-        if (count > 0) {
-            for (int packed : extreme) {
-                chosen.add(packed);
-            }
-        }
-        float[] points = new float[chosen.size() * 3];
-        for (int i = 0; i < chosen.size(); i++) {
-            int packed = chosen.get(i);
-            points[i * 3] = StructureSnapshot.unpackX(packed) + 0.5f;
-            points[i * 3 + 1] = StructureSnapshot.unpackY(packed) + 0.5f;
-            points[i * 3 + 2] = StructureSnapshot.unpackZ(packed) + 0.5f;
-        }
-        return points;
     }
 
     public void rotate(double dx, double dy) {

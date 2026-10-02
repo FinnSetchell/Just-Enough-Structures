@@ -13,6 +13,7 @@ import com.finndog.justenoughstructures.client.render.Highlight;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.network.Codecs;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
@@ -124,6 +126,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private int seenReloads = ClientRequests.reloads();
     private int seenStructureChanges = ClientRequests.structureChanges();
     private int captureRequest;
+    private CompletableFuture<Codecs.CaptureReply> capturing;
     private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
@@ -498,16 +501,7 @@ public class JesScreen extends Screen implements Nav.Page {
         view = null;
         viewport.setView(null);
         updateSlider();
-        ResourceLocation id = entry.id();
-        long wanted = newSeed;
-        // Only the newest request counts: an older one for the same structure can come back after it,
-        // skipped by the server because this one replaced it.
-        int request = ++captureRequest;
-        ClientRequests.capture(id, newSeed, true).thenAccept(reply -> {
-            if (request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted && reply.id().equals(id)) {
-                onCaptured(reply.result());
-            }
-        });
+        requestCapture(entry.id(), newSeed);
     }
 
     /**
@@ -515,20 +509,49 @@ public class JesScreen extends Screen implements Nav.Page {
      * was let go. The server still has it, so it's quick, and the open chest and picked table stay.
      */
     private void refetch() {
-        ResourceLocation id = selected.id();
-        long wanted = seed;
         if (info.selectedTable() != null) {
             pendingTable = info.selectedTable();
         }
-        int request = ++captureRequest;
-        ClientRequests.capture(id, wanted, true).thenAccept(reply -> {
-            if (request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted && reply.id().equals(id)) {
-                onCaptured(reply.result());
-            }
-        });
+        requestCapture(selected.id(), seed);
     }
 
-    private void onCaptured(CaptureResult captured) {
+    /**
+     * Only the newest request counts: an older one for the same structure can come back after it,
+     * skipped by the server because this one replaced it. The older one is cancelled so it isn't
+     * unpacked when it arrives. A big structure takes a while to lay out, so that's done off the
+     * render thread.
+     */
+    private void requestCapture(ResourceLocation id, long wanted) {
+        int request = ++captureRequest;
+        if (capturing != null) {
+            capturing.cancel(false);
+        }
+        capturing = ClientRequests.capture(id, wanted, true);
+        capturing.thenApplyAsync(reply -> request == captureRequest && reply.id().equals(id) ? Prepared.of(reply.result()) : null,
+                        Util.backgroundExecutor())
+                .thenAcceptAsync(prepared -> {
+                    if (prepared != null && request == captureRequest && selected != null && selected.id().equals(id) && seed == wanted) {
+                        onCaptured(prepared.result(), prepared.view());
+                    }
+                }, Minecraft.getInstance());
+    }
+
+    /** A capture with its preview laid out, when it worked. */
+    private record Prepared(CaptureResult result, SnapshotView view) {
+        static Prepared of(CaptureResult result) {
+            if (!result.succeeded()) {
+                return new Prepared(result, null);
+            }
+            StructureSnapshot snapshot = result.snapshot();
+            // The containers' icons look their blocks up by position, which needs a lookup built first.
+            if (snapshot.containers().stream().anyMatch(c -> !c.entity())) {
+                snapshot.prepareLookup();
+            }
+            return new Prepared(result, new SnapshotView(snapshot));
+        }
+    }
+
+    private void onCaptured(CaptureResult captured, SnapshotView prepared) {
         if (minecraft == null || minecraft.screen != this) {
             // Arrived after another screen was opened over this one: it's asked for again on coming back.
             dropped = true;
@@ -540,8 +563,8 @@ public class JesScreen extends Screen implements Nav.Page {
             selectTable(pendingTable);
             pendingTable = null;
         }
-        if (captured.succeeded() && minecraft != null && minecraft.level != null) {
-            view = new SnapshotView(captured.snapshot());
+        if (prepared != null && minecraft != null && minecraft.level != null) {
+            view = prepared;
             view.createRenderables(minecraft.level);
             viewport.setView(view);
             if (pendingCamera != null) {

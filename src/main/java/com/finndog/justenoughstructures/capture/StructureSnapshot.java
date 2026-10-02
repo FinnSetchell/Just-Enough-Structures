@@ -31,7 +31,7 @@ public final class StructureSnapshot {
     private final List<CompoundTag> blockEntities;
     private final List<CompoundTag> entities;
     private final int pieceCount;
-    private Int2IntOpenHashMap lookup;
+    private volatile Int2IntOpenHashMap lookup;
     private volatile List<Container> containers;
 
     public StructureSnapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain, BlockPos origin, Vec3i size,
@@ -112,16 +112,26 @@ public final class StructureSnapshot {
 
     /** The block at a local position, or null if the structure placed nothing there. */
     public BlockState stateAt(BlockPos pos) {
-        if (lookup == null) {
-            Int2IntOpenHashMap built = new Int2IntOpenHashMap(positions.length);
-            built.defaultReturnValue(-1);
-            for (int i = 0; i < positions.length; i++) {
-                built.put(positions[i], states[i]);
-            }
-            lookup = built;
-        }
-        int state = lookup.get(pack(pos.getX(), pos.getY(), pos.getZ()));
+        int state = lookup().get(pack(pos.getX(), pos.getY(), pos.getZ()));
         return state < 0 ? null : palette.get(state);
+    }
+
+    /** Builds what {@link #stateAt} looks blocks up in, which takes a moment for a big structure, ahead of time. */
+    public void prepareLookup() {
+        lookup();
+    }
+
+    private Int2IntOpenHashMap lookup() {
+        Int2IntOpenHashMap found = lookup;
+        if (found == null) {
+            found = new Int2IntOpenHashMap(positions.length);
+            found.defaultReturnValue(-1);
+            for (int i = 0; i < positions.length; i++) {
+                found.put(positions[i], states[i]);
+            }
+            lookup = found;
+        }
+        return found;
     }
 
     /** Block entity NBT with x, y and z rewritten to local coordinates. */

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.screen.Nav;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -29,7 +31,8 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Client end of the protocol: sends requests and hands back futures that complete when the answer
- * arrives. Everything here runs on the client thread.
+ * arrives. Everything here runs on the client thread, and every future completes on it, though a
+ * structure is unpacked off it first.
  */
 public final class ClientRequests {
     private static ClientSender sender;
@@ -483,6 +486,10 @@ public final class ClientRequests {
             return;
         }
         TRANSFERS.remove(part.transferId());
+        if (part.kind() == JesNetwork.KIND_CAPTURE) {
+            onCapture(part.requestId(), transfer.bytes());
+            return;
+        }
         FriendlyByteBuf buf = Blobs.fromBytes(Blobs.inflate(transfer.bytes()));
         if (part.kind() == JesNetwork.KIND_CATALOG) {
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
@@ -510,12 +517,28 @@ public final class ClientRequests {
             if (future != null) {
                 future.complete(Codecs.readTable(buf));
             }
-        } else if (part.kind() == JesNetwork.KIND_CAPTURE) {
-            CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(part.requestId());
-            if (future != null) {
-                future.complete(Codecs.readCapture(buf));
-            }
         }
+    }
+
+    /**
+     * Unpacking a big structure takes a good part of a second, so it's done off the render thread,
+     * and not at all when nobody is waiting for it any more, like a preview the player has already
+     * clicked away from.
+     */
+    private static void onCapture(int requestId, byte[] compressed) {
+        CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(requestId);
+        if (future == null || future.isDone()) {
+            return;
+        }
+        CompletableFuture.supplyAsync(() -> Codecs.readCapture(Blobs.fromBytes(Blobs.inflate(compressed))), Util.backgroundExecutor())
+                .whenCompleteAsync((reply, error) -> {
+                    if (error != null) {
+                        JesLog.errorOnce("capture-read", "Couldn't read a structure from the server", error);
+                        future.completeExceptionally(error);
+                    } else {
+                        future.complete(reply);
+                    }
+                }, Minecraft.getInstance());
     }
 
     /**
