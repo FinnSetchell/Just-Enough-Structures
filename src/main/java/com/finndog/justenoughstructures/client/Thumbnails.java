@@ -10,6 +10,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -30,7 +32,8 @@ import net.minecraft.resources.ResourceLocation;
  * size it's shown at and shrunk smoothly, so edges come out clean at any GUI scale, and a copy is
  * saved to disk so next time the list has its pictures straight away instead of asking the server
  * to generate every structure again. A saved picture is only used while the structure's definition,
- * its mod's version, the resource packs and the size it's shown at are the same. Render thread only.
+ * its mod's version, the resource packs and the size it's shown at are the same. Saved ones are read
+ * off the render thread and show from the frame they're ready. Call from the render thread only.
  */
 public final class Thumbnails {
     /** Goes up when thumbnails are drawn differently, so old ones aren't used. */
@@ -50,6 +53,10 @@ public final class Thumbnails {
         }
     };
     private static final Set<ResourceLocation> NOT_SAVED = new HashSet<>();
+    /** Saved pictures being read from disk, so each is only read once. */
+    private static final Set<ResourceLocation> LOADING = new HashSet<>();
+    /** Goes up when everything is forgotten, so a picture read for before then isn't kept. */
+    private static int generation;
     private static Map<ResourceLocation, String> keys = Map.of();
     private static int savedSize;
 
@@ -65,17 +72,19 @@ public final class Thumbnails {
         return Math.max(16, (int) Math.ceil(SHOWN_AT * Minecraft.getInstance().getWindow().getGuiScale()));
     }
 
-    /** The thumbnail's texture, read from disk if there's a saved one, or -1 if there's none. */
+    /** The thumbnail's texture, or -1 if there's none yet. A saved one starts being read from disk. */
     public static int textureId(ResourceLocation id) {
         DynamicTexture texture = CACHE.get(id);
-        if (texture == null && load(id)) {
-            texture = CACHE.get(id);
+        if (texture == null) {
+            load(id);
+            return -1;
         }
-        return texture == null ? -1 : texture.getId();
+        return texture.getId();
     }
 
+    /** Whether there's a thumbnail, or a saved one is still being read, so there's no need to make one. */
     public static boolean has(ResourceLocation id) {
-        return textureId(id) >= 0;
+        return textureId(id) >= 0 || LOADING.contains(id);
     }
 
     /**
@@ -153,6 +162,8 @@ public final class Thumbnails {
         CACHE.values().forEach(DynamicTexture::close);
         CACHE.clear();
         NOT_SAVED.clear();
+        LOADING.clear();
+        generation++;
         keys = Map.of();
     }
 
@@ -177,28 +188,50 @@ public final class Thumbnails {
         return JustEnoughStructures.cacheDir().resolve("thumbnails").resolve(id.getNamespace()).resolve(id.getPath());
     }
 
-    private static boolean load(ResourceLocation id) {
+    /** Reads the saved picture, if there is one, off the render thread, as a screenful of them took a moment. */
+    private static void load(ResourceLocation id) {
         String key = fileKey(id);
-        if (key == null || NOT_SAVED.contains(id)) {
-            return false;
+        if (key == null || NOT_SAVED.contains(id) || !LOADING.add(id)) {
+            return;
         }
         Path file = folder(id).resolve(key + ".png");
+        int started = generation;
+        CompletableFuture.supplyAsync(() -> read(file), Util.ioPool()).whenCompleteAsync((image, error) -> {
+            if (started != generation) {
+                if (image != null) {
+                    image.close();
+                }
+                return;
+            }
+            LOADING.remove(id);
+            if (image == null) {
+                if (error != null) {
+                    JesLog.debug("Couldn't read the saved thumbnail {}", file, error);
+                }
+                NOT_SAVED.add(id);
+            } else if (CACHE.containsKey(id) || !key.equals(fileKey(id))) {
+                // A fresh one was made meanwhile, or the GUI scale changed and this one is the wrong size.
+                image.close();
+            } else {
+                DynamicTexture texture = new DynamicTexture(image);
+                texture.setFilter(true, false);
+                CACHE.put(id, texture);
+            }
+        }, Minecraft.getInstance());
+    }
+
+    /** The saved picture, or null if there isn't one. */
+    private static NativeImage read(Path file) {
         if (!Files.exists(file)) {
-            NOT_SAVED.add(id);
-            return false;
+            return null;
         }
         try (InputStream in = Files.newInputStream(file)) {
             NativeImage image = NativeImage.read(in);
             // Stored the right way up; textures drawn into render targets are upside down.
             image.flipY();
-            DynamicTexture texture = new DynamicTexture(image);
-            texture.setFilter(true, false);
-            CACHE.put(id, texture);
-            return true;
-        } catch (IOException | RuntimeException e) {
-            JesLog.debug("Couldn't read the saved thumbnail {}", file, e);
-            NOT_SAVED.add(id);
-            return false;
+            return image;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
