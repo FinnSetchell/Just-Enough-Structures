@@ -322,7 +322,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (catalog == null && catalogError == null) {
             if (!ClientRequests.serverSupported()) {
-                catalogError = "screen.justenoughstructures.no_server";
+                catalogError = ClientRequests.serverOnOtherVersion() ? "screen.justenoughstructures.other_version" : "screen.justenoughstructures.no_server";
             } else {
                 ClientRequests.catalog().thenAccept(this::onCatalog);
                 // Start the loot index early so item search is usually ready by the time it's wanted.

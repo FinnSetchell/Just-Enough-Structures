@@ -13,33 +13,40 @@ import net.minecraft.server.level.ServerPlayer;
  * packet can't carry more than 1 MB.
  */
 public final class JesNetwork {
-    public static final ResourceLocation REQUEST_CATALOG = JustEnoughStructures.id("request_catalog");
-    public static final ResourceLocation REQUEST_CAPTURE = JustEnoughStructures.id("request_capture");
-    public static final ResourceLocation REQUEST_LOOT = JustEnoughStructures.id("request_loot");
-    public static final ResourceLocation REQUEST_ODDS = JustEnoughStructures.id("request_odds");
-    public static final ResourceLocation REQUEST_INDEX = JustEnoughStructures.id("request_index");
-    public static final ResourceLocation REQUEST_LOCATE = JustEnoughStructures.id("request_locate");
-    public static final ResourceLocation REQUEST_COMPASS = JustEnoughStructures.id("request_compass");
-    public static final ResourceLocation REQUEST_TABLE = JustEnoughStructures.id("request_table");
-    public static final ResourceLocation TABLE_ACTION = JustEnoughStructures.id("table_action");
-    public static final ResourceLocation CONTAINER_ACTION = JustEnoughStructures.id("container_action");
-    /** Parts of something bigger than one packet from the client, like an edited loot table. */
-    public static final ResourceLocation UPLOAD = JustEnoughStructures.id("upload");
+    /**
+     * Goes up whenever what's sent changes in a way the other end couldn't read. It's part of every
+     * channel's name, so a client and a server on different versions don't hear each other at all,
+     * rather than misreading what they hear.
+     */
+    public static final int PROTOCOL = 1;
 
-    public static final ResourceLocation TRANSFER = JustEnoughStructures.id("transfer");
-    public static final ResourceLocation LOOT = JustEnoughStructures.id("loot");
-    public static final ResourceLocation ODDS = JustEnoughStructures.id("odds");
-    public static final ResourceLocation INDEX_PROGRESS = JustEnoughStructures.id("index_progress");
-    public static final ResourceLocation LOCATE = JustEnoughStructures.id("locate");
-    public static final ResourceLocation SETTINGS = JustEnoughStructures.id("settings");
-    public static final ResourceLocation EDIT_REPLY = JustEnoughStructures.id("edit_reply");
+    public static final ResourceLocation REQUEST_CATALOG = channel("request_catalog");
+    public static final ResourceLocation REQUEST_CAPTURE = channel("request_capture");
+    public static final ResourceLocation REQUEST_LOOT = channel("request_loot");
+    public static final ResourceLocation REQUEST_ODDS = channel("request_odds");
+    public static final ResourceLocation REQUEST_INDEX = channel("request_index");
+    public static final ResourceLocation REQUEST_LOCATE = channel("request_locate");
+    public static final ResourceLocation REQUEST_COMPASS = channel("request_compass");
+    public static final ResourceLocation REQUEST_TABLE = channel("request_table");
+    public static final ResourceLocation TABLE_ACTION = channel("table_action");
+    public static final ResourceLocation CONTAINER_ACTION = channel("container_action");
+    /** Parts of something bigger than one packet from the client, like an edited loot table. */
+    public static final ResourceLocation UPLOAD = channel("upload");
+
+    public static final ResourceLocation TRANSFER = channel("transfer");
+    public static final ResourceLocation LOOT = channel("loot");
+    public static final ResourceLocation ODDS = channel("odds");
+    public static final ResourceLocation INDEX_PROGRESS = channel("index_progress");
+    public static final ResourceLocation LOCATE = channel("locate");
+    public static final ResourceLocation SETTINGS = channel("settings");
+    public static final ResourceLocation EDIT_REPLY = channel("edit_reply");
     /** Asks which loot tables have an override, and the answer: each table and how it stands. */
-    public static final ResourceLocation REQUEST_OVERRIDES = JustEnoughStructures.id("request_overrides");
-    public static final ResourceLocation OVERRIDES = JustEnoughStructures.id("overrides");
+    public static final ResourceLocation REQUEST_OVERRIDES = channel("request_overrides");
+    public static final ResourceLocation OVERRIDES = channel("overrides");
     /** Asks for everything Pack tools shows, which comes back as a {@link #KIND_TOOLS} transfer. */
-    public static final ResourceLocation REQUEST_TOOLS = JustEnoughStructures.id("request_tools");
+    public static final ResourceLocation REQUEST_TOOLS = channel("request_tools");
     /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
-    public static final ResourceLocation TOOLS_ACTION = JustEnoughStructures.id("tools_action");
+    public static final ResourceLocation TOOLS_ACTION = channel("tools_action");
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;
@@ -65,6 +72,15 @@ public final class JesNetwork {
     };
 
     private JesNetwork() {
+    }
+
+    private static ResourceLocation channel(String name) {
+        return JustEnoughStructures.id("v" + PROTOCOL + "/" + name);
+    }
+
+    /** Whether a channel is one of ours from any version, to tell a server on another version from one without the mod. */
+    public static boolean isJesChannel(ResourceLocation channel) {
+        return channel.getNamespace().equals(JustEnoughStructures.MOD_ID);
     }
 
     public static void setServerSender(ServerSender sender) {

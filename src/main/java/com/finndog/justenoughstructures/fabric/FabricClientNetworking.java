@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,11 @@ final class FabricClientNetworking {
             @Override
             public boolean canSend(ResourceLocation channel) {
                 return ClientPlayNetworking.canSend(channel);
+            }
+
+            @Override
+            public Collection<ResourceLocation> sendable() {
+                return ClientPlayNetworking.getSendable();
             }
 
             @Override

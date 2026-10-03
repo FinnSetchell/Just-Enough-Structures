@@ -6,6 +6,7 @@
   "screen.justenoughstructures.search_hint": "Search, @mod or $item",
   "screen.justenoughstructures.no_matches": "Nothing matches that search.",
   "screen.justenoughstructures.no_server": "Just Enough Structures has to be installed on the server to generate previews. It isn't on this one.",
+  "screen.justenoughstructures.other_version": "This server has a different version of Just Enough Structures, so it can't make previews for yours. Install the same version as the server.",
   "screen.justenoughstructures.loading_list": "Loading structures...",
   "screen.justenoughstructures.generating": "Generating...",
   "screen.justenoughstructures.failed": "This structure didn't generate.",

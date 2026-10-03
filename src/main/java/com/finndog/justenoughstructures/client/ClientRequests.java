@@ -16,6 +16,7 @@ import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,9 +75,14 @@ public final class ClientRequests {
         sender = clientSender;
     }
 
-    /** False when the server doesn't have the mod, so there's nobody to ask. */
+    /** False when the server doesn't have the mod, or has another version of it, so there's nobody to ask. */
     public static boolean serverSupported() {
         return sender != null && sender.canSend(JesNetwork.REQUEST_CATALOG);
+    }
+
+    /** True when the server has the mod, but a version that talks differently. */
+    public static boolean serverOnOtherVersion() {
+        return sender != null && !serverSupported() && sender.sendable().stream().anyMatch(JesNetwork::isJesChannel);
     }
 
     /** Forget everything tied to the current connection. */
@@ -606,6 +612,9 @@ public final class ClientRequests {
 
     public interface ClientSender {
         boolean canSend(ResourceLocation channel);
+
+        /** Every channel the server listens on. */
+        Collection<ResourceLocation> sendable();
 
         void send(ResourceLocation channel, FriendlyByteBuf buf);
     }
