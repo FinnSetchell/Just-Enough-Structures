@@ -695,6 +695,9 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         Nav.remember();
         showContainer(container, group);
+        if (!popup.overview()) {
+            lookAt(container);
+        }
     }
 
     /** Shows a container, or with {@code all}, every container with its table, {@code container} standing for them. */
@@ -747,7 +750,10 @@ public class JesScreen extends Screen implements Nav.Page {
         popup.placeAt(x, height, font);
     }
 
-    /** Turns the camera to the container the popup steps to, so it's clear which one it is. */
+    /**
+     * Turns the camera to the container the popup is showing, from the same distance every time, so
+     * it's clear which one it is and dragging the preview turns around it.
+     */
     private void lookAt(StructureSnapshot.Container container) {
         if (view == null) {
             return;
@@ -1466,8 +1472,10 @@ public class JesScreen extends Screen implements Nav.Page {
         popup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
-            // Back to the player's own view from before stepping through the containers.
-            viewport.glideTo(tourFrom);
+            // Back to the zoom and centre from before, but keeping whatever angle the player turned to.
+            StructureViewport.Camera now = viewport.camera();
+            viewport.glideTo(new StructureViewport.Camera(now.yaw(), now.pitch(), tourFrom.distance(),
+                    tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ()));
             tourFrom = null;
         }
     }
@@ -2097,8 +2105,12 @@ public class JesScreen extends Screen implements Nav.Page {
                 return true;
             }
             if (!popup.contains(mouseX, mouseY, font)) {
-                // A container clicked in the preview beside the popup opens instead; anywhere else closes it.
-                if (button != 0 || !openClicked(mouseX, mouseY)) {
+                if (popup.container != null && view != null && viewport.contains(mouseX, mouseY)) {
+                    // In the preview beside a container's popup: a drag turns the camera around the
+                    // container, and a click opens the container under it or closes the popup.
+                    pressedInViewport = true;
+                    dragged = false;
+                } else {
                     closePopup();
                 }
             } else if (!popupHovered.isEmpty()) {
@@ -2144,9 +2156,12 @@ public class JesScreen extends Screen implements Nav.Page {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
-        if (pressedInViewport && popup == null) {
+        if (pressedInViewport) {
             dragged |= Math.abs(dx) + Math.abs(dy) > 0.5;
-            if (button == 1 || button == 2 || hasShiftDown()) {
+            if (popup != null) {
+                // Only turning: moving would take the container out of the middle.
+                viewport.rotate(dx, dy);
+            } else if (button == 1 || button == 2 || hasShiftDown()) {
                 viewport.pan(dx, dy);
             } else {
                 viewport.rotate(dx, dy);
@@ -2160,7 +2175,11 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (pressedInViewport) {
             pressedInViewport = false;
-            if (!dragged && button == 0) {
+            if (popup != null) {
+                if (!dragged && (button != 0 || !openClicked(mouseX, mouseY))) {
+                    closePopup();
+                }
+            } else if (!dragged && button == 0) {
                 viewport.pick(mouseX, mouseY).map(this::containerAt).ifPresent(this::openContainer);
             }
             return true;
