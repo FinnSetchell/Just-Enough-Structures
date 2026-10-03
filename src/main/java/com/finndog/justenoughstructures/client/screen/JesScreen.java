@@ -58,7 +58,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
-import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
@@ -131,8 +130,10 @@ public class JesScreen extends Screen implements Nav.Page {
     private int seenStructureChanges = ClientRequests.structureChanges();
     private int captureRequest;
     private CompletableFuture<Codecs.CaptureReply> capturing;
-    /** Where the camera was looking before the popup's arrows turned it to a container, to go back to. */
-    private Vector3f tourFrom;
+    /** The camera before the popup's arrows turned it to a container, to go back to when the popup closes. */
+    private StructureViewport.Camera tourFrom;
+    /** How far from a container the arrows bring the camera, the same for every one. */
+    private static final float TOUR_DISTANCE = 10f;
     private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
@@ -757,10 +758,11 @@ public class JesScreen extends Screen implements Nav.Page {
             view.setSliceY(view.size().getY());
             updateSlider();
         }
+        StructureViewport.Camera now = viewport.camera();
         if (tourFrom == null) {
-            tourFrom = viewport.focus();
+            tourFrom = now;
         }
-        viewport.glideTo(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+        viewport.glideTo(new StructureViewport.Camera(now.yaw(), now.pitch(), TOUR_DISTANCE, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f));
     }
 
     /** Opens a loot table this layout doesn't have in a popup on its own: its chances, and a roll of it. */
@@ -1046,12 +1048,17 @@ public class JesScreen extends Screen implements Nav.Page {
         String key = null;
         Function<StructureSnapshot, LongSet> wanted = null;
         if (popup != null && popup.container != null && popup.count > 1 && foundIn == null) {
-            // Every container the popup steps through, so where they all are shows beside it.
+            // Every container the popup steps through, so where they all are shows beside it, but not
+            // the one on show: its marker's white outline marks it, and the tint would hide it close up.
             StructureSnapshot.Container anchor = popup.container;
-            key = "popup:" + anchor.lootTable() + "|" + anchor.id();
+            BlockPos showing = popup.overview() ? null : anchor.pos();
+            key = "popup:" + anchor.lootTable() + "|" + anchor.id() + "|" + showing;
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
                 sameTable(anchor).forEach(c -> out.add(c.pos().asLong()));
+                if (showing != null) {
+                    out.remove(showing.asLong());
+                }
                 return out;
             };
         } else if (sides && popup == null && foundIn == null) {
@@ -1094,7 +1101,7 @@ public class JesScreen extends Screen implements Nav.Page {
         int slice = view.sliceY();
         for (long packed : highlight.positions()) {
             BlockPos pos = BlockPos.of(packed);
-            if (pos.getY() >= slice || marked.contains(pos)) {
+            if (pos.getY() >= slice || marked.contains(pos) || popup != null && popup.container != null && pos.equals(popup.container.pos())) {
                 continue;
             }
             Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
@@ -1113,10 +1120,27 @@ public class JesScreen extends Screen implements Nav.Page {
         }
     }
 
-    /** A bigger ring over the container the popup is showing, on top of its marker, so it's clear which one it is. */
+    /** Darkens the whole screen except one rectangle. */
+    private void dimAround(GuiGraphics g, int x, int y, int w, int h) {
+        int shade = 0x88000000;
+        g.fill(0, 0, width, y, shade);
+        g.fill(0, y + h, width, height, shade);
+        g.fill(0, y, x, y + h, shade);
+        g.fill(x + w, y, width, y + h, shade);
+    }
+
+    /**
+     * The container the popup is showing, when it has no marker to light up white: the same small
+     * ring the others get, in white.
+     */
     private void ringPopupContainer(GuiGraphics g) {
         if (popup == null || popup.container == null || popup.overview() || popup.container.pos().getY() >= view.sliceY()) {
             return;
+        }
+        for (Marker m : markerRects) {
+            if (m.containers().contains(popup.container)) {
+                return;
+            }
         }
         BlockPos pos = popup.container.pos();
         Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
@@ -1125,16 +1149,13 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         int cx = Math.round(at.get()[0]);
         int cy = Math.round(at.get()[1]);
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 700);
-        for (int[] ring : new int[][]{{10, 0xFF000000}, {9, 0xFFFFFFFF}, {8, 0xFFFFFFFF}, {7, 0xFF000000}}) {
+        for (int[] ring : new int[][]{{5, 0xFF000000}, {4, 0xFFFFFFFF}, {3, 0xFF000000}}) {
             int r = ring[0];
             g.fill(cx - r, cy - r, cx + r, cy - r + 1, ring[1]);
             g.fill(cx - r, cy + r - 1, cx + r, cy + r, ring[1]);
             g.fill(cx - r, cy - r, cx - r + 1, cy + r, ring[1]);
             g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
         }
-        g.pose().popPose();
     }
 
     private void clearHighlight() {
@@ -1445,8 +1466,8 @@ public class JesScreen extends Screen implements Nav.Page {
         popup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
-            // Back to where it was before stepping through the containers.
-            viewport.glideTo(tourFrom.x, tourFrom.y, tourFrom.z);
+            // Back to the player's own view from before stepping through the containers.
+            viewport.glideTo(tourFrom);
             tourFrom = null;
         }
     }
@@ -1579,7 +1600,12 @@ public class JesScreen extends Screen implements Nav.Page {
         if (popupOpen) {
             g.pose().pushPose();
             g.pose().translate(0, 0, 400);
-            g.fill(0, 0, width, height, 0x88000000);
+            if (popup.container != null && view != null) {
+                // The preview stays clear beside a container's popup: it's where the containers are shown.
+                dimAround(g, viewX, viewY, viewW, viewH);
+            } else {
+                g.fill(0, 0, width, height, 0x88000000);
+            }
             popupHover = popup.render(g, font, mouseX, mouseY);
             layoutPopupButtons();
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
@@ -1617,6 +1643,9 @@ public class JesScreen extends Screen implements Nav.Page {
                 List<FormattedCharSequence> lines = new ArrayList<>();
                 popup.hoveredTip.forEach(line -> lines.addAll(font.split(line, 220)));
                 g.renderTooltip(font, lines, mouseX, mouseY);
+            } else if (hover != null) {
+                // The preview beside a container's popup, where another container can be clicked.
+                g.renderComponentTooltip(font, hoverLines(hover), mouseX, mouseY);
             }
         } else if (clippedHeaderLine(mouseX, mouseY) != null) {
             g.renderTooltip(font, font.split(clippedHeaderLine(mouseX, mouseY), 240), mouseX, mouseY);
@@ -1738,9 +1767,6 @@ public class JesScreen extends Screen implements Nav.Page {
         if (hover != null && hover.entity() == null) {
             outlines.add(hover.pos());
         }
-        if (popup != null && popup.container != null && !popup.container.entity()) {
-            outlines.add(popup.container.pos());
-        }
         viewport.render(g, viewX, viewY, viewW, viewH, partialTick, outlines, highlight());
         if (!viewport.meshing() && !Thumbnails.has(selected.id())) {
             TextureTarget thumbnail = viewport.renderThumbnail(Thumbnails.renderSize());
@@ -1762,7 +1788,8 @@ public class JesScreen extends Screen implements Nav.Page {
                 // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
                 // markers jitter against the smoothly turning preview.
                 g.pose().translate(m.x(), m.y(), 200);
-                g.fill(-1, -1, size + 1, size + 1, over ? 0xFFFFFF55 : 0xFF000000);
+                boolean showing = popup != null && popup.container != null && !popup.overview() && m.containers().contains(popup.container);
+                g.fill(-1, -1, size + 1, size + 1, showing ? 0xFFFFFFFF : over ? 0xFFFFFF55 : 0xFF000000);
                 g.fill(0, 0, size, size, 0xFF2B2B2B);
                 g.pose().pushPose();
                 g.pose().translate(0.5f, 0.5f, 0);

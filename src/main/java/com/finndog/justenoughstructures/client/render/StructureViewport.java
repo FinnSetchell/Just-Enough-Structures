@@ -29,6 +29,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -67,8 +68,9 @@ public final class StructureViewport implements AutoCloseable {
     private float pitch;
     private float distance;
     private final Vector3f focus = new Vector3f();
-    /** Where the camera is gliding to look at, or null. */
-    private Vector3f glideTo;
+    /** Where the camera is gliding to, or null, and when it set off and last moved. */
+    private Camera glide;
+    private long glideStarted;
     private long glidedAt;
     private float homeDistance;
 
@@ -121,20 +123,15 @@ public final class StructureViewport implements AutoCloseable {
         return new Camera(yaw, pitch, distance, focus.x, focus.y, focus.z);
     }
 
+    /** Moves the camera smoothly, over a fraction of a second, to where {@code to} has it. */
+    public void glideTo(Camera to) {
+        glide = to;
+        glideStarted = glidedAt = System.nanoTime();
+    }
+
     /** Puts the camera back where {@link #camera()} found it, instead of fitting the structure to the view. */
-    /** Where the camera is looking. */
-    public Vector3f focus() {
-        return new Vector3f(focus);
-    }
-
-    /** Moves the camera smoothly over a few frames to look at a point, keeping its angle and distance. */
-    public void glideTo(float x, float y, float z) {
-        glideTo = new Vector3f(x, y, z);
-        glidedAt = System.nanoTime();
-    }
-
     public void setCamera(Camera camera) {
-        glideTo = null;
+        glide = null;
         yaw = camera.yaw();
         pitch = camera.pitch();
         distance = camera.distance();
@@ -143,7 +140,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void resetCamera() {
-        glideTo = null;
+        glide = null;
         yaw = 225f;
         pitch = 30f;
         if (view == null) {
@@ -203,6 +200,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void rotate(double dx, double dy) {
+        glide = null;
         yaw += (float) dx * 0.6f;
         pitch = Math.max(-89f, Math.min(89f, pitch + (float) dy * 0.6f));
     }
@@ -212,7 +210,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void pan(double dx, double dy) {
-        glideTo = null;
+        glide = null;
         float scale = distance * (float) Math.tan(Math.toRadians(FOV / 2f)) * 2f / Math.max(1, height);
         Matrix4f inverse = new Matrix4f(viewMatrix).invert();
         Vector3f right = inverse.transformDirection(new Vector3f(1, 0, 0)).normalize();
@@ -221,7 +219,28 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void zoom(double amount) {
+        glide = null;
         distance = Math.max(2f, Math.min(homeDistance * 4f, distance * (float) Math.pow(0.88, amount)));
+    }
+
+    /**
+     * One frame of a glide, at the same pace whatever the frame rate: most of the way in about a fifth
+     * of a second. It's over after half a second, as spinning keeps the angle from ever arriving.
+     */
+    private void glideStep() {
+        long now = System.nanoTime();
+        float step = 1f - (float) Math.exp(-(now - glidedAt) / 1e9 * 12);
+        glidedAt = now;
+        yaw += Mth.wrapDegrees(glide.yaw() - yaw) * step;
+        pitch += (glide.pitch() - pitch) * step;
+        distance += (glide.distance() - distance) * step;
+        focus.lerp(new Vector3f(glide.focusX(), glide.focusY(), glide.focusZ()), step);
+        if (now - glideStarted > 500_000_000L) {
+            pitch = glide.pitch();
+            distance = glide.distance();
+            focus.set(glide.focusX(), glide.focusY(), glide.focusZ());
+            glide = null;
+        }
     }
 
     public boolean contains(double mouseX, double mouseY) {
@@ -245,16 +264,8 @@ public final class StructureViewport implements AutoCloseable {
             needsFit = false;
             fitToView();
         }
-        if (glideTo != null) {
-            long now = System.nanoTime();
-            // The same pace whatever the frame rate: most of the way in about a fifth of a second.
-            float step = 1f - (float) Math.exp(-(now - glidedAt) / 1e9 * 12);
-            glidedAt = now;
-            focus.lerp(glideTo, step);
-            if (focus.distanceSquared(glideTo) < 0.0004f) {
-                focus.set(glideTo);
-                glideTo = null;
-            }
+        if (glide != null) {
+            glideStep();
         }
         updateMatrices();
 
