@@ -67,6 +67,9 @@ public final class StructureViewport implements AutoCloseable {
     private float pitch;
     private float distance;
     private final Vector3f focus = new Vector3f();
+    /** Where the camera is gliding to look at, or null. */
+    private Vector3f glideTo;
+    private long glidedAt;
     private float homeDistance;
 
     private int x, y, width, height;
@@ -119,7 +122,19 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /** Puts the camera back where {@link #camera()} found it, instead of fitting the structure to the view. */
+    /** Where the camera is looking. */
+    public Vector3f focus() {
+        return new Vector3f(focus);
+    }
+
+    /** Moves the camera smoothly over a few frames to look at a point, keeping its angle and distance. */
+    public void glideTo(float x, float y, float z) {
+        glideTo = new Vector3f(x, y, z);
+        glidedAt = System.nanoTime();
+    }
+
     public void setCamera(Camera camera) {
+        glideTo = null;
         yaw = camera.yaw();
         pitch = camera.pitch();
         distance = camera.distance();
@@ -128,6 +143,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void resetCamera() {
+        glideTo = null;
         yaw = 225f;
         pitch = 30f;
         if (view == null) {
@@ -196,6 +212,7 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void pan(double dx, double dy) {
+        glideTo = null;
         float scale = distance * (float) Math.tan(Math.toRadians(FOV / 2f)) * 2f / Math.max(1, height);
         Matrix4f inverse = new Matrix4f(viewMatrix).invert();
         Vector3f right = inverse.transformDirection(new Vector3f(1, 0, 0)).normalize();
@@ -227,6 +244,17 @@ public final class StructureViewport implements AutoCloseable {
         if (needsFit) {
             needsFit = false;
             fitToView();
+        }
+        if (glideTo != null) {
+            long now = System.nanoTime();
+            // The same pace whatever the frame rate: most of the way in about a fifth of a second.
+            float step = 1f - (float) Math.exp(-(now - glidedAt) / 1e9 * 12);
+            glidedAt = now;
+            focus.lerp(glideTo, step);
+            if (focus.distanceSquared(glideTo) < 0.0004f) {
+                focus.set(glideTo);
+                glideTo = null;
+            }
         }
         updateMatrices();
 

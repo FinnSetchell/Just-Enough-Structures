@@ -16,6 +16,7 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -56,6 +58,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
+import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
@@ -128,6 +131,8 @@ public class JesScreen extends Screen implements Nav.Page {
     private int seenStructureChanges = ClientRequests.structureChanges();
     private int captureRequest;
     private CompletableFuture<Codecs.CaptureReply> capturing;
+    /** Where the camera was looking before the popup's arrows turned it to a container, to go back to. */
+    private Vector3f tourFrom;
     private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
@@ -676,30 +681,86 @@ public class JesScreen extends Screen implements Nav.Page {
 
     /** Opens a container from the preview. Public so the screenshot harness can open one. */
     public void openContainer(StructureSnapshot.Container container) {
+        openContainer(container, false);
+    }
+
+    /**
+     * With {@code group}, it was opened from something standing for several containers, a row in the
+     * Loot tab or a marker they share, so it shows all of them until one is picked.
+     */
+    private void openContainer(StructureSnapshot.Container container, boolean group) {
         if (result == null || !result.succeeded()) {
             return;
         }
         Nav.remember();
-        showContainer(container);
+        showContainer(container, group);
     }
 
-    private void showContainer(StructureSnapshot.Container container) {
+    /** Shows a container, or with {@code all}, every container with its table, {@code container} standing for them. */
+    private void showContainer(StructureSnapshot.Container container, boolean all) {
         List<StructureSnapshot.Container> same = sameTable(container);
-        ChestPopup.View keep = popup != null && popup.container != null ? popup.view : ChestPopup.View.ROLL;
-        popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container), same.indexOf(container), same.size());
+        ChestPopup previous = popup;
+        ChestPopup.View keep = previous != null && previous.container != null ? previous.view : ChestPopup.View.ROLL;
+        popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container),
+                all && same.size() > 1 ? -1 : same.indexOf(container), same.size());
         popup.view = keep;
         popup.picking = picking;
         popup.icon = InfoPanel.containerIcon(result.snapshot(), container);
-        popup.place(width, height, font);
+        placePopup();
         layoutPopupButtons();
         if (container.lootTable() == null) {
-            popup.items = prefilledItems(container);
+            // Each was saved with its own items, so there's nothing to show until one is picked.
+            popup.items = popup.overview() ? List.of() : prefilledItems(container);
+            return;
+        }
+        if (previous != null && previous.container != null && same.contains(previous.container)) {
+            // Another of the same: they share the table, so a new roll would only be another roll of it.
+            popup.seed = previous.seed;
+            popup.items = previous.items;
+            popup.odds = previous.odds;
+            if (popup.items == null) {
+                rollPopup();
+            }
+            if (popup.odds == null) {
+                fetchPopupOdds();
+            }
             return;
         }
         popup.seed = container.lootSeed() != 0 ? container.lootSeed()
                 : seed ^ (container.pos().asLong() * 0x9E3779B97F4A7C15L);
         rollPopup();
         fetchPopupOdds();
+    }
+
+    /**
+     * Container popups sit beside the preview, over the details if they're showing, so the containers
+     * they're about can be seen. A table on its own isn't anywhere, so it goes in the middle.
+     */
+    private void placePopup() {
+        if (popup.container == null) {
+            popup.place(width, height, font);
+            return;
+        }
+        int x = sides ? Math.min(width - 4 - ChestPopup.WIDTH, infoX + Math.max(0, (infoW - ChestPopup.WIDTH) / 2))
+                : viewX + viewW - ChestPopup.WIDTH - 4;
+        popup.placeAt(x, height, font);
+    }
+
+    /** Turns the camera to the container the popup steps to, so it's clear which one it is. */
+    private void lookAt(StructureSnapshot.Container container) {
+        if (view == null) {
+            return;
+        }
+        BlockPos pos = container.pos();
+        if (pos.getY() >= view.sliceY()) {
+            // Hidden by the layer slider: show everything again.
+            view.setSliceY(view.size().getY());
+            updateSlider();
+        }
+        if (tourFrom == null) {
+            tourFrom = viewport.focus();
+        }
+        viewport.glideTo(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
     }
 
     /** Opens a loot table this layout doesn't have in a popup on its own: its chances, and a roll of it. */
@@ -744,7 +805,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private void rerollLoot() {
         if (popup != null && popup.table != null) {
             popup.switchTo(ChestPopup.View.ROLL);
-            popup.place(width, height, font);
+            placePopup();
             popup.seed = ThreadLocalRandom.current().nextLong();
             rollPopup();
         }
@@ -756,8 +817,11 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         List<StructureSnapshot.Container> same = sameTable(popup.container);
         if (same.size() > 1) {
-            int next = Math.floorMod(same.indexOf(popup.container) + direction, same.size());
-            showContainer(same.get(next));
+            // From all of them, the first step goes to the first or the last.
+            int at = popup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(popup.container);
+            StructureSnapshot.Container next = same.get(Math.floorMod(at + direction, same.size()));
+            showContainer(next, false);
+            lookAt(next);
         }
     }
 
@@ -808,7 +872,7 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     /** A container's popup, found again by where the container is, as the same layout comes out the same. */
-    private record ContainerPopup(BlockPos pos, boolean entity, ChestPopup.View view, Component title) implements Popup {
+    private record ContainerPopup(BlockPos pos, boolean entity, ChestPopup.View view, Component title, boolean all) implements Popup {
         @Override
         public Object key() {
             return List.of("container", pos, entity);
@@ -881,7 +945,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (popup != null) {
             return popup.container != null
-                    ? new ContainerPopup(popup.container.pos(), popup.container.entity(), popup.view, popup.title)
+                    ? new ContainerPopup(popup.container.pos(), popup.container.entity(), popup.view, popup.title, popup.overview())
                     : new TablePopup(popup.table);
         }
         return pendingPopup;
@@ -962,9 +1026,9 @@ public class JesScreen extends Screen implements Nav.Page {
         } else if (open instanceof ContainerPopup wanted && result.succeeded()) {
             for (StructureSnapshot.Container c : result.snapshot().containers()) {
                 if (c.pos().equals(wanted.pos()) && c.entity() == wanted.entity()) {
-                    showContainer(c);
+                    showContainer(c, wanted.all());
                     popup.switchTo(wanted.view());
-                    popup.place(width, height, font);
+                    placePopup();
                     layoutPopupButtons();
                     return;
                 }
@@ -978,17 +1042,34 @@ public class JesScreen extends Screen implements Nav.Page {
      * last drawn, a frame behind, which can't be seen.
      */
     private Highlight highlight() {
-        InfoPanel.Hovered hovered = sides && popup == null && foundIn == null ? info.hoveredBlocks() : null;
         StructureSnapshot shown = view == null ? null : view.snapshot();
-        if (hovered == null || shown == null) {
+        String key = null;
+        Function<StructureSnapshot, LongSet> wanted = null;
+        if (popup != null && popup.container != null && popup.count > 1 && foundIn == null) {
+            // Every container the popup steps through, so where they all are shows beside it.
+            StructureSnapshot.Container anchor = popup.container;
+            key = "popup:" + anchor.lootTable() + "|" + anchor.id();
+            wanted = s -> {
+                LongSet out = new LongOpenHashSet();
+                sameTable(anchor).forEach(c -> out.add(c.pos().asLong()));
+                return out;
+            };
+        } else if (sides && popup == null && foundIn == null) {
+            InfoPanel.Hovered hovered = info.hoveredBlocks();
+            if (hovered != null) {
+                key = hovered.key();
+                wanted = hovered.positions();
+            }
+        }
+        if (key == null || shown == null) {
             clearHighlight();
             return null;
         }
-        if (!hovered.key().equals(highlightKey) || shown != highlightFor) {
+        if (!key.equals(highlightKey) || shown != highlightFor) {
             clearHighlight();
-            highlightKey = hovered.key();
+            highlightKey = key;
             highlightFor = shown;
-            LongSet positions = hovered.positions().apply(shown);
+            LongSet positions = wanted.apply(shown);
             highlight = positions == null || positions.isEmpty() || positions.size() > Highlight.MAX_BLOCKS ? null : new Highlight(positions);
         }
         return highlight;
@@ -1030,6 +1111,30 @@ public class JesScreen extends Screen implements Nav.Page {
                 g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
             }
         }
+    }
+
+    /** A bigger ring over the container the popup is showing, on top of its marker, so it's clear which one it is. */
+    private void ringPopupContainer(GuiGraphics g) {
+        if (popup == null || popup.container == null || popup.overview() || popup.container.pos().getY() >= view.sliceY()) {
+            return;
+        }
+        BlockPos pos = popup.container.pos();
+        Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+        if (at.isEmpty()) {
+            return;
+        }
+        int cx = Math.round(at.get()[0]);
+        int cy = Math.round(at.get()[1]);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 700);
+        for (int[] ring : new int[][]{{10, 0xFF000000}, {9, 0xFFFFFFFF}, {8, 0xFFFFFFFF}, {7, 0xFF000000}}) {
+            int r = ring[0];
+            g.fill(cx - r, cy - r, cx + r, cy - r + 1, ring[1]);
+            g.fill(cx - r, cy + r - 1, cx + r, cy + r, ring[1]);
+            g.fill(cx - r, cy - r, cx - r + 1, cy + r, ring[1]);
+            g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
+        }
+        g.pose().popPose();
     }
 
     private void clearHighlight() {
@@ -1143,7 +1248,7 @@ public class JesScreen extends Screen implements Nav.Page {
 
     /** Opens a container from Pack tools, in the layout it was picked from, with its popup open. */
     void showContainerFromTools(ToolsChests.ChestRef ref) {
-        Popup open = ref.pos() == null ? null : new ContainerPopup(ref.pos(), ref.entity(), ChestPopup.View.ROLL, ref.title());
+        Popup open = ref.pos() == null ? null : new ContainerPopup(ref.pos(), ref.entity(), ChestPopup.View.ROLL, ref.title(), false);
         restorePlace(new BrowserLayer(ref.structure(), ref.seed(), InfoPanel.Tab.LOOT, ref.table(), null, open, Component.empty(), false), true);
     }
 
@@ -1339,6 +1444,11 @@ public class JesScreen extends Screen implements Nav.Page {
     private void closePopup() {
         popup = null;
         layoutPopupButtons();
+        if (tourFrom != null) {
+            // Back to where it was before stepping through the containers.
+            viewport.glideTo(tourFrom.x, tourFrom.y, tourFrom.z);
+            tourFrom = null;
+        }
     }
 
     private void layoutPopupButtons() {
@@ -1453,7 +1563,9 @@ public class JesScreen extends Screen implements Nav.Page {
             thumbnails.tick(wanted, result == null || viewport.meshing());
         }
         renderHeader(g);
-        StructureViewport.Hit hover = renderViewport(g, mx, my, partialTick);
+        // The preview still answers the mouse beside a container's popup, so another container can be picked.
+        boolean beside = popupOpen && foundIn == null && popup.container != null && !popup.contains(mouseX, mouseY, font);
+        StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
         if (sides) {
             info.render(g, mx, my);
         }
@@ -1668,6 +1780,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
 
         ringHighlighted(g, s);
+        ringPopupContainer(g);
 
         // What locate found, or why it couldn't. Failures fade after a while. It shares the top of
         // the preview with the corner buttons, so it stops short of them.
@@ -1894,6 +2007,25 @@ public class JesScreen extends Screen implements Nav.Page {
         return 0;
     }
 
+    /** Opens the container under the mouse in the preview, by its marker or its block. False if there's none. */
+    private boolean openClicked(double mouseX, double mouseY) {
+        if (popup == null || popup.container == null || view == null || !viewport.contains(mouseX, mouseY)) {
+            return false;
+        }
+        for (Marker m : markerRects) {
+            if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
+                openContainer(m.container(), m.containers().size() > 1);
+                return true;
+            }
+        }
+        StructureSnapshot.Container clicked = viewport.pick(mouseX, mouseY).map(this::containerAt).orElse(null);
+        if (clicked == null) {
+            return false;
+        }
+        openContainer(clicked);
+        return true;
+    }
+
     private StructureSnapshot.Container containerAt(StructureViewport.Hit hit) {
         if (result == null || !result.succeeded()) {
             return null;
@@ -1938,7 +2070,10 @@ public class JesScreen extends Screen implements Nav.Page {
                 return true;
             }
             if (!popup.contains(mouseX, mouseY, font)) {
-                closePopup();
+                // A container clicked in the preview beside the popup opens instead; anywhere else closes it.
+                if (button != 0 || !openClicked(mouseX, mouseY)) {
+                    closePopup();
+                }
             } else if (!popupHovered.isEmpty()) {
                 openFoundIn(popupHovered);
             }
@@ -1947,7 +2082,7 @@ public class JesScreen extends Screen implements Nav.Page {
         if (button == 0) {
             for (Marker m : markerRects) {
                 if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
-                    openContainer(m.container());
+                    openContainer(m.container(), m.containers().size() > 1);
                     return true;
                 }
             }

@@ -53,6 +53,11 @@ final class ChestPopup {
     final Component title;
     final int size;
     final int rows;
+    /**
+     * Which of the {@code count} containers with this table it is, or -1 when it was opened from
+     * something standing for all of them, a row in the Loot tab or a marker they share, and none has
+     * been picked yet. Until one is, what acts on a particular container waits.
+     */
     final int index;
     final int count;
     /** What a container like this is called in text: "chest", "suspicious sand", or "container". */
@@ -100,6 +105,26 @@ final class ChestPopup {
                 Component.translatable("screen.justenoughstructures.container").getString(), View.ODDS);
     }
 
+    /** Showing all the containers with this table rather than a particular one of them. */
+    boolean overview() {
+        return container != null && index < 0;
+    }
+
+    /** "3 / 17", or "all 17" before one is picked, or null for a container that's the only one like it. */
+    private String indexText() {
+        if (count <= 1) {
+            return null;
+        }
+        return overview() ? Component.translatable("screen.justenoughstructures.container_all", count).getString()
+                : Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString();
+    }
+
+    /** Sits beside the preview at {@code x}, so the containers it's about can be seen. */
+    void placeAt(int x, int screenHeight, Font font) {
+        this.x = x;
+        y = Math.max(4, (screenHeight - height(font)) / 2);
+    }
+
     /** Whether there's a table to show the chances of, which is what the tabs switch to. */
     boolean hasTabs() {
         return table != null;
@@ -131,8 +156,10 @@ final class ChestPopup {
     private List<FormattedCharSequence> noteLines(Font font) {
         String changedFrom = container == null || container.source() == null ? null : container.source().patchedFrom();
         Component note;
-        if (packTools && changedFrom != null) {
+        if (packTools && changedFrom != null && !overview()) {
             note = Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.lootTable(changedFrom));
+        } else if (overview() && table == null) {
+            note = Component.translatable("screen.justenoughstructures.popup_pick_saved");
         } else if (table == null) {
             note = Component.translatable("screen.justenoughstructures.popup_saved_items");
         } else if (view == View.ODDS) {
@@ -140,7 +167,7 @@ final class ChestPopup {
         } else if (items == null) {
             note = Component.translatable("screen.justenoughstructures.rolling");
         } else {
-            note = container == null ? Component.translatable("screen.justenoughstructures.popup_table_roll_hint")
+            note = container == null || overview() ? Component.translatable("screen.justenoughstructures.popup_table_roll_hint")
                     : Component.translatable("screen.justenoughstructures.popup_roll_hint", kind);
         }
         List<FormattedCharSequence> lines = font.split(note, (int) ((WIDTH - 14) / Gui.fineScale()));
@@ -151,7 +178,10 @@ final class ChestPopup {
     private int titleRoom(Font font) {
         int room = WIDTH - 16;
         if (count > 1) {
-            room -= font.width(Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString()) + 4;
+            // Room for the widest it can say, so the popup doesn't change shape as the arrows step.
+            int all = font.width(Component.translatable("screen.justenoughstructures.container_all", count).getString());
+            int last = font.width(Component.translatable("screen.justenoughstructures.container_index", count, count).getString());
+            room -= Math.max(all, last) + 4;
         }
         if (hasTabs()) {
             room -= tabWidth(font, "popup_roll") + 2 + tabWidth(font, "popup_odds") + 4;
@@ -162,6 +192,16 @@ final class ChestPopup {
     /** The title bar: one line, or two when the name doesn't fit beside the tabs. */
     private int headerHeight(Font font) {
         return font.width(title.getString()) > titleRoom(font) ? 17 + font.lineHeight + 1 : 17;
+    }
+
+    /** Whether the name goes on a line of its own under the tabs, as a word of it won't fit beside them. */
+    private boolean titleBelow(Font font) {
+        for (String word : title.getString().split(" ")) {
+            if (font.width(word) > titleRoom(font)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     int height(Font font) {
@@ -222,8 +262,8 @@ final class ChestPopup {
         g.blit(TEXTURE, x, y + header + body, 0, 215, WIDTH, 7);
 
         int right = x + WIDTH - 8;
-        if (count > 1) {
-            String of = Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString();
+        String of = indexText();
+        if (of != null) {
             right -= font.width(of);
             g.drawString(font, of, right, y + 6, Gui.LABEL_SOFT, false);
             right -= 4;
@@ -232,7 +272,9 @@ final class ChestPopup {
             right = tab(g, font, Action.ODDS, "popup_odds", view == View.ODDS, right, mouseX, mouseY);
             right = tab(g, font, Action.ROLL, "popup_roll", view == View.ROLL, right - 2, mouseX, mouseY);
         }
-        if (header > 17) {
+        if (header > 17 && titleBelow(font)) {
+            g.drawString(font, Gui.clip(font, title.getString(), WIDTH - 16), x + 8, y + 6 + font.lineHeight + 1, Gui.LABEL, false);
+        } else if (header > 17) {
             List<FormattedCharSequence> lines = font.split(title, titleRoom(font));
             for (int i = 0; i < Math.min(2, lines.size()); i++) {
                 g.drawString(font, lines.get(i), x + 8, y + 6 + i * (font.lineHeight + 1), Gui.LABEL, false);
@@ -257,25 +299,33 @@ final class ChestPopup {
             int w = Gui.fineWidth(font, text);
             int left = iconRight - w;
             boolean over = mouseX >= left && mouseX < iconRight && mouseY >= cy - 1 && mouseY < cy + Gui.fineLine(font) + 1;
-            Gui.fine(g, font, text, left, cy, over ? 0xFF2040C0 : 0xFF3A55A0);
-            if (over) {
-                g.fill(left, cy + Gui.fineLine(font), iconRight, cy + Gui.fineLine(font) + 1, 0xFF2040C0);
-                hoveredTip = List.of(Component.translatable(byCode ? (table == null ? "screen.justenoughstructures.tools.cant_change_items"
-                        : "screen.justenoughstructures.container.edit_table_hint") : "screen.justenoughstructures.container.change_hint"));
-            }
-            if (!byCode || table != null) {
-                links.put(Action.CHANGE, new int[]{left, cy - 1, w, Gui.fineLine(font) + 2});
+            if (overview() && !byCode) {
+                Gui.fine(g, font, text, left, cy, Gui.LABEL_SOFT);
+                if (over) {
+                    hoveredTip = pickOne();
+                }
+            } else {
+                Gui.fine(g, font, text, left, cy, over ? 0xFF2040C0 : 0xFF3A55A0);
+                if (over) {
+                    g.fill(left, cy + Gui.fineLine(font), iconRight, cy + Gui.fineLine(font) + 1, 0xFF2040C0);
+                    hoveredTip = List.of(Component.translatable(byCode ? (table == null ? "screen.justenoughstructures.tools.cant_change_items"
+                            : "screen.justenoughstructures.container.edit_table_hint") : "screen.justenoughstructures.container.change_hint"));
+                }
+                if (!byCode || table != null) {
+                    links.put(Action.CHANGE, new int[]{left, cy - 1, w, Gui.fineLine(font) + 2});
+                }
             }
         } else if (showsIcons()) {
             // Pack tools' shortcuts: the table, and the container itself, each with a wrench on it.
             if (table != null) {
-                iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY,
+                iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY, true,
                         List.of(Component.translatable("screen.justenoughstructures.tools.open_table"),
                                 Component.translatable("screen.justenoughstructures.tools.open_table_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
             }
             if (container != null) {
+                // The table is the same for the whole group, but the container has to be a particular one.
                 toolsIcon(g, Action.TOOLS_CONTAINER, icon.isEmpty() ? new ItemStack(net.minecraft.world.item.Items.CHEST) : icon, iconRight - 2, cy,
-                        mouseX, mouseY, List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
+                        mouseX, mouseY, !overview(), overview() ? pickOne() : List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
                                 Component.translatable("screen.justenoughstructures.tools.open_container_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
             }
         }
@@ -352,13 +402,25 @@ final class ChestPopup {
         return hovered;
     }
 
-    /** An item with a small wrench on it, that opens something in Pack tools. Returns its left edge. */
-    private int toolsIcon(GuiGraphics g, Action action, ItemStack stack, int right, int top, int mouseX, int mouseY, List<Component> tip) {
+    /** The tooltip of what can't be done until a specific container is picked. */
+    private static List<Component> pickOne() {
+        return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one"),
+                Component.translatable("screen.justenoughstructures.tools.pick_one_hint").withStyle(net.minecraft.ChatFormatting.GRAY));
+    }
+
+    /**
+     * An item with a small wrench on it, that opens something in Pack tools, or greyed out when it
+     * can't yet. Returns its left edge.
+     */
+    private int toolsIcon(GuiGraphics g, Action action, ItemStack stack, int right, int top, int mouseX, int mouseY, boolean enabled,
+                          List<Component> tip) {
         int left = right - ICON;
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
         if (over) {
-            g.fill(left, top, right, top + ICON, 0xFF555555);
-            g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
+            if (enabled) {
+                g.fill(left, top, right, top + ICON, 0xFF555555);
+                g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
+            }
             hoveredTip = tip;
         }
         g.pose().pushPose();
@@ -369,8 +431,14 @@ final class ChestPopup {
         g.pose().pushPose();
         g.pose().translate(0, 0, 200);
         g.blit(PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
+        if (!enabled) {
+            // The panel's own grey over the item and wrench, so they show through faintly.
+            g.fill(left, top, right, top + ICON, 0xA0C6C6C6);
+        }
         g.pose().popPose();
-        links.put(action, new int[]{left, top, ICON, ICON});
+        if (enabled) {
+            links.put(action, new int[]{left, top, ICON, ICON});
+        }
         return left;
     }
 

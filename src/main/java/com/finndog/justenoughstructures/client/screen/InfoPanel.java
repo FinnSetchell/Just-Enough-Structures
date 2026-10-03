@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.ChatFormatting;
@@ -88,7 +89,8 @@ final class InfoPanel {
 
     private final Font font;
     private final Consumer<String> onSelectTable;
-    private final Consumer<StructureSnapshot.Container> onOpenContainer;
+    /** Opens a container, and whether it was picked from a row standing for several. */
+    private final BiConsumer<StructureSnapshot.Container, Boolean> onOpenContainer;
     private final Consumer<ItemStack> onItemClicked;
     private Consumer<String> onOpenTable = table -> {
     };
@@ -122,7 +124,7 @@ final class InfoPanel {
     private record Hotspot(int x, int y, int w, int h, Runnable action) {
     }
 
-    InfoPanel(Font font, Consumer<String> onSelectTable, Consumer<StructureSnapshot.Container> onOpenContainer,
+    InfoPanel(Font font, Consumer<String> onSelectTable, BiConsumer<StructureSnapshot.Container, Boolean> onOpenContainer,
               Consumer<ItemStack> onItemClicked) {
         this.font = font;
         this.onSelectTable = onSelectTable;
@@ -719,7 +721,7 @@ final class InfoPanel {
                     hoveredBlocks = new Hovered(key, s -> positionsOf(containers));
                 }
                 highlightRows.put("loot:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
-                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenContainer.accept(first)));
+                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenContainer.accept(first, containers.size() > 1)));
                 cy += rowHeight + 1;
             }
         }
