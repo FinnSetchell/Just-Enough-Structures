@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
@@ -31,14 +32,19 @@ import org.joml.Vector3f;
  * mesh, built as if everything above it were air, so its top faces aren't missing.
  *
  * <p>Layers are built a few at a time from the render thread, within a time budget, because 1.20.1
- * buffer builders can't be freed and so can't be handed to other threads freely.
+ * buffer builders can't be freed and so can't be handed to other threads freely. A layer too big for
+ * one frame's budget is built in pieces, a few rows at a time, over as many frames as it takes.
  */
 public final class SnapshotMesh implements AutoCloseable {
     private static final Map<RenderType, BufferBuilder> BUILDERS = new HashMap<>();
 
     private final SnapshotView view;
-    private final List<Map<RenderType, VertexBuffer>> layers = new ArrayList<>();
-    private Map<RenderType, VertexBuffer> cap = Map.of();
+    /** Each finished layer, in the pieces it was built in. */
+    private final List<List<Piece>> layers = new ArrayList<>();
+    /** The pieces so far of the layer being built, and the row it's up to. */
+    private final List<Piece> current = new ArrayList<>();
+    private int nextRow;
+    private List<Piece> cap = List.of();
     private int capY = -1;
     private boolean closed;
     // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
@@ -54,7 +60,10 @@ public final class SnapshotMesh implements AutoCloseable {
     }
 
     public float progress() {
-        return view.size().getY() == 0 ? 1f : (float) layers.size() / view.size().getY();
+        if (view.size().getY() == 0) {
+            return 1f;
+        }
+        return (layers.size() + (float) nextRow / Math.max(1, view.size().getZ())) / view.size().getY();
     }
 
     /** Builds layers until {@code budgetNanos} is used up. Translucent faces are sorted from {@code eye}. */
@@ -64,7 +73,14 @@ public final class SnapshotMesh implements AutoCloseable {
         view.setSliceY(view.size().getY());
         try {
             while (building() && System.nanoTime() < deadline) {
-                layers.add(tesselate(layers.size(), eye));
+                Piece piece = tesselate(layers.size(), nextRow, deadline, eye);
+                current.add(piece);
+                nextRow = piece.lastRow();
+                if (nextRow >= view.size().getZ()) {
+                    layers.add(List.copyOf(current));
+                    current.clear();
+                    nextRow = 0;
+                }
             }
         } finally {
             view.setSliceY(keepSlice);
@@ -83,14 +99,15 @@ public final class SnapshotMesh implements AutoCloseable {
         int slice = view.sliceY();
         boolean sliced = slice < view.size().getY();
         if (sliced && capY != slice - 1) {
-            cap.values().forEach(this::closeBuffer);
-            cap = tesselate(slice - 1, eye);
+            cap.forEach(this::closePiece);
+            cap = List.of(tesselate(slice - 1, 0, Long.MAX_VALUE, eye));
             capY = slice - 1;
         }
         int fullLayers = Math.min(layers.size(), sliced ? slice - 1 : slice);
-        boolean withCap = sliced && layers.size() >= slice - 1;
+        // The cap, when there is one, is the layer straight above the full ones.
+        int drawn = fullLayers + (sliced && layers.size() >= slice - 1 ? 1 : 0);
         for (RenderType type : RenderType.chunkBufferLayers()) {
-            if (!anyOf(type, fullLayers, withCap)) {
+            if (!anyOf(type, fullLayers, drawn)) {
                 continue;
             }
             type.setupRenderState();
@@ -99,13 +116,18 @@ public final class SnapshotMesh implements AutoCloseable {
                 // Set up once for every layer of this type, as vanilla does for chunks, rather than
                 // once per layer, which is hundreds of times a frame for a tall structure.
                 prepare(shader, viewMatrix, projection);
-                // The cap, when there is one, is the layer straight above the full ones.
-                int drawn = fullLayers + (withCap ? 1 : 0);
                 if (type == RenderType.translucent()) {
-                    drawFarthestFirst(type, fullLayers, drawn, eye.y());
+                    // See-through layers furthest from the eye first, so nearer ones blend over them
+                    // from below as well as above, and the same for the pieces of each layer.
+                    farthestFirst(drawn, (int) Math.floor(eye.y()), y -> {
+                        List<Piece> pieces = layer(y, fullLayers);
+                        farthestFirst(pieces.size(), pieceAt(pieces, eye.z()), i -> drawBuffer(pieces.get(i).buffers().get(type)));
+                    });
                 } else {
                     for (int y = 0; y < drawn; y++) {
-                        drawBuffer(layer(y, fullLayers).get(type));
+                        for (Piece piece : layer(y, fullLayers)) {
+                            drawBuffer(piece.buffers().get(type));
+                        }
                     }
                 }
                 shader.clear();
@@ -115,33 +137,42 @@ public final class SnapshotMesh implements AutoCloseable {
         VertexBuffer.unbind();
     }
 
-    private boolean anyOf(RenderType type, int fullLayers, boolean withCap) {
-        if (withCap && cap.containsKey(type)) {
-            return true;
-        }
-        for (int y = 0; y < fullLayers; y++) {
-            if (layers.get(y).containsKey(type)) {
-                return true;
+    private boolean anyOf(RenderType type, int fullLayers, int drawn) {
+        for (int y = 0; y < drawn; y++) {
+            for (Piece piece : layer(y, fullLayers)) {
+                if (piece.buffers().containsKey(type)) {
+                    return true;
+                }
             }
         }
         return false;
     }
 
-    private Map<RenderType, VertexBuffer> layer(int y, int fullLayers) {
+    private List<Piece> layer(int y, int fullLayers) {
         return y < fullLayers ? layers.get(y) : cap;
     }
 
-    /** See-through layers furthest from the eye first, so nearer ones blend over them from below as well as above. */
-    private void drawFarthestFirst(RenderType type, int fullLayers, int drawn, float eyeY) {
-        int nearest = Math.max(0, Math.min(drawn - 1, (int) Math.floor(eyeY)));
-        int below = 0;
-        int above = drawn - 1;
-        while (below <= above) {
-            // Whichever end is further from the eye goes next.
-            if (nearest - below >= above - nearest) {
-                drawBuffer(layer(below++, fullLayers).get(type));
+    /** Which of a layer's pieces has the row {@code z} in it, or the nearest one. */
+    private static int pieceAt(List<Piece> pieces, float z) {
+        for (int i = 0; i < pieces.size(); i++) {
+            if (z < pieces.get(i).lastRow()) {
+                return i;
+            }
+        }
+        return pieces.size() - 1;
+    }
+
+    /** Calls {@code draw} with 0 to {@code count - 1}, furthest from {@code nearest} first. */
+    private static void farthestFirst(int count, int nearest, IntConsumer draw) {
+        nearest = Math.max(0, Math.min(count - 1, nearest));
+        int low = 0;
+        int high = count - 1;
+        while (low <= high) {
+            // Whichever end is further goes next.
+            if (nearest - low >= high - nearest) {
+                draw.accept(low++);
             } else {
-                drawBuffer(layer(above--, fullLayers).get(type));
+                draw.accept(high--);
             }
         }
     }
@@ -202,14 +233,19 @@ public final class SnapshotMesh implements AutoCloseable {
         }
     }
 
-    private Map<RenderType, VertexBuffer> tesselate(int y, Vector3f eye) {
+    /**
+     * Builds layer {@code y} from row {@code fromRow}, a row at a time until the end of the layer or
+     * {@code deadline}, whichever comes first, but always at least one row.
+     */
+    private Piece tesselate(int y, int fromRow, long deadline, Vector3f eye) {
         BlockRenderDispatcher dispatcher = Minecraft.getInstance().getBlockRenderer();
         Map<RenderType, BufferBuilder> started = new HashMap<>();
         PoseStack pose = new PoseStack();
         RandomSource random = RandomSource.create();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
-        for (int z = 0; z < view.size().getZ(); z++) {
+        int z = fromRow;
+        while (z < view.size().getZ()) {
             for (int x = 0; x < view.size().getX(); x++) {
                 pos.set(x, y, z);
                 BlockState state = view.getBlockState(pos);
@@ -228,6 +264,10 @@ public final class SnapshotMesh implements AutoCloseable {
                     dispatcher.renderBatched(state, pos, view, pose, builder, true, random);
                     pose.popPose();
                 }
+            }
+            z++;
+            if (deadline != Long.MAX_VALUE && System.nanoTime() >= deadline) {
+                break;
             }
         }
 
@@ -252,7 +292,7 @@ public final class SnapshotMesh implements AutoCloseable {
             }
         }
         VertexBuffer.unbind();
-        return out;
+        return new Piece(z, out);
     }
 
     /** Re-sorts every transparent layer from {@code eye}, the way vanilla does for chunk sections. */
@@ -279,6 +319,14 @@ public final class SnapshotMesh implements AutoCloseable {
         buffer.close();
     }
 
+    private void closePiece(Piece piece) {
+        piece.buffers().values().forEach(this::closeBuffer);
+    }
+
+    /** Part of a layer, built in one go: its rows up to {@code lastRow} (not included). */
+    private record Piece(int lastRow, Map<RenderType, VertexBuffer> buffers) {
+    }
+
     private static BufferBuilder begin(Map<RenderType, BufferBuilder> started, RenderType type) {
         return started.computeIfAbsent(type, t -> {
             BufferBuilder builder = BUILDERS.computeIfAbsent(t, k -> new BufferBuilder(256 * 1024));
@@ -293,10 +341,12 @@ public final class SnapshotMesh implements AutoCloseable {
             return;
         }
         closed = true;
-        layers.forEach(layer -> layer.values().forEach(this::closeBuffer));
+        layers.forEach(layer -> layer.forEach(this::closePiece));
         layers.clear();
-        cap.values().forEach(this::closeBuffer);
-        cap = Map.of();
+        current.forEach(this::closePiece);
+        current.clear();
+        cap.forEach(this::closePiece);
+        cap = List.of();
         translucent.clear();
     }
 }

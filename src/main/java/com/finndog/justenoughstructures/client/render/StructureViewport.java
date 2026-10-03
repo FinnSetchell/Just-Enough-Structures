@@ -45,6 +45,11 @@ import org.joml.Vector4f;
  */
 public final class StructureViewport implements AutoCloseable {
     private static final float FOV = 50f;
+    /** The least and most time a frame spends building the mesh, while there's some to build. */
+    private static final long MIN_BUILD_NANOS = 6_000_000L;
+    private static final long MAX_BUILD_NANOS = 25_000_000L;
+    /** How long a frame may spend drawing block entities and entities it hasn't drawn before. */
+    private static final long FIRST_DRAWS_NANOS = 4_000_000L;
 
     private final Minecraft minecraft = Minecraft.getInstance();
     private SnapshotView view;
@@ -52,6 +57,11 @@ public final class StructureViewport implements AutoCloseable {
     private TextureTarget target;
     /** Block entities and entities in this view whose renderer threw. Skipped from then on, as it would throw every frame. */
     private final Set<Object> failed = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** How many of the view's block entities, then its entities, have been drawn at least once. */
+    private int firstDrawn;
+    /** When the last frame was drawn, and how much of it went on building the mesh. */
+    private long lastRender;
+    private long lastBuild;
 
     private float yaw;
     private float pitch;
@@ -72,6 +82,7 @@ public final class StructureViewport implements AutoCloseable {
         this.view = newView;
         this.mesh = newView == null ? null : new SnapshotMesh(newView);
         failed.clear();
+        firstDrawn = 0;
         resetCamera();
     }
 
@@ -227,14 +238,25 @@ public final class StructureViewport implements AutoCloseable {
         } else if (target.width != pixelWidth || target.height != pixelHeight) {
             target.resize(pixelWidth, pixelHeight, Minecraft.ON_OSX);
         }
+        long now = System.nanoTime();
         if (mesh.building()) {
-            mesh.buildSome(6_000_000L, eye);
+            // Building gets up to half as long as the rest of the frame took, so a frame that's
+            // already slow, like one full of chests, still leaves the mesh a fair share, without
+            // building ever making a frame much more than half as long again.
+            long rest = lastRender == 0 ? 0 : now - lastRender - lastBuild;
+            long budget = Math.max(MIN_BUILD_NANOS, Math.min(MAX_BUILD_NANOS, rest / 2));
+            mesh.buildSome(budget, eye);
+            lastBuild = System.nanoTime() - now;
+        } else {
+            lastBuild = 0;
         }
-        drawScene(target, partialTick, outlines, highlight);
+        lastRender = now;
+        drawScene(target, partialTick, outlines, highlight, false);
         blit(graphics);
     }
 
-    private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines, Highlight highlight) {
+    /** With {@code everything}, every block entity and entity is drawn, even ones not drawn before. */
+    private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines, Highlight highlight, boolean everything) {
         into.setClearColor(0f, 0f, 0f, 0f);
         into.clear(Minecraft.ON_OSX);
         into.bindWrite(true);
@@ -257,7 +279,7 @@ public final class StructureViewport implements AutoCloseable {
             // them, out of the preview. Vanilla draws the player in the inventory as Fancy for the same reason.
             RenderSystem.runAsFancy(() -> {
                 mesh.draw(viewMatrix, projection, eye);
-                drawDynamic(partialTick, outlines);
+                drawDynamic(partialTick, outlines, everything);
                 if (highlight != null) {
                     highlight.draw(viewMatrix, projection, view.sliceY());
                 }
@@ -270,6 +292,41 @@ public final class StructureViewport implements AutoCloseable {
             RenderSystem.restoreProjectionMatrix();
             minecraft.getMainRenderTarget().bindWrite(true);
             Lighting.setupFor3DItems();
+        }
+    }
+
+    private void drawBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose, MultiBufferSource buffers) {
+        BlockPos pos = be.getBlockPos();
+        if (pos.getY() >= slice || failed.contains(be)) {
+            return;
+        }
+        BlockEntityRenderer<BlockEntity> renderer = minecraft.getBlockEntityRenderDispatcher().getRenderer(be);
+        if (renderer == null) {
+            return;
+        }
+        pose.pushPose();
+        pose.translate(pos.getX(), pos.getY(), pos.getZ());
+        try {
+            renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+        } catch (RuntimeException e) {
+            failed.add(be);
+            JesLog.debug("Block entity renderer failed for {}", be, e);
+        }
+        pose.popPose();
+    }
+
+    private void drawEntity(Entity entity, int slice, EntityRenderDispatcher entities, PoseStack pose, MultiBufferSource buffers) {
+        if (entity.getY() >= slice || failed.contains(entity)) {
+            return;
+        }
+        try {
+            // Always at their current pose. They never tick, so their "last tick" rotations stay
+            // at whatever loading left them (0 for a mob's head and body), and blending towards
+            // those by a different amount each frame made them shake.
+            entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
+        } catch (RuntimeException e) {
+            failed.add(entity);
+            JesLog.debug("Entity renderer failed for {}", entity, e);
         }
     }
 
@@ -292,7 +349,7 @@ public final class StructureViewport implements AutoCloseable {
             width = pixels;
             height = pixels;
             fitToView();
-            drawScene(thumbnail, 0f, List.of(), null);
+            drawScene(thumbnail, 0f, List.of(), null, true);
         } finally {
             yaw = keepYaw;
             pitch = keepPitch;
@@ -306,47 +363,44 @@ public final class StructureViewport implements AutoCloseable {
         return thumbnail;
     }
 
-    private void drawDynamic(float partialTick, Collection<BlockPos> outlines) {
+    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
         PoseStack pose = new PoseStack();
         pose.mulPoseMatrix(viewMatrix);
         Lighting.setupLevel(new Matrix4f(viewMatrix));
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         int slice = view.sliceY();
 
+        // Drawing something for the first time can load its textures and models, and doing that for
+        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
+        // they come in a few at a time, in the same order every frame.
+        long firstDraws = 0;
+        int index = 0;
         for (BlockEntity be : view.blockEntities().values()) {
-            BlockPos pos = be.getBlockPos();
-            if (pos.getY() >= slice || failed.contains(be)) {
-                continue;
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
             }
-            BlockEntityRenderer<BlockEntity> renderer = minecraft.getBlockEntityRenderDispatcher().getRenderer(be);
-            if (renderer == null) {
-                continue;
+            long started = first ? System.nanoTime() : 0;
+            drawBlockEntity(be, slice, partialTick, pose, buffers);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
             }
-            pose.pushPose();
-            pose.translate(pos.getX(), pos.getY(), pos.getZ());
-            try {
-                renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
-            } catch (RuntimeException e) {
-                failed.add(be);
-                JesLog.debug("Block entity renderer failed for {}", be, e);
-            }
-            pose.popPose();
         }
 
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
         entities.setRenderShadow(false);
+        index = view.blockEntities().size();
         for (Entity entity : view.entities()) {
-            if (entity.getY() >= slice || failed.contains(entity)) {
-                continue;
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
             }
-            try {
-                // Always at their current pose. They never tick, so their "last tick" rotations stay
-                // at whatever loading left them (0 for a mob's head and body), and blending towards
-                // those by a different amount each frame made them shake.
-                entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
-            } catch (RuntimeException e) {
-                failed.add(entity);
-                JesLog.debug("Entity renderer failed for {}", entity, e);
+            long started = first ? System.nanoTime() : 0;
+            drawEntity(entity, slice, entities, pose, buffers);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
             }
         }
         entities.setRenderShadow(true);
