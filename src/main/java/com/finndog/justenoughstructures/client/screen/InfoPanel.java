@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -32,6 +33,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
@@ -50,6 +52,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -1261,7 +1264,7 @@ final class InfoPanel {
         return fineWrapped(g, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
     }
 
-    /** A mob's card: its spawn egg, its name and, on the right, {@code right}. */
+    /** A mob's card: its icon, its name and, on the right, {@code right}. */
     private int mobRow(GuiGraphics g, int cy, String mob, String right) {
         return mobRow(g, cy, mob, right, false);
     }
@@ -1276,13 +1279,55 @@ final class InfoPanel {
             g.fill(x + 1, cy + 1, contentRight - 1, cy + 21, Gui.ROW_HOVER);
         }
         Gui.slot(g, x + PAD + 1, cy + 2);
-        SpawnEggItem egg = type == null ? null : SpawnEggItem.byId(type);
-        if (egg != null) {
-            g.renderItem(new ItemStack(egg), x + PAD + 2, cy + 3);
+        ItemStack icon = type == null ? ItemStack.EMPTY : entityIcon(type);
+        if (!icon.isEmpty()) {
+            g.renderItem(icon, x + PAD + 2, cy + 3);
         }
         Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(right), TEXT);
         g.drawString(font, right, contentRight - 4 - font.width(right), cy + 7, Gui.LABEL_SOFT, false);
         return cy + 23;
+    }
+
+    /** Items for entities that have no spawn egg, worked out once for each kind. */
+    private static final Map<EntityType<?>, ItemStack> ENTITY_ITEMS = new HashMap<>();
+
+    /**
+     * What stands for an entity: its spawn egg, or for one without, like an armor stand, a minecart or
+     * an item frame, the item picking it in creative gives, which mods set for their own entities too.
+     * Failing that, an item with the entity's own id, or nothing.
+     */
+    static ItemStack entityIcon(EntityType<?> type) {
+        SpawnEggItem egg = SpawnEggItem.byId(type);
+        if (egg != null) {
+            return new ItemStack(egg);
+        }
+        ItemStack known = ENTITY_ITEMS.get(type);
+        if (known != null) {
+            return known;
+        }
+        ClientLevel level = Minecraft.getInstance().level;
+        ItemStack found = ItemStack.EMPTY;
+        if (level != null) {
+            try {
+                // A bare one, never added to the world: an item frame made from the structure's own
+                // data would give the item in it instead of the frame.
+                Entity entity = type.create(level);
+                ItemStack picked = entity == null ? null : entity.getPickResult();
+                if (picked != null && !picked.isEmpty()) {
+                    found = picked.copyWithCount(1);
+                }
+            } catch (RuntimeException | LinkageError e) {
+                JesLog.debug("Couldn't make a {} to find its item", BuiltInRegistries.ENTITY_TYPE.getKey(type), e);
+            }
+        }
+        if (found.isEmpty()) {
+            Item named = BuiltInRegistries.ITEM.get(BuiltInRegistries.ENTITY_TYPE.getKey(type));
+            found = named == Items.AIR ? ItemStack.EMPTY : new ItemStack(named);
+        }
+        if (level != null) {
+            ENTITY_ITEMS.put(type, found);
+        }
+        return found;
     }
 
     private static boolean inside(int mx, int my, int x, int y, int w, int h, int clipTop, int clipHeight) {
