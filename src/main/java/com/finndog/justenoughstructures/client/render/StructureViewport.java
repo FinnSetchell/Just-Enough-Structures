@@ -252,11 +252,16 @@ public final class StructureViewport implements AutoCloseable {
         LightTexture lightTexture = minecraft.gameRenderer.lightTexture();
         lightTexture.turnOnLightLayer();
         try {
-            mesh.draw(viewMatrix, projection, eye);
-            drawDynamic(partialTick, outlines);
-            if (highlight != null) {
-                highlight.draw(viewMatrix, projection, view.sliceY());
-            }
+            // Fabulous graphics sends see-through blocks and items to the world's own framebuffers and
+            // then switches back to the main one, which would take them, and everything drawn after
+            // them, out of the preview. Vanilla draws the player in the inventory as Fancy for the same reason.
+            RenderSystem.runAsFancy(() -> {
+                mesh.draw(viewMatrix, projection, eye);
+                drawDynamic(partialTick, outlines);
+                if (highlight != null) {
+                    highlight.draw(viewMatrix, projection, view.sliceY());
+                }
+            });
         } finally {
             lightTexture.turnOffLightLayer();
             RenderSystem.setShaderFogStart(fogStart);
