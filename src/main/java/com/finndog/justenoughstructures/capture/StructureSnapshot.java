@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,7 @@ public final class StructureSnapshot {
     private final int pieceCount;
     private volatile Int2IntOpenHashMap lookup;
     private volatile List<Container> containers;
+    private volatile List<Spawner> spawners;
 
     public StructureSnapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain, BlockPos origin, Vec3i size,
                              List<BlockState> palette, int[] positions, int[] states,
@@ -201,6 +203,32 @@ public final class StructureSnapshot {
         return out;
     }
 
+    /** Every spawner, worked out once like {@link #containers()}. */
+    public List<Spawner> spawners() {
+        List<Spawner> found = spawners;
+        if (found == null) {
+            List<Spawner> out = new ArrayList<>();
+            for (CompoundTag tag : blockEntities) {
+                if (tag.contains("SpawnData", Tag.TAG_COMPOUND)) {
+                    out.add(new Spawner(new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), SpawnerPatches.mobOf(tag),
+                            SpawnerPatches.othersOf(tag), Source.read(tag.getCompound(ContainerSources.SPAWNER_TAG))));
+                }
+            }
+            found = List.copyOf(out);
+            spawners = found;
+        }
+        return found;
+    }
+
+    /**
+     * A spawner found in the snapshot: its mob, or "" for none, and how many others it makes as well.
+     * {@code source} is where in which template it came from, with what mob it had before a dev
+     * changed it, or null when it can't be given another mob: structure code placed it, or picked
+     * its mob as it generated.
+     */
+    public record Spawner(BlockPos pos, String mob, int others, Source source) {
+    }
+
     /**
      * A container found in the snapshot. {@code lootTable} is null for one that was saved with items
      * but no table. {@code source} is where in which template it came from, or null when it wasn't
@@ -211,7 +239,7 @@ public final class StructureSnapshot {
 
     /**
      * The template a container came from and its spot in it, what block it is there, and the table it
-     * had before a dev changed it, or null if it's not been changed.
+     * had before a dev changed it, or null if it's not been changed. For a spawner, the mob it had.
      */
     public record Source(ResourceLocation template, BlockPos pos, ResourceLocation block, String patchedFrom) {
         static Source read(CompoundTag tag) {

@@ -5,6 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,7 +42,7 @@ public final class SpawnerPools {
     private static final Map<String, String> FILE_FIELDS = Map.of(
             "rs_spawner_resourcelocation", "rs_spawners",
             "integrated_api_spawner_resourcelocation", "integrated_structure_spawners");
-    private static final ThreadLocal<Map<Long, Pool>> RECORDED = new ThreadLocal<>();
+    private static final ThreadLocal<Recorded> RECORDED = new ThreadLocal<>();
     private static final Map<StructureProcessor, Optional<Pool>> KNOWN = Collections.synchronizedMap(new WeakHashMap<>());
 
     private SpawnerPools() {
@@ -52,29 +55,38 @@ public final class SpawnerPools {
     record Entry(String entity, int weight) {
     }
 
-    static void begin() {
-        RECORDED.set(new HashMap<>());
+    /**
+     * What a capture saw processors do to spawners: each one's pool by world position, and every
+     * spawner a processor changed at all, pool or not, whose mob the template then doesn't decide.
+     */
+    record Recorded(Map<Long, Pool> pools, LongSet touched) {
+        static final Recorded NONE = new Recorded(Map.of(), LongSets.EMPTY_SET);
     }
 
-    /** Stops recording, and gives back each spawner's pool by world position. */
-    static Map<Long, Pool> end() {
-        Map<Long, Pool> recorded = RECORDED.get();
+    static void begin() {
+        RECORDED.set(new Recorded(new HashMap<>(), new LongOpenHashSet()));
+    }
+
+    /** Stops recording, and gives back what was seen. */
+    static Recorded end() {
+        Recorded recorded = RECORDED.get();
         RECORDED.remove();
-        return recorded == null ? Map.of() : recorded;
+        return recorded == null ? Recorded.NONE : recorded;
     }
 
     /** Called after each processor handles a block of a template being placed. Does nothing outside a capture. */
     public static void processed(StructureProcessor processor, StructureTemplate.StructureBlockInfo before, StructureTemplate.StructureBlockInfo after) {
-        Map<Long, Pool> recorded = RECORDED.get();
+        Recorded recorded = RECORDED.get();
         if (recorded == null || after == null || !(after.state().getBlock() instanceof SpawnerBlock) || Objects.equals(before.nbt(), after.nbt())) {
             return;
         }
+        recorded.touched().add(after.pos().asLong());
         // The last processor to change a spawner decides its mob.
         Pool pool = KNOWN.computeIfAbsent(processor, p -> Optional.ofNullable(read(p))).orElse(null);
         if (pool != null) {
-            recorded.put(after.pos().asLong(), pool);
+            recorded.pools().put(after.pos().asLong(), pool);
         } else {
-            recorded.remove(after.pos().asLong());
+            recorded.pools().remove(after.pos().asLong());
         }
     }
 

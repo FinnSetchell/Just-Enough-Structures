@@ -5,10 +5,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-/** Readable names for structures, mods and loot tables. */
+/** Readable names for structures, mods, loot tables and mobs. */
 public final class StructureNames {
     /** Names already worked out, as sorting the list asks for each one many times. Dropped when the language changes. */
     private static final Map<ResourceLocation, String> STRUCTURES = new ConcurrentHashMap<>();
@@ -52,6 +54,18 @@ public final class StructureNames {
         int slash = path.indexOf('/');
         String kind = slash > 0 ? path.substring(0, slash) : "chests";
         return kind.equals("chests") ? pretty(path) : pretty(path) + " (" + pretty(kind) + ")";
+    }
+
+    /** A mob's own name, or "Nothing" for none, or its id tidied up if the game doesn't know it. */
+    public static Component mob(String id) {
+        if (id == null || id.isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.tools.no_mob");
+        }
+        ResourceLocation parsed = ResourceLocation.tryParse(id);
+        if (parsed != null && BuiltInRegistries.ENTITY_TYPE.containsKey(parsed)) {
+            return BuiltInRegistries.ENTITY_TYPE.get(parsed).getDescription();
+        }
+        return Component.literal(parsed == null ? id : pretty(parsed.getPath()));
     }
 
     public static String pretty(String path) {

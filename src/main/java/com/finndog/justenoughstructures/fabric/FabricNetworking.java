@@ -74,6 +74,14 @@ final class FabricNetworking {
             server.execute(() -> JesServer.onContainerAction(player, requestId, template, pos, table));
         });
 
+        ServerPlayNetworking.registerGlobalReceiver(JesNetwork.SPAWNER_ACTION, (server, player, handler, buf, responder) -> {
+            int requestId = buf.readVarInt();
+            ResourceLocation template = buf.readResourceLocation();
+            BlockPos pos = buf.readBlockPos();
+            String mob = buf.readBoolean() ? buf.readUtf(256) : null;
+            server.execute(() -> JesServer.onSpawnerAction(player, requestId, template, pos, mob));
+        });
+
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_TOOLS, (server, player, handler, buf, responder) ->
                 server.execute(() -> JesServer.onRequestTools(player)));
 

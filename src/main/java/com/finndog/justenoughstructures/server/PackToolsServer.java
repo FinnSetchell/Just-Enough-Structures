@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.finndog.justenoughstructures.overrides.StructureInfoFiles;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,8 +23,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.loot.LootDataType;
 
 /**
- * Pack tools on the server: what it shows, and the changes it makes besides editing loot tables and
- * containers, which have their own requests. Only for players {@link PackToolsAccess} lets in.
+ * Pack tools on the server: what it shows, and the changes it makes besides editing loot tables,
+ * containers and spawners, which have their own requests. Only for players {@link PackToolsAccess} lets in.
  */
 public final class PackToolsServer {
     /** Changes saved since the last /reload, which only apply from the next one. */
@@ -53,12 +54,12 @@ public final class PackToolsServer {
         }
         List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.TABLE)));
         return new PackToolsState(ServerConfig.get(), Set.copyOf(PENDING), LootOverrides.statuses(server.getResourceManager()),
-                ContainerPatches.all(), structures, hidden, tables);
+                ContainerPatches.all(), SpawnerPatches.all(), structures, hidden, tables);
     }
 
     /**
-     * Saves the server's rules to server.json5 and puts them in use. Using changed containers only
-     * applies from the next /reload, as templates are only read then.
+     * Saves the server's rules to server.json5 and puts them in use. Using changed containers and
+     * spawners only applies from the next /reload, as templates are only read then.
      */
     public static Component saveRules(MinecraftServer server, ServerConfig.Settings asked) {
         ServerConfig.Settings before = ServerConfig.get();

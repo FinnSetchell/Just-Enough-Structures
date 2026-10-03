@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.gametest.PerfTests;
 import com.finndog.justenoughstructures.gametest.RealWorldTests;
 import com.finndog.justenoughstructures.gametest.ServiceTests;
 import com.finndog.justenoughstructures.gametest.SettingsTests;
+import com.finndog.justenoughstructures.gametest.SpawnerTests;
 import java.util.Collection;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -309,5 +310,36 @@ public final class FabricGameTests implements FabricGameTest {
     @GameTest(template = EMPTY_STRUCTURE, batch = "container_patch_reload", timeoutTicks = 1200)
     public void patchesApplyOnReload(GameTestHelper helper) {
         ContainerTests.patchesApplyOnReload(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void spawnerPatchesFollowTheirSpawner(GameTestHelper helper) {
+        SpawnerTests.patchesFollowTheirSpawner(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void patchedSpawnersKeepTheirMob(GameTestHelper helper) {
+        SpawnerTests.patchedSpawnersKeepTheirMob(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void spawnerPatchesAreChecked(GameTestHelper helper) {
+        SpawnerTests.patchesAreChecked(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void spawnerPatchesSurviveTheWire(GameTestHelper helper) {
+        SpawnerTests.spawnerPatchesSurviveTheWire(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void spawnersKnowTheirTemplate(GameTestHelper helper) {
+        SpawnerTests.spawnersKnowTheirTemplate(helper);
+    }
+
+    // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
+    public void spawnerPatchesApplyOnReload(GameTestHelper helper) {
+        SpawnerTests.patchesApplyOnReload(helper);
     }
 }

@@ -266,6 +266,23 @@ public final class ClientRequests {
         return future;
     }
 
+    /** Gives a spawner in a template another mob, "" for none, or with a null mob, back its own. */
+    public static CompletableFuture<EditReply> spawnerAction(ResourceLocation template, BlockPos pos, String mob) {
+        int requestId = nextRequestId++;
+        CompletableFuture<EditReply> future = new CompletableFuture<>();
+        EDITS.put(requestId, future);
+        send(JesNetwork.SPAWNER_ACTION, buf -> {
+            buf.writeVarInt(requestId);
+            buf.writeResourceLocation(template);
+            buf.writeBlockPos(pos);
+            buf.writeBoolean(mob != null);
+            if (mob != null) {
+                buf.writeUtf(mob, 256);
+            }
+        });
+        return future;
+    }
+
     /** Fills a container of {@code size} slots from an edit that isn't saved yet, as {@link #loot} does from a saved table. */
     public static CompletableFuture<List<ItemStack>> draftRoll(ResourceLocation id, String json, long seed, int size) {
         int requestId = nextRequestId++;

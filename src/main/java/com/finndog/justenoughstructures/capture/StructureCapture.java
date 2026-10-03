@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.capture;
 import com.finndog.justenoughstructures.JesLog;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import java.util.ArrayList;
@@ -238,7 +239,7 @@ public final class StructureCapture {
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(seed));
         TemplatePlacements.begin();
         SpawnerPools.begin();
-        Map<Long, SpawnerPools.Pool> pools = Map.of();
+        SpawnerPools.Recorded recorded = SpawnerPools.Recorded.NONE;
         try {
             for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
                 for (int cx = minChunkX; cx <= maxChunkX; cx++) {
@@ -259,12 +260,13 @@ public final class StructureCapture {
             SANDBOX_STRUCTURES.remove();
             SANDBOX_RANDOM.remove();
             TemplatePlacements.end();
-            pools = SpawnerPools.end();
+            recorded = SpawnerPools.end();
         }
 
-        Map<Long, CompoundTag> sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy());
-        Map<Long, ListTag> spawnerPools = SpawnerPools.resolve(pools, level.getServer().getResourceManager());
-        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources, spawnerPools);
+        ContainerSources.Found sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy());
+        Map<Long, ListTag> spawnerPools = SpawnerPools.resolve(recorded.pools(), level.getServer().getResourceManager());
+        StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources, spawnerPools,
+                recorded.touched());
         if (snapshot == null) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.placed_nothing", terrain.name()));
             return null;
@@ -448,8 +450,8 @@ public final class StructureCapture {
     }
 
     private static StructureSnapshot snapshot(ResourceLocation structureId, long seed, SandboxTerrain terrain,
-                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces, Map<Long, CompoundTag> sources,
-                                              Map<Long, ListTag> spawnerPools) {
+                                              CaptureRegion region, List<ChunkAccess> chunks, int pieces, ContainerSources.Found sources,
+                                              Map<Long, ListTag> spawnerPools, LongSet touched) {
         LongArrayList solid = new LongArrayList();
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
@@ -508,13 +510,18 @@ public final class StructureCapture {
                     tag.putInt("x", pos.getX() - minX);
                     tag.putInt("y", pos.getY() - minY);
                     tag.putInt("z", pos.getZ() - minZ);
-                    CompoundTag source = sources.get(pos.asLong());
+                    CompoundTag source = sources.containers().get(pos.asLong());
                     if (source != null && ContainerSources.matches(source, state, tag)) {
                         tag.put(ContainerSources.TAG, source.copy());
                     }
                     ListTag pool = spawnerPools.get(pos.asLong());
                     if (pool != null && SpawnerPools.matches(pool, tag)) {
                         tag.put(SpawnerPools.TAG, pool.copy());
+                    }
+                    // A spawner a processor changed gets its mob from the processor, not the template.
+                    CompoundTag spawner = sources.spawners().get(pos.asLong());
+                    if (spawner != null && !touched.contains(pos.asLong()) && ContainerSources.spawnerMatches(spawner, state, tag)) {
+                        tag.put(ContainerSources.SPAWNER_TAG, spawner.copy());
                     }
                     blockEntities.add(tag);
                 }

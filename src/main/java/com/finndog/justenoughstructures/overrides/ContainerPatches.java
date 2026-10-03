@@ -4,16 +4,10 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.server.ServerConfig;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,8 +30,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * removed is kept in the file's list of removed patches. Nothing here can stop a template loading.
  */
 public final class ContainerPatches {
-    private static final String FILE = "containers.json";
-    private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final PatchFile FILE = new PatchFile("containers.json");
 
     /** Points the container at {@code pos} in {@code template}, a {@code block} with the table {@code original}, at {@code table}. */
     public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, ResourceLocation table) {
@@ -64,8 +57,7 @@ public final class ContainerPatches {
     public static synchronized void load() {
         Map<ResourceLocation, List<Patch>> out = new HashMap<>();
         try {
-            JsonObject json = read(file());
-            for (JsonElement element : json.getAsJsonArray("patches")) {
+            for (JsonElement element : FILE.entries()) {
                 Patch patch = parse(element);
                 if (patch != null) {
                     out.computeIfAbsent(patch.template(), id -> new ArrayList<>()).add(patch);
@@ -73,7 +65,7 @@ public final class ContainerPatches {
             }
         } catch (IOException | RuntimeException e) {
             // Read on every /reload, so the same broken file is only worth one warning.
-            Path file = file();
+            Path file = FILE.path();
             JesLog.warnOnce("patches:" + file + "|" + e.getMessage(), "Couldn't read the container patches in {}, leaving containers as they are: {}",
                     file, e.toString());
             JesLog.debug("Couldn't read the container patches in {}", file, e);
@@ -100,14 +92,14 @@ public final class ContainerPatches {
     public static synchronized List<Patch> all() {
         List<Patch> out = new ArrayList<>();
         try {
-            for (JsonElement element : read(file()).getAsJsonArray("patches")) {
+            for (JsonElement element : FILE.entries()) {
                 Patch patch = parse(element);
                 if (patch != null) {
                     out.add(patch);
                 }
             }
         } catch (IOException | RuntimeException e) {
-            JesLog.debug("Couldn't read the container patches in {}", file(), e);
+            JesLog.debug("Couldn't read the container patches in {}", FILE.path(), e);
         }
         return out;
     }
@@ -169,20 +161,7 @@ public final class ContainerPatches {
     /** Saves a patch, replacing any for the same container. It applies from the next /reload. */
     public static synchronized Component save(Patch patch) {
         try {
-            JsonObject json = read(file());
-            JsonArray patches = json.getAsJsonArray("patches");
-            JsonArray kept = new JsonArray();
-            for (JsonElement element : patches) {
-                Patch existing = parse(element);
-                if (existing == null || !existing.template().equals(patch.template()) || !existing.pos().equals(patch.pos())) {
-                    kept.add(element);
-                }
-            }
-            JsonObject entry = toJson(patch);
-            entry.addProperty("saved", Instant.now().toString());
-            kept.add(entry);
-            json.add("patches", kept);
-            write(json);
+            FILE.save(patch.template(), patch.pos(), toJson(patch));
         } catch (IOException | RuntimeException e) {
             JustEnoughStructures.LOGGER.warn("Couldn't save the container patch for {} in {}: {}", patch.pos(), patch.template(), e.toString());
             JesLog.debug("Couldn't save the container patch for {} in {}", patch.pos(), patch.template(), e);
@@ -195,26 +174,9 @@ public final class ContainerPatches {
     /** Stops patching a container. The patch moves to the file's list of removed ones rather than going. */
     public static synchronized Component remove(ResourceLocation template, BlockPos pos) {
         try {
-            JsonObject json = read(file());
-            JsonArray kept = new JsonArray();
-            JsonArray removed = json.getAsJsonArray("removed");
-            boolean found = false;
-            for (JsonElement element : json.getAsJsonArray("patches")) {
-                Patch existing = parse(element);
-                if (existing != null && existing.template().equals(template) && existing.pos().equals(pos)) {
-                    JsonObject gone = element.getAsJsonObject().deepCopy();
-                    gone.addProperty("removed", Instant.now().toString());
-                    removed.add(gone);
-                    found = true;
-                } else {
-                    kept.add(element);
-                }
-            }
-            if (!found) {
+            if (!FILE.remove(template, pos)) {
                 return Component.translatable("screen.justenoughstructures.container.none");
             }
-            json.add("patches", kept);
-            write(json);
         } catch (IOException | RuntimeException e) {
             return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
         }
@@ -222,35 +184,10 @@ public final class ContainerPatches {
         return Component.translatable("screen.justenoughstructures.container.removed");
     }
 
-    private static Path file() {
-        return LootOverrides.folder().resolve(FILE);
-    }
-
-    private static JsonObject read(Path file) throws IOException {
-        JsonObject json = Files.exists(file) ? JsonParser.parseString(Files.readString(file)).getAsJsonObject() : new JsonObject();
-        if (!json.has("patches") || !json.get("patches").isJsonArray()) {
-            json.add("patches", new JsonArray());
-        }
-        if (!json.has("removed") || !json.get("removed").isJsonArray()) {
-            json.add("removed", new JsonArray());
-        }
-        return json;
-    }
-
-    private static void write(JsonObject json) throws IOException {
-        Path file = file();
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, PRETTY.toJson(json));
-    }
-
     private static JsonObject toJson(Patch patch) {
         JsonObject entry = new JsonObject();
         entry.addProperty("template", patch.template().toString());
-        JsonArray pos = new JsonArray();
-        pos.add(patch.pos().getX());
-        pos.add(patch.pos().getY());
-        pos.add(patch.pos().getZ());
-        entry.add("pos", pos);
+        entry.add("pos", PatchFile.pos(patch.pos()));
         entry.addProperty("block", patch.block().toString());
         entry.addProperty("original", patch.original());
         entry.addProperty("table", patch.table().toString());
@@ -260,15 +197,14 @@ public final class ContainerPatches {
     private static Patch parse(JsonElement element) {
         try {
             JsonObject entry = element.getAsJsonObject();
-            JsonArray pos = entry.getAsJsonArray("pos");
+            BlockPos pos = PatchFile.pos(entry);
             ResourceLocation template = ResourceLocation.tryParse(entry.get("template").getAsString());
             ResourceLocation block = ResourceLocation.tryParse(entry.get("block").getAsString());
             ResourceLocation table = ResourceLocation.tryParse(entry.get("table").getAsString());
-            if (template == null || block == null || table == null || pos.size() != 3) {
+            if (template == null || block == null || table == null || pos == null) {
                 return null;
             }
-            return new Patch(template, new BlockPos(pos.get(0).getAsInt(), pos.get(1).getAsInt(), pos.get(2).getAsInt()), block,
-                    entry.has("original") ? entry.get("original").getAsString() : "", table);
+            return new Patch(template, pos, block, entry.has("original") ? entry.get("original").getAsString() : "", table);
         } catch (RuntimeException e) {
             return null;
         }

@@ -47,6 +47,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
@@ -111,8 +112,11 @@ public class JesScreen extends Screen implements Nav.Page {
     private StructureViewport.Camera pendingCamera;
     /** A popup to open once the structure being gone back to arrives. */
     private Popup pendingPopup;
-    /** Picking a chest for Pack tools to change: markers show, and a chest's popup offers Change. */
-    private boolean picking;
+    /**
+     * Picking something in the preview for Pack tools to change. For a chest, markers show and a
+     * chest's popup offers Change; for a spawner, every spawner is ringed.
+     */
+    private Picking picking = Picking.NONE;
     private Button toolsButton;
     /** Where the Cancel button on the picking strip was last drawn. */
     private int[] pickCancel;
@@ -153,6 +157,11 @@ public class JesScreen extends Screen implements Nav.Page {
     private boolean pressedInViewport;
     private boolean dragged;
     private final List<Marker> markerRects = new ArrayList<>();
+
+    /** What the player is picking in the preview for Pack tools, if anything. */
+    enum Picking {
+        NONE, CHEST, SPAWNER
+    }
 
     /**
      * A marker on screen, at an exact (not pixel-rounded) position so it keeps up with the preview
@@ -708,7 +717,7 @@ public class JesScreen extends Screen implements Nav.Page {
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container),
                 all && same.size() > 1 ? -1 : same.indexOf(container), same.size());
         popup.view = keep;
-        popup.picking = picking;
+        popup.picking = picking == Picking.CHEST;
         popup.icon = InfoPanel.containerIcon(result.snapshot(), container);
         placePopup();
         layoutPopupButtons();
@@ -903,7 +912,7 @@ public class JesScreen extends Screen implements Nav.Page {
 
     /** The browser as it was: the structure and layout, the tab, the picked table, the camera and any popup. */
     private record BrowserLayer(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera,
-                                Popup popup, Component label, boolean picking) implements Nav.Layer {
+                                Popup popup, Component label, Picking picking) implements Nav.Layer {
         @Override
         public Object key() {
             return Arrays.asList(id, seed, tab, popup == null ? null : popup.key(), picking);
@@ -934,8 +943,9 @@ public class JesScreen extends Screen implements Nav.Page {
         } else {
             label = Component.literal(name);
         }
-        if (picking && open == null) {
-            label = Component.translatable("screen.justenoughstructures.nav.picking", name);
+        if (picking != Picking.NONE && open == null) {
+            label = Component.translatable(picking == Picking.CHEST ? "screen.justenoughstructures.nav.picking"
+                    : "screen.justenoughstructures.nav.picking_spawner", name);
         }
         String table = info.selectedTable() != null ? info.selectedTable() : pendingTable;
         return new BrowserLayer(selected.id(), seed, info.tab(), table, view == null ? pendingCamera : viewport.camera(), open, label, picking);
@@ -1073,6 +1083,14 @@ public class JesScreen extends Screen implements Nav.Page {
                 key = hovered.key();
                 wanted = hovered.positions();
             }
+        }
+        if (key == null && picking == Picking.SPAWNER && popup == null && foundIn == null) {
+            key = "picking:spawners";
+            wanted = s -> {
+                LongSet out = new LongOpenHashSet();
+                s.spawners().forEach(spawner -> out.add(spawner.pos().asLong()));
+                return out;
+            };
         }
         if (key == null || shown == null) {
             clearHighlight();
@@ -1239,27 +1257,54 @@ public class JesScreen extends Screen implements Nav.Page {
         ToolsChests.ChestRef ref = chestRef(open);
         Nav.remember();
         minecraft.setScreen(new TablePickerScreen(this, container.source(), open.table, open.title, (message, untilReload) -> {
-            picking = false;
+            picking = Picking.NONE;
             PackToolsScreen tools = new PackToolsScreen(this, PackToolsScreen.Section.CHESTS, ref);
             tools.say(message, true);
             return tools;
         }));
     }
 
-    /** Starts picking a chest to change, from Pack tools. */
-    void startPicking() {
-        picking = true;
+    /** Starts picking a chest or a spawner to change, from Pack tools. */
+    void startPicking(Picking what) {
+        picking = what;
         closePopup();
         foundIn = null;
     }
 
     public boolean picking() {
-        return picking;
+        return picking != Picking.NONE;
     }
 
     /** Starts picking a chest, as Pack tools' button does. For the screenshot harness. */
     public void pickForTools() {
-        startPicking();
+        startPicking(Picking.CHEST);
+    }
+
+    /** The spawner at a spot in the preview, or null. */
+    private StructureSnapshot.Spawner spawnerAt(StructureViewport.Hit hit) {
+        if (result == null || !result.succeeded() || hit.entity() != null) {
+            return null;
+        }
+        for (StructureSnapshot.Spawner spawner : result.snapshot().spawners()) {
+            if (spawner.pos().equals(hit.pos())) {
+                return spawner;
+            }
+        }
+        return null;
+    }
+
+    /** Whether clicking a spawner in the preview opens it in Pack tools. */
+    private boolean spawnersOpen() {
+        return picking == Picking.SPAWNER || ClientRequests.showsPackTools();
+    }
+
+    /** Opens a spawner clicked in the preview in Pack tools, where its mob can be changed. */
+    private void openSpawner(StructureSnapshot.Spawner spawner) {
+        if (selected == null || !spawnersOpen()) {
+            return;
+        }
+        openTools(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner));
+        picking = Picking.NONE;
     }
 
     /** The structure on show, or null. */
@@ -1270,13 +1315,13 @@ public class JesScreen extends Screen implements Nav.Page {
     /** Opens a structure from Pack tools, on a tab and with a table picked if given. */
     void showFromTools(ResourceLocation structure, InfoPanel.Tab tab, String table) {
         long layout = selected != null && selected.id().equals(structure) ? seed : defaultSeed(structure);
-        restorePlace(new BrowserLayer(structure, layout, tab, table, null, null, Component.empty(), false), true);
+        restorePlace(new BrowserLayer(structure, layout, tab, table, null, null, Component.empty(), Picking.NONE), true);
     }
 
     /** Opens a container from Pack tools, in the layout it was picked from, with its popup open. */
     void showContainerFromTools(ToolsChests.ChestRef ref) {
         Popup open = ref.pos() == null ? null : new ContainerPopup(ref.pos(), ref.entity(), ChestPopup.View.ROLL, ref.title(), false);
-        restorePlace(new BrowserLayer(ref.structure(), ref.seed(), InfoPanel.Tab.LOOT, ref.table(), null, open, Component.empty(), false), true);
+        restorePlace(new BrowserLayer(ref.structure(), ref.seed(), InfoPanel.Tab.LOOT, ref.table(), null, open, Component.empty(), Picking.NONE), true);
     }
 
     /** Where a tab on the open chest popup is ("roll" or "odds"), for the screenshot harness, or null. */
@@ -1785,7 +1830,7 @@ public class JesScreen extends Screen implements Nav.Page {
 
         StructureSnapshot s = result.snapshot();
         g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
-        if (ClientState.markers || picking) {
+        if (ClientState.markers || picking == Picking.CHEST) {
             placeMarkers(s);
             for (Marker m : markerRects) {
                 // Lit up like one under the mouse while a row about its container is hovered, as it hides the block.
@@ -1824,7 +1869,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         headerOverflow = null;
         headerLines = 1;
-        if (locateText != null && !picking) {
+        if (locateText != null && picking == Picking.NONE) {
             int room = Math.max(0, overlayLeft() - 4 - headerTextX());
             headerRoom = room;
             int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
@@ -1844,7 +1889,7 @@ public class JesScreen extends Screen implements Nav.Page {
             Gui.small(g, font, building, viewX + (viewW - Gui.smallWidth(font, building)) / 2, by - 9, 0xFFE0E0E0);
             g.fill(bx - 1, by - 1, bx + barW + 1, by + 5, 0xFF000000);
             g.fill(bx, by, bx + (int) (barW * viewport.meshProgress()), by + 4, 0xFF7FD06A);
-        } else if (picking) {
+        } else if (picking != Picking.NONE) {
             pickingStrip(g, mouseX, mouseY);
         } else {
             String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
@@ -1865,7 +1910,7 @@ public class JesScreen extends Screen implements Nav.Page {
         return hover;
     }
 
-    /** Along the bottom of the preview while picking a chest: what to do, and a way out. */
+    /** Along the bottom of the preview while picking a chest or spawner: what to do, and a way out. */
     private void pickingStrip(GuiGraphics g, int mouseX, int mouseY) {
         int top = viewY + viewH - 18;
         g.fill(viewX, top, viewX + viewW, viewY + viewH, 0xFF6AB0E9);
@@ -1876,15 +1921,17 @@ public class JesScreen extends Screen implements Nav.Page {
         g.blitNineSliced(new ResourceLocation("textures/gui/widgets.png"), cancelX, top + 2, cancelW, 14, 20, 4, 200, 20, 0, over ? 86 : 66);
         g.drawString(font, cancel, cancelX + 5, top + 5, 0xFFFFFFFF, true);
         pickCancel = new int[]{cancelX, top + 2, cancelW, 14};
-        String text = Component.translatable("screen.justenoughstructures.tools.picking").getString();
+        String text = Component.translatable(picking == Picking.CHEST ? "screen.justenoughstructures.tools.picking"
+                : "screen.justenoughstructures.tools.picking_spawner").getString();
         g.drawString(font, Gui.clip(font, text, cancelX - viewX - 10), viewX + 5, top + 5, 0xFF04263F, false);
     }
 
-    /** Stops picking, back to Pack tools' chests. */
+    /** Stops picking, back to Pack tools' chests or spawners. */
     private void cancelPicking() {
         Nav.remember();
-        picking = false;
-        minecraft.setScreen(new PackToolsScreen(this, PackToolsScreen.Section.CHESTS, null));
+        PackToolsScreen.Section section = picking == Picking.SPAWNER ? PackToolsScreen.Section.SPAWNERS : PackToolsScreen.Section.CHESTS;
+        picking = Picking.NONE;
+        minecraft.setScreen(new PackToolsScreen(this, section, null));
     }
 
     /**
@@ -2018,6 +2065,14 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             lines.add(Component.translatable("screen.justenoughstructures.hover_open").withStyle(ChatFormatting.YELLOW));
         }
+        StructureSnapshot.Spawner spawner = container == null ? spawnerAt(hit) : null;
+        if (spawner != null) {
+            lines.add(spawns(spawner).withStyle(ChatFormatting.AQUA));
+            if (spawnersOpen()) {
+                lines.add(Component.translatable(spawner.source() != null ? "screen.justenoughstructures.hover_change_spawner"
+                        : "screen.justenoughstructures.hover_open_spawner").withStyle(ChatFormatting.YELLOW));
+            }
+        }
         ResourceLocation id = hit.entity() != null ? BuiltInRegistries.ENTITY_TYPE.getKey(hit.entity().getType())
                 : BuiltInRegistries.BLOCK.getKey(hit.state().getBlock());
         if (details) {
@@ -2028,6 +2083,16 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         lines.add(Component.literal(StructureNames.mod(id.getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
         return lines;
+    }
+
+    /** "Spawns Zombie", or what a spawner with no mob or a mix of them makes. */
+    private static MutableComponent spawns(StructureSnapshot.Spawner spawner) {
+        if (spawner.mob().isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.hover_spawns_nothing");
+        }
+        Component mob = StructureNames.mob(spawner.mob());
+        return spawner.others() > 0 ? Component.translatable("screen.justenoughstructures.hover_spawns_mix", mob, spawner.others())
+                : Component.translatable("screen.justenoughstructures.hover_spawns", mob);
     }
 
     /** How many containers the marker covering {@code pos} stands for, or 0. */
@@ -2088,7 +2153,7 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return true;
         }
-        if (picking && popup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+        if (picking != Picking.NONE && popup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
                 && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
             cancelPicking();
             return true;
@@ -2180,7 +2245,13 @@ public class JesScreen extends Screen implements Nav.Page {
                     closePopup();
                 }
             } else if (!dragged && button == 0) {
-                viewport.pick(mouseX, mouseY).map(this::containerAt).ifPresent(this::openContainer);
+                Optional<StructureViewport.Hit> hit = viewport.pick(mouseX, mouseY);
+                StructureSnapshot.Container container = hit.map(this::containerAt).orElse(null);
+                if (container != null) {
+                    openContainer(container);
+                } else {
+                    hit.map(this::spawnerAt).ifPresent(this::openSpawner);
+                }
             }
             return true;
         }
@@ -2214,8 +2285,8 @@ public class JesScreen extends Screen implements Nav.Page {
             closePopup();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && picking) {
-            picking = false;
+        if (key == GLFW.GLFW_KEY_ESCAPE && picking != Picking.NONE) {
+            picking = Picking.NONE;
             return true;
         }
         if (key == GLFW.GLFW_KEY_U && !search.isFocused()) {

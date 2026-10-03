@@ -18,7 +18,7 @@ public final class JesNetwork {
      * channel's name, so a client and a server on different versions don't hear each other at all,
      * rather than misreading what they hear.
      */
-    public static final int PROTOCOL = 1;
+    public static final int PROTOCOL = 2;
 
     public static final ResourceLocation REQUEST_CATALOG = channel("request_catalog");
     public static final ResourceLocation REQUEST_CAPTURE = channel("request_capture");
@@ -30,6 +30,7 @@ public final class JesNetwork {
     public static final ResourceLocation REQUEST_TABLE = channel("request_table");
     public static final ResourceLocation TABLE_ACTION = channel("table_action");
     public static final ResourceLocation CONTAINER_ACTION = channel("container_action");
+    public static final ResourceLocation SPAWNER_ACTION = channel("spawner_action");
     /** Parts of something bigger than one packet from the client, like an edited loot table. */
     public static final ResourceLocation UPLOAD = channel("upload");
 

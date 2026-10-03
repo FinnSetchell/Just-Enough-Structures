@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,7 @@ final class ToolsOverview extends ToolsSection {
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.start"), x, cy, cw);
         int bx = x;
-        String[][] starts = {{"edit", "LOOT"}, {"chest", "CHESTS"}, {"new", null}, {"hide", "STRUCTURES"}, {"notes", "STRUCTURES"}};
+        String[][] starts = {{"edit", "LOOT"}, {"chest", "CHESTS"}, {"spawner", "SPAWNERS"}, {"new", null}, {"hide", "STRUCTURES"}, {"notes", "STRUCTURES"}};
         for (String[] start : starts) {
             Component label = Component.translatable("screen.justenoughstructures.tools.start." + start[0]);
             int bw = ui.buttonWidth(label) + 6;
@@ -75,6 +76,7 @@ final class ToolsOverview extends ToolsSection {
             }
             Runnable action = start[1] == null ? screen::newTable
                     : start[0].equals("chest") ? screen::pickChest
+                    : start[0].equals("spawner") ? screen::pickSpawner
                     : () -> screen.go(PackToolsScreen.Section.valueOf(start[1]), null);
             bx += ui.button(g, label, bx, cy, bw, ToolsUi.BUTTON + 2, true, action) + 3;
         }
@@ -94,6 +96,9 @@ final class ToolsOverview extends ToolsSection {
         }
         for (ContainerPatches.Patch patch : state.patches()) {
             cy += chestRow(g, ui, x, cy, cw, patch);
+        }
+        for (SpawnerPatches.Patch patch : state.spawners()) {
+            cy += spawnerRow(g, ui, x, cy, cw, patch);
         }
         scroller.end(g, ui, cy - top + 2);
     }
@@ -167,6 +172,20 @@ final class ToolsOverview extends ToolsSection {
                         Component.translatable("screen.justenoughstructures.container.undo_hint")));
         return row(g, ui, x, y, w, Icon.item(new net.minecraft.world.item.ItemStack(BuiltInRegistries.BLOCK.get(patch.block()))), name,
                 waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.CHANGED, detail, buttons, null, 0, false);
+    }
+
+    /** A changed spawner: where it is, what it made and makes now, and a way to open or undo it. */
+    private int spawnerRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, SpawnerPatches.Patch patch) {
+        String name = Component.translatable("screen.justenoughstructures.tools.chest_name", templateName(patch.template()),
+                BuiltInRegistries.BLOCK.get(patch.block()).getName()).getString();
+        boolean waiting = screen.waiting(PackToolsState.spawnerKey(patch.template(), patch.pos()));
+        List<RowButton> buttons = List.of(
+                RowButton.of("tools.open", () -> screen.go(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(patch))),
+                new RowButton(Component.translatable("screen.justenoughstructures.container.undo"), () -> screen.undoSpawner(patch.template(), patch.pos()),
+                        Component.translatable("screen.justenoughstructures.spawner.undo_hint")));
+        return row(g, ui, x, y, w, Icon.item(ToolsSpawners.mobIcon(patch.mob())), name,
+                waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.CHANGED,
+                ToolsSpawners.changed(patch), buttons, null, 0, false);
     }
 
     static String tableName(String table) {

@@ -14,6 +14,7 @@ import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import io.netty.buffer.Unpooled;
 import com.mojang.datafixers.util.Pair;
 import java.util.Optional;
@@ -156,11 +157,13 @@ public final class JesServer {
     public static void starting() {
         ServerConfig.load();
         ContainerPatches.load();
+        SpawnerPatches.load();
     }
 
     /** Called when the server starts and after /reload, since structures and loot can change. */
     public static void invalidate() {
         ContainerPatches.load();
+        SpawnerPatches.load();
         synchronized (CAPTURE_CACHE) {
             CAPTURE_CACHE.clear();
         }
@@ -344,6 +347,59 @@ public final class JesServer {
         return reply;
     }
 
+    /**
+     * Gives one spawner in a template another mob, or none when {@code mob} is empty, after checking
+     * the spawner is really there and the mob is one a spawner can make. It applies from the next /reload.
+     */
+    public static Component patchSpawner(ServerPlayer player, ResourceLocation template, BlockPos pos, String mob) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        Optional<StructureTemplate> loaded = player.getServer().getStructureManager().get(template);
+        if (loaded.isEmpty()) {
+            return Component.translatable("screen.justenoughstructures.container.no_template");
+        }
+        StructureTemplate.StructureBlockInfo spawner = null;
+        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) loaded.get()).justenoughstructures$palettes()) {
+            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
+                if (info.pos().equals(pos) && SpawnerPatches.isSpawner(info)) {
+                    spawner = info;
+                }
+            }
+        }
+        if (spawner == null) {
+            return Component.translatable("screen.justenoughstructures.spawner.not_there");
+        }
+        ResourceLocation id = mob.isEmpty() ? null : ResourceLocation.tryParse(mob);
+        if (!mob.isEmpty() && (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id) || !SpawnerPatches.spawnable(BuiltInRegistries.ENTITY_TYPE.get(id)))) {
+            return Component.translatable("screen.justenoughstructures.spawner.not_a_mob", mob);
+        }
+        if (!ServerConfig.get().containerChanges()) {
+            return Component.translatable("screen.justenoughstructures.spawner.turned_off");
+        }
+        // The template may already be patched, in which case what it had first is what the patch remembers.
+        SpawnerPatches.Patch existing = SpawnerPatches.find(template, pos);
+        String original = existing != null ? existing.original() : SpawnerPatches.ownMob(template, pos, spawner.nbt());
+        int others = existing != null ? existing.others() : SpawnerPatches.ownOthers(template, pos, spawner.nbt());
+        Component reply = SpawnerPatches.save(new SpawnerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(spawner.state().getBlock()),
+                original, others, id == null ? "" : id.toString()));
+        if (replyIs(reply, "spawner.saved")) {
+            PackToolsServer.waiting(PackToolsState.spawnerKey(template, pos));
+        }
+        return reply;
+    }
+
+    public static Component unpatchSpawner(ServerPlayer player, ResourceLocation template, BlockPos pos) {
+        if (!canEdit(player)) {
+            return Component.translatable("screen.justenoughstructures.override.no_permission");
+        }
+        Component reply = SpawnerPatches.remove(template, pos);
+        if (replyIs(reply, "spawner.removed")) {
+            PackToolsServer.waiting(PackToolsState.spawnerKey(template, pos));
+        }
+        return reply;
+    }
+
     // ------------------------------------------------------------------ Pack tools
 
     /** Everything Pack tools shows, for a player allowed to use it. */
@@ -375,6 +431,11 @@ public final class JesServer {
 
     public static void onContainerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, ResourceLocation table) {
         Component reply = table == null ? unpatchContainer(player, template, pos) : patchContainer(player, template, pos, table);
+        sendEditReply(player, requestId, reply, null);
+    }
+
+    public static void onSpawnerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, String mob) {
+        Component reply = mob == null ? unpatchSpawner(player, template, pos) : patchSpawner(player, template, pos, mob);
         sendEditReply(player, requestId, reply, null);
     }
 

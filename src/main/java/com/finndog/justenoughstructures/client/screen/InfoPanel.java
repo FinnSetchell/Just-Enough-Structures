@@ -1183,6 +1183,15 @@ final class InfoPanel {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = mobSection(g, cy, "placed", placed, true);
+        // For Pack tools: what the spawners of a row made before a dev gave them this mob.
+        Map<String, String> changedFrom = new HashMap<>();
+        if (ClientRequests.showsPackTools()) {
+            for (StructureSnapshot.Spawner spawner : s.spawners()) {
+                if (spawner.source() != null && spawner.source().patchedFrom() != null) {
+                    changedFrom.put(spawner.mob().isEmpty() ? "?" : spawner.mob(), spawner.source().patchedFrom());
+                }
+            }
+        }
         if (!spawners.isEmpty() || !picked.isEmpty() || !mixed.isEmpty()) {
             Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_spawners").getString(), x, cy, contentRight - x, 13);
             cy += 16;
@@ -1190,6 +1199,11 @@ final class InfoPanel {
                 int top = cy;
                 boolean over = where.containsKey(e.getKey()) && inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
                 cy = mobRow(g, cy, e.getKey(), Component.translatable("screen.justenoughstructures.times", e.getValue()).getString(), over);
+                String was = changedFrom.get(e.getKey());
+                if (was != null) {
+                    cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(was)),
+                            x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
+                }
                 hoverSpawners(mouseX, mouseY, top, cy, clipTop, clipHeight, "spawners:" + e.getKey(), where.get(e.getKey()));
             }
             cy = pools(g, cy, picked, "spawner_pool", mouseX, mouseY, clipTop, clipHeight, where);
@@ -1273,13 +1287,15 @@ final class InfoPanel {
     private int mobRow(GuiGraphics g, int cy, String mob, String right, boolean hovered) {
         ResourceLocation id = ResourceLocation.tryParse(mob);
         EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
-        Component name = type != null ? type.getDescription() : Component.literal(mob);
+        // "?" is a spawner with no mob at all.
+        boolean empty = mob.equals("?");
+        Component name = type != null ? type.getDescription() : empty ? StructureNames.mob("") : Component.literal(mob);
         Gui.card(g, x, cy, contentRight - x, 22);
         if (hovered) {
             g.fill(x + 1, cy + 1, contentRight - 1, cy + 21, Gui.ROW_HOVER);
         }
         Gui.slot(g, x + PAD + 1, cy + 2);
-        ItemStack icon = type == null ? ItemStack.EMPTY : entityIcon(type);
+        ItemStack icon = type != null ? entityIcon(type) : empty ? new ItemStack(Items.SPAWNER) : ItemStack.EMPTY;
         if (!icon.isEmpty()) {
             g.renderItem(icon, x + PAD + 2, cy + 3);
         }

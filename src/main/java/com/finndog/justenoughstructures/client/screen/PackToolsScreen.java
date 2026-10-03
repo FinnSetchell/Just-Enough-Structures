@@ -22,8 +22,9 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * Pack tools: everything a pack maker or server owner changes, in one place. Loot tables, the
- * containers pointed at other tables, which structures players see and what they're told about
- * them, and the server's rules. Opened from the browser, which it goes back to.
+ * containers pointed at other tables and spawners given other mobs, which structures players see
+ * and what they're told about them, and the server's rules. Opened from the browser, which it goes
+ * back to.
  */
 public final class PackToolsScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
@@ -34,7 +35,7 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     /** The parts of Pack tools, down the left. */
     enum Section {
-        OVERVIEW, LOOT, CHESTS, STRUCTURES, RULES;
+        OVERVIEW, LOOT, CHESTS, SPAWNERS, STRUCTURES, RULES;
 
         Component label() {
             return Component.translatable("screen.justenoughstructures.tools.section." + name().toLowerCase(Locale.ROOT));
@@ -62,6 +63,7 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
         sections.put(Section.OVERVIEW, new ToolsOverview(this));
         sections.put(Section.LOOT, new ToolsLoot(this));
         sections.put(Section.CHESTS, new ToolsChests(this));
+        sections.put(Section.SPAWNERS, new ToolsSpawners(this));
         sections.put(Section.STRUCTURES, new ToolsStructures(this));
         sections.put(Section.RULES, new ToolsRules(this));
         this.section = section;
@@ -181,13 +183,22 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     /** Back to the browser to click the chest to change. */
     void pickChest() {
+        pick(JesScreen.Picking.CHEST);
+    }
+
+    /** Back to the browser to click the spawner to change. */
+    void pickSpawner() {
+        pick(JesScreen.Picking.SPAWNER);
+    }
+
+    private void pick(JesScreen.Picking what) {
         JesScreen browser = browser();
         if (browser == null) {
             return;
         }
         Nav.remember();
         current().leaving();
-        browser.startPicking();
+        browser.startPicking(what);
         minecraft.setScreen(browser);
     }
 
@@ -244,6 +255,20 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     void undoChest(ResourceLocation template, net.minecraft.core.BlockPos pos) {
         ClientRequests.containerAction(template, pos, null).thenAccept(reply -> replied(reply, "container.removed"));
+    }
+
+    /** The mob picker for a spawner that makes {@code mob} now, which comes back here once one's picked. */
+    void changeSpawner(ToolsSpawners.SpawnerRef ref, String mob) {
+        if (ref.byCode()) {
+            return;
+        }
+        Nav.remember();
+        current().leaving();
+        minecraft.setScreen(new MobPickerScreen(this, ref.template(), ref.templatePos(), mob, TablePickerScreen.saysSo(this)));
+    }
+
+    void undoSpawner(ResourceLocation template, net.minecraft.core.BlockPos pos) {
+        ClientRequests.spawnerAction(template, pos, null).thenAccept(reply -> replied(reply, "spawner.removed"));
     }
 
     private void reloadNow() {

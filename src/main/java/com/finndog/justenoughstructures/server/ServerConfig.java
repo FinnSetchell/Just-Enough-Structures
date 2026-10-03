@@ -60,9 +60,9 @@ public final class ServerConfig {
                 "permission_level": %s
               },
 
-              // False stops using the containers pointed at other loot tables in the browser, so every
-              // structure is as its mod made it. They're kept in loot_overrides/containers.json, and
-              // used again when this is true.
+              // False stops using the containers pointed at other loot tables and the spawners given
+              // other mobs in the browser, so every structure is as its mod made it. They're kept in
+              // loot_overrides/containers.json and spawners.json, and used again when this is true.
               "container_changes": %s
             }
             """;

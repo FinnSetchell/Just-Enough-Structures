@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonObject;
@@ -137,6 +138,15 @@ public final class Codecs {
             buf.writeUtf(patch.original());
             buf.writeResourceLocation(patch.table());
         }
+        buf.writeVarInt(state.spawners().size());
+        for (SpawnerPatches.Patch patch : state.spawners()) {
+            buf.writeResourceLocation(patch.template());
+            buf.writeBlockPos(patch.pos());
+            buf.writeResourceLocation(patch.block());
+            buf.writeUtf(patch.original());
+            buf.writeVarInt(patch.others());
+            buf.writeUtf(patch.mob());
+        }
         buf.writeVarInt(state.structures().size());
         state.structures().forEach((id, written) -> {
             buf.writeResourceLocation(id);
@@ -161,6 +171,12 @@ public final class Codecs {
             patches.add(new ContainerPatches.Patch(buf.readResourceLocation(), buf.readBlockPos(), buf.readResourceLocation(), buf.readUtf(),
                     buf.readResourceLocation()));
         }
+        List<SpawnerPatches.Patch> spawners = new ArrayList<>();
+        count = buf.readVarInt();
+        for (int i = 0; i < count; i++) {
+            spawners.add(new SpawnerPatches.Patch(buf.readResourceLocation(), buf.readBlockPos(), buf.readResourceLocation(), buf.readUtf(),
+                    buf.readVarInt(), buf.readUtf()));
+        }
         Map<ResourceLocation, PackToolsState.Written> structures = new TreeMap<>();
         count = buf.readVarInt();
         for (int i = 0; i < count; i++) {
@@ -170,7 +186,7 @@ public final class Codecs {
         }
         List<StructureCatalog.Entry> hidden = readCatalog(buf);
         List<ResourceLocation> tables = buf.readList(FriendlyByteBuf::readResourceLocation);
-        return new PackToolsState(settings, pending, overrides, patches, structures, hidden, tables);
+        return new PackToolsState(settings, pending, overrides, patches, spawners, structures, hidden, tables);
     }
 
     // ------------------------------------------------------------------ captures
