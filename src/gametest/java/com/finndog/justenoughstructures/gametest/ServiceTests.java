@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
@@ -65,6 +66,30 @@ public final class ServiceTests {
             helper.assertTrue(decoded.get(i).id().equals(entries.get(i).id()), "catalog order changed at " + i);
             helper.assertTrue(String.valueOf(decoded.get(i).definition()).equals(String.valueOf(entries.get(i).definition())),
                     entries.get(i).id() + " definition changed on the way through");
+            helper.assertTrue(decoded.get(i).availability().equals(entries.get(i).availability()),
+                    entries.get(i).id() + " whether it generates changed on the way through");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Every structure says whether it turns up in new worlds. Vanilla ones do unless a mod replaces
+     * them, as Better Strongholds always does the stronghold.
+     */
+    public static void structuresSayIfTheyGenerate(GameTestHelper helper) {
+        Map<ResourceLocation, StructureCatalog.Entry> byId = StructureCatalog.build(helper.getLevel().registryAccess()).stream()
+                .collect(Collectors.toMap(StructureCatalog.Entry::id, Function.identity()));
+        for (String name : CaptureTests.VANILLA) {
+            Availability availability = byId.get(new ResourceLocation(name)).availability();
+            helper.assertTrue(availability != null, name + " doesn't say whether it generates");
+            helper.assertTrue(availability.generates() || availability.reason() == Availability.Reason.REPLACED
+                    || availability.reason() == Availability.Reason.TURNED_OFF, name + " is " + availability + ", but it's in a structure set");
+        }
+        if (byId.containsKey(new ResourceLocation("betterstrongholds", "stronghold"))) {
+            Availability stronghold = byId.get(new ResourceLocation("stronghold")).availability();
+            helper.assertTrue(stronghold.reason() == Availability.Reason.REPLACED && "betterstrongholds".equals(stronghold.by())
+                            && new ResourceLocation("betterstrongholds", "stronghold").equals(stronghold.replacedBy()),
+                    "the vanilla stronghold should be replaced by Better Strongholds' one, but is " + stronghold);
         }
         helper.succeed();
     }

@@ -282,7 +282,9 @@ final class StructureList {
                 starHovered |= onStar;
                 Gui.star(g, rowRight - 10, top + 5, favourite, onStar);
             }
-            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0), Gui.LABEL);
+            // Greyed when it won't turn up in new worlds, as the Info tab explains.
+            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0),
+                    row.entry().availability().generates() ? Gui.LABEL : Gui.LABEL_SOFT);
         }
         g.disableScissor();
 
@@ -307,6 +309,9 @@ final class StructureList {
             // Ids only for people who asked for them with F3+H, the same as item tooltips.
             if (Minecraft.getInstance().options.advancedItemTooltips) {
                 lines.add(Component.literal(id.toString()).withStyle(ChatFormatting.DARK_GRAY));
+            }
+            if (!hovered.entry().availability().generates()) {
+                lines.add(Component.translatable("screen.justenoughstructures.field.unavailable").withStyle(ChatFormatting.GOLD));
             }
             lines.add(Component.literal(StructureNames.mod(id.getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
             return lines;

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.network;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootIndex;
@@ -59,6 +60,12 @@ public final class Codecs {
                 buf.writeVarInt(set.weight());
             }
             writeInfo(buf, e.info());
+            buf.writeEnum(e.availability().reason());
+            buf.writeBoolean(e.availability().by() != null);
+            if (e.availability().by() != null) {
+                buf.writeUtf(e.availability().by());
+            }
+            writeNullableId(buf, e.availability().replacedBy());
         }
     }
 
@@ -92,7 +99,10 @@ public final class Codecs {
             for (int s = 0; s < setCount; s++) {
                 sets.add(new StructureCatalog.SetInfo(buf.readResourceLocation(), readJson(buf), buf.readVarInt()));
             }
-            out.add(new StructureCatalog.Entry(id, type, definition, sets, readInfo(buf)));
+            StructureInfo info = readInfo(buf);
+            Availability.Reason reason = buf.readEnum(Availability.Reason.class);
+            String by = buf.readBoolean() ? buf.readUtf() : null;
+            out.add(new StructureCatalog.Entry(id, type, definition, sets, info, new Availability(reason, by, readNullableId(buf))));
         }
         return out;
     }

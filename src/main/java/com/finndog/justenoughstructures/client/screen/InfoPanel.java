@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.client.ClientRequests;
@@ -331,6 +332,9 @@ final class InfoPanel {
         }
         JsonObject def = entry.definition();
         List<Holder<Biome>> biomes = biomes(def);
+        if (!entry.availability().generates()) {
+            cy = field(g, cy, "unavailable", unavailable(entry.availability()).getString());
+        }
 
         Set<String> dimensions = new LinkedHashSet<>();
         for (Holder<Biome> biome : biomes) {
@@ -584,6 +588,21 @@ final class InfoPanel {
     private static String biomeName(Holder<Biome> biome) {
         return biome.unwrapKey().map(key -> Component.translatable("biome." + key.location().getNamespace() + "." + key.location().getPath()).getString())
                 .orElse("?");
+    }
+
+    /** Why a structure won't turn up in new worlds, in a sentence. */
+    static Component unavailable(Availability availability) {
+        String by = availability.by() == null ? "" : StructureNames.mod(availability.by());
+        return switch (availability.reason()) {
+            case NO_SET -> Component.translatable("screen.justenoughstructures.unavailable.no_set");
+            case NEVER -> Component.translatable("screen.justenoughstructures.unavailable.never");
+            case TAGGED_OFF -> Component.translatable("screen.justenoughstructures.unavailable.tagged");
+            case TURNED_OFF -> Component.translatable("screen.justenoughstructures.unavailable.turned_off", by);
+            case REPLACED -> availability.replacedBy() != null
+                    ? Component.translatable("screen.justenoughstructures.unavailable.replaced", StructureNames.structure(availability.replacedBy()), by)
+                    : Component.translatable("screen.justenoughstructures.unavailable.replaced_by_mod", by);
+            case GENERATES -> Component.empty();
+        };
     }
 
     private int field(GuiGraphics g, int cy, String key, String value) {

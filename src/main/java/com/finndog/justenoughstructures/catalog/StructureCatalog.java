@@ -17,6 +17,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
@@ -51,10 +52,41 @@ public final class StructureCatalog {
             Structure structure = e.getValue();
             ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
             JsonObject definition = encode(Structure.DIRECT_CODEC.encodeStart(ops, structure).result());
-            out.add(new Entry(id, type, definition, List.copyOf(setsByStructure.getOrDefault(id, List.of())), StructureInfo.forStructure(id)));
+            List<SetInfo> inSets = List.copyOf(setsByStructure.getOrDefault(id, List.of()));
+            out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets)));
         }
         out.sort(Comparator.comparing(entry -> entry.id().toString()));
         return out;
+    }
+
+    private static final TagKey<Structure> INTEGRATED_API_DISABLED = TagKey.create(Registries.STRUCTURE,
+            new ResourceLocation("integrated_api", "disabled_structures"));
+
+    /** Whether the structure turns up in new worlds on its own, and if not, why. */
+    private static Availability availability(Registry<Structure> structures, ResourceKey<Structure> key, List<SetInfo> sets) {
+        Availability byMod = StructureDisables.check(key.location());
+        if (byMod != null) {
+            // A replacement that isn't there to look at isn't named.
+            return byMod.replacedBy() != null && !structures.containsKey(byMod.replacedBy())
+                    ? new Availability(byMod.reason(), byMod.by(), null) : byMod;
+        }
+        if (structures.getHolder(key).map(holder -> holder.is(INTEGRATED_API_DISABLED)).orElse(false)) {
+            return new Availability(Availability.Reason.TAGGED_OFF, "integrated_api", null);
+        }
+        if (sets.isEmpty()) {
+            return new Availability(Availability.Reason.NO_SET, null, null);
+        }
+        return sets.stream().anyMatch(set -> frequency(set.placement()) > 0) ? Availability.GENERATES
+                : new Availability(Availability.Reason.NEVER, null, null);
+    }
+
+    /** How often a set's placement tries at all: 1 unless it says otherwise. */
+    private static float frequency(JsonObject placement) {
+        try {
+            return placement != null && placement.has("frequency") ? placement.get("frequency").getAsFloat() : 1f;
+        } catch (RuntimeException e) {
+            return 1f;
+        }
     }
 
     private static JsonObject encode(Optional<JsonElement> json) {
@@ -63,11 +95,13 @@ public final class StructureCatalog {
 
     /**
      * One structure. {@code definition} is the structure's JSON as its codec writes it, or null when
-     * the codec couldn't encode it. {@code info} is what its mod or a datapack says about it.
+     * the codec couldn't encode it. {@code info} is what its mod or a datapack says about it, and
+     * {@code availability} whether it turns up in new worlds.
      */
-    public record Entry(ResourceLocation id, ResourceLocation type, JsonObject definition, List<SetInfo> sets, StructureInfo info) {
+    public record Entry(ResourceLocation id, ResourceLocation type, JsonObject definition, List<SetInfo> sets, StructureInfo info,
+                        Availability availability) {
         public Entry withInfo(StructureInfo newInfo) {
-            return new Entry(id, type, definition, sets, newInfo);
+            return new Entry(id, type, definition, sets, newInfo, availability);
         }
     }
 

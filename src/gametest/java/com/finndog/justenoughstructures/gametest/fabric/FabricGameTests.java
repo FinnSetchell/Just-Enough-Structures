@@ -67,6 +67,11 @@ public final class FabricGameTests implements FabricGameTest {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void structuresSayIfTheyGenerate(GameTestHelper helper) {
+        ServiceTests.structuresSayIfTheyGenerate(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void jesOpenCommand(GameTestHelper helper) {
         ServiceTests.jesOpenCommand(helper);
     }
