@@ -21,6 +21,7 @@ final class FabricNetworking {
 
     static void registerServer() {
         JesNetwork.setServerSender(ServerPlayNetworking::send);
+        JesNetwork.setServerCanSend(ServerPlayNetworking::canSend);
 
         ServerPlayNetworking.registerGlobalReceiver(JesNetwork.REQUEST_CATALOG, (server, player, handler, buf, responder) ->
                 server.execute(() -> JesServer.onRequestCatalog(player)));

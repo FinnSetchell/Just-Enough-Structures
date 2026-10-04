@@ -1,5 +1,7 @@
 {
   "key.categories.justenoughstructures": "Just Enough Structures",
+  "commands.justenoughstructures.open.unknown": "There's no structure %s to show",
+  "commands.justenoughstructures.open.no_mod": "Just Enough Structures isn't installed on your game, so there's no structure browser to open.",
   "key.justenoughstructures.open": "Open structure browser",
   "screen.justenoughstructures.title": "Just Enough Structures",
   "screen.justenoughstructures.search": "Search structures",

@@ -24,12 +24,14 @@ import java.util.stream.Collectors;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -64,6 +66,19 @@ public final class ServiceTests {
             helper.assertTrue(String.valueOf(decoded.get(i).definition()).equals(String.valueOf(entries.get(i).definition())),
                     entries.get(i).id() + " definition changed on the way through");
         }
+        helper.succeed();
+    }
+
+    /** /jes open is there for anyone, and turns away a player without the mod, or a structure that doesn't exist, without failing. */
+    public static void jesOpenCommand(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        helper.assertTrue(server.getCommands().getDispatcher().getRoot().getChild("jes") != null, "/jes isn't registered");
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        CommandSourceStack source = player.createCommandSourceStack().withPermission(0).withSuppressedOutput();
+        helper.assertTrue(server.getCommands().performPrefixedCommand(source, "jes open minecraft:igloo") == 0,
+                "/jes open worked for a player whose game doesn't have the mod");
+        helper.assertTrue(server.getCommands().performPrefixedCommand(source, "jes open nothing:here") == 0,
+                "/jes open worked for a structure that doesn't exist");
         helper.succeed();
     }
 

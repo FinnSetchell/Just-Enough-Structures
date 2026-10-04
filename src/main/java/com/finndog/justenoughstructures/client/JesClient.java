@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 public final class JesClient {
@@ -11,6 +12,23 @@ public final class JesClient {
             GLFW.GLFW_KEY_K, "key.categories.justenoughstructures");
 
     private JesClient() {
+    }
+
+    /** Opens the browser for /jes open, on {@code structure} if it's given, over whatever screen is showing. */
+    public static void openBrowser(Minecraft minecraft, ResourceLocation structure) {
+        if (minecraft.player == null) {
+            return;
+        }
+        if (minecraft.screen instanceof JesScreen browser) {
+            if (structure != null) {
+                browser.select(structure);
+            }
+            return;
+        }
+        if (structure != null) {
+            JesScreen.startOn(structure);
+        }
+        minecraft.setScreen(new JesScreen());
     }
 
     /** Called every client tick by the loader. */

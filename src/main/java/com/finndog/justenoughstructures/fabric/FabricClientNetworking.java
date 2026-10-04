@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.fabric;
 
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.JesClient;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -64,6 +65,11 @@ final class FabricClientNetworking {
             int requestId = buf.readVarInt();
             Component reply = buf.readComponent();
             client.execute(() -> ClientRequests.onLocate(requestId, reply));
+        });
+
+        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.OPEN_BROWSER, (client, handler, buf, responder) -> {
+            ResourceLocation structure = buf.readBoolean() ? buf.readResourceLocation() : null;
+            client.execute(() -> JesClient.openBrowser(client, structure));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(JesNetwork.SETTINGS, (client, handler, buf, responder) -> {

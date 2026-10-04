@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.network;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import java.util.function.BiPredicate;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,6 +47,8 @@ public final class JesNetwork {
     public static final ResourceLocation OVERRIDES = channel("overrides");
     /** Asks for everything Pack tools shows, which comes back as a {@link #KIND_TOOLS} transfer. */
     public static final ResourceLocation REQUEST_TOOLS = channel("request_tools");
+    /** Opens a player's browser, on a structure if one is given, for /jes open. */
+    public static final ResourceLocation OPEN_BROWSER = channel("open_browser");
     /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
     public static final ResourceLocation TOOLS_ACTION = channel("tools_action");
 
@@ -71,6 +74,7 @@ public final class JesNetwork {
 
     private static ServerSender serverSender = (player, channel, buf) -> {
     };
+    private static BiPredicate<ServerPlayer, ResourceLocation> serverCanSend = (player, channel) -> false;
 
     private JesNetwork() {
     }
@@ -86,6 +90,19 @@ public final class JesNetwork {
 
     public static void setServerSender(ServerSender sender) {
         serverSender = sender;
+    }
+
+    public static void setServerCanSend(BiPredicate<ServerPlayer, ResourceLocation> canSend) {
+        serverCanSend = canSend;
+    }
+
+    /** Whether the player's game listens on this channel, so has the mod, and the same version of it. */
+    public static boolean canSend(ServerPlayer player, ResourceLocation channel) {
+        try {
+            return serverCanSend.test(player, channel);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     public static void send(ServerPlayer player, ResourceLocation channel, FriendlyByteBuf buf) {
