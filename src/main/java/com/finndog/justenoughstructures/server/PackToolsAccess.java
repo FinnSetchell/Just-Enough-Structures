@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
@@ -105,6 +106,9 @@ public final class PackToolsAccess {
         return false;
     }
 
+    /** Set when a newer version saved the file, which is then left as it is. */
+    private static boolean newer;
+
     private static Map<String, UUID> known() {
         if (known == null) {
             known = new HashMap<>();
@@ -112,6 +116,12 @@ public final class PackToolsAccess {
             try {
                 if (Files.exists(file)) {
                     JsonObject json = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+                    if (FileFormat.newer(json)) {
+                        // Saved by a newer version: not read, and not written over.
+                        newer = true;
+                        FileFormat.check(json, file);
+                    }
+                    json.remove(FileFormat.KEY);
                     json.entrySet().forEach(e -> {
                         try {
                             known.put(e.getKey().toLowerCase(Locale.ROOT), UUID.fromString(e.getValue().getAsString()));
@@ -128,12 +138,15 @@ public final class PackToolsAccess {
     }
 
     private static void save(Map<String, UUID> tied) {
+        if (newer) {
+            return;
+        }
         JsonObject json = new JsonObject();
         tied.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> json.addProperty(e.getKey(), e.getValue().toString()));
         Path file = file();
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, GSON.toJson(json));
+            Files.writeString(file, GSON.toJson(FileFormat.stamped(json)));
         } catch (IOException e) {
             JesLog.warnOnce("write:" + file, "Couldn't save {}: {}", file, e.toString());
         }

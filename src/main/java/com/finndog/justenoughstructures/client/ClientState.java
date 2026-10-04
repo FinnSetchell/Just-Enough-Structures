@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
@@ -83,6 +84,7 @@ public final class ClientState {
 
     public static void write(Path file) {
         JsonObject json = new JsonObject();
+        json.addProperty(FileFormat.KEY, FileFormat.CURRENT);
         json.addProperty("spin", spin);
         json.addProperty("markers", markers);
         json.addProperty("ground", ground);

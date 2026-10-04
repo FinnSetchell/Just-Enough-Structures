@@ -270,6 +270,11 @@ public final class FabricGameTests implements FabricGameTest {
         ContainerTests.patchesCanBeTurnedOff(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void newerPatchFilesAreLeftAlone(GameTestHelper helper) {
+        ContainerTests.newerFilesAreLeftAlone(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void lootIndexUpdatesOnlyWhatChanged(GameTestHelper helper) {
         ContainerTests.lootIndexUpdatesOnlyWhatChanged(helper);

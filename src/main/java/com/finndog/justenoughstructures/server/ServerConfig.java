@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.gson.Gson;
@@ -30,6 +31,9 @@ public final class ServerConfig {
     private static final String TEMPLATE = """
             // Just Enough Structures server settings. Changes apply after /reload or a restart.
             {
+              // Which version of this file's layout it is, for Just Enough Structures itself. Leave it as it is.
+              "format": 1,
+
               // Structures to leave out of the browser. They can't be previewed or located and their
               // loot isn't listed, so nothing gives them away. Use a structure's id, or "modid:*" for
               // everything from one mod. For example: ["minecraft:ancient_city", "somemod:*"]
@@ -143,7 +147,7 @@ public final class ServerConfig {
     }
 
     /** Every setting the file has, in the order it lists them. */
-    private static final List<String> KEYS = List.of("hidden", "locate_permission", "teleport_permission", "show_loot_locations",
+    private static final List<String> KEYS = List.of("format", "hidden", "locate_permission", "teleport_permission", "show_loot_locations",
             "pack_tools", "container_changes");
 
     /**
@@ -164,7 +168,7 @@ public final class ServerConfig {
             return;
         }
         List<String> missing = KEYS.stream().filter(key -> !json.has(key)).toList();
-        if (missing.isEmpty()) {
+        if (missing.isEmpty() || FileFormat.newer(json)) {
             return;
         }
         try {
@@ -188,6 +192,16 @@ public final class ServerConfig {
 
     /** Writes these settings to the file, comments and all. The server picks them up on /reload. */
     public static void save(Path file, Settings settings) throws IOException {
+        if (Files.exists(file)) {
+            try {
+                JsonElement existing = JsonParser.parseString(Files.readString(file));
+                if (existing.isJsonObject()) {
+                    FileFormat.check(existing.getAsJsonObject(), file);
+                }
+            } catch (JsonParseException e) {
+                // A file that doesn't read is written over, as the owner asked for these settings.
+            }
+        }
         Files.createDirectories(file.getParent());
         Files.writeString(file, render(settings));
     }

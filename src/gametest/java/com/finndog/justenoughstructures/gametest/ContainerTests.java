@@ -65,6 +65,30 @@ public final class ContainerTests {
         ContainerPatches.load();
     }
 
+    /** A file a newer version saved is neither read nor written over. */
+    public static void newerFilesAreLeftAlone(GameTestHelper helper) {
+        Path dir = freshFolder();
+        try {
+            Path file = dir.resolve("containers.json");
+            String newer = """
+                    {"format": 99, "patches": [{"template": "minecraft:pillager_outpost/feature_cage1", "pos": [1, 2, 3],
+                      "block": "minecraft:chest", "original": "", "table": "minecraft:chests/igloo_chest"}], "removed": []}
+                    """;
+            Files.writeString(file, newer);
+            ContainerPatches.load();
+            helper.assertTrue(ContainerPatches.all().isEmpty(), "read a file a newer version saved");
+            Component saved = ContainerPatches.save(new ContainerPatches.Patch(new ResourceLocation("pillager_outpost/feature_cage1"),
+                    new BlockPos(1, 2, 3), new ResourceLocation("chest"), "", IGLOO));
+            helper.assertTrue(key(saved).endsWith("override.save_failed"), "saved over a file a newer version saved: " + saved.getString());
+            helper.assertTrue(newer.equals(Files.readString(file)), "a file a newer version saved was changed");
+            helper.succeed();
+        } catch (IOException e) {
+            helper.fail("couldn't write the test file: " + e);
+        } finally {
+            leaveFolder();
+        }
+    }
+
     /** A patch changes its container as the template loads, and one that no longer fits, or a broken file, changes nothing. */
     public static void patchesFollowTheirContainer(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -315,7 +339,8 @@ public final class ContainerTests {
         StructureSnapshot.Source source = before.source();
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         ServerConfig.Settings settings = ServerConfig.get();
-        ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+        ServerConfig.Settings open = new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0));
+        ServerConfig.set(open);
         Component saved = JesServer.patchContainer(player, source.template(), source.pos(), IGLOO);
         ServerConfig.set(settings);
         if (!key(saved).endsWith("container.saved")) {
@@ -326,10 +351,20 @@ public final class ContainerTests {
         CompletableFuture<Void> first = reload(server);
         AtomicReference<CompletableFuture<Void>> second = new AtomicReference<>();
         StructureSnapshot.Container[] seen = new StructureSnapshot.Container[2];
+        String[] rechanged = new String[1];
         helper.succeedWhen(() -> {
             helper.assertTrue(first.isDone(), "still reloading");
             if (second.get() == null) {
                 seen[0] = at(capture(server, "pillager_outpost"), source);
+                ContainerPatches.remove(source.template(), source.pos());
+                // Changed again before the next /reload, the loaded template still has the undone
+                // table, and the new patch has to remember the container's own one.
+                ServerConfig.set(open);
+                JesServer.patchContainer(player, source.template(), source.pos(), new ResourceLocation("chests/desert_pyramid"));
+                ServerConfig.set(settings);
+                rechanged[0] = ContainerPatches.all().stream()
+                        .filter(p -> p.template().equals(source.template()) && p.pos().equals(source.pos()))
+                        .map(ContainerPatches.Patch::original).findFirst().orElse(null);
                 ContainerPatches.remove(source.template(), source.pos());
                 second.set(reload(server));
             }
@@ -342,6 +377,8 @@ public final class ContainerTests {
                     && before.lootTable().equals(seen[0].source().patchedFrom()), "the changed container wasn't used after /reload");
             helper.assertTrue(seen[1] != null && before.lootTable().equals(seen[1].lootTable()) && seen[1].source().patchedFrom() == null,
                     "the container's own table wasn't back after undoing the change");
+            helper.assertTrue(before.lootTable().equals(rechanged[0]),
+                    "changing it again before /reload remembered " + rechanged[0] + " as its own table, not " + before.lootTable());
         });
     }
 

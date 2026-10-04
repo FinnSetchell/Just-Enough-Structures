@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
+import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.google.common.hash.Hashing;
@@ -329,12 +330,14 @@ public final class LootOverrides {
             return new JsonObject();
         }
         JsonElement json = JsonParser.parseString(Files.readString(file));
-        return json.isJsonObject() ? json.getAsJsonObject() : new JsonObject();
+        JsonObject meta = json.isJsonObject() ? json.getAsJsonObject() : new JsonObject();
+        FileFormat.check(meta, file);
+        return meta;
     }
 
     private static void writeMeta(Path root, JsonObject meta) throws IOException {
         Files.createDirectories(root);
-        Files.writeString(root.resolve(META), PRETTY.toJson(meta));
+        Files.writeString(root.resolve(META), PRETTY.toJson(FileFormat.stamped(meta)));
     }
 
     /** A fingerprint of a table that ignores spacing, so reformatting a file isn't taken as a change. */

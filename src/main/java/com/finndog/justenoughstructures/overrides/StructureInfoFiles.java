@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
+import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
@@ -90,10 +91,13 @@ public final class StructureInfoFiles {
                 Files.deleteIfExists(file);
                 info = mods;
             } else {
+                if (Files.exists(file)) {
+                    FileFormat.check(JsonParser.parseString(Files.readString(file)).getAsJsonObject(), file);
+                }
                 LootOverrides.ensurePack(root);
                 Files.createDirectories(file.getParent());
                 Path temp = file.resolveSibling(file.getFileName() + ".tmp");
-                Files.writeString(temp, PRETTY.toJson(toJson(info)));
+                Files.writeString(temp, PRETTY.toJson(FileFormat.stamped(toJson(info))));
                 Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException | RuntimeException e) {
