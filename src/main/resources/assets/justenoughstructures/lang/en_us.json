@@ -370,6 +370,8 @@
   "screen.justenoughstructures.error.too_many": "Too many previews are generating at once, try again in a moment",
   "screen.justenoughstructures.error.still_generating": "Another preview is still generating, try again in a moment",
   "screen.justenoughstructures.error.went_wrong": "Something went wrong generating this: %s",
+  "screen.justenoughstructures.error.low_memory": "The server is short on memory right now, so this wasn't generated. Try again in a moment.",
+  "screen.justenoughstructures.error.out_of_memory": "This is too big for the server's memory, so it couldn't be generated.",
   "screen.justenoughstructures.error.interrupted": "Interrupted",
   "screen.justenoughstructures.error.unknown_structure": "Unknown structure %s",
   "screen.justenoughstructures.error.nowhere_to_generate": "It didn't find anywhere to generate on any terrain",

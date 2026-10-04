@@ -17,6 +17,11 @@ import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import io.netty.buffer.Unpooled;
 import com.mojang.datafixers.util.Pair;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
+import java.util.Iterator;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -87,12 +92,11 @@ public final class JesServer {
     }
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
-    private static final Map<String, byte[]> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
-            return size() > CACHED_CAPTURES;
-        }
-    };
+    /** Captures already sent, newest use last, kept to {@link #CACHED_CAPTURES} and {@link #CACHE_BYTES}. */
+    private static final Map<String, byte[]> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true);
+    /** A few big structures can be megabytes each, so the cache is limited by size as well as count. */
+    private static final long CACHE_BYTES = 48L << 20;
+    private static long cachedBytes;
     private static final Map<UUID, AtomicInteger> QUEUED = new ConcurrentHashMap<>();
     private static byte[] catalog;
 
@@ -139,6 +143,7 @@ public final class JesServer {
         catalog = null;
         synchronized (CAPTURE_CACHE) {
             CAPTURE_CACHE.clear();
+            cachedBytes = 0;
         }
         for (UUID id : BROWSING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -166,6 +171,7 @@ public final class JesServer {
         SpawnerPatches.load();
         synchronized (CAPTURE_CACHE) {
             CAPTURE_CACHE.clear();
+            cachedBytes = 0;
         }
         catalog = null;
         ODDS_CACHE.clear();
@@ -578,16 +584,24 @@ public final class JesServer {
             }
             byte[] payload;
             try {
-                CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
-                payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, result)));
-                if (result.succeeded()) {
-                    synchronized (CAPTURE_CACHE) {
-                        CAPTURE_CACHE.put(key, payload);
+                if (lowOnMemory()) {
+                    CaptureResult refused = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
+                    payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, refused)));
+                } else {
+                    CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
+                    payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, result)));
+                    if (result.succeeded()) {
+                        cache(key, payload);
                     }
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
+                payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
+            } catch (OutOfMemoryError e) {
+                // Whatever the capture had is garbage once this returns, so the server can carry on.
+                JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
+                CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
                 payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {
                 if (!preview) {
@@ -604,6 +618,54 @@ public final class JesServer {
         }));
     }
 
+    /**
+     * Keeps a capture to send again, dropping the least recently sent ones once there are too many
+     * or they take too much room. One bigger than the whole limit isn't kept.
+     */
+    private static void cache(String key, byte[] payload) {
+        if (payload.length > CACHE_BYTES) {
+            return;
+        }
+        synchronized (CAPTURE_CACHE) {
+            byte[] old = CAPTURE_CACHE.put(key, payload);
+            cachedBytes += payload.length - (old == null ? 0 : old.length);
+            Iterator<Map.Entry<String, byte[]>> eldest = CAPTURE_CACHE.entrySet().iterator();
+            while ((cachedBytes > CACHE_BYTES || CAPTURE_CACHE.size() > CACHED_CAPTURES) && eldest.hasNext()) {
+                Map.Entry<String, byte[]> entry = eldest.next();
+                if (entry.getKey().equals(key)) {
+                    break;
+                }
+                cachedBytes -= entry.getValue().length;
+                eldest.remove();
+            }
+        }
+    }
+
+    /**
+     * Whether too little memory is free to start a capture, as a big structure can need hundreds of
+     * megabytes while it generates. Judged by what was still in use after the last garbage
+     * collection, so garbage waiting to be collected doesn't count against it.
+     */
+    private static boolean lowOnMemory() {
+        try {
+            long max = Runtime.getRuntime().maxMemory();
+            if (max == Long.MAX_VALUE) {
+                return false;
+            }
+            long live = 0;
+            for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
+                if (pool.getType() != MemoryType.HEAP) {
+                    continue;
+                }
+                MemoryUsage afterGc = pool.getCollectionUsage();
+                live += afterGc != null ? afterGc.getUsed() : pool.getUsage().getUsed();
+            }
+            return max - live < Math.max(384L << 20, max / 5);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     public static void onRequestLoot(ServerPlayer player, int requestId, ResourceLocation table, long seed, int size) {
         List<ItemStack> items = LootRolls.fill(player.serverLevel(), table, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
@@ -614,7 +676,10 @@ public final class JesServer {
 
     public static void onRequestOdds(ServerPlayer player, int requestId, ResourceLocation table) {
         // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
-        LootOdds odds = ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(player.serverLevel(), t, ODDS_ROLLS, t.hashCode()));
+        // Only tables that exist are kept, so made-up names from a client can't fill the cache.
+        LootOdds odds = LootOverrides.exists(player.getServer(), table)
+                ? ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(player.serverLevel(), t, ODDS_ROLLS, t.hashCode()))
+                : LootRolls.odds(player.serverLevel(), table, ODDS_ROLLS, table.hashCode());
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         buf.writeVarInt(requestId);
         Codecs.writeOdds(buf, odds);
