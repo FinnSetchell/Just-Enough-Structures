@@ -6,9 +6,7 @@ import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import net.minecraft.Util;
@@ -20,7 +18,6 @@ import net.minecraft.resources.ResourceLocation;
  * isn't busy, so a list of 400 modded structures fills in with pictures as you scroll.
  */
 final class ThumbnailQueue {
-    private static final Set<ResourceLocation> FAILED = new HashSet<>();
 
     private ResourceLocation current;
     private StructureViewport viewport;
@@ -46,7 +43,7 @@ final class ThumbnailQueue {
             return;
         }
         for (ResourceLocation id : visible) {
-            if (!Thumbnails.has(id) && !FAILED.contains(id)) {
+            if (!Thumbnails.has(id) && !Thumbnails.failed(id)) {
                 start(id);
                 return;
             }
@@ -65,7 +62,7 @@ final class ThumbnailQueue {
                     if (view == null || mc.level == null) {
                         // Leaving the server cancels it or takes the level away, which says nothing about this structure.
                         if (mc.level != null && !cancelled(error)) {
-                            FAILED.add(id);
+                            Thumbnails.fail(id);
                         }
                         current = null;
                         return;

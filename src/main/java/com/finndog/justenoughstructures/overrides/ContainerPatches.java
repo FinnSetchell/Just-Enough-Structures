@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -37,6 +38,8 @@ public final class ContainerPatches {
     }
 
     private static volatile Map<ResourceLocation, List<Patch>> byTemplate;
+    /** Patches undone, by template and spot, for {@link #ownTable}. */
+    private static final Map<List<Object>, Patch> UNDONE = new ConcurrentHashMap<>();
 
     private ContainerPatches() {
     }
@@ -173,6 +176,12 @@ public final class ContainerPatches {
 
     /** Stops patching a container. The patch moves to the file's list of removed ones rather than going. */
     public static synchronized Component remove(ResourceLocation template, BlockPos pos) {
+        Patch removing = null;
+        for (Patch patch : all()) {
+            if (patch.template().equals(template) && patch.pos().equals(pos)) {
+                removing = patch;
+            }
+        }
         try {
             if (!FILE.remove(template, pos)) {
                 return Component.translatable("screen.justenoughstructures.container.none");
@@ -180,8 +189,21 @@ public final class ContainerPatches {
         } catch (IOException | RuntimeException e) {
             return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
         }
+        if (removing != null) {
+            UNDONE.put(List.of(template, pos), removing);
+        }
         load();
         return Component.translatable("screen.justenoughstructures.container.removed");
+    }
+
+    /**
+     * The loot table a container had before any patch, given its template as it's loaded now. Until
+     * the next /reload, a template keeps a patch that's been undone, so its table then is the
+     * patch's, not its own.
+     */
+    public static String ownTable(ResourceLocation template, BlockPos pos, String loaded) {
+        Patch undone = UNDONE.get(List.of(template, pos));
+        return undone != null && loaded.equals(undone.table().toString()) ? undone.original() : loaded;
     }
 
     private static JsonObject toJson(Patch patch) {

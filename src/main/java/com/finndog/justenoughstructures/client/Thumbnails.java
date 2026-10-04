@@ -50,6 +50,11 @@ public final class Thumbnails {
         }
     };
     private static final Set<ResourceLocation> NOT_SAVED = new HashSet<>();
+    /**
+     * Structures a thumbnail couldn't be made for. They're tried again when the structure list next
+     * arrives, after a /reload or a change in Pack tools, as what failed may work then.
+     */
+    private static final Set<ResourceLocation> FAILED = new HashSet<>();
     private static Map<ResourceLocation, String> keys = Map.of();
     private static int savedSize;
 
@@ -147,12 +152,23 @@ public final class Thumbnails {
         }
         keys = out;
         NOT_SAVED.clear();
+        FAILED.clear();
+    }
+
+    /** Whether a thumbnail couldn't be made for this structure, so isn't worth asking for again yet. */
+    public static boolean failed(ResourceLocation id) {
+        return FAILED.contains(id);
+    }
+
+    public static void fail(ResourceLocation id) {
+        FAILED.add(id);
     }
 
     public static void clear() {
         CACHE.values().forEach(DynamicTexture::close);
         CACHE.clear();
         NOT_SAVED.clear();
+        FAILED.clear();
         keys = Map.of();
     }
 

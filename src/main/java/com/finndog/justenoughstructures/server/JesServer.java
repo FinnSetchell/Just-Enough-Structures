@@ -328,7 +328,7 @@ public final class JesServer {
         }
         // The template may already be patched, in which case what it had first is what the patch remembers.
         ContainerPatches.Patch existing = ContainerPatches.find(template, pos);
-        String original = existing != null ? existing.original() : container.nbt().getString("LootTable");
+        String original = existing != null ? existing.original() : ContainerPatches.ownTable(template, pos, container.nbt().getString("LootTable"));
         Component reply = ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
         if (replyIs(reply, "container.saved")) {
             PackToolsServer.waiting(PackToolsState.chestKey(template, pos));
