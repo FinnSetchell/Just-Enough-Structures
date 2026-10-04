@@ -65,11 +65,17 @@ final class ToolsLoot extends ToolsSection {
                 filter = Filter.ALL;
             }
             shownFor = null;
-            revealSelected = true;
         }
+        revealSelected = selected != null;
     }
 
+    /**
+     * Whether the list still scrolls to the picked table. It keeps doing so, as tables arrive and the
+     * screen changes size, until the list is scrolled, searched or filtered by hand.
+     */
     private boolean revealSelected;
+    /** Whether the list and the table were last shown one at a time, rather than side by side. */
+    private boolean single;
 
     @Override
     Object parse(String text) {
@@ -83,7 +89,15 @@ final class ToolsLoot extends ToolsSection {
 
     @Override
     void init(int x, int y, int w, int h) {
-        search = screen.add(new EditBox(font, x + 1, y + 1, leftWidth(w) - 2, 14, Component.translatable("screen.justenoughstructures.tools.search_tables")));
+        revealSelected = selected != null;
+        single = oneAtATime(w);
+        search = null;
+        if (single && selected != null) {
+            return;
+        }
+        int listW = listWidth(w);
+        int searchW = listW - 2 - (newBesideSearch(listW) ? Gui.fineWidth(font, newLink().getString()) + 6 : 0);
+        search = screen.add(new EditBox(font, x + 1, y + 1, searchW, 14, Component.translatable("screen.justenoughstructures.tools.search_tables")));
         search.setMaxLength(256);
         search.setHint(Component.translatable("screen.justenoughstructures.tools.search_tables").withStyle(ChatFormatting.DARK_GRAY));
         search.setValue(query);
@@ -91,9 +105,27 @@ final class ToolsLoot extends ToolsSection {
             if (!text.equals(query)) {
                 query = text;
                 shownFor = null;
+                revealSelected = false;
                 list.reset();
             }
         });
+    }
+
+    private static Component newLink() {
+        return Component.translatable("screen.justenoughstructures.tools.new_table");
+    }
+
+    private static String filterLabel(Filter f) {
+        return Component.translatable("screen.justenoughstructures.tools.filter." + f.name().toLowerCase(Locale.ROOT)).getString();
+    }
+
+    /** Whether "+ New" goes beside the search box, there being no room for it after the filters. */
+    private boolean newBesideSearch(int listW) {
+        int used = 0;
+        for (Filter f : Filter.values()) {
+            used += Gui.fineWidth(font, filterLabel(f)) + 8;
+        }
+        return used + 4 + Gui.fineWidth(font, newLink().getString()) > listW;
     }
 
     @Override
@@ -105,11 +137,17 @@ final class ToolsLoot extends ToolsSection {
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        return list.scroll(mouseX, mouseY, delta) || detail.scroll(mouseX, mouseY, delta);
+        // Shown one at a time, only the one on show scrolls.
+        if ((!single || selected == null) && list.scroll(mouseX, mouseY, delta)) {
+            revealSelected = false;
+            return true;
+        }
+        return (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
-    private static int leftWidth(int w) {
-        return Math.max(130, Math.min(220, w * 38 / 100));
+    /** The list's width: all of it when it's shown on its own, and wider on a wide screen so ids aren't cut short. */
+    private static int listWidth(int w) {
+        return oneAtATime(w) ? w : Math.max(130, Math.min(340, w * 38 / 100));
     }
 
     private boolean matches(ResourceLocation table, Filter f) {
@@ -147,21 +185,30 @@ final class ToolsLoot extends ToolsSection {
 
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
-        int leftW = leftWidth(w);
-        // The filters, and a new table, under the search box.
+        PackToolsState state = screen.state();
+        hoveredRow = null;
+        single = oneAtATime(w);
+        if (single && selected != null) {
+            int cy = backToList(g, ui, x, y);
+            detail(g, ui, x, cy, w, y + h - cy, state);
+            return;
+        }
+        int leftW = listWidth(w);
+        // The filters, and a new table, under the search box, or beside it when there's no room after the filters.
         int fy = y + 19;
         int fx = x;
         for (Filter f : Filter.values()) {
             Filter which = f;
-            fx += ui.chip(g, Component.translatable("screen.justenoughstructures.tools.filter." + f.name().toLowerCase(Locale.ROOT)).getString(),
-                    fx, fy, filter == f, () -> {
-                        filter = which;
-                        shownFor = null;
-                        list.reset();
-                    }) + 2;
+            fx += ui.chip(g, filterLabel(f), fx, fy, filter == f, () -> {
+                filter = which;
+                shownFor = null;
+                revealSelected = false;
+                list.reset();
+            }) + 2;
         }
-        Component newLink = Component.translatable("screen.justenoughstructures.tools.new_table");
-        ui.link(g, newLink, x + leftW - 2 - Gui.fineWidth(font, newLink.getString()), fy + 2, true, screen::newTable);
+        Component newLink = newLink();
+        int linkX = x + leftW - 2 - Gui.fineWidth(font, newLink.getString());
+        ui.link(g, newLink, linkX, newBesideSearch(leftW) ? y + 4 : fy + 2, true, screen::newTable);
 
         int listTop = fy + ui.chipHeight() + 4;
         Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
@@ -169,11 +216,9 @@ final class ToolsLoot extends ToolsSection {
         int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
         int rw = list.width();
         int ry = top;
-        PackToolsState state = screen.state();
         for (ResourceLocation table : tables) {
             if (revealSelected && table.equals(selected)) {
                 list.reveal(ry - top, ry - top + LIST_ROW);
-                revealSelected = false;
             }
             if (ry + LIST_ROW >= listTop && ry <= y + h) {
                 listRow(g, ui, x + 1, ry, rw, table, state.overrides().get(table));
@@ -187,10 +232,12 @@ final class ToolsLoot extends ToolsSection {
             ry += 20;
         }
         list.end(g, ui, ry - top);
+        if (single) {
+            return;
+        }
 
         int dx = x + leftW + 6;
-        int dw = w - leftW - 6;
-        hoveredRow = null;
+        int dw = Math.min(w - leftW - 6, READABLE);
         if (selected == null) {
             Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_table"), dx, y + 4, dw, Gui.LABEL_SOFT);
             return;
@@ -209,12 +256,11 @@ final class ToolsLoot extends ToolsSection {
         Component mark = editedMark(status);
         String markText = mark == null ? "" : mark.getString();
         int markW = markText.isEmpty() ? 0 : Gui.fineWidth(font, markText) + 4;
-        g.drawString(font, Gui.clip(font, StructureNames.lootTable(table.toString()), w - 6 - markW), x + 3, y + 1,
-                isSelected ? 0xFFFFFFFF : ToolsUi.TEXT, isSelected);
+        Gui.drawClipped(g, font, StructureNames.lootTable(table.toString()), x + 3, y + 1, w - 6 - markW, isSelected ? 0xFFFFFFFF : ToolsUi.TEXT, isSelected);
         if (!markText.isEmpty()) {
             Gui.fine(g, font, markText, x + w - 3 - Gui.fineWidth(font, markText), y + 2, isSelected ? 0xFFFFFFFF : markColour(status));
         }
-        Gui.fine(g, font, Gui.fineClip(font, table.toString(), w - 6), x + 3, y + 11, isSelected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, table.toString(), x + 3, y + 11, w - 6, isSelected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
         g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, 0xFFB0B0B0);
     }
 
@@ -243,19 +289,27 @@ final class ToolsLoot extends ToolsSection {
         };
         cy += ui.status(g, text, x, cy, w, kind) + 2;
         if (status == LootOverrides.Status.ORIGINAL_CHANGED) {
+            // Side by side, each on a line of its own once they don't fit.
+            Component[] labels = {Component.translatable("screen.justenoughstructures.editor.see_changes"),
+                    Component.translatable("screen.justenoughstructures.editor.merge"), Component.translatable("screen.justenoughstructures.editor.keep")};
+            Runnable[] actions = {() -> screen.showChanges(table), () -> screen.openEditor(table, true), () -> screen.keep(table)};
+            Component[] tips = {null, Component.translatable("screen.justenoughstructures.editor.merge_hint"),
+                    Component.translatable("screen.justenoughstructures.editor.keep_hint")};
             int lx = x + 2;
-            lx += ui.link(g, Component.translatable("screen.justenoughstructures.editor.see_changes"), lx, cy, false, () -> screen.showChanges(table)) + 8;
-            lx += ui.link(g, Component.translatable("screen.justenoughstructures.editor.merge"), lx, cy, false, () -> screen.openEditor(table, true),
-                    Component.translatable("screen.justenoughstructures.editor.merge_hint")) + 8;
-            ui.link(g, Component.translatable("screen.justenoughstructures.editor.keep"), lx, cy, false, () -> screen.keep(table),
-                    Component.translatable("screen.justenoughstructures.editor.keep_hint"));
+            for (int i = 0; i < labels.length; i++) {
+                if (lx > x + 2 && lx + font.width(labels[i]) > x + w) {
+                    lx = x + 2;
+                    cy += font.lineHeight + 3;
+                }
+                lx += ui.link(g, labels[i], lx, cy, false, actions[i], tips[i]) + 8;
+            }
             cy += font.lineHeight + 4;
         }
 
         // Where it's used, each opening that structure in the browser on this table.
         Set<ResourceLocation> used = FoundIn.structuresUsing(table);
-        Gui.fine(g, font, Component.translatable(used.isEmpty() ? "screen.justenoughstructures.tools.used_in_none"
-                : "screen.justenoughstructures.tools.used_in").getString(), x, cy, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, Component.translatable(used.isEmpty() ? "screen.justenoughstructures.tools.used_in_none"
+                : "screen.justenoughstructures.tools.used_in").getString(), x, cy, w, Gui.LABEL_SOFT);
         cy += Gui.fineLine(font) + 2;
         int cx = x;
         int count = 0;
@@ -301,11 +355,16 @@ final class ToolsLoot extends ToolsSection {
         } else {
             List<LootOdds.Row> rows = OddsList.sorted(odds, false);
             Map<LootOdds.Row, String> names = OddsList.names(rows);
-            for (LootOdds.Row r : rows) {
+            List<String> counts = new ArrayList<>();
+            rows.forEach(r -> counts.add(OddsList.counts(r)));
+            // Every bar starts after the widest count, so they line up.
+            int room = OddsList.detailRoom(font, counts);
+            for (int i = 0; i < rows.size(); i++) {
+                LootOdds.Row r = rows.get(i);
                 float chance = (float) r.hits() / Math.max(1, odds.rolls());
                 boolean over = ui.hovered(x, oy, ow, OddsList.ROW);
                 if (oy + OddsList.ROW >= cy && oy <= y + h) {
-                    OddsList.drawRow(g, font, r.example(), names.get(r), OddsList.counts(r), chance, x, oy, x + ow, over);
+                    OddsList.drawRow(g, font, r.example(), names.get(r), counts.get(i), chance, x, oy, x + ow, over, room);
                 }
                 if (over) {
                     hoveredRow = r;

@@ -23,6 +23,8 @@ import org.lwjgl.glfw.GLFW;
  */
 final class ToolsRules extends ToolsSection {
     private static final int LINE = 18;
+    /** The space above each heading after the first. */
+    private static final int HEADING_GAP = 8;
     private final Scroller scroller = new Scroller();
     private EditBox nameBox;
     private String typed = "";
@@ -65,21 +67,26 @@ final class ToolsRules extends ToolsSection {
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
         ServerConfig.Settings s = screen.state().settings();
-        int top = scroller.begin(g, ui, x, y, w, h);
+        String[] lines = ServerConfig.render(s).split("\n");
+        int codeW = 0;
+        for (String line : lines) {
+            codeW = Math.max(codeW, Gui.fineWidth(font, line.replace("\t", "  ")) + 8);
+        }
+        // No wider than reads well, or than the file as saved needs for its longest line.
+        int top = scroller.begin(g, ui, x, y, Math.min(w, Math.max(READABLE, codeW) + 8), h);
         int cw = scroller.width();
         int cy = top;
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.rules_where").getString(), x, cy, Gui.LABEL_SOFT);
-        cy += Gui.fineLine(font) + 4;
+        cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.rules_where"), x, cy, cw, Gui.LABEL_SOFT) + 5;
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_can"), x, cy, cw);
         cy = levelRow(g, ui, x, cy, cw, "locate", s.locatePermission(), 0, level -> with(s, level, s.teleportPermission(), s.packTools()));
         cy = levelRow(g, ui, x, cy, cw, "teleport", s.teleportPermission(), 0, level -> with(s, s.locatePermission(), level, s.packTools()));
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_tools"), x, cy + 4, cw);
+        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_tools"), x, cy + HEADING_GAP, cw);
         cy = label(g, ui, x, cy, cw, "singleplayer", Component.translatable("screen.justenoughstructures.tools.cheats_on"));
-        g.drawString(font, Component.translatable("screen.justenoughstructures.tools.by_name"), x + 2, cy + 4, ToolsUi.TEXT, false);
-        ui.tooltip(x, cy + 2, font.width(Component.translatable("screen.justenoughstructures.tools.by_name")) + 4, 12,
-                Component.translatable("screen.justenoughstructures.tools.by_name_hint"));
+        Component byName = Component.translatable("screen.justenoughstructures.tools.by_name");
+        Gui.drawClipped(g, font, byName.getString(), x + 2, cy + 4, cw - 4, ToolsUi.TEXT, false);
+        ui.tooltip(x, cy + 2, Math.min(cw, font.width(byName) + 4), 12, Component.translatable("screen.justenoughstructures.tools.by_name_hint"));
         cy += 15;
         int cx = x + 2;
         List<String> players = s.packTools().players();
@@ -99,21 +106,21 @@ final class ToolsRules extends ToolsSection {
         cy += ui.chipHeight() + 4;
         Component add = Component.translatable("screen.justenoughstructures.tools.add");
         int addW = ui.buttonWidth(add) + 6;
-        placeNameBox(x + 3, cy + 1, cw - addW - 10, y, h);
+        placeNameBox(g, x + 3, cy + 1, cw - addW - 10, y, h);
         ui.button(g, add, x + cw - addW - 2, cy, addW, 16, ServerConfig.isPlayerName(typed.trim()), this::addPlayer);
         cy += LINE + 4;
         cy = label(g, ui, x, cy, cw, "node", Component.literal(PackToolsAccess.NODE));
         cy = levelRow(g, ui, x, cy, cw, "tools_level", s.packTools().permissionLevel(), -1,
                 level -> with(s, s.locatePermission(), s.teleportPermission(), new ServerConfig.PackTools(players, level)));
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.players_see"), x, cy + 4, cw);
+        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.players_see"), x, cy + HEADING_GAP, cw);
         cy = switchRow(g, ui, x, cy, cw, "show_loot", s.showLootLocations(), () -> save(new ServerConfig.Settings(s.hiddenStructures(),
                 s.hiddenMods(), s.locatePermission(), s.teleportPermission(), !s.showLootLocations(), s.packTools(), s.containerChanges())), null);
         cy = switchRow(g, ui, x, cy, cw, "use_changes", s.containerChanges(), () -> save(new ServerConfig.Settings(s.hiddenStructures(),
                         s.hiddenMods(), s.locatePermission(), s.teleportPermission(), s.showLootLocations(), s.packTools(), !s.containerChanges())),
                 screen.waiting(PackToolsState.RULES) ? Component.translatable("screen.justenoughstructures.tools.from_next_reload") : null);
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.hide_mods"), x, cy + 4, cw);
+        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.hide_mods"), x, cy + HEADING_GAP, cw);
         cx = x;
         for (var mod : mods(s).entrySet()) {
             boolean hidden = s.hiddenMods().contains(mod.getValue());
@@ -127,78 +134,105 @@ final class ToolsRules extends ToolsSection {
             cx += ui.chip(g, label, cx, cy, hidden, () -> save(hideMod(s, namespace, !hidden)),
                     Component.translatable(hidden ? "screen.justenoughstructures.tools.show_mod" : "screen.justenoughstructures.tools.hide_mod")) + 2;
         }
-        cy += ui.chipHeight() + 6;
+        cy += ui.chipHeight();
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.as_saved"), x, cy, cw);
-        String[] lines = ServerConfig.render(s).split("\n");
+        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.as_saved"), x, cy + HEADING_GAP, cw);
         int lineH = Gui.fineLine(font) + 1;
         g.fill(x, cy, x + cw, cy + lines.length * lineH + 6, 0xFF1E1E1E);
         int ly = cy + 3;
         for (String line : lines) {
-            Gui.fine(g, font, Gui.fineClip(font, line.replace("\t", "  "), cw - 8), x + 4, ly, line.trim().startsWith("//") ? 0xFF6A9955 : 0xFFD4D4D4);
+            Gui.fineClipped(g, font, line.replace("\t", "  "), x + 4, ly, cw - 8, line.trim().startsWith("//") ? 0xFF6A9955 : 0xFFD4D4D4);
             ly += lineH;
         }
         cy = ly + 4;
         scroller.end(g, ui, cy - top);
     }
 
-    /** The text box for a name, kept where its row is as the page scrolls, and hidden when that's out of view. */
-    private void placeNameBox(int x, int y, int w, int viewTop, int viewHeight) {
+    /**
+     * The text box for a name, kept where its row is as the page scrolls. It's a text box only while
+     * all of it is in view; while only some is, a picture of it stands in, cut off at the edge like the rest.
+     */
+    private void placeNameBox(GuiGraphics g, int x, int y, int w, int viewTop, int viewHeight) {
         if (nameBox == null) {
             return;
         }
+        w = Math.max(40, w);
         nameBox.setX(x);
         nameBox.setY(y);
-        nameBox.setWidth(Math.max(40, w));
+        nameBox.setWidth(w);
         nameBox.visible = y >= viewTop && y + 14 <= viewTop + viewHeight;
+        if (nameBox.visible || y + 14 <= viewTop || y >= viewTop + viewHeight) {
+            return;
+        }
+        g.fill(x, y, x + w, y + 14, 0xFFA0A0A0);
+        g.fill(x + 1, y + 1, x + w - 1, y + 13, 0xFF000000);
+        boolean empty = typed.isEmpty();
+        Gui.drawClipped(g, font, empty ? Component.translatable("screen.justenoughstructures.tools.player_name").getString() : typed,
+                x + 4, y + 3, w - 8, empty ? 0xFF555555 : 0xFFE0E0E0, false);
     }
+
+    // Each row has its label on the left and its value or control on the right, or under the label when both don't fit.
 
     private int label(GuiGraphics g, ToolsUi ui, int x, int y, int w, String key, Component value) {
         Component label = Component.translatable("screen.justenoughstructures.tools." + key);
-        g.drawString(font, label, x + 2, y + 5, ToolsUi.TEXT, false);
-        String text = Gui.fineClip(font, value.getString(), w / 2);
-        Gui.fine(g, font, text, x + w - 2 - Gui.fineWidth(font, text), y + 6, Gui.LABEL_SOFT);
-        hint(ui, x, y, w, key);
-        g.fill(x, y + LINE - 1, x + w, y + LINE, 0xFFB0B0B0);
-        return y + LINE;
+        String text = value.getString();
+        boolean under = font.width(label) + 8 + Gui.fineWidth(font, text) > w - 4;
+        Gui.drawClipped(g, font, label.getString(), x + 2, y + 5, w - 4, ToolsUi.TEXT, false);
+        int room = under ? w - 4 : w - 12 - font.width(label);
+        String shown = Gui.fineClip(font, text, room);
+        Gui.fineClipped(g, font, text, x + w - 2 - Gui.fineWidth(font, shown), under ? y + 15 : y + 6, room, Gui.LABEL_SOFT);
+        int h = under ? LINE + Gui.fineLine(font) + 3 : LINE;
+        hint(ui, x, y, w, h - 1, key);
+        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        return y + h;
     }
 
     private int levelRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, String key, int level, int lowest,
                          java.util.function.IntFunction<ServerConfig.Settings> change) {
-        g.drawString(font, Component.translatable("screen.justenoughstructures.tools." + key), x + 2, y + 5, ToolsUi.TEXT, false);
+        Component label = Component.translatable("screen.justenoughstructures.tools." + key);
         // As wide as the longest level's name, so the button doesn't change size as it's clicked through.
         int buttonW = 0;
         for (int l = lowest; l <= 4; l++) {
             buttonW = Math.max(buttonW, ui.buttonWidth(levelName(l)));
         }
-        hint(ui, x, y, w - buttonW - 4, key);
+        buttonW = Math.min(buttonW, w - 4);
+        boolean under = font.width(label) + 8 + buttonW > w - 4;
+        Gui.drawClipped(g, font, label.getString(), x + 2, y + 5, w - 4, ToolsUi.TEXT, false);
+        int h = under ? LINE + ToolsUi.BUTTON + 1 : LINE;
+        hint(ui, x, y, under ? w : w - buttonW - 4, under ? 14 : LINE - 1, key);
         int next = level >= 4 ? lowest : level + 1;
-        ui.button(g, levelName(level), x + w - buttonW - 2, y + 2, buttonW, ToolsUi.BUTTON, true, () -> save(change.apply(next)),
+        ui.button(g, levelName(level), x + w - buttonW - 2, under ? y + 15 : y + 2, buttonW, ToolsUi.BUTTON, true, () -> save(change.apply(next)),
                 Component.translatable("screen.justenoughstructures.tools.level_next", levelName(next)));
-        g.fill(x, y + LINE - 1, x + w, y + LINE, 0xFFB0B0B0);
-        return y + LINE;
+        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        return y + h;
     }
 
     private int switchRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, String key, boolean on, Runnable flip, Component note) {
-        g.drawString(font, Component.translatable("screen.justenoughstructures.tools." + key), x + 2, y + 5, ToolsUi.TEXT, false);
-        hint(ui, x, y, w - 60, key);
+        Component label = Component.translatable("screen.justenoughstructures.tools." + key);
         String yes = Component.translatable(on ? "gui.yes" : "gui.no").getString();
+        String noteText = note == null ? "" : note.getString();
+        int controlW = 23 + font.width(yes) + (noteText.isEmpty() ? 0 : Gui.fineWidth(font, noteText) + 5);
+        boolean under = font.width(label) + 8 + controlW > w - 4;
+        Gui.drawClipped(g, font, label.getString(), x + 2, y + 5, w - 4, ToolsUi.TEXT, false);
+        int h = under ? LINE + 14 : LINE;
+        hint(ui, x, y, under ? w : w - controlW - 4, under ? 14 : LINE - 1, key);
+        int cy = under ? y + 14 : y;
         int textX = x + w - 2 - font.width(yes);
-        g.drawString(font, yes, textX, y + 5, ToolsUi.TEXT, false);
-        ui.toggle(g, textX - 21, y + 4, on, flip);
-        if (note != null) {
-            String text = note.getString();
-            Gui.fine(g, font, text, textX - 26 - Gui.fineWidth(font, text), y + 6, ToolsUi.CHANGED);
+        g.drawString(font, yes, textX, cy + 5, ToolsUi.TEXT, false);
+        ui.toggle(g, textX - 21, cy + 4, on, flip);
+        if (!noteText.isEmpty()) {
+            int noteX = Math.max(x + 2, textX - 26 - Gui.fineWidth(font, noteText));
+            Gui.fineClipped(g, font, noteText, noteX, cy + 6, textX - 26 - noteX, ToolsUi.CHANGED);
         }
-        g.fill(x, y + LINE - 1, x + w, y + LINE, 0xFFB0B0B0);
-        return y + LINE;
+        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        return y + h;
     }
 
     /** A row's tooltip, if its key has one. */
-    private void hint(ToolsUi ui, int x, int y, int w, String key) {
+    private void hint(ToolsUi ui, int x, int y, int w, int h, String key) {
         String hintKey = "screen.justenoughstructures.tools." + key + "_hint";
         if (net.minecraft.client.resources.language.I18n.exists(hintKey)) {
-            ui.tooltip(x, y, w, LINE - 1, Component.translatable(hintKey));
+            ui.tooltip(x, y, w, h, Component.translatable(hintKey));
         }
     }
 

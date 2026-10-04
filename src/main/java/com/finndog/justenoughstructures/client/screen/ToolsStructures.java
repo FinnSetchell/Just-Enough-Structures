@@ -20,6 +20,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 
 /**
  * Every structure, by mod, with a switch to show or hide each one or a whole mod, and for the one
@@ -28,15 +29,22 @@ import net.minecraft.resources.ResourceLocation;
 final class ToolsStructures extends ToolsSection {
     private static final int LIST_ROW = 20;
     private static final int HEADER = 14;
-    private static final int NOTES_HEIGHT = 46;
 
     private final Scroller list = new Scroller();
     private final Scroller detail = new Scroller();
     private EditBox search;
     private String query = "";
     private ResourceLocation selected;
+    /**
+     * Whether the list still scrolls to the structure shown. It keeps doing so, as structures arrive
+     * and the screen changes size, until the list is scrolled or searched by hand.
+     */
     private boolean revealSelected;
+    /** Whether the list and the structure were last shown one at a time, rather than side by side. */
+    private boolean single;
     private MultiLineEditBox notesBox;
+    /** How tall the notes box is: taller on a taller screen, shorter where room is short. */
+    private int notesHeight = 46;
     /** The notes as typed, the structure they're for, and whether they differ from what's saved. */
     private String notes = "";
     private ResourceLocation notesFor;
@@ -64,7 +72,8 @@ final class ToolsStructures extends ToolsSection {
     @Override
     void select(Object selection) {
         selected = selection instanceof ResourceLocation id ? id : null;
-        revealSelected = selected != null;
+        // Even with none picked, the browser's structure is shown, and found in the list.
+        revealSelected = true;
         detail.reset();
     }
 
@@ -97,22 +106,30 @@ final class ToolsStructures extends ToolsSection {
 
     @Override
     void init(int x, int y, int w, int h) {
-        int leftW = leftWidth(w);
-        search = screen.add(new EditBox(font, x + 1, y + 1, leftW - 2, 14, Component.translatable("screen.justenoughstructures.tools.search_structures")));
-        search.setMaxLength(256);
-        search.setHint(Component.translatable("screen.justenoughstructures.tools.search_structures").withStyle(ChatFormatting.DARK_GRAY));
-        search.setValue(query);
-        search.setResponder(text -> {
-            query = text;
-            list.reset();
-        });
-        ResourceLocation shown = shownStructure();
+        single = oneAtATime(w);
+        revealSelected = true;
+        search = null;
+        if (!single || selected == null) {
+            search = screen.add(new EditBox(font, x + 1, y + 1, listWidth(w) - 2, 14,
+                    Component.translatable("screen.justenoughstructures.tools.search_structures")));
+            search.setMaxLength(256);
+            search.setHint(Component.translatable("screen.justenoughstructures.tools.search_structures").withStyle(ChatFormatting.DARK_GRAY));
+            search.setValue(query);
+            search.setResponder(text -> {
+                query = text;
+                revealSelected = false;
+                list.reset();
+            });
+        }
+        // Shown on its own, a structure is only shown once it's picked.
+        ResourceLocation shown = single ? selected : shownStructure();
         notesBox = null;
+        notesHeight = Math.max(28, Math.min(64, h / 5));
         if (shown != null && screen.state() != null) {
-            int dx = x + leftW + 6;
-            int dw = w - leftW - 6;
-            notesBox = screen.add(new MultiLineEditBox(font, dx + 5, y + ROW + 4 + 50, dw - 10, NOTES_HEIGHT,
+            // Put in place, and shown, as it's drawn.
+            notesBox = screen.add(new MultiLineEditBox(font, x, y, detailWidth(w) - 8 - 10, notesHeight,
                     Component.translatable("screen.justenoughstructures.tools.notes_hint"), Component.translatable("screen.justenoughstructures.tools.notes")));
+            notesBox.visible = false;
             loadNotes(shown);
             notesBox.setValue(notes);
             notesBox.setValueListener(text -> {
@@ -168,11 +185,22 @@ final class ToolsStructures extends ToolsSection {
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        return list.scroll(mouseX, mouseY, delta) || detail.scroll(mouseX, mouseY, delta);
+        // Shown one at a time, only the one on show scrolls.
+        if ((!single || selected == null) && list.scroll(mouseX, mouseY, delta)) {
+            revealSelected = false;
+            return true;
+        }
+        return (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
-    private static int leftWidth(int w) {
-        return Math.max(140, Math.min(230, w * 40 / 100));
+    /** The list's width: all of it when it's shown on its own. */
+    private static int listWidth(int w) {
+        return oneAtATime(w) ? w : Math.max(140, Math.min(260, w * 40 / 100));
+    }
+
+    /** The picked structure's width: all of it when it's shown on its own, and no wider than reads well. */
+    private static int detailWidth(int w) {
+        return oneAtATime(w) ? w : Math.min(w - listWidth(w) - 6, READABLE);
     }
 
     /** Every structure the server has, players' and hidden ones, by id. */
@@ -188,7 +216,13 @@ final class ToolsStructures extends ToolsSection {
         PackToolsState state = screen.state();
         ServerConfig.Settings settings = state.settings();
         Map<ResourceLocation, StructureCatalog.Entry> all = all();
-        int leftW = leftWidth(w);
+        single = oneAtATime(w);
+        if (single && selected != null) {
+            int cy = backToList(g, ui, x, y);
+            showDetail(g, ui, x, cy, w, y + h - cy, all.get(selected), settings, state);
+            return;
+        }
+        int leftW = listWidth(w);
         int listTop = y + 19;
         Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
 
@@ -209,7 +243,7 @@ final class ToolsStructures extends ToolsSection {
             String namespace = mod.getValue().get(0).id().getNamespace();
             boolean modHidden = settings.hiddenMods().contains(namespace);
             g.fill(x + 1, cy, x + 1 + rw, cy + HEADER - 1, Gui.BAND);
-            g.drawString(font, Gui.clip(font, mod.getKey(), rw - 30), x + 4, cy + 3, 0xFFFFFFFF, true);
+            Gui.drawClipped(g, font, mod.getKey(), x + 4, cy + 3, rw - 30, 0xFFFFFFFF, true);
             ui.toggle(g, x + rw - 19, cy + 2, !modHidden, () -> save(ToolsRules.hideMod(settings, namespace, !modHidden)),
                     Component.translatable(modHidden ? "screen.justenoughstructures.tools.show_mod" : "screen.justenoughstructures.tools.hide_mod"));
             cy += HEADER;
@@ -217,7 +251,6 @@ final class ToolsStructures extends ToolsSection {
             for (StructureCatalog.Entry e : mod.getValue()) {
                 if (revealSelected && e.id().equals(shown)) {
                     list.reveal(cy - top, cy - top + LIST_ROW);
-                    revealSelected = false;
                 }
                 if (cy + LIST_ROW >= listTop && cy <= y + h) {
                     structureRow(g, ui, x + 1, cy, rw, e, settings, state, e.id().equals(shown));
@@ -230,18 +263,23 @@ final class ToolsStructures extends ToolsSection {
             cy += 16;
         }
         list.end(g, ui, cy - top);
+        if (single) {
+            return;
+        }
 
-        int dx = x + leftW + 6;
-        int dw = w - leftW - 6;
-        StructureCatalog.Entry entry = shown == null ? null : all.get(shown);
+        showDetail(g, ui, x + leftW + 6, y, detailWidth(w), h, shown == null ? null : all.get(shown), settings, state);
+    }
+
+    private void showDetail(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, StructureCatalog.Entry entry, ServerConfig.Settings settings,
+                            PackToolsState state) {
         if (entry == null) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_structure"), dx, y + 4, dw, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_structure"), x, y + 4, w, Gui.LABEL_SOFT);
             if (notesBox != null) {
                 notesBox.visible = false;
             }
             return;
         }
-        detail(g, ui, dx, y, dw, h, entry, settings, state);
+        detail(g, ui, x, y, w, h, entry, settings, state);
     }
 
     private void structureRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, StructureCatalog.Entry e, ServerConfig.Settings settings,
@@ -271,7 +309,7 @@ final class ToolsStructures extends ToolsSection {
         }
         String name = StructureNames.structure(e.id());
         int colour = isSelected ? 0xFFFFFFFF : hidden ? 0xFF8A8A8A : ToolsUi.TEXT;
-        g.drawString(font, Gui.clip(font, hidden ? "§o" + name : name, right - x - 22), x + 21, y + 6, colour, isSelected);
+        Gui.drawClipped(g, font, hidden ? "§o" + name : name, x + 21, y + 6, right - x - 22, colour, isSelected);
         boolean modHidden = settings.hiddenMods().contains(e.id().getNamespace());
         ui.toggle(g, x + w - 19, y + 5, !hidden, modHidden ? null : () -> save(ToolsRules.hideStructure(settings, e.id(), !hidden)),
                 Component.translatable(modHidden ? "screen.justenoughstructures.tools.hidden_by_mod"
@@ -284,49 +322,97 @@ final class ToolsStructures extends ToolsSection {
                         PackToolsState state) {
         ResourceLocation id = entry.id();
         boolean hidden = settings.hides(id);
-        boolean modHidden = settings.hiddenMods().contains(id.getNamespace());
         int cy = y + row(g, ui, x, y, w, Icon.structure(id), StructureNames.structure(id), null, 0, StructureNames.mod(id.getNamespace()),
                 List.of(new RowButton(Component.translatable("screen.justenoughstructures.tools.open_in_browser"),
                         hidden || screen.browser() == null ? null : () -> screen.showInBrowser(id, null),
                         hidden ? Component.translatable("screen.justenoughstructures.tools.open_hidden") : null)), null, 0, false) + 4;
 
-        // What players are told and shown, in a box of its own.
+        // What players are told, then what its definition says, scrolling together. There's always room
+        // kept for the scroll bar, as the notes box can't change how it wraps once it's made.
+        int top = detail.begin(g, ui, x, cy, w, y + h - cy);
+        int cw = w - 8;
+        int end = forPlayers(g, ui, x, top, cw, id, settings, state, cy, y + h);
+        end = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.advanced"), x, end + 6, cw);
+        end = advanced(g, x, end, cw, entry);
+        detail.end(g, ui, end - top);
+    }
+
+    /** What players are told and shown, in a box of its own. Returns the y below it. */
+    private int forPlayers(GuiGraphics g, ToolsUi ui, int x, int y, int w, ResourceLocation id, ServerConfig.Settings settings, PackToolsState state,
+                           int viewTop, int viewBottom) {
+        boolean hidden = settings.hides(id);
+        boolean modHidden = settings.hiddenMods().contains(id.getNamespace());
         StructureInfo info = state.info(id);
-        int boxH = 50 + NOTES_HEIGHT + 20;
-        g.fill(x, cy, x + w, cy + boxH, 0xFF9A9A9A);
-        g.fill(x + 1, cy + 1, x + w - 1, cy + boxH - 1, 0xFFE8E8E8);
-        g.drawString(font, Component.translatable("screen.justenoughstructures.tools.for_players"), x + 5, cy + 4, ToolsUi.TEXT, false);
-        ui.check(g, Component.translatable("screen.justenoughstructures.tools.shown"), x + 5, cy + 16, !hidden,
+        Component shownLabel = Component.translatable("screen.justenoughstructures.tools.shown");
+        Component secretLabel = Component.translatable("screen.justenoughstructures.tools.secret");
+        Component save = Component.translatable("screen.justenoughstructures.tools.save_notes");
+        int saveW = ui.buttonWidth(save);
+        String status = notesChanged ? Component.translatable("screen.justenoughstructures.tools.notes_unsaved").getString()
+                : info.notes() == null ? ""
+                : Component.translatable(state.structures().getOrDefault(id, new PackToolsState.Written(info, false)).fromPack()
+                ? "screen.justenoughstructures.tools.notes_shown" : "screen.justenoughstructures.tools.notes_from_mod").getString();
+        List<FormattedCharSequence> statusLines = status.isEmpty() ? List.of()
+                : font.split(Component.literal(status), (int) (Math.max(20, w - saveW - 16) / Gui.fineScale()));
+        int lineH = Gui.fineLine(font) + 1;
+
+        // Where everything goes, worked out first so the box can be drawn behind it.
+        int checkW = w - 10;
+        int shownY = y + 16;
+        int secretY = shownY + ui.checkHeight(shownLabel, checkW) + 2;
+        int labelY = secretY + ui.checkHeight(secretLabel, checkW) + 3;
+        int notesY = labelY + 9;
+        int saveY = notesY + notesHeight + 2;
+        int boxH = saveY + Math.max(ToolsUi.BUTTON, statusLines.size() * lineH) + 4 - y;
+
+        g.fill(x, y, x + w, y + boxH, 0xFF9A9A9A);
+        g.fill(x + 1, y + 1, x + w - 1, y + boxH - 1, 0xFFE8E8E8);
+        Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.tools.for_players").getString(), x + 5, y + 4, w - 10, ToolsUi.TEXT, false);
+        ui.wrappedCheck(g, shownLabel, x + 5, shownY, checkW, !hidden,
                 modHidden ? null : () -> save(ToolsRules.hideStructure(settings, id, !hidden)),
                 Component.translatable(modHidden ? "screen.justenoughstructures.tools.hidden_by_mod" : "screen.justenoughstructures.tools.shown_hint"));
-        ui.check(g, Component.translatable("screen.justenoughstructures.tools.secret"), x + 5, cy + 28, info.hideLootLocations(), () -> {
+        ui.wrappedCheck(g, secretLabel, x + 5, secretY, checkW, info.hideLootLocations(), () -> {
             String text = id.equals(notesFor) ? notes : info.notes() == null ? "" : info.notes().getString();
             if (id.equals(notesFor)) {
                 notesChanged = false;
             }
             ClientRequests.saveStructure(id, text, !info.hideLootLocations()).thenAccept(reply -> screen.replied(reply, "tools.structure_saved"));
         }, Component.translatable("screen.justenoughstructures.tools.secret_hint"));
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.notes").getString(), x + 5, cy + 41, Gui.LABEL_SOFT);
-        if (notesBox != null) {
-            notesBox.setX(x + 5);
-            notesBox.setY(cy + 50);
-            notesBox.setWidth(w - 10);
-            notesBox.visible = true;
+        Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.notes").getString(), x + 5, labelY, w - 10, Gui.LABEL_SOFT);
+        placeNotes(g, x + 5, notesY, w - 10, viewTop, viewBottom);
+        ui.button(g, save, x + w - 5 - saveW, saveY, notesChanged, this::saveNotes);
+        int sy = saveY + 3;
+        for (FormattedCharSequence line : statusLines) {
+            Gui.scaled(g, font, line, x + 5, sy, notesChanged ? ToolsUi.CHANGED : Gui.LABEL_SOFT, Gui.fineScale());
+            sy += lineH;
         }
-        Component save = Component.translatable("screen.justenoughstructures.tools.save_notes");
-        int saveW = ui.buttonWidth(save);
-        ui.button(g, save, x + w - 5 - saveW, cy + 52 + NOTES_HEIGHT, notesChanged, this::saveNotes);
-        String status = notesChanged ? Component.translatable("screen.justenoughstructures.tools.notes_unsaved").getString()
-                : info.notes() == null ? ""
-                : Component.translatable(state.structures().getOrDefault(id, new PackToolsState.Written(info, false)).fromPack()
-                ? "screen.justenoughstructures.tools.notes_shown" : "screen.justenoughstructures.tools.notes_from_mod").getString();
-        Gui.fine(g, font, Gui.fineClip(font, status, w - saveW - 16), x + 5, cy + 55 + NOTES_HEIGHT, notesChanged ? ToolsUi.CHANGED : Gui.LABEL_SOFT);
-        cy += boxH + 6;
+        return y + boxH;
+    }
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.advanced"), x, cy, w);
-        int top = detail.begin(g, ui, x, cy, w, y + h - cy);
-        int end = advanced(g, x, top, detail.width(), entry);
-        detail.end(g, ui, end - top);
+    /**
+     * Puts the notes box where it's drawn as the detail scrolls. It's a text box only while all of it
+     * is in view; while only some is, a picture of it stands in, cut off at the edge like the rest.
+     */
+    private void placeNotes(GuiGraphics g, int x, int y, int w, int viewTop, int viewBottom) {
+        if (notesBox == null) {
+            return;
+        }
+        notesBox.setX(x);
+        notesBox.setY(y);
+        notesBox.setWidth(w);
+        notesBox.visible = y >= viewTop && y + notesHeight <= viewBottom;
+        if (notesBox.visible || y + notesHeight <= viewTop || y >= viewBottom) {
+            return;
+        }
+        g.fill(x, y, x + w, y + notesHeight, 0xFFA0A0A0);
+        g.fill(x + 1, y + 1, x + w - 1, y + notesHeight - 1, 0xFF000000);
+        Gui.scissor(g, x + 1, y + 1, x + w - 1, y + notesHeight - 1);
+        Component text = notes.isEmpty() ? Component.translatable("screen.justenoughstructures.tools.notes_hint") : Component.literal(notes);
+        int ly = y + 4;
+        for (FormattedCharSequence line : font.split(text, w - 8)) {
+            g.drawString(font, line, x + 4, ly, notes.isEmpty() ? 0xCCE0E0E0 : 0xFFE0E0E0, false);
+            ly += font.lineHeight;
+        }
+        Gui.endScissor(g);
     }
 
     /** What the structure's definition and its sets say, as the browser's details do. Returns the y below. */
@@ -380,7 +466,7 @@ final class ToolsStructures extends ToolsSection {
                 continue;
             }
             Gui.fine(g, font, r[0], x + 2, y, Gui.LABEL_SOFT);
-            Gui.fine(g, font, Gui.fineClip(font, r[1], w - labelW - 10), x + labelW + 8, y, ToolsUi.TEXT);
+            Gui.fineClipped(g, font, r[1], x + labelW + 8, y, w - labelW - 10, ToolsUi.TEXT);
             y += line;
         }
         return y + 4;

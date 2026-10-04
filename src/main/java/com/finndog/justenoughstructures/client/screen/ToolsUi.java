@@ -124,7 +124,7 @@ final class ToolsUi {
         int state = !active ? 0 : over ? 2 : 1;
         g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + state * 20);
         String text = Gui.clip(font, label.getString(), w - 6);
-        g.drawString(font, text, x + (w - font.width(text) + 1) / 2, y + (h - 8) / 2, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
+        Gui.drawClipped(g, font, label.getString(), x + (w - font.width(text) + 1) / 2, y + (h - 8) / 2, w - 6, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
         if (active) {
             spot(x, y, w, h, action, label.getString());
         }
@@ -164,7 +164,7 @@ final class ToolsUi {
             g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + (over ? 2 : 1) * 20);
         }
         int countWidth = count.isEmpty() ? 0 : Gui.fineWidth(font, count) + 4;
-        g.drawString(font, Gui.clip(font, label.getString(), w - 10 - countWidth), x + 5, y + (h - 8) / 2, 0xFFFFFFFF, true);
+        Gui.drawClipped(g, font, label.getString(), x + 5, y + (h - 8) / 2, w - 10 - countWidth, 0xFFFFFFFF, true);
         if (!count.isEmpty()) {
             Gui.fine(g, font, count, x + w - 4 - Gui.fineWidth(font, count), y + (h - Gui.fineLine(font)) / 2 + 1, 0xFFFFD27A);
         }
@@ -211,7 +211,39 @@ final class ToolsUi {
     /** A box ticked when on, and its label beside it, both clickable. Returns the width. */
     int check(GuiGraphics g, Component label, int x, int y, boolean on, Runnable action, Component... tip) {
         int w = 12 + font.width(label);
-        boolean over = hovered(x, y - 1, w, 11);
+        checkBox(g, x, y, on, hovered(x, y - 1, w, 11));
+        g.drawString(font, label, x + 12, y + 1, TEXT, false);
+        spot(x, y - 1, w, 11, action, label.getString());
+        tooltip(x, y - 1, w, 11, tip);
+        return w;
+    }
+
+    /** A check box whose label wraps onto more lines when it's wider than {@code w} allows. Returns its height. */
+    int wrappedCheck(GuiGraphics g, Component label, int x, int y, int w, boolean on, Runnable action, Component... tip) {
+        List<net.minecraft.util.FormattedCharSequence> lines = font.split(label, Math.max(10, w - 12));
+        int h = checkHeight(label, w);
+        int textW = 0;
+        for (net.minecraft.util.FormattedCharSequence line : lines) {
+            textW = Math.max(textW, font.width(line));
+        }
+        int spotW = Math.min(w, 12 + textW);
+        checkBox(g, x, y, on, hovered(x, y - 1, spotW, h + 1));
+        int ly = y + 1;
+        for (net.minecraft.util.FormattedCharSequence line : lines) {
+            g.drawString(font, line, x + 12, ly, TEXT, false);
+            ly += font.lineHeight + 1;
+        }
+        spot(x, y - 1, spotW, h + 1, action, label.getString());
+        tooltip(x, y - 1, spotW, h + 1, tip);
+        return h;
+    }
+
+    /** How tall {@link #wrappedCheck} is with this label in this width. */
+    int checkHeight(Component label, int w) {
+        return Math.max(1, font.split(label, Math.max(10, w - 12)).size()) * (font.lineHeight + 1);
+    }
+
+    private void checkBox(GuiGraphics g, int x, int y, boolean on, boolean over) {
         g.fill(x, y, x + 9, y + 9, over ? 0xFFFFFFFF : 0xFFA0A0A0);
         g.fill(x + 1, y + 1, x + 8, y + 8, 0xFF000000);
         if (on) {
@@ -220,10 +252,6 @@ final class ToolsUi {
                 g.fill(x + 6 - i, y + 2 + i, x + 7 - i, y + 3 + i, 0xFFFFFFFF);
             }
         }
-        g.drawString(font, label, x + 12, y + 1, TEXT, false);
-        spot(x, y - 1, w, 11, action, label.getString());
-        tooltip(x, y - 1, w, 11, tip);
-        return w;
     }
 
     /** A small tag, lit up when on. Returns its width. */

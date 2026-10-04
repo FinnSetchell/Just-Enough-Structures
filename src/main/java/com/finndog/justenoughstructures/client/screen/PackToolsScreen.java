@@ -287,13 +287,24 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     @Override
     protected void init() {
-        int menuW = Math.max(84, Math.min(110, width / 6));
+        // On a small screen the menu is only as wide as its names need, leaving the rest to the section.
+        int menuW = Math.max(Math.min(110, width / 6), Math.min(84, menuNeeds()));
         int menuX = PAD + 5;
         contentX = menuX + menuW + 9;
         contentY = TOP + 24;
         contentW = width - PAD - 6 - contentX;
         contentH = height - PAD - 5 - contentY;
         current().init(contentX, contentY, contentW, contentH);
+    }
+
+    /** How wide the menu has to be for every section's name, and its count, to fit. */
+    private int menuNeeds() {
+        int widest = 0;
+        for (Section s : Section.values()) {
+            String count = state == null ? "" : sections.get(s).count();
+            widest = Math.max(widest, font.width(s.label()) + 10 + (count.isEmpty() ? 0 : Gui.fineWidth(font, count) + 4));
+        }
+        return widest;
     }
 
     /** Lets a section add a text box or other widget. */
@@ -319,6 +330,7 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Gui.beginClipped();
         renderBackground(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         ui.begin(mouseX, mouseY);
@@ -378,16 +390,18 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
         current().renderOver(g, ui, mouseX, mouseY);
         navBar.render(g, font, mouseX, mouseY, partialTick);
         List<Component> tip = ui.tooltip();
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 600);
         if (tip != null) {
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 600);
             List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
             for (Component line : tip) {
                 lines.addAll(font.split(line, 260));
             }
             g.renderTooltip(font, lines, mouseX, mouseY);
-            g.pose().popPose();
+        } else {
+            Gui.clippedTooltip(g, font, mouseX, mouseY);
         }
+        g.pose().popPose();
     }
 
     @Override

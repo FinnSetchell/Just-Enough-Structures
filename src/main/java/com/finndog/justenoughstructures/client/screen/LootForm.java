@@ -26,6 +26,8 @@ import net.minecraft.world.item.ItemStack;
 final class LootForm {
     static final int FIELD = 14;
     private static final int LABEL_W = 72;
+    /** How wide the labels are on the left this frame: less in a narrow form, so its controls keep room. */
+    private int labelW = LABEL_W;
     private static final int GAP = 3;
     private static final int INDENT = 6;
     private static final List<String> PROVIDERS = List.of("constant", "uniform", "binomial");
@@ -71,6 +73,7 @@ final class LootForm {
 
     /** Draws the card for what's picked. Returns the y below it. */
     int render(GuiGraphics g, int x, int y, int w, int pool, int entry) {
+        labelW = Math.max(48, Math.min(LABEL_W, w / 4));
         if (pool < 0) {
             return tableCard(g, x, y, w);
         }
@@ -143,8 +146,7 @@ final class LootForm {
                     itemButton(g, cx + cw - FIELD - 2, y(), namePath);
                 });
                 Component itemName = itemName(JsonPaths.string(draft(), namePath, ""));
-                Gui.fine(g, font, Gui.fineClip(font, itemName.getString(), w - LABEL_W - 8), x + LABEL_W, y - 1,
-                        itemExists(JsonPaths.string(draft(), namePath, "")) ? Gui.LABEL_SOFT : ToolsUi.BAD);
+                Gui.fineClipped(g, font, itemName.getString(), x + labelW, y - 1, w - labelW - 8, itemExists(JsonPaths.string(draft(), namePath, "")) ? Gui.LABEL_SOFT : ToolsUi.BAD);
                 y += Gui.fineLine(font) + 2;
             }
             case "tag" -> {
@@ -327,7 +329,7 @@ final class LootForm {
     /** The top of a card: a title, and a link at the right such as Remove. Returns the y below it. */
     private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction) {
         g.fill(x, y, x + w, y + 14, 0xFF8B8B8B);
-        g.drawString(font, Gui.clip(font, title.getString(), w - 60), x + 4, y + 3, 0xFFFFFFFF, true);
+        Gui.drawClipped(g, font, title.getString(), x + 4, y + 3, w - 60, 0xFFFFFFFF, true);
         if (action != null) {
             int aw = Gui.fineWidth(font, action.getString());
             ui.link(g, action, x + w - 4 - aw, y + 4, true, onAction);
@@ -378,9 +380,9 @@ final class LootForm {
     }
 
     private int labelled(GuiGraphics g, int x, int y, int w, String label, Control control) {
-        Gui.fine(g, font, Gui.fineClip(font, label, LABEL_W - 8), x + 4, y + (FIELD - Gui.fineLine(font)) / 2 + 1, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, label, x + 4, y + (FIELD - Gui.fineLine(font)) / 2 + 1, labelW - 8, Gui.LABEL_SOFT);
         rowY = y;
-        control.draw(x + LABEL_W, w - LABEL_W - 4);
+        control.draw(x + labelW, w - labelW - 4);
         return y + FIELD + GAP;
     }
 
@@ -402,7 +404,7 @@ final class LootForm {
         g.fill(x, y, x + w, y + FIELD, over || editing ? 0xFFFFFFFF : 0xFFA0A0A0);
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, 0xFF000000);
         if (!editing) {
-            g.drawString(font, Gui.clip(font, shown, w - 8), x + 4, y + 3, 0xFFE0E0E0, false);
+            Gui.drawClipped(g, font, shown, x + 4, y + 3, w - 8, 0xFFE0E0E0, false);
         }
         ui.spot(x, y, w, FIELD, () -> host.edit(path, rect, shown, text -> commit(path, kind, text)));
         if (kind == Kind.RAW && font.width(shown) > w - 8) {
@@ -447,7 +449,7 @@ final class LootForm {
         boolean over = ui.hovered(x, y, w, FIELD);
         g.fill(x, y, x + w, y + FIELD, over ? 0xFFFFFFFF : 0xFF000000);
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, over ? 0xFF7A7A7A : 0xFF6D6D6D);
-        g.drawString(font, Gui.clip(font, names.apply(current), w - 16), x + 4, y + 3, 0xFFFFFFFF, true);
+        Gui.drawClipped(g, font, names.apply(current), x + 4, y + 3, w - 16, 0xFFFFFFFF, true);
         // A small arrow pointing down, at the right.
         for (int i = 0; i < 4; i++) {
             g.fill(x + w - 10 + i, y + 5 + i, x + w - 3 - i, y + 6 + i, 0xFFFFFFFF);
@@ -494,7 +496,8 @@ final class LootForm {
         int rest = w - pickW - 4;
         switch (kind) {
             case "uniform" -> {
-                int each = Math.max(30, Math.min(60, (rest - 30) / 2));
+                int words = Gui.fineWidth(font, text("range_from").getString()) + Gui.fineWidth(font, text("range_to").getString());
+                int each = Math.max(14, Math.min(60, (rest - words - 10) / 2));
                 Gui.fine(g, font, text("range_from").getString(), fx, y + 4, Gui.LABEL_SOFT);
                 int from = fx + Gui.fineWidth(font, text("range_from").getString()) + 3;
                 number(g, from, y, each, JsonPaths.join(path, "min"), Kind.NUMBER, "0");
@@ -503,7 +506,7 @@ final class LootForm {
                 number(g, toX + Gui.fineWidth(font, text("range_to").getString()) + 3, y, each, JsonPaths.join(path, "max"), Kind.NUMBER, "0");
             }
             case "binomial" -> {
-                int each = Math.max(30, Math.min(60, (rest - 24) / 2));
+                int each = Math.max(14, Math.min(60, (rest - 20) / 2));
                 Gui.fine(g, font, "n", fx, y + 4, Gui.LABEL_SOFT);
                 number(g, fx + 8, y, each, JsonPaths.join(path, "n"), Kind.INT, "1");
                 int pX = fx + 8 + each + 4;

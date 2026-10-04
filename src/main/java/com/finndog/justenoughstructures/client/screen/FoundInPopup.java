@@ -77,7 +77,7 @@ final class FoundInPopup {
         Gui.panel(g, x, y, WIDTH, height());
         Gui.slot(g, x + 7, y + 6);
         g.renderItem(item, x + 8, y + 7);
-        g.drawString(font, Gui.clip(font, item.getHoverName().getString(), WIDTH - 40), x + 30, y + 7, Gui.LABEL, false);
+        Gui.drawClipped(g, font, item.getHoverName().getString(), x + 30, y + 7, WIDTH - 40, Gui.LABEL, false);
 
         List<Row> list = rows();
         int top = y + 30;
@@ -89,7 +89,8 @@ final class FoundInPopup {
             Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.LABEL_SOFT);
             return;
         }
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.found_in_chance", list.size()).getString(), x + 30, y + 17, Gui.LABEL_SOFT);
+        Gui.smallClipped(g, font, Component.translatable("screen.justenoughstructures.found_in_chance", list.size()).getString(), x + 30, y + 17,
+                WIDTH - 38, Gui.LABEL_SOFT);
         Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, 0xFFB9B9B9);
         if (list.isEmpty()) {
             Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.LABEL_SOFT);
@@ -115,13 +116,16 @@ final class FoundInPopup {
             String name = StructureNames.structure(row.structure());
             String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct()
                     .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
-            Gui.small(g, font, Gui.clipSmall(font, tables, WIDTH - 40), x + 30, ry + 13, Gui.LABEL_SOFT);
+            Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40, Gui.LABEL_SOFT);
         }
+        int moreW = 0;
         if (list.size() > VISIBLE_ROWS) {
             String more = Component.translatable("screen.justenoughstructures.found_in_range", scroll + 1, Math.min(list.size(), scroll + VISIBLE_ROWS), list.size()).getString();
+            moreW = Gui.smallWidth(font, more) + 6;
             Gui.small(g, font, more, x + WIDTH - 8 - Gui.smallWidth(font, more), y + height() - 11, Gui.LABEL_SOFT);
         }
-        Gui.small(g, font, Component.translatable("screen.justenoughstructures.found_hint").getString(), x + 8, y + height() - 11, Gui.LABEL_SOFT);
+        Gui.smallClipped(g, font, Component.translatable("screen.justenoughstructures.found_hint").getString(), x + 8, y + height() - 11,
+                WIDTH - 16 - moreW, Gui.LABEL_SOFT);
     }
 
     Optional<Row> click(double mouseX, double mouseY) {

@@ -68,6 +68,21 @@ final class OddsList {
      * Rare ones are drawn in amber.
      */
     static void drawRow(GuiGraphics g, Font font, ItemStack stack, String name, String detail, float chance, int x, int y, int right, boolean hovered) {
+        drawRow(g, font, stack, name, detail, chance, x, y, right, hovered, -1);
+    }
+
+    /** How wide the widest of a list's details is, so every row's bar can start at the same place. */
+    static int detailRoom(Font font, Iterable<String> details) {
+        int widest = 0;
+        for (String detail : details) {
+            widest = Math.max(widest, Gui.fineWidth(font, detail));
+        }
+        return widest;
+    }
+
+    /** With {@code detailRoom} from {@link #detailRoom}, the bar starts after it rather than after this row's own detail. */
+    static void drawRow(GuiGraphics g, Font font, ItemStack stack, String name, String detail, float chance, int x, int y, int right, boolean hovered,
+                        int detailRoom) {
         boolean rare = chance < RARE_BELOW;
         if (hovered) {
             g.fill(x, y, right, y + ROW, Gui.ROW_HOVER);
@@ -81,10 +96,10 @@ final class OddsList {
         int pctX = right - 2 - font.width(pct);
         g.drawString(font, pct, pctX, lineY, rare ? RARE : Gui.LABEL, false);
         int detailY = lineY + (font.lineHeight - 1 - Gui.fineLine(font)) / 2;
-        Gui.fine(g, font, Gui.fineClip(font, detail, pctX - 4 - textX), textX, detailY, Gui.LABEL_SOFT);
-        int barLeft = textX + Gui.fineWidth(font, detail) + 4;
+        Gui.fineClipped(g, font, detail, textX, detailY, pctX - 4 - textX, Gui.LABEL_SOFT);
+        int barLeft = textX + (detailRoom >= 0 ? detailRoom : Gui.fineWidth(font, detail)) + 4;
         int barRight = pctX - 4;
-        if (barRight - barLeft > 10) {
+        if (barRight - barLeft >= 4) {
             g.fill(barLeft, lineY + 2, barRight, lineY + 6, Gui.BAR_BACK);
             g.fill(barLeft, lineY + 2, barLeft + Math.max(1, (int) ((barRight - barLeft) * chance)), lineY + 6, rare ? RARE_BAR : Gui.BAR);
         }

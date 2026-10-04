@@ -184,7 +184,7 @@ final class ChestPopup {
             room -= Math.max(all, last) + 4;
         }
         if (hasTabs()) {
-            room -= tabWidth(font, "popup_roll") + 2 + tabWidth(font, "popup_odds") + 4;
+            room -= tabWidth(font, "popup_roll") + 3 + tabWidth(font, "popup_odds") + 4;
         }
         return room;
     }
@@ -270,10 +270,10 @@ final class ChestPopup {
         }
         if (hasTabs()) {
             right = tab(g, font, Action.ODDS, "popup_odds", view == View.ODDS, right, mouseX, mouseY);
-            right = tab(g, font, Action.ROLL, "popup_roll", view == View.ROLL, right - 2, mouseX, mouseY);
+            right = tab(g, font, Action.ROLL, "popup_roll", view == View.ROLL, right - 3, mouseX, mouseY);
         }
         if (header > 17 && titleBelow(font)) {
-            g.drawString(font, Gui.clip(font, title.getString(), WIDTH - 16), x + 8, y + 6 + font.lineHeight + 1, Gui.LABEL, false);
+            Gui.drawClipped(g, font, title.getString(), x + 8, y + 6 + font.lineHeight + 1, WIDTH - 16, Gui.LABEL, false);
         } else if (header > 17) {
             List<FormattedCharSequence> lines = font.split(title, titleRoom(font));
             for (int i = 0; i < Math.min(2, lines.size()); i++) {
@@ -332,10 +332,10 @@ final class ChestPopup {
         cy += labelRow(font);
         String tableName = table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
         int mark = packTools ? editedMark(g, font, table, x + WIDTH - 7, cy + 1) : 0;
-        g.drawString(font, Gui.clip(font, tableName, WIDTH - 14 - mark), x + 7, cy, 0xFF202020, false);
+        Gui.drawClipped(g, font, tableName, x + 7, cy, WIDTH - 14 - mark, 0xFF202020, false);
         cy += font.lineHeight + 1;
         if (Gui.advanced() && table != null) {
-            Gui.fine(g, font, Gui.fineClip(font, table, WIDTH - 14), x + 7, cy, 0xFF555555);
+            Gui.fineClipped(g, font, table, x + 7, cy, WIDTH - 14, 0xFF555555);
             cy += Gui.fineLine(font) + 1;
         }
         for (FormattedCharSequence line : noteLines(font)) {
@@ -384,13 +384,14 @@ final class ChestPopup {
         ItemStack hovered = ItemStack.EMPTY;
         List<LootOdds.Row> rows = OddsList.sorted(odds, false);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
-        g.enableScissor(left + 1, top, right - 1, bottom);
+        Gui.scissor(g, left + 1, top, right - 1, bottom);
+        int detailRoom = OddsList.detailRoom(font, rows.stream().map(OddsList::counts).toList());
         int cy = top + 1 - scroll;
         for (LootOdds.Row row : rows) {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 float chance = (float) row.hits() / odds.rolls();
                 boolean over = mouseX >= left && mouseX < right && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
-                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, left, cy, right - 1, over);
+                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, left, cy, right - 1, over, detailRoom);
                 if (over) {
                     hovered = row.example();
                     hoveredExtra = OddsList.tooltip(row, chance, count, kind);
@@ -398,7 +399,7 @@ final class ChestPopup {
             }
             cy += OddsList.ROW + 1;
         }
-        g.disableScissor();
+        Gui.endScissor(g);
         return hovered;
     }
 
@@ -444,7 +445,7 @@ final class ChestPopup {
 
     /** A tab by the popup's name, its right edge at {@code right}. Returns its left edge. */
     private static int tabWidth(Font font, String key) {
-        return Gui.fineWidth(font, Component.translatable("screen.justenoughstructures." + key).getString()) + 6;
+        return Gui.fineWidth(font, Component.translatable("screen.justenoughstructures." + key).getString()) + 8;
     }
 
     private int tab(GuiGraphics g, Font font, Action action, String key, boolean on, int right, int mouseX, int mouseY) {
@@ -455,7 +456,7 @@ final class ChestPopup {
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + TAB_HEIGHT;
         g.fill(left, top, right, top + TAB_HEIGHT, on ? 0xFF373737 : 0xFF8B8B8B);
         g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, on ? 0xFFFFFFFF : over ? 0xFFD6D6D6 : 0xFFC6C6C6);
-        Gui.fine(g, font, text, left + 3, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.LABEL : 0xFF404040);
+        Gui.fine(g, font, text, left + 4, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.LABEL : 0xFF404040);
         links.put(action, new int[]{left, top, w, TAB_HEIGHT});
         if (over && !on) {
             hoveredAction = action;

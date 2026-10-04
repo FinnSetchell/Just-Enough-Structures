@@ -106,6 +106,8 @@ public class JesScreen extends Screen implements Nav.Page {
     private CaptureResult result;
     private SnapshotView view;
     private ChestPopup popup;
+    /** A spawner's popup. Only one popup is open at a time, this or {@link #popup}. */
+    private SpawnerPopup spawnerPopup;
     private FoundInPopup foundIn;
     private String pendingTable;
     /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
@@ -136,6 +138,8 @@ public class JesScreen extends Screen implements Nav.Page {
     private CompletableFuture<Codecs.CaptureReply> capturing;
     /** The camera before the popup's arrows turned it to a container, to go back to when the popup closes. */
     private StructureViewport.Camera tourFrom;
+    /** Set when the preview changed size while a popup had the camera, so closing it fits the structure to the new size. */
+    private boolean refitAfterTour;
     /** How far from a container the arrows bring the camera, the same for every one. */
     private static final float TOUR_DISTANCE = 10f;
     private boolean messageUntilReload;
@@ -196,12 +200,15 @@ public class JesScreen extends Screen implements Nav.Page {
         if (info == null) {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
             info.onOpenTable(this::openTable);
+            info.onOpenSpawner(this::openSpawnerPopup);
             info.onMove(Nav::remember);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
-        int leftW = sides ? clamp(width / 4, 118, 175) : 0;
-        int rightW = sides ? clamp(width / 4, 138, 200) : 0;
+        // Up to a set width each, a little wider on very big screens so their text isn't a thin column.
+        // Given the room, the details are as wide as a popup, which then sits over them, beside the preview.
+        int leftW = sides ? clamp(width / 4, 118, Math.max(175, width / 7)) : 0;
+        int rightW = sides ? clamp(width >= 560 ? Math.max(width / 4, ChestPopup.WIDTH + 12) : width / 4, 138, Math.max(200, width / 6)) : 0;
         listX = PAD;
         listW = leftW;
         centreX = sides ? listX + leftW + PAD : PAD;
@@ -242,16 +249,22 @@ public class JesScreen extends Screen implements Nav.Page {
         viewY = TOP + 35;
         int toolbarY = height - PAD - 26;
         viewW = centreW - 12;
-        boolean roomy = viewW >= 250;
         // When the buttons leave the layer slider too little room for its label, it gets a row of its
-        // own under them, as wide as the preview, rather than spilling past the panel's edge.
-        int buttonsWidth = (roomy ? 68 : 36) + 22 + 22 + 24;
-        boolean sliderRow = viewW - buttonsWidth < LayerSlider.LABEL_WIDTH;
+        // own under them, as wide as the preview, rather than spilling past the panel's edge. "New
+        // layout" is shortened to "New" only when that keeps the slider beside the buttons.
+        int others = 22 + 22 + 24;
+        boolean sliderRow = viewW - (36 + others) < LayerSlider.LABEL_WIDTH;
+        boolean roomy = sliderRow ? viewW >= 68 + others - 4 : viewW - (68 + others) >= LayerSlider.LABEL_WIDTH;
         int buttonsY = sliderRow ? toolbarY - 22 : toolbarY;
         viewH = buttonsY - 4 - viewY;
         if (viewW != lastViewW || viewH != lastViewH) {
-            // A bigger or smaller preview (maximised, or the window resized) gets zoomed to fit again.
-            viewport.refit();
+            // A bigger or smaller preview (maximised, or the window resized) gets zoomed to fit again,
+            // though not while a popup has it turned to a container or spawner: that waits until it closes.
+            if (tourFrom == null) {
+                viewport.refit();
+            } else {
+                refitAfterTour = true;
+            }
             lastViewW = viewW;
             lastViewH = viewH;
         }
@@ -327,6 +340,15 @@ public class JesScreen extends Screen implements Nav.Page {
         chestNext = addRenderableWidget(Button.builder(Component.literal(">"), b -> stepContainer(1)).bounds(0, 0, 20, 20).build());
         chestClose = addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> closePopup())
                 .bounds(0, 0, 44, 20).build());
+        if (popup != null) {
+            placePopup();
+        }
+        if (foundIn != null) {
+            foundIn.place(width, height);
+        }
+        if (spawnerPopup != null) {
+            spawnerPopup.placeAt(besideX(SpawnerPopup.WIDTH), height, font);
+        }
         layoutPopupButtons();
 
         // Which tables have edits, to mark them, asked again whenever the browser shows, like after the editor.
@@ -705,13 +727,14 @@ public class JesScreen extends Screen implements Nav.Page {
         Nav.remember();
         showContainer(container, group);
         if (!popup.overview()) {
-            lookAt(container);
+            lookAt(container.pos());
         }
     }
 
     /** Shows a container, or with {@code all}, every container with its table, {@code container} standing for them. */
     private void showContainer(StructureSnapshot.Container container, boolean all) {
         List<StructureSnapshot.Container> same = sameTable(container);
+        spawnerPopup = null;
         ChestPopup previous = popup;
         ChestPopup.View keep = previous != null && previous.container != null ? previous.view : ChestPopup.View.ROLL;
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container),
@@ -754,20 +777,22 @@ public class JesScreen extends Screen implements Nav.Page {
             popup.place(width, height, font);
             return;
         }
-        int x = sides ? Math.min(width - 4 - ChestPopup.WIDTH, infoX + Math.max(0, (infoW - ChestPopup.WIDTH) / 2))
-                : viewX + viewW - ChestPopup.WIDTH - 4;
-        popup.placeAt(x, height, font);
+        popup.placeAt(besideX(ChestPopup.WIDTH), height, font);
+    }
+
+    /** Where a popup {@code w} wide goes beside the preview: over the details if they're showing, or the preview's right edge. */
+    private int besideX(int w) {
+        return sides ? Math.min(width - 4 - w, infoX + Math.max(0, (infoW - w) / 2)) : viewX + viewW - w - 4;
     }
 
     /**
-     * Turns the camera to the container the popup is showing, from the same distance every time, so
-     * it's clear which one it is and dragging the preview turns around it.
+     * Turns the camera to the container or spawner the popup is showing, from the same distance every
+     * time, so it's clear which one it is and dragging the preview turns around it.
      */
-    private void lookAt(StructureSnapshot.Container container) {
+    private void lookAt(BlockPos pos) {
         if (view == null) {
             return;
         }
-        BlockPos pos = container.pos();
         if (pos.getY() >= view.sliceY()) {
             // Hidden by the layer slider: show everything again.
             view.setSliceY(view.size().getY());
@@ -829,6 +854,10 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     private void stepContainer(int direction) {
+        if (spawnerPopup != null) {
+            stepSpawner(direction);
+            return;
+        }
         if (popup == null || popup.container == null) {
             return;
         }
@@ -838,7 +867,7 @@ public class JesScreen extends Screen implements Nav.Page {
             int at = popup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(popup.container);
             StructureSnapshot.Container next = same.get(Math.floorMod(at + direction, same.size()));
             showContainer(next, false);
-            lookAt(next);
+            lookAt(next.pos());
         }
     }
 
@@ -850,6 +879,76 @@ public class JesScreen extends Screen implements Nav.Page {
             }
         }
         return out;
+    }
+
+    /**
+     * Opens a spawner, from the preview or the Mobs tab. With {@code group}, it was picked from a row
+     * standing for every spawner like it, so it shows all of them until one is picked.
+     */
+    private void openSpawnerPopup(StructureSnapshot.Spawner spawner, boolean group) {
+        if (result == null || !result.succeeded()) {
+            return;
+        }
+        Nav.remember();
+        showSpawner(spawner, group);
+        if (!spawnerPopup.overview()) {
+            lookAt(spawner.pos());
+        }
+    }
+
+    /** Opens a spawner's popup, as clicking it in the preview does. For the screenshot harness. */
+    public void openSpawnerPopup(StructureSnapshot.Spawner spawner) {
+        openSpawnerPopup(spawner, false);
+    }
+
+    /** Shows a spawner, or with {@code all}, every spawner that makes the same, {@code spawner} standing for them. */
+    private void showSpawner(StructureSnapshot.Spawner spawner, boolean all) {
+        List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawner);
+        popup = null;
+        BlockPos pos = spawner.pos();
+        Component title = view != null ? view.rawState(pos.getX(), pos.getY(), pos.getZ()).getBlock().getName()
+                : Component.translatable("block.minecraft.spawner");
+        spawnerPopup = new SpawnerPopup(spawner, SpawnerKind.tags(result.snapshot()).get(pos), title,
+                all && same.size() > 1 ? -1 : same.indexOf(spawner), same.size());
+        spawnerPopup.picking = picking == Picking.SPAWNER;
+        spawnerPopup.placeAt(besideX(SpawnerPopup.WIDTH), height, font);
+        layoutPopupButtons();
+    }
+
+    private void stepSpawner(int direction) {
+        List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawnerPopup.spawner);
+        if (same.size() > 1) {
+            // From all of them, the first step goes to the first or the last.
+            int at = spawnerPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(spawnerPopup.spawner);
+            StructureSnapshot.Spawner next = same.get(Math.floorMod(at + direction, same.size()));
+            showSpawner(next, false);
+            lookAt(next.pos());
+        }
+    }
+
+    private void spawnerAction(SpawnerPopup open, SpawnerPopup.Action action) {
+        switch (action) {
+            case TOOLS -> openSpawner(open.spawner);
+            case CHANGE -> changeSpawner(open.spawner);
+        }
+    }
+
+    /**
+     * Change, on a spawner picked for Pack tools: the mob picker, which then goes to the spawner in
+     * Pack tools, as Change on a chest does.
+     */
+    private void changeSpawner(StructureSnapshot.Spawner spawner) {
+        if (spawner.source() == null || selected == null) {
+            return;
+        }
+        ToolsSpawners.SpawnerRef ref = ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner);
+        Nav.remember();
+        minecraft.setScreen(new MobPickerScreen(this, spawner.source().template(), spawner.source().pos(), spawner.mob(), (message, untilReload) -> {
+            picking = Picking.NONE;
+            PackToolsScreen tools = new PackToolsScreen(this, PackToolsScreen.Section.SPAWNERS, ref);
+            tools.say(message, true);
+            return tools;
+        }));
     }
 
     /** Shows the structures whose loot can give this item. */
@@ -896,6 +995,14 @@ public class JesScreen extends Screen implements Nav.Page {
         }
     }
 
+    /** A spawner's popup, found again by where the spawner is. */
+    private record SpawnerPlace(BlockPos pos, Component title, boolean all) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("spawner", pos);
+        }
+    }
+
     private record TablePopup(String table) implements Popup {
         @Override
         public Object key() {
@@ -936,6 +1043,8 @@ public class JesScreen extends Screen implements Nav.Page {
             label = Component.translatable("screen.justenoughstructures.nav.found_in", list.item().getHoverName());
         } else if (open instanceof ContainerPopup container) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, container.title());
+        } else if (open instanceof SpawnerPlace spawner) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, spawner.title());
         } else if (open instanceof TablePopup table) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, StructureNames.lootTable(table.table()));
         } else if (info.tab() != InfoPanel.Tab.OVERVIEW) {
@@ -960,6 +1069,9 @@ public class JesScreen extends Screen implements Nav.Page {
     private Popup currentPopup() {
         if (foundIn != null) {
             return new FoundInList(foundIn.item);
+        }
+        if (spawnerPopup != null) {
+            return new SpawnerPlace(spawnerPopup.spawner.pos(), spawnerPopup.title, spawnerPopup.overview());
         }
         if (popup != null) {
             return popup.container != null
@@ -1051,6 +1163,13 @@ public class JesScreen extends Screen implements Nav.Page {
                     return;
                 }
             }
+        } else if (open instanceof SpawnerPlace wanted && result.succeeded()) {
+            for (StructureSnapshot.Spawner spawner : result.snapshot().spawners()) {
+                if (spawner.pos().equals(wanted.pos())) {
+                    showSpawner(spawner, wanted.all());
+                    return;
+                }
+            }
         }
     }
 
@@ -1077,14 +1196,27 @@ public class JesScreen extends Screen implements Nav.Page {
                 }
                 return out;
             };
-        } else if (sides && popup == null && foundIn == null) {
+        } else if (spawnerPopup != null && spawnerPopup.count > 1 && foundIn == null) {
+            // The same for a spawner's popup: every spawner its arrows step through, but the one on show.
+            StructureSnapshot.Spawner anchor = spawnerPopup.spawner;
+            BlockPos showing = spawnerPopup.overview() ? null : anchor.pos();
+            key = "spawner_popup:" + anchor.pos() + "|" + showing;
+            wanted = s -> {
+                LongSet out = new LongOpenHashSet();
+                SpawnerKind.same(s, anchor).forEach(spawner -> out.add(spawner.pos().asLong()));
+                if (showing != null) {
+                    out.remove(showing.asLong());
+                }
+                return out;
+            };
+        } else if (sides && popup == null && spawnerPopup == null && foundIn == null) {
             InfoPanel.Hovered hovered = info.hoveredBlocks();
             if (hovered != null) {
                 key = hovered.key();
                 wanted = hovered.positions();
             }
         }
-        if (key == null && picking == Picking.SPAWNER && popup == null && foundIn == null) {
+        if (key == null && picking == Picking.SPAWNER && popup == null && spawnerPopup == null && foundIn == null) {
             key = "picking:spawners";
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
@@ -1125,7 +1257,8 @@ public class JesScreen extends Screen implements Nav.Page {
         int slice = view.sliceY();
         for (long packed : highlight.positions()) {
             BlockPos pos = BlockPos.of(packed);
-            if (pos.getY() >= slice || marked.contains(pos) || popup != null && popup.container != null && pos.equals(popup.container.pos())) {
+            if (pos.getY() >= slice || marked.contains(pos) || popup != null && popup.container != null && pos.equals(popup.container.pos())
+                    || spawnerPopup != null && pos.equals(spawnerPopup.spawner.pos())) {
                 continue;
             }
             Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
@@ -1154,19 +1287,26 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     /**
-     * The container the popup is showing, when it has no marker to light up white: the same small
-     * ring the others get, in white.
+     * The spawner a popup is showing, or the container when it has no marker to light up white: the
+     * same small ring the others get, in white.
      */
     private void ringPopupContainer(GuiGraphics g) {
-        if (popup == null || popup.container == null || popup.overview() || popup.container.pos().getY() >= view.sliceY()) {
+        BlockPos pos;
+        if (spawnerPopup != null && !spawnerPopup.overview()) {
+            pos = spawnerPopup.spawner.pos();
+        } else if (popup != null && popup.container != null && !popup.overview()) {
+            for (Marker m : markerRects) {
+                if (m.containers().contains(popup.container)) {
+                    return;
+                }
+            }
+            pos = popup.container.pos();
+        } else {
             return;
         }
-        for (Marker m : markerRects) {
-            if (m.containers().contains(popup.container)) {
-                return;
-            }
+        if (pos.getY() >= view.sliceY()) {
+            return;
         }
-        BlockPos pos = popup.container.pos();
         Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
         if (at.isEmpty()) {
             return;
@@ -1293,14 +1433,9 @@ public class JesScreen extends Screen implements Nav.Page {
         return null;
     }
 
-    /** Whether clicking a spawner in the preview opens it in Pack tools. */
-    private boolean spawnersOpen() {
-        return picking == Picking.SPAWNER || ClientRequests.showsPackTools();
-    }
-
-    /** Opens a spawner clicked in the preview in Pack tools, where its mob can be changed. */
+    /** Opens a spawner in Pack tools, where its mob can be changed. */
     private void openSpawner(StructureSnapshot.Spawner spawner) {
-        if (selected == null || !spawnersOpen()) {
+        if (selected == null) {
             return;
         }
         openTools(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner));
@@ -1501,6 +1636,10 @@ public class JesScreen extends Screen implements Nav.Page {
         return foundIn != null;
     }
 
+    public boolean spawnerPopupOpen() {
+        return spawnerPopup != null;
+    }
+
     /** Shows only the bottom {@code shown} layers, as dragging the slider there would. */
     public void setLayers(int shown) {
         if (view != null) {
@@ -1515,24 +1654,46 @@ public class JesScreen extends Screen implements Nav.Page {
 
     private void closePopup() {
         popup = null;
+        spawnerPopup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
             // Back to the zoom and centre from before, but keeping whatever angle the player turned to.
             StructureViewport.Camera now = viewport.camera();
-            viewport.glideTo(new StructureViewport.Camera(now.yaw(), now.pitch(), tourFrom.distance(),
-                    tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ()));
+            StructureViewport.Camera back = new StructureViewport.Camera(now.yaw(), now.pitch(), tourFrom.distance(),
+                    tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ());
+            if (refitAfterTour) {
+                // The zoom from before was for another size of preview: fit to this one instead.
+                viewport.setCamera(back);
+                viewport.refit();
+            } else {
+                viewport.glideTo(back);
+            }
             tourFrom = null;
         }
+        refitAfterTour = false;
     }
 
     private void layoutPopupButtons() {
-        boolean show = popup != null;
+        boolean show = popup != null || spawnerPopup != null;
         for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
             if (b != null) {
                 b.visible = show;
             }
         }
         if (!show || chestReroll == null) {
+            return;
+        }
+        if (spawnerPopup != null) {
+            // Nothing to roll: the arrows take Roll again's place.
+            int rowY = spawnerPopup.buttonRowY(font);
+            chestReroll.visible = false;
+            chestPrev.setX(spawnerPopup.x + 6);
+            chestPrev.setY(rowY);
+            chestNext.setX(spawnerPopup.x + 28);
+            chestNext.setY(rowY);
+            chestPrev.active = chestNext.active = spawnerPopup.count > 1;
+            chestClose.setX(spawnerPopup.x + SpawnerPopup.WIDTH - 50);
+            chestClose.setY(rowY);
             return;
         }
         int rowY = popup.buttonRowY(font);
@@ -1616,6 +1777,7 @@ public class JesScreen extends Screen implements Nav.Page {
             viewport.spin(seconds * 12f);
         }
 
+        Gui.beginClipped();
         renderBackground(g);
         if (sides) {
             Gui.panel(g, listX, TOP, listW, height - TOP - PAD);
@@ -1624,7 +1786,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         Gui.panel(g, centreX, TOP, centreW, height - TOP - PAD);
 
-        boolean popupOpen = popup != null;
+        boolean popupOpen = popup != null || spawnerPopup != null;
         boolean anyPopup = popupOpen || foundIn != null;
         int mx = anyPopup ? -1 : mouseX;
         int my = anyPopup ? -1 : mouseY;
@@ -1638,7 +1800,8 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         renderHeader(g);
         // The preview still answers the mouse beside a container's popup, so another container can be picked.
-        boolean beside = popupOpen && foundIn == null && popup.container != null && !popup.contains(mouseX, mouseY, font);
+        boolean beside = foundIn == null && (spawnerPopup != null ? !spawnerPopup.contains(mouseX, mouseY, font)
+                : popup != null && popup.container != null && !popup.contains(mouseX, mouseY, font));
         StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
         if (sides) {
             info.render(g, mx, my);
@@ -1651,15 +1814,21 @@ public class JesScreen extends Screen implements Nav.Page {
 
         ItemStack popupHover = ItemStack.EMPTY;
         if (popupOpen) {
+            // Only what's cut short in the popup counts now: the rest is behind it.
+            Gui.beginClipped();
             g.pose().pushPose();
             g.pose().translate(0, 0, 400);
-            if (popup.container != null && view != null) {
-                // The preview stays clear beside a container's popup: it's where the containers are shown.
+            if ((spawnerPopup != null || popup.container != null) && view != null) {
+                // The preview stays clear beside a container's or spawner's popup: it's where they're shown.
                 dimAround(g, viewX, viewY, viewW, viewH);
             } else {
                 g.fill(0, 0, width, height, 0x88000000);
             }
-            popupHover = popup.render(g, font, mouseX, mouseY);
+            if (spawnerPopup != null) {
+                spawnerPopup.render(g, font, mouseX, mouseY);
+            } else {
+                popupHover = popup.render(g, font, mouseX, mouseY);
+            }
             layoutPopupButtons();
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible) {
@@ -1670,6 +1839,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         popupHovered = popupHover;
         if (foundIn != null) {
+            Gui.beginClipped();
             g.pose().pushPose();
             g.pose().translate(0, 0, 400);
             g.fill(0, 0, width, height, 0x88000000);
@@ -1679,6 +1849,10 @@ public class JesScreen extends Screen implements Nav.Page {
         navBar.render(g, font, mouseX, mouseY, partialTick);
 
         if (foundIn != null) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 600);
+            Gui.clippedTooltip(g, font, mouseX, mouseY);
+            g.pose().popPose();
             return;
         }
         // Above the popups, whose items are drawn a long way towards the viewer.
@@ -1690,12 +1864,15 @@ public class JesScreen extends Screen implements Nav.Page {
 
     private void renderTooltips(GuiGraphics g, int mouseX, int mouseY, boolean popupOpen, ItemStack popupHover, StructureViewport.Hit hover) {
         if (popupOpen) {
+            List<Component> tip = spawnerPopup != null ? spawnerPopup.hoveredTip : popup.hoveredTip;
             if (!popupHover.isEmpty()) {
                 g.renderComponentTooltip(font, itemTooltip(popupHover, popup.hoveredExtra), mouseX, mouseY);
-            } else if (popup.hoveredTip != null) {
+            } else if (tip != null) {
                 List<FormattedCharSequence> lines = new ArrayList<>();
-                popup.hoveredTip.forEach(line -> lines.addAll(font.split(line, 220)));
+                tip.forEach(line -> lines.addAll(font.split(line, 220)));
                 g.renderTooltip(font, lines, mouseX, mouseY);
+            } else if (Gui.clippedAt(mouseX, mouseY) != null) {
+                Gui.clippedTooltip(g, font, mouseX, mouseY);
             } else if (hover != null) {
                 // The preview beside a container's popup, where another container can be clicked.
                 g.renderComponentTooltip(font, hoverLines(hover), mouseX, mouseY);
@@ -1710,6 +1887,8 @@ public class JesScreen extends Screen implements Nav.Page {
             g.renderComponentTooltip(font, info.hoveredText(), mouseX, mouseY);
         } else if (sides && !list.tooltip().isEmpty()) {
             g.renderComponentTooltip(font, list.tooltip(), mouseX, mouseY);
+        } else if (Gui.clippedAt(mouseX, mouseY) != null) {
+            Gui.clippedTooltip(g, font, mouseX, mouseY);
         } else if (hover != null) {
             g.renderComponentTooltip(font, hoverLines(hover), mouseX, mouseY);
         }
@@ -1829,7 +2008,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
 
         StructureSnapshot s = result.snapshot();
-        g.enableScissor(viewX, viewY, viewX + viewW, viewY + viewH);
+        Gui.scissor(g, viewX, viewY, viewX + viewW, viewY + viewH);
         if (ClientState.markers || picking == Picking.CHEST) {
             placeMarkers(s);
             for (Marker m : markerRects) {
@@ -1894,12 +2073,12 @@ public class JesScreen extends Screen implements Nav.Page {
         } else {
             String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
             String hint = Component.translatable(controls).getString();
-            if (Gui.smallWidth(font, hint) > viewW - 12) {
+            if (Gui.fineWidth(font, hint) > viewW - 12) {
                 hint = Component.translatable(controls + "_short").getString();
             }
-            Gui.small(g, font, Gui.clipSmall(font, hint, viewW - 12), viewX + 6, viewY + viewH - 10, 0xFFE0E0E0);
+            Gui.fineClipped(g, font, hint, viewX + 6, viewY + viewH - 3 - Gui.fineLine(font), viewW - 12, 0xFFE0E0E0);
         }
-        g.disableScissor();
+        Gui.endScissor(g);
 
         for (Marker m : markerRects) {
             if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
@@ -1923,7 +2102,7 @@ public class JesScreen extends Screen implements Nav.Page {
         pickCancel = new int[]{cancelX, top + 2, cancelW, 14};
         String text = Component.translatable(picking == Picking.CHEST ? "screen.justenoughstructures.tools.picking"
                 : "screen.justenoughstructures.tools.picking_spawner").getString();
-        g.drawString(font, Gui.clip(font, text, cancelX - viewX - 10), viewX + 5, top + 5, 0xFF04263F, false);
+        Gui.drawClipped(g, font, text, viewX + 5, top + 5, cancelX - viewX - 10, 0xFF04263F, false);
     }
 
     /** Stops picking, back to Pack tools' chests or spawners. */
@@ -1969,8 +2148,14 @@ public class JesScreen extends Screen implements Nav.Page {
             placed.add(new Placed(new Marker(at.get()[0] - size / 2f, at.get()[1] - size, size, members), at.get()[2]));
         }
         placed.sort(Comparator.comparingDouble(pl -> -pl.depth()));
+        // None over the buttons in the preview's top right corner, which they'd hide and take clicks from.
+        int cornerLeft = overlayLeft() - 1;
+        int cornerBottom = viewY + 23;
         for (Placed pl : placed) {
-            markerRects.add(pl.marker());
+            Marker m = pl.marker();
+            if (m.x() + m.size() < cornerLeft || m.y() > cornerBottom) {
+                markerRects.add(m);
+            }
         }
     }
 
@@ -2068,10 +2253,7 @@ public class JesScreen extends Screen implements Nav.Page {
         StructureSnapshot.Spawner spawner = container == null ? spawnerAt(hit) : null;
         if (spawner != null) {
             lines.add(spawns(spawner).withStyle(ChatFormatting.AQUA));
-            if (spawnersOpen()) {
-                lines.add(Component.translatable(spawner.source() != null ? "screen.justenoughstructures.hover_change_spawner"
-                        : "screen.justenoughstructures.hover_open_spawner").withStyle(ChatFormatting.YELLOW));
-            }
+            lines.add(Component.translatable("screen.justenoughstructures.hover_open").withStyle(ChatFormatting.YELLOW));
         }
         ResourceLocation id = hit.entity() != null ? BuiltInRegistries.ENTITY_TYPE.getKey(hit.entity().getType())
                 : BuiltInRegistries.BLOCK.getKey(hit.state().getBlock());
@@ -2107,9 +2289,13 @@ public class JesScreen extends Screen implements Nav.Page {
         return 0;
     }
 
-    /** Opens the container under the mouse in the preview, by its marker or its block. False if there's none. */
+    /**
+     * Beside a container's or spawner's popup, opens the container or spawner under the mouse in the
+     * preview instead, by its marker or its block. False if there's none.
+     */
     private boolean openClicked(double mouseX, double mouseY) {
-        if (popup == null || popup.container == null || view == null || !viewport.contains(mouseX, mouseY)) {
+        boolean beside = spawnerPopup != null || popup != null && popup.container != null;
+        if (!beside || view == null || !viewport.contains(mouseX, mouseY)) {
             return false;
         }
         for (Marker m : markerRects) {
@@ -2118,12 +2304,18 @@ public class JesScreen extends Screen implements Nav.Page {
                 return true;
             }
         }
-        StructureSnapshot.Container clicked = viewport.pick(mouseX, mouseY).map(this::containerAt).orElse(null);
-        if (clicked == null) {
-            return false;
+        Optional<StructureViewport.Hit> hit = viewport.pick(mouseX, mouseY);
+        StructureSnapshot.Container clicked = hit.map(this::containerAt).orElse(null);
+        if (clicked != null) {
+            openContainer(clicked);
+            return true;
         }
-        openContainer(clicked);
-        return true;
+        StructureSnapshot.Spawner spawner = hit.map(this::spawnerAt).orElse(null);
+        if (spawner != null) {
+            openSpawnerPopup(spawner, false);
+            return true;
+        }
+        return false;
     }
 
     private StructureSnapshot.Container containerAt(StructureViewport.Hit hit) {
@@ -2153,9 +2345,32 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return true;
         }
-        if (picking != Picking.NONE && popup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+        if (picking != Picking.NONE && popup == null && spawnerPopup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
                 && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
             cancelPicking();
+            return true;
+        }
+        if (spawnerPopup != null) {
+            for (Button b : new Button[]{chestPrev, chestNext, chestClose}) {
+                if (b.visible && b.isMouseOver(mouseX, mouseY)) {
+                    return b.mouseClicked(mouseX, mouseY, button);
+                }
+            }
+            SpawnerPopup.Action action = spawnerPopup.actionAt(mouseX, mouseY);
+            if (action != null) {
+                spawnerAction(spawnerPopup, action);
+                return true;
+            }
+            if (!spawnerPopup.contains(mouseX, mouseY, font)) {
+                if (view != null && viewport.contains(mouseX, mouseY)) {
+                    // As beside a container's popup: a drag turns around the spawner, a click opens
+                    // what's under it or closes the popup.
+                    pressedInViewport = true;
+                    dragged = false;
+                } else {
+                    closePopup();
+                }
+            }
             return true;
         }
         if (popup != null) {
@@ -2223,7 +2438,7 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
         if (pressedInViewport) {
             dragged |= Math.abs(dx) + Math.abs(dy) > 0.5;
-            if (popup != null) {
+            if (popup != null || spawnerPopup != null) {
                 // Only turning: moving would take the container out of the middle.
                 viewport.rotate(dx, dy);
             } else if (button == 1 || button == 2 || hasShiftDown()) {
@@ -2240,7 +2455,7 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (pressedInViewport) {
             pressedInViewport = false;
-            if (popup != null) {
+            if (popup != null || spawnerPopup != null) {
                 if (!dragged && (button != 0 || !openClicked(mouseX, mouseY))) {
                     closePopup();
                 }
@@ -2250,7 +2465,7 @@ public class JesScreen extends Screen implements Nav.Page {
                 if (container != null) {
                     openContainer(container);
                 } else {
-                    hit.map(this::spawnerAt).ifPresent(this::openSpawner);
+                    hit.map(this::spawnerAt).ifPresent(spawner -> openSpawnerPopup(spawner, false));
                 }
             }
             return true;
@@ -2262,6 +2477,10 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (foundIn != null) {
             foundIn.scroll(delta);
+            return true;
+        }
+        if (spawnerPopup != null) {
+            spawnerPopup.scroll(mouseX, mouseY, delta);
             return true;
         }
         if (popup != null) {
@@ -2281,7 +2500,7 @@ public class JesScreen extends Screen implements Nav.Page {
             foundIn = null;
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && popup != null) {
+        if (key == GLFW.GLFW_KEY_ESCAPE && (popup != null || spawnerPopup != null)) {
             closePopup();
             return true;
         }
@@ -2306,7 +2525,7 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return super.keyPressed(key, scanCode, modifiers);
         }
-        if (key == GLFW.GLFW_KEY_R && popup == null) {
+        if (key == GLFW.GLFW_KEY_R && popup == null && spawnerPopup == null) {
             reroll();
             return true;
         }

@@ -185,19 +185,18 @@ final class DiffScreen extends Screen implements Nav.Page {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Gui.beginClipped();
         renderBackground(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = PAD + 6;
         int column = (width - PAD * 2 - 18) / 2;
         int right = left + column + 6;
-        g.drawString(font, Gui.clip(font, title.getString(), width - PAD * 2 - 16), left, TOP + 8, Gui.LABEL, false);
-        Gui.band(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.diff.theirs").getString(), column - 8),
-                left, TOP + 18, column, 12);
-        Gui.band(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.diff.yours").getString(), column - 8),
-                right, TOP + 18, column, 12);
+        Gui.drawClipped(g, font, title.getString(), left, TOP + 8, width - PAD * 2 - 16, Gui.LABEL, false);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.diff.theirs").getString(), left, TOP + 18, column, 12);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.diff.yours").getString(), right, TOP + 18, column, 12);
         Gui.inset(g, left, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
         Gui.inset(g, right, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
-        g.enableScissor(left, top() + 1, right + column, bottom() - 1);
+        Gui.scissor(g, left, top() + 1, right + column, bottom() - 1);
         int y = top() + 2 - (int) scroll;
         for (Row row : rows) {
             if (y > bottom()) {
@@ -212,17 +211,21 @@ final class DiffScreen extends Screen implements Nav.Page {
                     g.fill(right + 1, y, right + column - 1, y + LINE, ADDED);
                 }
                 if (row.left() != null) {
-                    g.drawString(font, Gui.clip(font, row.left(), column - 6), left + 3, y + 1, Gui.LABEL, false);
+                    Gui.drawClipped(g, font, row.left(), left + 3, y + 1, column - 6, Gui.LABEL, false);
                 }
                 if (row.right() != null) {
-                    g.drawString(font, Gui.clip(font, row.right(), column - 6), right + 3, y + 1, Gui.LABEL, false);
+                    Gui.drawClipped(g, font, row.right(), right + 3, y + 1, column - 6, Gui.LABEL, false);
                 }
             }
             y += LINE;
         }
-        g.disableScissor();
+        Gui.endScissor(g);
         super.render(g, mouseX, mouseY, partialTick);
         navBar.render(g, font, mouseX, mouseY, partialTick);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 600);
+        Gui.clippedTooltip(g, font, mouseX, mouseY);
+        g.pose().popPose();
     }
 
     @Override

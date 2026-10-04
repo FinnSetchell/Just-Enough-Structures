@@ -231,7 +231,7 @@ final class StructureList {
         }
         boolean scrolls = contentHeight > height;
         int rowRight = x + width - (scrolls ? 8 : 0);
-        g.enableScissor(x, y, x + width, y + height);
+        Gui.scissor(g, x, y, x + width, y + height);
         int offset = y - (int) scroll;
         for (Row row : rows) {
             int top = offset + row.top();
@@ -250,7 +250,7 @@ final class StructureList {
                 // JEI's title rows: white text on a translucent dark band.
                 g.fill(x, top, rowRight, top + HEADER - 1, over && !row.header().equals(LOOT_HEADER) ? 0x50000000 : Gui.BAND);
                 String count = String.valueOf(row.count());
-                g.drawString(font, Gui.clip(font, label, rowRight - x - 12 - font.width(count)), x + 3, top + 3, 0xFFFFFFFF, true);
+                Gui.drawClipped(g, font, label, x + 3, top + 3, rowRight - x - 12 - font.width(count), 0xFFFFFFFF, true);
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 3, 0xFFE0E0E0, true);
                 continue;
             }
@@ -282,11 +282,12 @@ final class StructureList {
                 starHovered |= onStar;
                 Gui.star(g, rowRight - 10, top + 5, favourite, onStar);
             }
-            // Greyed when it won't turn up in new worlds, as the Info tab explains.
-            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0),
-                    row.entry().availability().generates() ? Gui.LABEL : Gui.LABEL_SOFT);
+            // Greyed when it won't turn up in new worlds, as the Info tab explains: a darker grey on
+            // the picked row, whose own darker background the usual grey would sink into.
+            int colour = row.entry().availability().generates() ? Gui.LABEL : isSelected ? 0xFF4A4A4A : Gui.LABEL_SOFT;
+            Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0), colour);
         }
-        g.disableScissor();
+        Gui.endScissor(g);
 
         if (scrolls) {
             Gui.scrollbar(g, x + width - 4, y, height, scroll, contentHeight - height);

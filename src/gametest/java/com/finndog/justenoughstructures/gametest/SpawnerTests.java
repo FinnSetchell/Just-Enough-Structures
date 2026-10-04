@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.client.screen.SpawnerKind;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
@@ -18,6 +19,7 @@ import io.netty.buffer.Unpooled;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -287,6 +289,38 @@ public final class SpawnerTests {
             }
             helper.assertTrue(picked > 0, "no spawner in " + arena + " had its mob picked from a list");
         }
+        helper.succeed();
+    }
+
+    /**
+     * A spawner's popup steps through the spawners that make the same as it: each is in its own
+     * group, the groups share nothing, and together they're every spawner.
+     */
+    public static void spawnersGroupByWhatTheyMake(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureSnapshot bastion = treasureBastion(server);
+        helper.assertTrue(bastion != null, "none of " + TRIES + " bastion layouts had the treasure room");
+        Map<BlockPos, CompoundTag> tags = SpawnerKind.tags(bastion);
+        Set<BlockPos> grouped = new HashSet<>();
+        int groups = 0;
+        for (StructureSnapshot.Spawner spawner : bastion.spawners()) {
+            List<StructureSnapshot.Spawner> same = SpawnerKind.same(bastion, spawner);
+            helper.assertTrue(same.contains(spawner), "the spawner at " + spawner.pos() + " isn't in its own group");
+            SpawnerKind kind = SpawnerKind.of(tags.get(spawner.pos()));
+            for (StructureSnapshot.Spawner other : same) {
+                helper.assertTrue(SpawnerKind.of(tags.get(other.pos())).equals(kind), "the spawner at " + other.pos()
+                        + " is grouped with " + spawner.pos() + " but makes something else");
+            }
+            if (same.get(0).equals(spawner)) {
+                groups++;
+                for (StructureSnapshot.Spawner other : same) {
+                    helper.assertTrue(grouped.add(other.pos()), "the spawner at " + other.pos() + " is in two groups");
+                }
+            }
+        }
+        helper.assertTrue(grouped.size() == bastion.spawners().size(), grouped.size() + " of " + bastion.spawners().size()
+                + " spawners ended up in a group");
+        helper.assertTrue(groups > 0, "the bastion had no spawners");
         helper.succeed();
     }
 

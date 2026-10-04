@@ -1,6 +1,10 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -27,7 +31,7 @@ public final class Gui {
     static final int ROW_HOVER = 0x80FFFFFF;
     static final int ROW_SELECTED = 0x40000000;
     /** The translucent strip behind white titles in JEI's title and page rows. */
-    static final int BAND = 0x30000000;
+    static final int BAND = 0x44000000;
     static final int VIEW_TOP = 0xFF6E7C90;
     static final int VIEW_BOTTOM = 0xFF343B48;
     static final int BAR = 0xFF3E8A2A;
@@ -134,6 +138,9 @@ public final class Gui {
         g.fill(x, y, x + w, y + h, BAND);
         String shown = clip(font, text, w - 4);
         g.drawString(font, shown, x + (w - font.width(shown) + 1) / 2, y + (h - 8) / 2, 0xFFFFFFFF, true);
+        if (!shown.equals(text)) {
+            noteClipped(x, y, w, h, text);
+        }
     }
 
     // Four 8x8 stars: a favourite and one that isn't, each also as it looks under the mouse.
@@ -202,11 +209,15 @@ public final class Gui {
     /**
      * The size small text is drawn at: about three quarters, picked at each GUI scale so every pixel
      * of the font covers a whole number of screen pixels. A plain 0.75 does that only at GUI scale 4
-     * and 8, and at the others the letters come out uneven and hard to read. GUI scales 1 and 2 have
-     * no whole-pixel size near it, so they keep 0.75.
+     * and 8, and at the others the letters come out uneven and hard to read. GUI scale 2 has no
+     * whole-pixel size near it, so it keeps 0.75; at GUI scale 1 that would be under a screen pixel
+     * for each of the font's, which can't be read at all, so it's full size there.
      */
     public static float smallScale() {
         int gui = (int) Math.round(Minecraft.getInstance().getWindow().getGuiScale());
+        if (gui <= 1) {
+            return 1f;
+        }
         float best = 0.75f;
         float bestOff = Float.MAX_VALUE;
         for (int pixels = 1; pixels <= gui; pixels++) {
@@ -278,7 +289,108 @@ public final class Gui {
 
     static void fitted(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {
         // Always the normal size, cut short if need be, so rows in a list line up.
-        g.drawString(font, clip(font, text, maxWidth), x, y, color, false);
+        drawClipped(g, font, text, x, y, maxWidth, color, false);
+    }
+
+    // ------------------------------------------------------------------ text cut short
+
+    /** Text cut short to fit, where it was drawn and what it says in full. */
+    private record Clipped(int x1, int y1, int x2, int y2, String text) {
+    }
+
+    private static final List<Clipped> CLIPPED = new ArrayList<>();
+    /** The areas text is being drawn into, each within the one before, so text scrolled out of sight isn't counted. */
+    private static final Deque<int[]> SCISSORS = new ArrayDeque<>();
+
+    /**
+     * Forgets the text cut short last frame. Called as a screen starts drawing, and again before a
+     * popup that covers it, so only what can be seen counts.
+     */
+    static void beginClipped() {
+        CLIPPED.clear();
+        SCISSORS.clear();
+    }
+
+    /** Notes text that had to be cut short, so hovering where it was drawn shows all of it. */
+    static void noteClipped(int x, int y, int w, int h, String full) {
+        int x1 = x;
+        int y1 = y;
+        int x2 = x + w;
+        int y2 = y + h;
+        int[] area = SCISSORS.peek();
+        if (area != null) {
+            x1 = Math.max(x1, area[0]);
+            y1 = Math.max(y1, area[1]);
+            x2 = Math.min(x2, area[2]);
+            y2 = Math.min(y2, area[3]);
+        }
+        if (x2 > x1 && y2 > y1) {
+            CLIPPED.add(new Clipped(x1, y1, x2, y2, full));
+        }
+    }
+
+    /** The whole of whatever text under the mouse was cut short, the last drawn first, or null. */
+    static String clippedAt(double mouseX, double mouseY) {
+        for (int i = CLIPPED.size() - 1; i >= 0; i--) {
+            Clipped c = CLIPPED.get(i);
+            if (mouseX >= c.x1() && mouseX < c.x2() && mouseY >= c.y1() && mouseY < c.y2()) {
+                return c.text();
+            }
+        }
+        return null;
+    }
+
+    /** Shows the whole of the cut-short text under the mouse as a tooltip. Returns whether there was any. */
+    static boolean clippedTooltip(GuiGraphics g, Font font, int mouseX, int mouseY) {
+        String full = clippedAt(mouseX, mouseY);
+        if (full == null) {
+            return false;
+        }
+        g.renderTooltip(font, font.split(Component.literal(full), 260), mouseX, mouseY);
+        return true;
+    }
+
+    /** Text cut short to fit {@code maxWidth}, shown in full when hovered. */
+    static void drawClipped(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color, boolean shadow) {
+        String shown = clip(font, text, maxWidth);
+        g.drawString(font, shown, x, y, color, shadow);
+        if (!shown.equals(text)) {
+            noteClipped(x, y - 1, Math.max(6, font.width(shown)), font.lineHeight + 1, text);
+        }
+    }
+
+    /** Secondary text cut short to fit {@code maxWidth}, shown in full when hovered. */
+    static void fineClipped(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {
+        String shown = fineClip(font, text, maxWidth);
+        fine(g, font, shown, x, y, color);
+        if (!shown.equals(text)) {
+            noteClipped(x, y - 1, Math.max(6, fineWidth(font, shown)), fineLine(font) + 1, text);
+        }
+    }
+
+    /** Small text cut short to fit {@code maxWidth}, shown in full when hovered. */
+    public static void smallClipped(GuiGraphics g, Font font, String text, int x, int y, int maxWidth, int color) {
+        String shown = clipSmall(font, text, maxWidth);
+        small(g, font, shown, x, y, color);
+        if (!shown.equals(text)) {
+            noteClipped(x, y - 1, Math.max(6, smallWidth(font, shown)), (int) Math.ceil(font.lineHeight * smallScale()) + 1, text);
+        }
+    }
+
+    /** {@link GuiGraphics#enableScissor}, keeping track of the area so text cut short outside it isn't counted. */
+    static void scissor(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        g.enableScissor(x1, y1, x2, y2);
+        int[] area = {x1, y1, x2, y2};
+        int[] outer = SCISSORS.peek();
+        if (outer != null) {
+            area = new int[]{Math.max(x1, outer[0]), Math.max(y1, outer[1]), Math.min(x2, outer[2]), Math.min(y2, outer[3])};
+        }
+        SCISSORS.push(area);
+    }
+
+    static void endScissor(GuiGraphics g) {
+        g.disableScissor();
+        SCISSORS.poll();
     }
 
     /** JEI's scrollbar: a raised, gripped thumb in a sunken track. */

@@ -66,6 +66,8 @@ final class ToolsSpawners extends ToolsSection {
 
     private final Scroller list = new Scroller();
     private final Scroller detail = new Scroller();
+    /** Whether the list and what's picked were last shown one at a time, rather than side by side. */
+    private boolean single;
     private SpawnerRef selected;
 
     ToolsSpawners(PackToolsScreen screen) {
@@ -105,7 +107,9 @@ final class ToolsSpawners extends ToolsSection {
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        return list.scroll(mouseX, mouseY, delta) || detail.scroll(mouseX, mouseY, delta);
+        // Shown one at a time, only the one on show scrolls.
+        return (!single || selected == null) && list.scroll(mouseX, mouseY, delta)
+                || (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
     /** The patch for the picked spawner, if it has one. */
@@ -123,14 +127,29 @@ final class ToolsSpawners extends ToolsSection {
 
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
-        int leftW = Math.max(130, Math.min(220, w * 38 / 100));
-        ui.button(g, Component.translatable("screen.justenoughstructures.tools.pick_spawner"), x, y, leftW, 18, screen.browser() != null, screen::pickSpawner,
+        single = oneAtATime(w);
+        if (single && selected != null) {
+            int cy = backToList(g, ui, x, y);
+            int dTop = detail.begin(g, ui, x, cy, w, y + h - cy);
+            int end = detail(g, ui, x, dTop, detail.width(), selected);
+            detail.end(g, ui, end - dTop);
+            return;
+        }
+        int leftW = single ? w : Math.max(130, Math.min(300, w * 38 / 100));
+        // As wide as the list, or as its label where that's wider, reaching over the column beside it.
+        Component pick = Component.translatable("screen.justenoughstructures.tools.pick_spawner");
+        int pickW = Math.min(w, Math.max(leftW, ui.buttonWidth(pick)));
+        ui.button(g, pick, x, y, pickW, 18, screen.browser() != null, screen::pickSpawner,
                 Component.translatable("screen.justenoughstructures.tools.pick_spawner_hint"));
         int listTop = y + 22;
         Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
         int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
         int rw = list.width();
         int cy = top + 2;
+        if (single) {
+            // No room beside the list, so what this is for goes above it.
+            cy = intro(g, x + 4, cy, rw - 8) + 6;
+        }
         PackToolsState state = screen.state();
         if (selected != null && selected.structure() != null && patchOf(selected) == null) {
             Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.from_browser").getString(), x + 4, cy, Gui.LABEL_SOFT);
@@ -159,17 +178,22 @@ final class ToolsSpawners extends ToolsSection {
                     () -> screen.pick(ref), 0, isSelected);
         }
         list.end(g, ui, cy - top + 2);
-
-        int dx = x + leftW + 6;
-        int dw = w - leftW - 6;
-        if (selected == null) {
-            int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro"), dx, y + 4, dw, Gui.LABEL_SOFT);
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_more"), dx, ty + 4, dw, Gui.LABEL_SOFT);
+        if (single) {
             return;
         }
-        int dTop = detail.begin(g, ui, dx, y, dw, h);
-        int end = detail(g, ui, dx, dTop, detail.width(), selected);
+
+        int dx = x + leftW + 6;
+        int dw = Math.min(w - leftW - 6, READABLE);
+        int dy = pickW > leftW ? listTop : y;
+        int dTop = detail.begin(g, ui, dx, dy, dw, y + h - dy);
+        int end = selected == null ? intro(g, dx, dTop + 4, detail.width()) : detail(g, ui, dx, dTop, detail.width(), selected);
         detail.end(g, ui, end - dTop);
+    }
+
+    /** What this section is for, while nothing's picked. Returns the y below it. */
+    private int intro(GuiGraphics g, int x, int y, int w) {
+        int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro"), x, y, w, Gui.LABEL_SOFT);
+        return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_more"), x, ty + 4, w, Gui.LABEL_SOFT);
     }
 
     /** "Magma Cube > Husk", for a changed spawner's row. */

@@ -17,6 +17,8 @@ import net.minecraft.resources.ResourceLocation;
  * and everything changed so far.
  */
 final class ToolsOverview extends ToolsSection {
+    /** The widest the page gets, so its counts and rows don't stretch across a wide screen. */
+    private static final int WIDEST = 640;
     private final Scroller scroller = new Scroller();
 
     ToolsOverview(PackToolsScreen screen) {
@@ -37,10 +39,9 @@ final class ToolsOverview extends ToolsSection {
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
         PackToolsState state = screen.state();
-        int cards = cards(g, ui, state, x, y, w);
-        int top = scroller.begin(g, ui, x, y + cards, w, h - cards);
+        int top = scroller.begin(g, ui, x, y, Math.min(w, WIDEST), h);
         int cw = scroller.width();
-        int cy = top;
+        int cy = top + cards(g, ui, state, x, top, cw);
 
         List<Map.Entry<ResourceLocation, LootOverrides.Status>> needs = new ArrayList<>();
         for (Map.Entry<ResourceLocation, LootOverrides.Status> e : state.overrides().entrySet()) {
@@ -116,9 +117,21 @@ final class ToolsOverview extends ToolsSection {
         String[] keys = {"tables", "chests", "hidden", "notes"};
         PackToolsScreen.Section[] goes = {PackToolsScreen.Section.LOOT, PackToolsScreen.Section.CHESTS,
                 PackToolsScreen.Section.STRUCTURES, PackToolsScreen.Section.STRUCTURES};
-        int columns = w >= 340 ? 4 : 2;
+        String[] labels = new String[4];
+        int widest = 0;
+        for (int i = 0; i < 4; i++) {
+            labels[i] = Component.translatable("screen.justenoughstructures.tools.count." + keys[i]).getString();
+            widest = Math.max(widest, Gui.fineWidth(font, labels[i]));
+        }
+        // Four across only when every label fits on one line; otherwise two, their labels wrapped if need be.
+        int columns = (w - 12) / 4 - 10 >= widest ? 4 : 2;
         int cardW = (w - (columns - 1) * 4) / columns;
-        int cardH = 32;
+        int lines = 1;
+        for (String label : labels) {
+            lines = Math.max(lines, font.split(Component.literal(label), (int) ((cardW - 10) / Gui.fineScale())).size());
+        }
+        int lineH = Gui.fineLine(font) + 1;
+        int cardH = 32 + (lines - 1) * lineH;
         for (int i = 0; i < 4; i++) {
             int cx = x + (i % columns) * (cardW + 4);
             int cy = y + (i / columns) * (cardH + 4);
@@ -131,8 +144,7 @@ final class ToolsOverview extends ToolsSection {
             g.pose().scale(2, 2, 1);
             g.drawString(font, String.valueOf(counts[i]), 0, 0, ToolsUi.TEXT, false);
             g.pose().popPose();
-            String label = Component.translatable("screen.justenoughstructures.tools.count." + keys[i]).getString();
-            Gui.fine(g, font, Gui.fineClip(font, label, cardW - 10), cx + 5, cy + cardH - Gui.fineLine(font) - 4, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.literal(labels[i]), cx + 5, cy + cardH - 3 - lines * lineH, cardW - 10, Gui.LABEL_SOFT);
             PackToolsScreen.Section to = goes[i];
             ui.spot(cx, cy, cardW, cardH, () -> screen.go(to, null));
         }

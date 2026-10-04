@@ -27,7 +27,9 @@ import net.minecraft.world.entity.MobCategory;
 public final class MobPickerScreen extends Screen implements Nav.Page {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
-    private static final int ROW = 22;
+    private static final int ROW = 24;
+    /** The widest the list gets. */
+    private static final int MOST_WIDTH = 640;
     /** The row for no mob at all. */
     private static final String NONE = "";
 
@@ -91,8 +93,8 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
 
     @Override
     protected void init() {
-        int left = PAD + 6;
-        int right = width - PAD - 6;
+        int left = left();
+        int right = right();
         String text = search == null ? "" : search.getValue();
         search = addRenderableWidget(new EditBox(font, left + 1, TOP + 34, right - left - 2, 16, Component.translatable("screen.justenoughstructures.mob_picker.search")));
         search.setMaxLength(256);
@@ -204,6 +206,15 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
         minecraft.setScreen(parent);
     }
 
+    /** The list's left edge: the panel's, or in from it to keep the list a readable width on a very wide screen. */
+    private int left() {
+        return PAD + 6 + Math.max(0, (width - PAD * 2 - 12 - MOST_WIDTH) / 2);
+    }
+
+    private int right() {
+        return width - left();
+    }
+
     private int listTop() {
         return TOP + 56;
     }
@@ -218,8 +229,8 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        int left = PAD + 6;
-        int right = width - PAD - 6;
+        int left = left();
+        int right = right();
         if (mouseX >= left && mouseX < right && mouseY >= listTop() && mouseY < listBottom()) {
             int row = (int) ((mouseY - listTop() - 2 + scroll) / ROW);
             if (row >= 0 && row < shown.size()) {
@@ -240,49 +251,53 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Gui.beginClipped();
         renderBackground(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
-        int left = PAD + 6;
-        int right = width - PAD - 6;
+        int left = left();
+        int right = right();
         int w = right - left;
-        g.drawString(font, Gui.clip(font, title.getString(), w), left + 2, TOP + 8, Gui.LABEL, false);
+        Gui.drawClipped(g, font, title.getString(), left + 2, TOP + 8, w, Gui.LABEL, false);
         String from = Component.translatable("screen.justenoughstructures.picker.from", template.toString()).getString();
-        Gui.small(g, font, Gui.clipSmall(font, from, w), left + 2, TOP + 21, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, from, left + 2, TOP + 21, w, Gui.LABEL_SOFT);
 
         Gui.inset(g, left, listTop(), w, listBottom() - listTop(), Gui.PANEL);
         if (shown.isEmpty()) {
             Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.mob_picker.none"), left + 4, listTop() + 4, w - 8, Gui.LABEL_SOFT);
         }
-        g.enableScissor(left + 1, listTop() + 1, right - 1, listBottom() - 1);
+        Gui.scissor(g, left + 1, listTop() + 1, right - 1, listBottom() - 1);
         int y = listTop() + 2 - (int) scroll;
+        // Narrower rows when the list scrolls, leaving room for its bar.
+        int rowRight = shown.size() * ROW > listBottom() - listTop() - 4 ? right - 8 : right;
         for (String id : shown) {
             if (y > listBottom()) {
                 break;
             }
             if (y + ROW >= listTop()) {
                 boolean selected = id.equals(picked);
-                boolean over = mouseX >= left + 2 && mouseX < right - 2 && mouseY >= y && mouseY < y + ROW - 1 && mouseY < listBottom();
-                Gui.card(g, left + 2, y, w - 4, ROW - 1);
+                boolean over = mouseX >= left + 2 && mouseX < rowRight - 2 && mouseY >= y && mouseY < y + ROW - 1 && mouseY < listBottom();
+                Gui.card(g, left + 2, y, rowRight - left - 4, ROW - 1);
                 if (selected || over) {
-                    g.fill(left + 3, y + 1, right - 3, y + ROW - 2, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+                    g.fill(left + 3, y + 1, rowRight - 3, y + ROW - 2, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
                 }
-                g.renderItem(ToolsSpawners.mobIcon(id), left + 5, y + 2);
+                g.renderItem(ToolsSpawners.mobIcon(id), left + 5, y + 3);
                 String now = id.equals(current) ? Component.translatable("screen.justenoughstructures.picker.now").getString() : "";
-                int nowWidth = now.isEmpty() ? 0 : Gui.smallWidth(font, now) + 4;
-                Gui.fitted(g, font, name(id), left + 25, y + 3, w - 33 - nowWidth, Gui.LABEL);
+                int nowWidth = now.isEmpty() ? 0 : Gui.fineWidth(font, now) + 4;
+                Gui.fitted(g, font, name(id), left + 25, y + 3, rowRight - left - 33 - nowWidth, Gui.LABEL);
                 String detail = id.isEmpty() ? Component.translatable("screen.justenoughstructures.hover_spawns_nothing").getString()
                         : id + " · " + StructureNames.mod(ResourceLocation.tryParse(id).getNamespace());
-                Gui.small(g, font, Gui.clipSmall(font, detail, w - 33 - nowWidth), left + 25, y + 12, Gui.LABEL_SOFT);
+                Gui.fineClipped(g, font, detail, left + 25, y + 13, rowRight - left - 33 - nowWidth, Gui.LABEL_SOFT);
                 if (!now.isEmpty()) {
-                    Gui.small(g, font, now, right - 6 - nowWidth + 4, y + 7, 0xFF2E7D1F);
+                    Gui.fine(g, font, now, rowRight - 6 - nowWidth + 4, y + 8, 0xFF2E7D1F);
                 }
             }
             y += ROW;
         }
-        g.disableScissor();
+        Gui.endScissor(g);
+        Gui.scrollbar(g, right - 4, listTop(), listBottom() - listTop(), scroll, Math.max(0, shown.size() * ROW - (listBottom() - listTop() - 4)));
         Component note = note();
         if (note != null) {
-            g.drawString(font, Gui.clip(font, note.getString(), w), left + 2, listBottom() + 3, Gui.LABEL_SOFT, false);
+            Gui.drawClipped(g, font, note.getString(), left + 2, listBottom() + 3, w, Gui.LABEL_SOFT, false);
         }
         if (problem != null) {
             // Over the top of the list, where it's seen, until something else is picked.
@@ -295,6 +310,10 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
         }
         super.render(g, mouseX, mouseY, partialTick);
         navBar.render(g, font, mouseX, mouseY, partialTick);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 600);
+        Gui.clippedTooltip(g, font, mouseX, mouseY);
+        g.pose().popPose();
     }
 
     /** A word about the mob picked when it isn't a monster: spawners still check where it would normally spawn. */

@@ -352,6 +352,11 @@ public final class FabricGameTests implements FabricGameTest {
         SpawnerTests.spawnersKnowTheirTemplate(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void spawnersGroupByWhatTheyMake(GameTestHelper helper) {
+        SpawnerTests.spawnersGroupByWhatTheyMake(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
     public void spawnerPatchesApplyOnReload(GameTestHelper helper) {

@@ -2,7 +2,6 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
-import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -98,6 +97,9 @@ final class InfoPanel {
     private final Consumer<ItemStack> onItemClicked;
     private Consumer<String> onOpenTable = table -> {
     };
+    /** Opens a spawner, and whether it was picked from a row standing for several. */
+    private BiConsumer<StructureSnapshot.Spawner, Boolean> onOpenSpawner = (spawner, group) -> {
+    };
     private Runnable beforeMove = () -> {
     };
 
@@ -189,6 +191,11 @@ final class InfoPanel {
         onOpenTable = action;
     }
 
+    /** What clicking a row of spawners on the Mobs tab does: opens them in a popup, one at a time. */
+    void onOpenSpawner(BiConsumer<StructureSnapshot.Spawner, Boolean> action) {
+        onOpenSpawner = action;
+    }
+
     /** Told just before the panel moves somewhere else, like another tab, so Back can return. */
     void onMove(Runnable action) {
         beforeMove = action;
@@ -263,7 +270,7 @@ final class InfoPanel {
         int bodyHeight = height;
         boolean scrolls = contentHeight > bodyHeight;
         contentRight = x + width - (scrolls ? 8 : 0);
-        g.enableScissor(x, top, x + width, top + bodyHeight);
+        Gui.scissor(g, x, top, x + width, top + bodyHeight);
         clampScroll();
         int cursor = top + 2 - (int) scroll;
         int end = switch (tab) {
@@ -272,7 +279,7 @@ final class InfoPanel {
             case BLOCKS -> blocks(g, cursor, mouseX, mouseY, top, bodyHeight);
             case ENTITIES -> mobs(g, cursor, mouseX, mouseY, top, bodyHeight);
         };
-        g.disableScissor();
+        Gui.endScissor(g);
         contentHeight = end - cursor + 2;
         clampScroll();
         if (contentHeight > bodyHeight) {
@@ -373,7 +380,7 @@ final class InfoPanel {
             cy += 3;
             String title = info.author() == null ? Component.translatable("screen.justenoughstructures.notes").getString()
                     : Component.translatable("screen.justenoughstructures.notes_by", info.author()).getString();
-            Gui.band(g, font, Gui.clip(font, title, contentRight - x - 8), x, cy, contentRight - x, 13);
+            Gui.band(g, font, title, x, cy, contentRight - x, 13);
             cy += 16;
             cy = Gui.wrapped(g, font, info.notes(), x + PAD, cy, textWidth(), TEXT) + 3;
         }
@@ -522,6 +529,15 @@ final class InfoPanel {
     /** Cuts text short to fit {@code width} at the secondary size. */
     private String fineClip(String text, int width) {
         return Gui.clip(font, text, (int) (width / secondaryScale()));
+    }
+
+    /** Secondary text cut short to fit {@code width}, shown in full when hovered. */
+    private void fineClipped(GuiGraphics g, String text, int left, int top, int width, int color) {
+        String shown = fineClip(text, width);
+        fine(g, shown, left, top, color);
+        if (!shown.equals(text)) {
+            Gui.noteClipped(left, top - 1, Math.max(6, secondaryWidth(shown)), (int) Math.ceil(font.lineHeight * secondaryScale()) + 1, text);
+        }
     }
 
     /** Wrapped text at the secondary size, such as the notes under a list. Returns the y below it. */
@@ -730,7 +746,7 @@ final class InfoPanel {
                 int textWidth = contentRight - x - PAD - 23 - 12;
                 Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
                 int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
-                fine(g, fineClip(detail, textWidth - mark), x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+                fineClipped(g, detail, x + PAD + 23, cy + 13, textWidth - mark, Gui.LABEL_SOFT);
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 String key = "loot:" + table + "|" + first.id();
                 if (hovered) {
@@ -763,8 +779,7 @@ final class InfoPanel {
                 int textWidth = contentRight - x - PAD - 23 - 12;
                 Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 3, textWidth, TEXT);
                 int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
-                fine(g, fineClip(Component.translatable("screen.justenoughstructures.not_in_layout").getString(), textWidth - mark),
-                        x + PAD + 23, cy + 13, Gui.LABEL_SOFT);
+                fineClipped(g, Component.translatable("screen.justenoughstructures.not_in_layout").getString(), x + PAD + 23, cy + 13, textWidth - mark, Gui.LABEL_SOFT);
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 if (hovered) {
                     List<Component> lines = new ArrayList<>(List.of(Component.literal(StructureNames.lootTable(table)),
@@ -820,7 +835,11 @@ final class InfoPanel {
             return cy;
         }
         cy += 4;
-        Gui.band(g, font, Component.translatable("screen.justenoughstructures.whole_structure").getString(), x, cy, contentRight - x, 13);
+        String heading = Component.translatable("screen.justenoughstructures.whole_structure").getString();
+        if (font.width(heading) > contentRight - x - 4) {
+            heading = Component.translatable("screen.justenoughstructures.whole_structure_short").getString();
+        }
+        Gui.band(g, font, heading, x, cy, contentRight - x, 13);
         cy += 16;
         int containers = perKind.values().stream().mapToInt(Integer::intValue).sum();
         String what = counted(perKind);
@@ -856,14 +875,19 @@ final class InfoPanel {
         }
         List<Total> rows = new ArrayList<>(totals.values());
         rows.sort(ClientState.rarestFirst ? Comparator.comparingDouble(Total::chance) : Comparator.comparingDouble((Total t) -> -t.chance()));
+        Map<Total, String> amounts = new HashMap<>();
+        for (Total total : rows) {
+            amounts.put(total, total.amount >= 0.95
+                    ? Component.translatable("screen.justenoughstructures.in_all", Math.max(1, Math.round(total.amount))).getString()
+                    : Component.translatable("screen.justenoughstructures.on_average", String.format("%.1f", total.amount)).getString());
+        }
+        int detailRoom = OddsList.detailRoom(font, amounts.values());
         for (Total total : rows) {
             float chance = total.chance();
-            String amount = total.amount >= 0.95
-                    ? Component.translatable("screen.justenoughstructures.in_all", Math.max(1, Math.round(total.amount))).getString()
-                    : Component.translatable("screen.justenoughstructures.on_average", String.format("%.1f", total.amount)).getString();
+            String amount = amounts.get(total);
             boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
             if (cy + OddsList.ROW >= clipTop && cy <= clipTop + clipHeight) {
-                OddsList.drawRow(g, font, total.example, total.example.getHoverName().getString(), amount, chance, x, cy, contentRight, hovered);
+                OddsList.drawRow(g, font, total.example, total.example.getHoverName().getString(), amount, chance, x, cy, contentRight, hovered, detailRoom);
             }
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
@@ -1014,10 +1038,11 @@ final class InfoPanel {
         }
         List<LootOdds.Row> rows = OddsList.sorted(odds, ClientState.rarestFirst);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
+        int detailRoom = OddsList.detailRoom(font, rows.stream().map(OddsList::counts).toList());
         for (LootOdds.Row row : rows) {
             float chance = (float) row.hits() / odds.rolls();
             boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
-            OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, cy, contentRight, hovered);
+            OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, cy, contentRight, hovered, detailRoom);
             if (hovered) {
                 hoveredStack = row.example();
                 hoveredExtra = OddsList.tooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
@@ -1038,6 +1063,27 @@ final class InfoPanel {
                     x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         }
         return cy;
+    }
+
+    /** "3 stacks and 12", "1 stack and 5", or "2 stacks" for a number of blocks. */
+    private static Component stacks(int count) {
+        int full = count / 64;
+        int rest = count % 64;
+        if (rest == 0) {
+            return full == 1 ? Component.translatable("screen.justenoughstructures.stack_one")
+                    : Component.translatable("screen.justenoughstructures.stacks_only", full);
+        }
+        return full == 1 ? Component.translatable("screen.justenoughstructures.stack_one_and", rest)
+                : Component.translatable("screen.justenoughstructures.stacks", full, rest);
+    }
+
+    /** A block's item, or a bucket of it for water and lava, which have none. */
+    private static ItemStack blockIcon(Block block) {
+        if (block.asItem() != Items.AIR) {
+            return new ItemStack(block.asItem());
+        }
+        Item bucket = block.defaultBlockState().getFluidState().getType().getBucket();
+        return new ItemStack(bucket != Items.AIR ? bucket : Items.BARRIER);
     }
 
     /** The block's own item for block containers (so suspicious sand looks like sand), otherwise by id. */
@@ -1066,13 +1112,13 @@ final class InfoPanel {
 
         Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
         int bx = x + PAD;
-        int w = font.width(label) + 8;
-        boolean over = inside(mouseX, mouseY, bx, cy, w, 13, clipTop, clipHeight);
-        g.fill(bx, cy, bx + w, cy + 13, Gui.EDGE);
-        g.fill(bx + 1, cy + 1, bx + w - 1, cy + 12, over ? 0xFF8D8D8D : 0xFF737373);
-        g.drawString(font, label, bx + 4, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
-        hotspots.add(new Hotspot(bx, cy, w, 13, () -> notify(Exports.copyMaterialList(entry.id(), s))));
-        cy += 16;
+        int w = font.width(label) + 10;
+        boolean over = inside(mouseX, mouseY, bx, cy, w, 14, clipTop, clipHeight);
+        g.fill(bx, cy, bx + w, cy + 14, Gui.EDGE);
+        g.fill(bx + 1, cy + 1, bx + w - 1, cy + 13, over ? 0xFF8D8D8D : 0xFF737373);
+        g.drawString(font, label, bx + 5, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
+        hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
+        cy += 17;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
             cy = fineWrapped(g, notice, x + PAD, cy, textWidth(), GOOD) + 2;
         }
@@ -1090,24 +1136,22 @@ final class InfoPanel {
             if (hovered) {
                 g.fill(x, cy, contentRight, cy + rowHeight, Gui.ROW_HOVER);
             }
-            ItemStack stack = new ItemStack(block.asItem());
-            if (stack.isEmpty()) {
-                stack = new ItemStack(Items.BARRIER);
-            }
+            ItemStack stack = blockIcon(block);
             Gui.slot(g, x + PAD - 1, cy);
             g.renderItem(stack, x + PAD, cy + 1);
             int textX = x + PAD + 21;
             Gui.fitted(g, font, block.getName().getString(), textX, cy + 1, contentRight - 2 - textX, TEXT);
-            String amount = String.format("%,d", count);
-            if (count >= 64) {
-                amount = Component.translatable("screen.justenoughstructures.block_amount", amount,
-                        Component.translatable("screen.justenoughstructures.stacks", count / 64, count % 64)).getString();
+            String number = String.format("%,d", count);
+            String amount = count >= 64 ? Component.translatable("screen.justenoughstructures.block_amount", number, stacks(count)).getString() : number;
+            // Just the number when the stacks don't fit beside it: the tooltip has them.
+            if (secondaryWidth(amount) > contentRight - 2 - textX) {
+                amount = number;
             }
-            fine(g, fineClip(amount, contentRight - 2 - textX), textX, cy + 11, Gui.LABEL_SOFT);
+            fineClipped(g, amount, textX, cy + 11, contentRight - 2 - textX, Gui.LABEL_SOFT);
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
                 lines.add(block.getName());
-                lines.add(Component.translatable("screen.justenoughstructures.stacks", count / 64, count % 64).withStyle(ChatFormatting.GRAY));
+                lines.add(stacks(count).copy().withStyle(ChatFormatting.GRAY));
                 if (Minecraft.getInstance().options.advancedItemTooltips) {
                     lines.add(Component.literal(BuiltInRegistries.BLOCK.getKey(block).toString()).withStyle(ChatFormatting.DARK_GRAY));
                 }
@@ -1157,31 +1201,15 @@ final class InfoPanel {
         for (CompoundTag tag : s.entities()) {
             placed.merge(tag.getString("id"), 1, Integer::sum);
         }
-        Map<String, Integer> spawners = new LinkedHashMap<>();
-        // Spawners whose mob was picked from a list, or that cycle through several, by that list.
-        Map<Map<String, Integer>, Integer> picked = new LinkedHashMap<>();
-        Map<Map<String, Integer>, Integer> mixed = new LinkedHashMap<>();
-        // Where the spawners of each row are, to show them in the preview while it's hovered.
-        Map<Object, LongSet> where = new HashMap<>();
-        for (CompoundTag tag : s.blockEntities()) {
-            if (!tag.getString("id").equals(SPAWNER)) {
-                continue;
+        // Spawners by what they make: a mob, a list each got one of, or a mix they keep making. A
+        // row shows its spawners in the preview while it's hovered, and opens them when clicked.
+        Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind = new LinkedHashMap<>();
+        Map<BlockPos, CompoundTag> spawnerTags = SpawnerKind.tags(s);
+        for (StructureSnapshot.Spawner spawner : s.spawners()) {
+            CompoundTag tag = spawnerTags.get(spawner.pos());
+            if (tag != null && tag.getString("id").equals(SPAWNER)) {
+                byKind.computeIfAbsent(SpawnerKind.of(tag), k -> new ArrayList<>()).add(spawner);
             }
-            Map<String, Integer> pool = weights(tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
-            Map<String, Integer> potentials = weights(tag.getList("SpawnPotentials", Tag.TAG_COMPOUND), "data", "weight");
-            Object row;
-            if (pool.size() > 1) {
-                picked.merge(pool, 1, Integer::sum);
-                row = pool;
-            } else if (potentials.size() > 1) {
-                mixed.merge(potentials, 1, Integer::sum);
-                row = potentials;
-            } else {
-                String mob = tag.getCompound("SpawnData").getCompound("entity").getString("id");
-                spawners.merge(mob.isEmpty() ? "?" : mob, 1, Integer::sum);
-                row = mob.isEmpty() ? "?" : mob;
-            }
-            where.computeIfAbsent(row, k -> new LongOpenHashSet()).add(BlockPos.asLong(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")));
         }
         Map<String, Integer> overTime = new LinkedHashMap<>();
         JsonObject def = entry == null ? null : entry.definition();
@@ -1198,7 +1226,7 @@ final class InfoPanel {
             }
         }
 
-        if (placed.isEmpty() && spawners.isEmpty() && picked.isEmpty() && mixed.isEmpty() && overTime.isEmpty()) {
+        if (placed.isEmpty() && byKind.isEmpty() && overTime.isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = mobSection(g, cy, "placed", placed, true);
@@ -1211,22 +1239,26 @@ final class InfoPanel {
                 }
             }
         }
-        if (!spawners.isEmpty() || !picked.isEmpty() || !mixed.isEmpty()) {
+        if (!byKind.isEmpty()) {
             Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_spawners").getString(), x, cy, contentRight - x, 13);
             cy += 16;
-            for (Map.Entry<String, Integer> e : spawners.entrySet()) {
+            for (Map.Entry<SpawnerKind, List<StructureSnapshot.Spawner>> e : byKind.entrySet()) {
+                if (e.getKey().type() != SpawnerKind.Type.MOB) {
+                    continue;
+                }
+                String mob = e.getKey().mob().isEmpty() ? "?" : e.getKey().mob();
                 int top = cy;
-                boolean over = where.containsKey(e.getKey()) && inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
-                cy = mobRow(g, cy, e.getKey(), Component.translatable("screen.justenoughstructures.times", e.getValue()).getString(), over);
-                String was = changedFrom.get(e.getKey());
+                boolean over = inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
+                cy = mobRow(g, cy, mob, Component.translatable("screen.justenoughstructures.times", e.getValue().size()).getString(), over, true);
+                String was = changedFrom.get(mob);
                 if (was != null) {
                     cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(was)),
                             x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
                 }
-                hoverSpawners(mouseX, mouseY, top, cy, clipTop, clipHeight, "spawners:" + e.getKey(), where.get(e.getKey()));
+                spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, "spawners:" + mob, e.getValue());
             }
-            cy = pools(g, cy, picked, "spawner_pool", mouseX, mouseY, clipTop, clipHeight, where);
-            cy = pools(g, cy, mixed, "spawner_mix", mouseX, mouseY, clipTop, clipHeight, where);
+            cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", mouseX, mouseY, clipTop, clipHeight);
+            cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", mouseX, mouseY, clipTop, clipHeight);
             cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.mobs_spawners_note"), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
         }
         cy = mobSection(g, cy, "over_time", overTime, false);
@@ -1235,53 +1267,47 @@ final class InfoPanel {
 
     /**
      * Each list of mobs spawners pick from, under a line saying how many spawners here use it, with
-     * every mob's chance.
+     * every mob's chance. The whole list is one row: it lights up and opens its spawners as one.
      */
-    private int pools(GuiGraphics g, int cy, Map<Map<String, Integer>, Integer> pools, String key,
-                      int mouseX, int mouseY, int clipTop, int clipHeight, Map<Object, LongSet> where) {
-        for (Map.Entry<Map<String, Integer>, Integer> pool : pools.entrySet()) {
+    private int pools(GuiGraphics g, int cy, Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind, SpawnerKind.Type type, String key,
+                      int mouseX, int mouseY, int clipTop, int clipHeight) {
+        for (Map.Entry<SpawnerKind, List<StructureSnapshot.Spawner>> pool : byKind.entrySet()) {
+            if (pool.getKey().type() != type) {
+                continue;
+            }
             int top = cy;
-            int count = pool.getValue();
+            int count = pool.getValue().size();
             Component line = count == 1 ? Component.translatable("screen.justenoughstructures." + key + "_one")
                     : Component.translatable("screen.justenoughstructures." + key + "_many", count);
             cy = fineWrapped(g, line, x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
-            int total = pool.getKey().values().stream().mapToInt(Integer::intValue).sum();
-            List<Map.Entry<String, Integer>> mobs = new ArrayList<>(pool.getKey().entrySet());
+            Map<String, Integer> weights = pool.getKey().mobs();
+            int total = weights.values().stream().mapToInt(Integer::intValue).sum();
+            List<Map.Entry<String, Integer>> mobs = new ArrayList<>(weights.entrySet());
             mobs.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+            boolean over = inside(mouseX, mouseY, x, top, contentRight - x, cy - top + mobs.size() * 23, clipTop, clipHeight);
             for (Map.Entry<String, Integer> mob : mobs) {
-                float chance = (float) mob.getValue() / total;
-                String pct = chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
-                boolean over = where.containsKey(pool.getKey()) && inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
-                cy = mobRow(g, cy, mob.getKey(), pct, over);
+                cy = mobRow(g, cy, mob.getKey(), OddsList.percent((float) mob.getValue() / total), over, true);
             }
-            hoverSpawners(mouseX, mouseY, top, cy, clipTop, clipHeight, key + ":" + pool.getKey(), where.get(pool.getKey()));
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, key + ":" + weights, pool.getValue());
         }
         return cy;
     }
 
-    /** Shows a row's spawners in the preview while anywhere from {@code top} to {@code bottom} is hovered. */
-    private void hoverSpawners(int mouseX, int mouseY, int top, int bottom, int clipTop, int clipHeight, String key, LongSet positions) {
-        highlightRows.put(key, new int[]{x + (contentRight - x) / 2, bottom - 11});
-        if (positions != null && inside(mouseX, mouseY, x, top, contentRight - x, bottom - top, clipTop, clipHeight)) {
-            hoveredBlocks = new Hovered(key, s -> positions);
-        }
-    }
-
     /**
-     * Mob ids to weights from a list of entries, merging repeats. With no {@code weightKey} the id is
-     * under {@code key}; otherwise {@code key} holds SpawnPotentials' entity data.
+     * A row of spawners from {@code top} to {@code bottom}: shows them in the preview while it's
+     * hovered, and opens them when clicked.
      */
-    private static Map<String, Integer> weights(ListTag list, String key, String weightKey) {
-        Map<String, Integer> out = new LinkedHashMap<>();
-        for (Tag t : list) {
-            CompoundTag entry = (CompoundTag) t;
-            String mob = weightKey == null ? entry.getString(key) : entry.getCompound(key).getCompound("entity").getString("id");
-            int weight = entry.getInt(weightKey == null ? "weight" : weightKey);
-            if (!mob.isEmpty() && weight > 0) {
-                out.merge(mob, weight, Integer::sum);
-            }
+    private void spawnerRow(int mouseX, int mouseY, int top, int bottom, int clipTop, int clipHeight, String key, List<StructureSnapshot.Spawner> spawners) {
+        highlightRows.put(key, new int[]{x + (contentRight - x) / 2, bottom - 11});
+        if (inside(mouseX, mouseY, x, top, contentRight - x, bottom - top, clipTop, clipHeight)) {
+            LongSet positions = new LongOpenHashSet();
+            spawners.forEach(spawner -> positions.add(spawner.pos().asLong()));
+            hoveredBlocks = new Hovered(key, s -> positions);
+            hoveredText = List.of(Component.translatable(spawners.size() > 1 ? "screen.justenoughstructures.spawner_row_many"
+                    : "screen.justenoughstructures.spawner_row_one").withStyle(ChatFormatting.YELLOW));
         }
-        return out;
+        StructureSnapshot.Spawner first = spawners.get(0);
+        hotspots.add(new Hotspot(x, top, contentRight - x, bottom - top, () -> onOpenSpawner.accept(first, spawners.size() > 1)));
     }
 
     private int mobSection(GuiGraphics g, int cy, String key, Map<String, Integer> mobs, boolean counts) {
@@ -1299,11 +1325,14 @@ final class InfoPanel {
 
     /** A mob's card: its icon, its name and, on the right, {@code right}. */
     private int mobRow(GuiGraphics g, int cy, String mob, String right) {
-        return mobRow(g, cy, mob, right, false);
+        return mobRow(g, cy, mob, right, false, false);
     }
 
-    /** {@code hovered} rows are lit, for the ones that show something in the preview. */
-    private int mobRow(GuiGraphics g, int cy, String mob, String right, boolean hovered) {
+    /**
+     * {@code hovered} rows are lit, for the ones that show something in the preview, and rows that
+     * open something when clicked, {@code opens}, end in an arrow, as the Loot tab's do.
+     */
+    private int mobRow(GuiGraphics g, int cy, String mob, String right, boolean hovered, boolean opens) {
         ResourceLocation id = ResourceLocation.tryParse(mob);
         EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
         // "?" is a spawner with no mob at all.
@@ -1318,8 +1347,12 @@ final class InfoPanel {
         if (!icon.isEmpty()) {
             g.renderItem(icon, x + PAD + 2, cy + 3);
         }
-        Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, contentRight - x - PAD - 30 - font.width(right), TEXT);
-        g.drawString(font, right, contentRight - 4 - font.width(right), cy + 7, Gui.LABEL_SOFT, false);
+        int rightEdge = contentRight - 4 - (opens ? 10 : 0);
+        Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, rightEdge - x - PAD - 26 - font.width(right), TEXT);
+        g.drawString(font, right, rightEdge - font.width(right), cy + 7, Gui.LABEL_SOFT, false);
+        if (opens) {
+            g.drawString(font, ">", contentRight - 9, cy + 7, hovered ? TEXT : Gui.LABEL_SOFT, false);
+        }
         return cy + 23;
     }
 

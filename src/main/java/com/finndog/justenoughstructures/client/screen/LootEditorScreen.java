@@ -51,6 +51,10 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int TREE_ROW = 18;
+    /** The widest the tree, form and chances are together. */
+    private static final int MOST_CONTENT = 1100;
+    /** The least height the form keeps when one possible roll goes under it; with less, there's no roll. */
+    private static final int LEAST_FORM = 170;
     private static final int SLOT = 18;
     private static final int GOOD = 0xFF2E7D1F;
     private static final int BAD = 0xFFB02020;
@@ -118,6 +122,10 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     private EditBox pickerSearch;
 
     private int contentTop, contentBottom, treeX, treeW, formX, formW, oddsX, oddsW, rollTop;
+    /** How far in from the panel's sides the columns, header and buttons are, on a very big screen. */
+    private int inset;
+    /** How many times a chest's own size the roll's slots are drawn: twice when there's plenty of room. */
+    private int rollScale = 1;
 
     public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName) {
         this(parent, tableId, tableName, null);
@@ -319,19 +327,29 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     @Override
     protected void init() {
         commitEditing();
+        // A list of choices hangs under its box where that was, which moves when the screen changes size.
+        choice = null;
         int left = PAD + 6;
         int right = width - PAD - 6;
+        // On a very big screen the columns are kept together in the middle, rather than a form
+        // stretching across it with its links far from what they're for.
+        inset = Math.max(0, (right - left - MOST_CONTENT) / 2);
+        left += inset;
+        right -= inset;
         int content = right - left;
         contentTop = TOP + 46;
         contentBottom = height - PAD - 30;
-        treeW = Math.max(110, Math.min(200, content * 27 / 100));
-        oddsW = content >= 420 ? Math.max(120, Math.min(200, content * 25 / 100)) : 0;
+        treeW = Math.max(110, Math.min(Math.max(200, content / 5), content * 27 / 100));
+        oddsW = content >= 420 ? Math.max(120, Math.min(Math.max(200, content / 5), content * 25 / 100)) : 0;
         treeX = left;
         oddsX = right - oddsW;
         formX = treeX + treeW + 6;
         formW = (oddsW > 0 ? oddsX - 6 : right) - formX;
-        // One possible roll goes under the form when there's room for both.
-        rollTop = contentBottom - contentTop > 230 ? contentBottom - (3 * SLOT + 44) : contentBottom;
+        // One possible roll goes under the form when there's room for both, and at twice the size
+        // when it fits across and the form still keeps plenty of room.
+        int contentH = contentBottom - contentTop;
+        rollScale = formW >= 2 * 9 * SLOT + 12 && contentH - (6 * SLOT + 44) >= 240 ? 2 : 1;
+        rollTop = contentH - rollHeight() - 6 >= LEAST_FORM ? contentBottom - rollHeight() - 2 : contentBottom;
 
         addToolbar(left, right);
         inline = addRenderableWidget(new EditBox(font, 0, 0, 40, 9, Component.translatable("screen.justenoughstructures.editor.field")));
@@ -352,7 +370,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         idBox = null;
         if (isNew()) {
             int labelWidth = font.width(Component.translatable("screen.justenoughstructures.editor.id")) + 4;
-            int boxX = PAD + 8 + labelWidth;
+            int boxX = PAD + 8 + inset + labelWidth;
             idBox = addRenderableWidget(new EditBox(font, boxX, TOP + 17, Math.max(60, Math.min(240, width / 3)), 12,
                     Component.translatable("screen.justenoughstructures.editor.id")));
             idBox.setMaxLength(256);
@@ -765,6 +783,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        Gui.beginClipped();
         renderBackground(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         boolean overlay = picker != null || choice != null;
@@ -794,6 +813,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         super.render(g, mx, my, partialTick);
 
         if (picker != null || choice != null) {
+            // Only what's cut short in the list over the editor counts now.
+            Gui.beginClipped();
             g.pose().pushPose();
             g.pose().translate(0, 0, 400);
             if (picker != null) {
@@ -830,18 +851,20 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             List<FormattedCharSequence> lines = new ArrayList<>();
             ui.tooltip().forEach(line -> lines.addAll(font.split(line, 260)));
             g.renderTooltip(font, lines, mouseX, mouseY);
+        } else {
+            Gui.clippedTooltip(g, font, mouseX, mouseY);
         }
         g.pose().popPose();
     }
 
     /** The title, the id, and a line saying how the table stands with what can be done about it. */
     private void header(GuiGraphics g) {
-        int textX = PAD + 8;
-        int right = width - PAD - 8;
+        int textX = PAD + 8 + inset;
+        int right = width - PAD - 8 - inset;
         String unsaved = dirty && view != null ? Component.translatable("screen.justenoughstructures.editor.unsaved").getString() : null;
         int markRoom = unsaved == null ? 0 : Gui.fineWidth(font, unsaved) + 8;
         String shownTitle = Gui.clip(font, headerTitle().getString(), right - textX - markRoom);
-        g.drawString(font, shownTitle, textX, TOP + 6, Gui.LABEL, false);
+        Gui.drawClipped(g, font, headerTitle().getString(), textX, TOP + 6, right - textX - markRoom, Gui.LABEL, false);
         if (unsaved != null) {
             Gui.fine(g, font, unsaved, textX + font.width(shownTitle) + 8, TOP + 7, WARN);
         }
@@ -867,8 +890,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             case BROKEN -> new int[]{0xFFF0C0C0};
             default -> new int[]{isNew() ? 0xFFC6D4F0 : 0xFFD6D6D6};
         };
-        g.fill(PAD + 6, barY, width - PAD - 6, barY + 13, fill[0]);
-        int actionsLeft = width - PAD - 8;
+        g.fill(PAD + 6 + inset, barY, width - PAD - 6 - inset, barY + 13, fill[0]);
+        int actionsLeft = right;
         if (view.status() == LootOverrides.Status.ORIGINAL_CHANGED && message == null) {
             for (String key : List.of("keep", "merge", "see_changes")) {
                 Component label = Component.translatable("screen.justenoughstructures.editor." + key);
@@ -929,21 +952,25 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         int x = treeX + 1;
         int y = top;
         String type = JsonPaths.string(draft, "type", "minecraft:chest");
+        String typeName = LootTypes.name("table_type", type);
         y = treeRow(g, x, y, w, ItemStack.EMPTY, Component.translatable("screen.justenoughstructures.editor.card.table").getString(),
-                LootTypes.name("table_type", type), selectedPool < 0, () -> select(-1, -1), 0);
+                typeName, typeName, selectedPool < 0, () -> select(-1, -1), 0);
         JsonArray pools = JsonPaths.array(draft, "pools");
+        boolean shortWeights = shortWeights(pools, w);
         for (int p = 0; pools != null && p < pools.size(); p++) {
             int pool = p;
             String poolPath = "pools." + p;
+            JsonElement rolls = JsonPaths.get(draft, poolPath + ".rolls");
             y = treeRow(g, x, y, w, ItemStack.EMPTY, Component.translatable("screen.justenoughstructures.editor.pool", p + 1).getString(),
-                    rollsText(JsonPaths.get(draft, poolPath + ".rolls")), selectedPool == p && selectedEntry < 0, () -> select(pool, -1), 0);
+                    rollsText(rolls), rollsAmount(rolls), selectedPool == p && selectedEntry < 0, () -> select(pool, -1), 0);
             JsonArray entries = JsonPaths.array(draft, poolPath + ".entries");
             for (int e = 0; entries != null && e < entries.size(); e++) {
                 int entry = e;
                 JsonObject object = entries.get(e).isJsonObject() ? entries.get(e).getAsJsonObject() : new JsonObject();
                 JsonElement weight = object.get("weight");
-                y = treeRow(g, x, y, w, icon(object), label(object),
-                        Component.translatable("screen.justenoughstructures.editor.weight", weight == null ? "1" : weight.getAsString()).getString(),
+                String weightText = weight == null ? "1" : weight.getAsString();
+                String weightLabel = shortWeights ? weightText : Component.translatable("screen.justenoughstructures.editor.weight", weightText).getString();
+                y = treeRow(g, x, y, w, icon(object), label(object), weightLabel, weightText,
                         selectedPool == p && selectedEntry == e, () -> select(pool, entry), 8);
             }
             Component add = Component.translatable("screen.justenoughstructures.editor.add_item");
@@ -966,7 +993,12 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         treeScroll.end(g, ui, y - top);
     }
 
-    private int treeRow(GuiGraphics g, int x, int y, int w, ItemStack icon, String name, String detail, boolean selected, Runnable pick, int indent) {
+    /**
+     * A row of the tree. {@code shortDetail} stands in for {@code detail} when the name wouldn't fit
+     * beside it, like "15" for "weight 15", as the name matters more.
+     */
+    private int treeRow(GuiGraphics g, int x, int y, int w, ItemStack icon, String name, String detail, String shortDetail, boolean selected,
+                        Runnable pick, int indent) {
         if (selected) {
             g.fill(x, y, x + w, y + TREE_ROW, 0xFF9D9D9D);
         } else if (ui.hovered(x, y, w, TREE_ROW)) {
@@ -978,10 +1010,48 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             g.renderItem(icon, textX, y + 1);
             textX += 19;
         }
+        if (font.width(name) > x + w - 6 - Gui.fineWidth(font, detail) - textX) {
+            detail = shortDetail;
+        }
         int detailW = Gui.fineWidth(font, detail);
-        g.drawString(font, Gui.clip(font, name, x + w - 6 - detailW - textX), textX, y + 5, selected ? 0xFFFFFFFF : Gui.LABEL, selected);
+        Gui.drawClipped(g, font, name, textX, y + 5, x + w - 6 - detailW - textX, selected ? 0xFFFFFFFF : Gui.LABEL, selected);
         Gui.fine(g, font, detail, x + w - 3 - detailW, y + 6, selected ? 0xFFEEEEEE : Gui.LABEL_SOFT);
         return y + TREE_ROW;
+    }
+
+    /**
+     * Whether entries show only their weight, "15" rather than "weight 15": when any entry's name
+     * wouldn't fit beside the longer one, so they all read the same way down the tree.
+     */
+    private boolean shortWeights(JsonArray pools, int w) {
+        for (int p = 0; pools != null && p < pools.size(); p++) {
+            JsonArray entries = JsonPaths.array(draft, "pools." + p + ".entries");
+            for (int e = 0; entries != null && e < entries.size(); e++) {
+                JsonObject object = entries.get(e).isJsonObject() ? entries.get(e).getAsJsonObject() : new JsonObject();
+                JsonElement weight = object.get("weight");
+                String full = Component.translatable("screen.justenoughstructures.editor.weight", weight == null ? "1" : weight.getAsString()).getString();
+                // Indented, with an icon: the same room treeRow leaves the name.
+                if (font.width(label(object)) > w - 36 - Gui.fineWidth(font, full)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** How many rolls a pool has on its own, like "2-4", for when "rolls 2-4" doesn't fit. */
+    private static String rollsAmount(JsonElement rolls) {
+        String kind = LootForm.providerKind(rolls);
+        if (rolls == null) {
+            return "1";
+        } else if (kind.equals("constant")) {
+            JsonElement value = rolls.isJsonObject() ? rolls.getAsJsonObject().get("value") : rolls;
+            return value == null ? "?" : LootForm.shown(value);
+        } else if (kind.equals("uniform")) {
+            JsonObject range = rolls.getAsJsonObject();
+            return Component.translatable("screen.justenoughstructures.editor.range", string(range.get("min")), string(range.get("max"))).getString();
+        }
+        return rollsText(rolls);
     }
 
     private static String rollsText(JsonElement rolls) {
@@ -1050,12 +1120,17 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         place(inline, rect);
     }
 
+    private int rollHeight() {
+        return 3 * SLOT * rollScale + 42;
+    }
+
     /** One possible roll of the edit as it stands, in a chest's slots, with a way to roll again. */
     private void renderRoll(GuiGraphics g) {
-        int gridW = 9 * SLOT + 8;
+        int slot = SLOT * rollScale;
+        int gridW = 9 * slot + 8;
         int x = formX + Math.max(0, (formW - gridW) / 2);
         int y = rollTop;
-        Gui.panel(g, x - 2, y, gridW + 4, 3 * SLOT + 42);
+        Gui.panel(g, x - 2, y, gridW + 4, rollHeight());
         Component title = Component.translatable("screen.justenoughstructures.tools.one_roll");
         g.drawString(font, title, x + 4, y + 5, Gui.LABEL, false);
         String changes = Component.translatable("screen.justenoughstructures.editor.with_changes").getString();
@@ -1064,26 +1139,35 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         }
         int sy = y + 16;
         for (int i = 0; i < 27; i++) {
-            int sx = x + 4 + (i % 9) * SLOT;
-            int slotY = sy + (i / 9) * SLOT;
-            Gui.slot(g, sx, slotY);
+            int sx = x + 4 + (i % 9) * slot;
+            int slotY = sy + (i / 9) * slot;
             ItemStack stack = roll != null && i < roll.size() ? roll.get(i) : ItemStack.EMPTY;
+            // Drawn at the chest's own size and scaled up whole, slot, item and count together.
+            g.pose().pushPose();
+            g.pose().translate(sx, slotY, 0);
+            g.pose().scale(rollScale, rollScale, 1);
+            Gui.slot(g, 0, 0);
             if (!stack.isEmpty()) {
-                g.renderItem(stack, sx + 1, slotY + 1);
-                g.renderItemDecorations(font, stack, sx + 1, slotY + 1);
-                if (ui.hovered(sx, slotY, SLOT, SLOT)) {
-                    hoveredStack = stack;
-                }
+                g.renderItem(stack, 1, 1);
+                g.renderItemDecorations(font, stack, 1, 1);
+            }
+            g.pose().popPose();
+            if (!stack.isEmpty() && ui.hovered(sx, slotY, slot, slot)) {
+                hoveredStack = stack;
             }
         }
-        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * SLOT + 3, gridW - 4, 18, true, this::reroll,
+        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll,
                 Component.translatable("screen.justenoughstructures.editor.roll_hint"));
     }
 
     /** Every item's chance in a container, from rolling the edit as it stands. */
     private void renderOdds(GuiGraphics g) {
         int x = oddsX;
-        Gui.band(g, font, Gui.clip(font, Component.translatable("screen.justenoughstructures.editor.preview").getString(), oddsW - 8), x, contentTop, oddsW, 13);
+        String heading = Component.translatable("screen.justenoughstructures.editor.preview").getString();
+        if (font.width(heading) > oddsW - 4) {
+            heading = Component.translatable("screen.justenoughstructures.editor.preview_short").getString();
+        }
+        Gui.band(g, font, heading, x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
             Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, BAD);
@@ -1098,11 +1182,12 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         int y = start;
         List<LootOdds.Row> rows = OddsList.sorted(preview, false);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
+        int detailRoom = OddsList.detailRoom(font, rows.stream().map(OddsList::counts).toList());
         for (LootOdds.Row row : rows) {
             float chance = (float) row.hits() / Math.max(1, preview.rolls());
             boolean over = ui.hovered(x, y, w, OddsList.ROW);
             if (y + OddsList.ROW >= top && y <= contentBottom) {
-                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, y, x + w, over);
+                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, y, x + w, over, detailRoom);
             }
             if (over) {
                 hoveredRow = row;
@@ -1158,7 +1243,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         void render(GuiGraphics g, int mouseX, int mouseY) {
             g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFFFFFFFF);
             g.fill(x, y, x + w, y + h, 0xFF202020);
-            g.enableScissor(x, y, x + w, y + h);
+            Gui.scissor(g, x, y, x + w, y + h);
             int cy = y + 1 - (int) scroll;
             for (String option : options) {
                 if (cy + LINE > y && cy < y + h) {
@@ -1167,11 +1252,11 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
                         g.fill(x, cy, x + w, cy + LINE, 0xFF4B5280);
                     }
                     int colour = option.equals(current) ? 0xFFFFFF55 : 0xFFE0E0E0;
-                    g.drawString(font, Gui.clip(font, names.apply(option), w - 8), x + 4, cy + 2, colour, false);
+                    Gui.drawClipped(g, font, names.apply(option), x + 4, cy + 2, w - 8, colour, false);
                 }
                 cy += LINE;
             }
-            g.disableScissor();
+            Gui.endScissor(g);
         }
 
         void click(double mouseX, double mouseY) {
@@ -1242,8 +1327,9 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         }
 
         void render(GuiGraphics g, int mouseX, int mouseY) {
-            w = Math.min(330, width - 40);
-            h = Math.min(300, height - 40);
+            // Bigger on a big screen, so more of every item in the game shows at once.
+            w = Math.min(Math.max(330, width * 2 / 5), width - 40);
+            h = Math.min(Math.max(300, height * 3 / 5), height - 40);
             x = (width - w) / 2;
             y = (height - h) / 2;
             g.fill(0, 0, width, height, 0x88000000);
@@ -1266,7 +1352,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             int rows = (shown.size() + columns - 1) / columns;
             scroll = Math.max(0, Math.min(scroll, Math.max(0, rows * SLOT - gridH)));
             hovered = null;
-            g.enableScissor(x + 8, gridTop, x + 8 + columns * SLOT, gridTop + gridH);
+            Gui.scissor(g, x + 8, gridTop, x + 8 + columns * SLOT, gridTop + gridH);
             int first = (int) (scroll / SLOT);
             for (int i = first * columns; i < shown.size(); i++) {
                 int sx = x + 8 + (i % columns) * SLOT;
@@ -1281,7 +1367,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
                 }
                 g.renderItem(new ItemStack(shown.get(i)), sx + 1, sy + 1);
             }
-            g.disableScissor();
+            Gui.endScissor(g);
             Gui.scrollbar(g, x + w - 6, gridTop, gridH, scroll, Math.max(0, rows * SLOT - gridH));
             String count = Component.translatable("screen.justenoughstructures.editor.items_count", shown.size()).getString();
             Gui.fine(g, font, count, x + 8, y + h - 13, Gui.LABEL_SOFT);

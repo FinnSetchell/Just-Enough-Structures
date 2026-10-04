@@ -62,16 +62,19 @@ final class NavBar {
         g.pose().translate(0, 0, 500);
         back.render(g, mouseX, mouseY, partialTick);
         forward.render(g, mouseX, mouseY, partialTick);
-        // Where each goes, beside it, each given up to half of what's left between them.
-        int room = (forward.getX() - back.getX() - back.getWidth() - 16) / 2;
+        // Where each goes, beside it, each given half of what's left between them, or all of it
+        // when the other has nowhere to go.
+        int between = forward.getX() - back.getX() - back.getWidth() - 16;
+        int room = backTo != null && forwardTo != null ? between / 2 : between;
         int textY = Y + (HEIGHT - 8) / 2;
         if (backTo != null && room > 20) {
-            String text = Gui.clip(font, Component.translatable("screen.justenoughstructures.nav.to", backTo).getString(), room);
-            g.drawString(font, text, back.getX() + back.getWidth() + 4, textY, 0xFFDDDDDD, true);
+            Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.nav.to", backTo).getString(),
+                    back.getX() + back.getWidth() + 4, textY, room, 0xFFDDDDDD, true);
         }
         if (forwardTo != null && room > 20) {
-            String text = Gui.clip(font, Component.translatable("screen.justenoughstructures.nav.to", forwardTo).getString(), room);
-            g.drawString(font, text, forward.getX() - 4 - font.width(text), textY, 0xFFDDDDDD, true);
+            String full = Component.translatable("screen.justenoughstructures.nav.to", forwardTo).getString();
+            String text = Gui.clip(font, full, room);
+            Gui.drawClipped(g, font, full, forward.getX() - 4 - font.width(text), textY, room, 0xFFDDDDDD, true);
         }
         g.pose().popPose();
     }

@@ -78,6 +78,23 @@ abstract class ToolsSection {
 
     static final int ROW = 22;
 
+    /** The least width a list and what's picked in it share. Narrower, they're shown one at a time. */
+    static final int TWO_COLUMNS = 300;
+
+    /** The widest text, forms and lists of odds get, so they stay easy to read on a wide screen. */
+    static final int READABLE = 460;
+
+    /** Whether a section {@code w} wide shows its list and what's picked in it one at a time. */
+    static boolean oneAtATime(int w) {
+        return w < TWO_COLUMNS;
+    }
+
+    /** Above what's picked when it's shown on its own: a way back to the list. Returns the y below it. */
+    int backToList(GuiGraphics g, ToolsUi ui, int x, int y) {
+        ui.backButton(g, screen.section().label(), x, y, true, () -> screen.pick(null));
+        return y + ToolsUi.BUTTON + 4;
+    }
+
     /** What's drawn at the left of a row. */
     interface Icon {
         void draw(GuiGraphics g, int x, int y);
@@ -115,44 +132,78 @@ abstract class ToolsSection {
 
     /**
      * A row in a list: an icon, a name with a mark after it, a line under it, and buttons on the
-     * right. Clicking the rest of the row does {@code click}, if there is one. Returns its height.
+     * right, or under the name when beside it they'd leave it too little room. Clicking the rest of
+     * the row does {@code click}, if there is one. Returns its height.
      */
     int row(GuiGraphics g, ToolsUi ui, int x, int y, int w, Icon icon, String name, Component mark, int markColour,
             String detail, List<RowButton> buttons, Runnable click, int background, boolean selected) {
-        if (selected) {
-            g.fill(x, y, x + w, y + ROW - 1, 0xFF9D9D9D);
-        } else if (background != 0) {
-            g.fill(x, y, x + w, y + ROW - 1, background);
-        } else if (click != null && ui.hovered(x, y, w, ROW - 1)) {
-            g.fill(x, y, x + w, y + ROW - 1, 0x50FFFFFF);
-        }
-        ui.spot(x, y, w, ROW - 1, click);
-        int right = x + w - 2;
-        for (int i = buttons.size() - 1; i >= 0; i--) {
-            RowButton b = buttons.get(i);
-            int bw = ui.buttonWidth(b.label());
-            right -= bw;
-            ui.button(g, b.label(), right, y + 4, b.action() != null, b.action(), b.tip());
-            right -= 2;
-        }
         int textX = x + 22;
+        String markText = mark == null ? "" : mark.getString();
+        int markW = markText.isEmpty() ? 0 : Gui.fineWidth(font, markText) + 4;
+        int buttonsW = 0;
+        for (RowButton b : buttons) {
+            buttonsW += ui.buttonWidth(b.label()) + 2;
+        }
+        boolean below = !buttons.isEmpty() && x + w - buttonsW - 2 - textX < Math.min(70, font.width(name) + markW);
+        int h = ROW;
+        if (below) {
+            int lines = 1;
+            int bx = textX;
+            for (RowButton b : buttons) {
+                int bw = ui.buttonWidth(b.label());
+                if (bx > textX && bx + bw > x + w - 2) {
+                    lines++;
+                    bx = textX;
+                }
+                bx += bw + 2;
+            }
+            h = ROW + lines * (ToolsUi.BUTTON + 2) + 1;
+        }
+        if (selected) {
+            g.fill(x, y, x + w, y + h - 1, 0xFF9D9D9D);
+        } else if (background != 0) {
+            g.fill(x, y, x + w, y + h - 1, background);
+        } else if (click != null && ui.hovered(x, y, w, h - 1)) {
+            g.fill(x, y, x + w, y + h - 1, 0x50FFFFFF);
+        }
+        ui.spot(x, y, w, h - 1, click);
+        int right = x + w - 2;
+        if (below) {
+            int bx = textX;
+            int by = y + ROW;
+            for (RowButton b : buttons) {
+                int bw = ui.buttonWidth(b.label());
+                if (bx > textX && bx + bw > x + w - 2) {
+                    bx = textX;
+                    by += ToolsUi.BUTTON + 2;
+                }
+                ui.button(g, b.label(), bx, by, Math.min(bw, x + w - 2 - bx), ToolsUi.BUTTON, b.action() != null, b.action(), b.tip());
+                bx += bw + 2;
+            }
+        } else {
+            for (int i = buttons.size() - 1; i >= 0; i--) {
+                RowButton b = buttons.get(i);
+                int bw = ui.buttonWidth(b.label());
+                right -= bw;
+                ui.button(g, b.label(), right, y + 4, b.action() != null, b.action(), b.tip());
+                right -= 2;
+            }
+        }
         int room = right - 2 - textX;
         if (icon != null) {
             icon.draw(g, x + 3, y + 3);
         }
-        String markText = mark == null ? "" : mark.getString();
-        int markW = markText.isEmpty() ? 0 : Gui.fineWidth(font, markText) + 4;
         String shown = Gui.clip(font, name, Math.max(0, room - markW));
-        g.drawString(font, shown, textX, y + 2, selected ? 0xFFFFFFFF : ToolsUi.TEXT, selected);
+        Gui.drawClipped(g, font, name, textX, y + 2, Math.max(0, room - markW), selected ? 0xFFFFFFFF : ToolsUi.TEXT, selected);
         if (!markText.isEmpty()) {
             int markX = textX + font.width(shown) + 4;
-            Gui.fine(g, font, Gui.fineClip(font, markText, x + w - markX), markX, y + 3, selected ? 0xFFFFFFFF : markColour);
+            Gui.fineClipped(g, font, markText, markX, y + 3, x + w - markX, selected ? 0xFFFFFFFF : markColour);
         }
         if (detail != null) {
-            Gui.fine(g, font, Gui.fineClip(font, detail, Math.max(0, room)), textX, y + 12, selected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
+            Gui.fineClipped(g, font, detail, textX, y + 12, Math.max(0, room), selected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
         }
-        g.fill(x, y + ROW - 1, x + w, y + ROW, 0xFFB0B0B0);
-        return ROW;
+        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        return h;
     }
 
     /** Where a container's template came from, readably: its last part, and the one before if that's a single word. */
@@ -215,7 +266,7 @@ abstract class ToolsSection {
             this.w = w;
             this.h = h;
             clamp();
-            g.enableScissor(x, y, x + w, y + h);
+            Gui.scissor(g, x, y, x + w, y + h);
             ui.clip(y, y + h);
             return y - (int) offset;
         }
@@ -227,7 +278,7 @@ abstract class ToolsSection {
 
         void end(GuiGraphics g, ToolsUi ui, int contentHeight) {
             content = contentHeight;
-            g.disableScissor();
+            Gui.endScissor(g);
             ui.unclip();
             clamp();
             if (content > h) {
@@ -248,9 +299,14 @@ abstract class ToolsSection {
             offset = 0;
         }
 
-        /** Scrolls so a row from {@code top} to {@code bottom}, in content terms, is in view. */
+        /**
+         * Scrolls so a row from {@code top} to {@code bottom}, in content terms, is in view: just far
+         * enough when part of it shows, and near the top, with the row before it, when none of it does.
+         */
         void reveal(int top, int bottom) {
-            if (top < offset) {
+            if (bottom <= offset || top >= offset + h) {
+                offset = Math.max(0, top - (bottom - top));
+            } else if (top < offset) {
                 offset = top;
             } else if (bottom > offset + h) {
                 offset = bottom - h;
