@@ -1,0 +1,29 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "${license}"
+issueTrackerURL = "https://github.com/FinnSetchell/Just-Enough-Structures/issues"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${version}"
+displayName = "${mod_name}"
+authors = "${mod_author}"
+description = '''${description}'''
+displayURL = "https://github.com/FinnSetchell/Just-Enough-Structures"
+
+[[mixins]]
+config = "${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neoforge_min},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${mc_compat}"
+ordering = "NONE"
+side = "BOTH"

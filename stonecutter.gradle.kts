@@ -40,8 +40,9 @@ stonecutter parameters {
 
         // Explorer's Compass names a few things differently from its Fabric 1.20.1 build. Only the files
         // that use it turn these on, with `//~ compass_names`. Each loader only gets its own: Stonecutter
-        // also matches a rule's other side, which would get in the way of another loader's rule.
-        if (loader == "forge") {
+        // also matches a rule's other side, which would get in the way of another loader's rule. Its
+        // NeoForge build names them as its Forge one does.
+        if (loader == "forge" || loader == "neoforge") {
             string(true, "compass_names") {
                 replace("EXPLORERS_COMPASS_ITEM", "explorersCompass")
                 replace("getAllowedStructureIDs", "getAllowedStructureKeys")

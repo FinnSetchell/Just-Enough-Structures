@@ -1,7 +1,6 @@
 plugins {
-    // Forge below 1.20.5 runs on SRG names, so the jar is reobfuscated from the official names the
-    // source is written in. ForgeGradle 7 can't do that; ModDevGradle's legacy Forge plugin can.
-    id("net.neoforged.moddev.legacyforge") version "2.0.147"
+    // NeoForge runs on the official names the source is written in, so its jar needs no remapping.
+    id("net.neoforged.moddev") version "2.0.147"
     id("minecraft-mutex")
 }
 
@@ -19,20 +18,20 @@ val mcBuild: String = prop("mod.mc_build")
 val nodeName: String = project.name
 
 version = property("mod_version").toString()
-base.archivesName = "${property("archives_base_name")}-forge-$mcBuild"
+base.archivesName = "${property("archives_base_name")}-neoforge-$mcBuild"
 
 sourceSets.main {
     // Loader code sits in fabric/forge/neoforge packages; each loader compiles only its own.
-    java.exclude("**/fabric/**", "**/neoforge/**")
-    resources.srcDir(rootProject.file("src/forge/resources"))
+    java.exclude("**/fabric/**", "**/forge/**")
+    resources.srcDir(rootProject.file("src/neoforge/resources"))
 }
 
-// Game tests build as a second mod that never ships, as on Fabric. Its Fabric wiring and the
-// screenshot scripts stay out: Forge runs the same tests through its own class.
+// Game tests build as a second mod that never ships, as on the other loaders. Its Fabric wiring and
+// the screenshot scripts stay out: NeoForge runs the same tests through its own class.
 val gametest: SourceSet = sourceSets.create("gametest") {
-    java.exclude("**/fabric/**", "**/neoforge/**")
+    java.exclude("**/fabric/**", "**/forge/**")
     resources.exclude("fabric.mod.json")
-    resources.srcDir(rootProject.file("src/forge/gametest-resources"))
+    resources.srcDir(rootProject.file("src/neoforge/gametest-resources"))
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
 }
@@ -41,7 +40,11 @@ repositories {
     maven("https://maven.shedaniel.me/") { name = "Shedaniel" }
     maven("https://maven.blamejared.com/") {
         name = "BlameJared"
-        content { includeGroup("mezz.jei") }
+        // JEI, and the config library its later builds need.
+        content {
+            includeGroup("mezz.jei")
+            includeGroup("net.mezzdev.config")
+        }
     }
     maven("https://api.modrinth.com/maven") {
         name = "Modrinth"
@@ -49,34 +52,36 @@ repositories {
     }
 }
 
-// The same structure mods as the Fabric dev runtime, in their Forge builds, so the browser can be
+// The same structure mods as the other dev runtimes, in their NeoForge builds, so the browser can be
 // tried against a modpack's worth of structures. Off on CI, and -Pdev_mods=false turns them off.
 val devMods = mapOf(
-    "1.20.1" to listOf(
+    "1.21.1" to listOf(
         // Moog's
-        "mes-moogs-end-structures:ROvChtQg", "moogs-voyager-structures:dMwX4GPR", "mns-moogs-nether-structures:bcwhyj8t",
-        "mss-moogs-soaring-structures:Fu2E23KF", "mmv-moogs-missing-villages:uwxEdo7J", "mtr-moogs-temples-reimagined:Gcx1X3Ji",
-        "mmr-moogs-mineshafts-reimagined:9dM5WGbU", "mos-moogs-ocean-structures:O1LxGHhC",
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
         // YUNG's
-        "yungs-better-dungeons:kPiQ6v4q", "yungs-better-mineshafts:kVO57zxB", "yungs-better-strongholds:rwiShgsc",
-        "yungs-better-ocean-monuments:SN4iZ7wf", "yungs-better-desert-temples:lRK2ZA9U", "yungs-better-jungle-temples:CXQc6EnZ",
-        "yungs-better-witch-huts:mwlYB7rq", "yungs-better-nether-fortresses:2nUEz0zq", "yungs-better-end-island:Izqhg3Va",
-        "yungs-bridges:KgO1gfM2", "yungs-extras:h4m8J7w8",
-        // Other big structure mods
-        "repurposed-structures-forge:GgUh2Zx7", "towns-and-towers:7ZwnSrVW", "structory:FkaSuQb0", "structory-towers:fTl6NfPL",
-        "when-dungeons-arise:6hQpx5Tc", "dungeons-and-taverns:ojHpWOrz", "explorify:CuBdAr31",
+        "yungs-better-dungeons:D6aZn0Em", "yungs-better-mineshafts:Go3nbneL", "yungs-better-strongholds:8U0dIfSM",
+        "yungs-better-ocean-monuments:yFjEcj2g", "yungs-better-desert-temples:GQ9iNWkI", "yungs-better-jungle-temples:P00i2hJn",
+        "yungs-better-witch-huts:AvedwcIe", "yungs-better-nether-fortresses:iopJiJQp", "yungs-better-end-island:I52NZ1qK",
+        "yungs-bridges:urkCzBf6", "yungs-extras:N2EpMhR7",
+        // Other big structure mods. Repurposed Structures keeps its NeoForge builds on its Forge project, and
+        // Structory Towers' newest build for 1.21.1 is one made for 26.2, which NeoForge 1.21.1 won't load.
+        "repurposed-structures-forge:8duZuWci", "towns-and-towers:DZxwgj6V", "structory:TUbwu7eG", "structory-towers:lefqbuOP",
+        "when-dungeons-arise:XIRJSFQ0", "dungeons-and-taverns:BYUUUeZA", "explorify:CuBdAr31",
         // Structure compass
-        "explorers-compass:7ZdJbCOx",
+        "explorers-compass:hIJ2Ev1Q",
         // Libraries the above need
-        "moogs-structure-lib:zuKYMmUt", "yungs-api:PJOYAmAs", "cristel-lib:DOsSK4NK", "cloth-config:t8TXrZvZ",
+        "moogs-structure-lib:wcg4mE4e", "yungs-api:2prKITKh", "cristel-lib:Sduz0AWP", "cloth-config:izKINKFg",
+        "resourceful-config:lSbyRD6v", "midnightlib:6Gv5jvTB",
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Which recipe viewer the dev runtime has: -Pviewer=jei (the default), emi or rei.
 val viewer = findProperty("viewer")?.toString() ?: "jei"
 
-legacyForge {
-    version = "$mcBuild-${prop("deps.forge_version")}"
+neoForge {
+    version = prop("deps.neoforge_version")
 
     mods {
         register(modId) {
@@ -102,17 +107,15 @@ legacyForge {
             type = "gameTestServer"
             sourceSet = gametest
             gameDirectory = layout.buildDirectory.dir("gametest").get().asFile
-            systemProperty("forge.enabledGameTestNamespaces", "$modId,${modId}_gametest")
+            systemProperty("neoforge.enabledGameTestNamespaces", "$modId,${modId}_gametest")
             // -Pperf also captures every installed structure and times it, into build/gametest/perf.csv.
             systemProperty("jes.perf", hasProperty("perf").toString())
             // The mod's own debug log, in build/gametest/logs.
             systemProperty("justenoughstructures.debug", "true")
-            // The test mod's own mixins, only on this run, where the test mod is loaded.
-            programArguments.addAll("--mixin.config", "${modId}_gametest.mixins.json")
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
-        // build/autoshot/screenshots and quits, as on Fabric. -Pstructures=a:b,c:d picks the
-        // structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
+        // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
+        // the structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -123,63 +126,41 @@ legacyForge {
             systemProperty("jes.autoshot.gui", findProperty("gui")?.toString() ?: "2")
             systemProperty("justenoughstructures.debug", "true")
             programArguments.addAll("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
-            programArguments.addAll("--mixin.config", "${modId}_gametest.mixins.json")
         }
     }
-}
-
-mixin {
-    add(sourceSets.main.get(), "$modId.refmap.json")
-    config("$modId.mixins.json")
 }
 
 dependencies {
-    annotationProcessor("org.spongepowered:mixin:0.8.5:processor")
-    // The mixins use MixinExtras, which Forge 1.20.1 doesn't ship, so the jar carries it.
-    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${prop("deps.mixinextras")}")!!)
-    implementation(jarJar("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")!!)
-
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
     compileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
     // The settings screen, drawn by Cloth Config when it's installed.
-    modCompileOnly("me.shedaniel.cloth:cloth-config-forge:${prop("deps.cloth_config")}")
+    compileOnly("me.shedaniel.cloth:cloth-config-neoforge:${prop("deps.cloth_config")}")
     // Explorer's Compass has no API: the link calls its own search.
-    modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
+    compileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
     // And the EMI and REI pages.
-    modCompileOnly("maven.modrinth:emi:${prop("deps.emi")}")
-    modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
-    modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+    compileOnly("maven.modrinth:emi:${prop("deps.emi")}")
+    compileOnly("maven.modrinth:rei:${prop("deps.rei")}")
+    compileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
 
     if (useDevMods) {
-        devMods[mcBuild].orEmpty().forEach { modRuntimeOnly("maven.modrinth:$it") }
+        devMods[mcBuild].orEmpty().forEach { runtimeOnly("maven.modrinth:$it") }
         when (viewer) {
-            "emi" -> modRuntimeOnly("maven.modrinth:emi:${prop("deps.emi")}")
+            "emi" -> runtimeOnly("maven.modrinth:emi:${prop("deps.emi")}")
             "rei" -> {
-                modRuntimeOnly("maven.modrinth:rei:${prop("deps.rei")}")
-                modRuntimeOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+                runtimeOnly("maven.modrinth:rei:${prop("deps.rei")}")
+                runtimeOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
             }
-            else -> modRuntimeOnly("mezz.jei:jei-$mcBuild-forge:${prop("deps.jei")}")
+            else -> runtimeOnly("mezz.jei:jei-$mcBuild-neoforge:${prop("deps.jei")}")
         }
     }
 }
 
-// The test mod as a jar for a real Forge game, reobfuscated like the mod's own, so the screenshot
-// script can run against a release build in a launcher instance. Never shipped.
-val gametestJar = tasks.register<Jar>("gametestJar") {
+// The test mod as a jar for a real NeoForge game, so the screenshot gallery can run against a release
+// build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
+tasks.register<Jar>("gametestJar") {
     from(gametest.output)
     archiveClassifier = "gametest"
-    destinationDirectory = layout.buildDirectory.dir("devlibs")
-}
-// Set up as the plugin's own reobfuscate does, which needs published variants a test source set hasn't got.
-tasks.register<net.neoforged.moddevgradle.legacyforge.tasks.RemapJar>("reobfGametestJar") {
-    input.set(gametestJar.flatMap { it.archiveFile })
-    // Away from build/libs, which a release looks in for the mod's jar.
     destinationDirectory = layout.buildDirectory.dir("testlibs")
-    archiveBaseName = base.archivesName
-    archiveVersion = version.toString()
-    archiveClassifier = "gametest"
-    libraries.from(gametest.compileClasspath)
-    obfuscation.configureNamedToSrgOperation(remapOperation)
 }
 
 java {
@@ -199,14 +180,10 @@ tasks {
             "mod_author" to modAuthor,
             "license" to modLicense,
             "mc_compat" to prop("mod.mc_compat"),
-            "forge_min" to prop("deps.forge_min"),
+            "neoforge_min" to prop("deps.neoforge_min"),
         )
         props.forEach { (k, v) -> inputs.property(k, v) }
-        filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
-        // Forge finds a mixin's refmap through its config; Loom adds Fabric's without being asked.
-        filesMatching("$modId.mixins.json") {
-            filter { line -> line.replace("\"package\":", "\"refmap\": \"$modId.refmap.json\",\n  \"package\":") }
-        }
+        filesMatching("META-INF/neoforge.mods.toml") { expand(props) }
         exclude("fabric.mod.json")
     }
 
@@ -221,11 +198,10 @@ tasks {
                 "Specification-Title" to modName,
                 "Specification-Vendor" to modAuthor,
                 "Specification-Version" to version,
-                "Implementation-Title" to "forge",
+                "Implementation-Title" to "neoforge",
                 "Implementation-Version" to version,
                 "Implementation-Vendor" to modAuthor,
                 "Built-On-Minecraft" to mcBuild,
-                "MixinConfigs" to "$modId.mixins.json",
             )
         }
     }
@@ -246,8 +222,7 @@ tasks {
         val log = layout.buildDirectory.file("gametest/logs/latest.log")
         doFirst {
             delete(world)
-            // Forge's test server makes its world from server.properties, where the game's own makes a
-            // superflat one with seed 0 and no structures, as Fabric's tests run in. The same here.
+            // A superflat world with seed 0 and no structures, as the tests run in on every loader.
             properties.get().asFile.apply { parentFile.mkdirs() }
                 .writeText("level-type=minecraft:flat\nlevel-seed=0\ngenerate-structures=false\n")
         }
@@ -279,10 +254,7 @@ tasks {
     register<Copy>("buildAndCollect") {
         group = "build"
         description = "Builds the mod jar and copies it to build/libs/{mod version}/"
-        // The reobfuscated jar, not `jar`, which keeps official names and only runs in a dev environment.
-        val reobf = named("reobfJar")
-        dependsOn(reobf)
-        from(reobf.map { it.outputs.files })
+        from(jar.flatMap { it.archiveFile })
         into(rootProject.layout.buildDirectory.dir("libs/$version"))
     }
 }

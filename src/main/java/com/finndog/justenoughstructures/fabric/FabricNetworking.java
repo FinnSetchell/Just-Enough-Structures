@@ -13,6 +13,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.resources.ResourceLocation;
 //? if >=1.21 {
 /*import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.JesPayload;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 *///?}
 
@@ -24,15 +25,15 @@ final class FabricNetworking {
         //? if >=1.21 {
         /*// Every channel's payload type, both ways, which both sides register before anything is sent.
         for (ResourceLocation channel : ServerPackets.handlers().keySet()) {
-            PayloadTypeRegistry.playC2S().register(FabricPayload.type(channel), FabricPayload.codec(FabricPayload.type(channel)));
+            PayloadTypeRegistry.playC2S().register(JesPayload.type(channel), JesPayload.codec(JesPayload.type(channel)));
         }
         for (ResourceLocation channel : JesNetwork.CLIENTBOUND) {
-            PayloadTypeRegistry.playS2C().register(FabricPayload.type(channel), FabricPayload.codec(FabricPayload.type(channel)));
+            PayloadTypeRegistry.playS2C().register(JesPayload.type(channel), JesPayload.codec(JesPayload.type(channel)));
         }
-        JesNetwork.setServerSender((player, channel, buf) -> ServerPlayNetworking.send(player, new FabricPayload(FabricPayload.type(channel), Blobs.bytes(buf))));
-        JesNetwork.setServerCanSend((player, channel) -> ServerPlayNetworking.canSend(player, FabricPayload.type(channel)));
+        JesNetwork.setServerSender((player, channel, buf) -> ServerPlayNetworking.send(player, new JesPayload(JesPayload.type(channel), Blobs.bytes(buf))));
+        JesNetwork.setServerCanSend((player, channel) -> ServerPlayNetworking.canSend(player, JesPayload.type(channel)));
 
-        ServerPackets.handlers().forEach((channel, handler) -> ServerPlayNetworking.registerGlobalReceiver(FabricPayload.type(channel),
+        ServerPackets.handlers().forEach((channel, handler) -> ServerPlayNetworking.registerGlobalReceiver(JesPayload.type(channel),
                 (payload, context) -> handler.handle(context.server(), context.player(),
                         Blobs.fromBytes(context.server().registryAccess(), payload.data()))));
         *///?} else {

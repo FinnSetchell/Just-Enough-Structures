@@ -8,7 +8,7 @@ generate itself in a sandbox, the same way `/place structure` does, and only dra
 is why it works with structures from any mod or datapack without knowing anything about them.
 
 This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge and 1.21.1 on
-Fabric, with more versions and loaders to follow.
+Fabric and NeoForge, with more versions and loaders to follow.
 
 ## Using it
 
@@ -124,7 +124,7 @@ Explorer's Compass uses.
 ## Requirements
 
 - Minecraft 1.20.1 or 1.21.1
-- Fabric Loader and Fabric API, or on 1.20.1, Forge
+- Fabric Loader and Fabric API, Forge on 1.20.1, or NeoForge on 1.21.1
 - Installed on both the client and the server. In singleplayer that's just your game.
 
 ## Building
@@ -138,9 +138,10 @@ loader is its own node under `versions/`.
 ./gradlew :1.20.1-fabric:runAutoshot
 ```
 
-The other nodes have the same three, as `:1.21.1-fabric:build`, `:1.20.1-forge:build` and so on.
-The Forge jar is reobfuscated, as Forge 1.20.1 runs on SRG names, and its `runAutoshot` takes a list
-of structures but has no scripted clips.
+The other nodes have the same three, as `:1.21.1-fabric:build`, `:1.20.1-forge:build`,
+`:1.21.1-neoforge:build` and so on.
+The Forge jar is reobfuscated, as Forge 1.20.1 runs on SRG names. On Forge and NeoForge
+`runAutoshot` takes a list of structures but has no scripted clips.
 
 `runGameTest` generates every vanilla structure headlessly and checks the loot, the network format
 and that previews leave the world untouched. `runAutoshot` opens the browser in a throwaway world,

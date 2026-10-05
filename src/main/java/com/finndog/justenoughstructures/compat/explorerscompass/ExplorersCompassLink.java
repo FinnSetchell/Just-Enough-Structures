@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.compat.explorerscompass;
 
-// Its Forge build's names differ, see stonecutter.gradle.kts.
+// Its Forge and NeoForge builds' names differ, see stonecutter.gradle.kts.
 //~ compass_names
 
 import com.chaosthedude.explorerscompass.ExplorersCompass;

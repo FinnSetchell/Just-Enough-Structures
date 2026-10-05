@@ -9,6 +9,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 //? if >=1.21 {
 /*import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.JesPayload;
 *///?}
 
 final class FabricClientNetworking {
@@ -20,7 +21,7 @@ final class FabricClientNetworking {
             @Override
             public boolean canSend(ResourceLocation channel) {
                 //? if >=1.21 {
-                /*return ClientPlayNetworking.canSend(FabricPayload.type(channel));
+                /*return ClientPlayNetworking.canSend(JesPayload.type(channel));
                 *///?} else {
                 return ClientPlayNetworking.canSend(channel);
                 //?}
@@ -34,7 +35,7 @@ final class FabricClientNetworking {
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
                 //? if >=1.21 {
-                /*ClientPlayNetworking.send(new FabricPayload(FabricPayload.type(channel), Blobs.bytes(buf)));
+                /*ClientPlayNetworking.send(new JesPayload(JesPayload.type(channel), Blobs.bytes(buf)));
                 *///?} else {
                 ClientPlayNetworking.send(channel, buf);
                 //?}
@@ -42,7 +43,7 @@ final class FabricClientNetworking {
         });
 
         //? if >=1.21 {
-        /*ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(FabricPayload.type(channel),
+        /*ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(JesPayload.type(channel),
                 (payload, context) -> handler.handle(context.client(), Blobs.fromBytes(context.player().level().registryAccess(), payload.data()))));
         *///?} else {
         ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(channel,

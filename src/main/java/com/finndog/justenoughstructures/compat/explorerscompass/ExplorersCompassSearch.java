@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.compat.explorerscompass;
 
-// Its Forge build's names differ, see stonecutter.gradle.kts.
+// Its Forge and NeoForge builds' names differ, see stonecutter.gradle.kts.
 //~ compass_names
 
 import com.chaosthedude.explorerscompass.ExplorersCompass;
@@ -19,6 +19,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.Structure;
+//? if neoforge {
+/*import java.util.List;
+*///?}
 
 /**
  * Starts the held Explorer's Compass searching, through its own search, as if the structure had
@@ -59,7 +62,12 @@ public final class ExplorersCompassSearch implements CompassSearch {
         if (!player.getAbilities().instabuild && player.experienceLevel < levels) {
             return Component.translatable("screen.justenoughstructures.compass_needs_levels", levels);
         }
+        //? if neoforge {
+        /*// Its NeoForge build searches for a group of structures, here a group of one, as its screen does.
+        compass.searchForStructure(level, player, structure, List.of(structure), player.blockPosition(), stack, false);
+        *///?} else {
         compass.searchForStructure(level, player, player.blockPosition(), structure, false, stack);
+        //?}
         return Component.translatable("screen.justenoughstructures.compass_now_searching");
     }
 }

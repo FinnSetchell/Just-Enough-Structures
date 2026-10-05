@@ -32,6 +32,9 @@ import org.joml.Vector3f;
 //? if forge {
 /*import net.minecraft.client.resources.model.BakedModel;
 import net.minecraftforge.client.model.data.ModelData;
+*///?} else if neoforge {
+/*import net.minecraft.client.resources.model.BakedModel;
+import net.neoforged.neoforge.client.model.data.ModelData;
 *///?}
 
 /**
@@ -276,9 +279,9 @@ public final class SnapshotMesh implements AutoCloseable {
                     dispatcher.renderLiquid(pos, view, new OffsetConsumer(builder).at(x, y, z), state, fluid);
                 }
                 if (state.getRenderShape() == RenderShape.MODEL) {
-                    //? if forge {
-                    /*// Forge models can say which layers they draw in themselves, often in their json,
-                    // which the vanilla lookup doesn't know about. This is how Forge builds chunks.
+                    //? if forge || neoforge {
+                    /*// Forge and NeoForge models can say which layers they draw in themselves, often in
+                    // their json, which the vanilla lookup doesn't know about. This is how they build chunks.
                     BakedModel model = dispatcher.getBlockModel(state);
                     random.setSeed(state.getSeed(pos));
                     for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {

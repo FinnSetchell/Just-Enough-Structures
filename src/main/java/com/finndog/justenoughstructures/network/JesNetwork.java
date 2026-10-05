@@ -53,6 +53,12 @@ public final class JesNetwork {
     /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
     public static final ResourceLocation TOOLS_ACTION = channel("tools_action");
 
+    /**
+     * Never sent on, and named the same by every version. NeoForge only tells a client the channels
+     * both sides have, so a server on another version of JES shows there by this one.
+     */
+    public static final ResourceLocation PRESENT = JustEnoughStructures.id("present");
+
     /** Every channel the server sends on, for loaders that register each one up front, on both sides. */
     public static final List<ResourceLocation> CLIENTBOUND = List.of(TRANSFER, LOOT, ODDS, INDEX_PROGRESS, LOCATE, SETTINGS, EDIT_REPLY,
             OVERRIDES, OPEN_BROWSER);

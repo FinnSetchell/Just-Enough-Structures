@@ -31,7 +31,7 @@ jobs:
         run: ./gradlew buildAndCollect
 
       - name: Game tests
-        run: ./gradlew :1.20.1-fabric:runGameTest :1.20.1-forge:runGameTest :1.21.1-fabric:runGameTest
+        run: ./gradlew :1.20.1-fabric:runGameTest :1.20.1-forge:runGameTest :1.21.1-fabric:runGameTest :1.21.1-neoforge:runGameTest
 
       - name: Upload jars
         uses: actions/upload-artifact@v4

@@ -73,3 +73,19 @@ deps.emi = "on5GT1qh"
 deps.rei = "aWzTESNC"
 deps.architectury = "Pzc2FP5K"
 deps.explorers_compass = "qSRKiE4D"
+
+# NeoForge only runs on the Minecraft version it was built for. The floor is its line for 1.21.1
+# rather than a build, as launcher instances often sit a few builds behind.
+[neoforge."1.21.1"]
+mod.mc_build = "1.21.1"
+mod.mc_compat = "[1.21.1,1.21.2)"
+deps.neoforge_version = "21.1.255"
+deps.neoforge_min = "21.1"
+deps.cloth_config = "15.0.140"
+deps.jei = "19.57.0.451"
+# Modrinth version ids of the NeoForge builds: EMI 1.1.24, REI 16.0.799, Architectury 13.0.11 and
+# Explorer's Compass 3.4.0.
+deps.emi = "5sIPA1To"
+deps.rei = "b8gfS9Je"
+deps.architectury = "1IiqEQGl"
+deps.explorers_compass = "hIJ2Ev1Q"

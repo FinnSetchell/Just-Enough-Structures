@@ -1,0 +1,19 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-or-later"
+
+[[mods]]
+modId = "justenoughstructures_gametest"
+version = "1.0.0"
+displayName = "Just Enough Structures Game Tests"
+description = '''In-world tests for Just Enough Structures. Never shipped.'''
+
+[[mixins]]
+config = "justenoughstructures_gametest.mixins.json"
+
+[[dependencies.justenoughstructures_gametest]]
+modId = "justenoughstructures"
+type = "required"
+versionRange = "*"
+ordering = "AFTER"
+side = "BOTH"

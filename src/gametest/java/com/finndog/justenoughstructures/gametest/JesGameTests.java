@@ -10,18 +10,21 @@ import net.minecraft.gametest.framework.TestFunction;
 
 /**
  * Every game test, which each loader's test mod registers: Fabric through its fabric-gametest
- * entrypoint, Forge by the annotations here. Each test runs in an empty 8x8x8 structure.
+ * entrypoint, Forge and NeoForge by the annotations here. Each test runs in an empty 8x8x8 structure.
  */
 //? if forge {
 /*@net.minecraftforge.gametest.GameTestHolder("justenoughstructures_gametest")
 @net.minecraftforge.gametest.PrefixGameTestTemplate(false)
+*///?} else if neoforge {
+/*@net.neoforged.neoforge.gametest.GameTestHolder("justenoughstructures_gametest")
+@net.neoforged.neoforge.gametest.PrefixGameTestTemplate(false)
 *///?}
 public final class JesGameTests {
     //? if fabric {
     private static final String EMPTY_STRUCTURE = "fabric-gametest-api-v1:empty";
     private static final String EMPTY_STRUCTURE_ID = EMPTY_STRUCTURE;
     //?} else {
-    /*// Forge puts the holder's namespace in front of a test's template, but not a generated test's.
+    /*// Forge and NeoForge put the holder's namespace in front of a test's template, but not a generated test's.
     private static final String EMPTY_STRUCTURE = "empty";
     private static final String EMPTY_STRUCTURE_ID = "justenoughstructures_gametest:empty";
     *///?}

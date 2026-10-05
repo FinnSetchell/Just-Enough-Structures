@@ -16,7 +16,7 @@ discord:
   pingDefault: true
 artifacts:
   - type: mod-jar
-# Each loader gets its own target and tag, e.g. 0.1.0-fabric or 0.1.0-forge. Each build is one node from
+# Each loader gets its own target and tag, e.g. 0.1.0-fabric, 0.1.0-forge or 0.1.0-neoforge. Each build is one node from
 # settings.gradle.kts. `java` is the Java that runs Gradle; the node's own toolchain is downloaded.
 targets:
   - branch: main
@@ -37,4 +37,12 @@ targets:
     jarDir: "versions/{mc}-forge/build/libs"
     builds:
       - { mc: "1.20.1", java: 25 }
+    dependencies: []
+  - branch: main
+    tagLabel: neoforge
+    loaders: [neoforge]
+    buildCommand: ":{mc}-neoforge:build"
+    jarDir: "versions/{mc}-neoforge/build/libs"
+    builds:
+      - { mc: "1.21.1", java: 25 }
     dependencies: []

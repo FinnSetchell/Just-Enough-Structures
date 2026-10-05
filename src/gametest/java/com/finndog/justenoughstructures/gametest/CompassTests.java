@@ -13,6 +13,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 //? if >=1.21 {
 /*import com.finndog.justenoughstructures.Ids;
@@ -62,6 +63,8 @@ public final class CompassTests {
         // Stops the search the way a player would, by using the compass while sneaking, so it doesn't
         // keep generating chunks for the rest of the tests.
         player.setShiftKeyDown(true);
+        // Some of its builds go by the pose instead, which sneaking only sets on the player's next tick.
+        player.setPose(Pose.CROUCHING);
         compass.getItem().use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
         helper.succeed();
     }
