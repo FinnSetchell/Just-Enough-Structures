@@ -25,7 +25,11 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
+//? if >=26.1 {
+/*import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+*///?} else {
 import net.neoforged.neoforge.network.PacketDistributor;
+//?}
 
 /** The client's side of the NeoForge setup. Only ever loaded on a client. */
 final class NeoForgeClient {
@@ -67,11 +71,22 @@ final class NeoForgeClient {
 
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
+                //? if >=26.1 {
+                /*ClientPacketDistributor.sendToServer(new JesPayload(JesPayload.type(channel), Blobs.bytes(buf)));
+                *///?} else {
                 PacketDistributor.sendToServer(new JesPayload(JesPayload.type(channel), Blobs.bytes(buf)));
+                //?}
             }
         });
 
+        //? if >=26.1 {
+        /*modBus.addListener((RegisterKeyMappingsEvent event) -> {
+            event.registerCategory(JesClient.CATEGORY);
+            event.register(JesClient.OPEN);
+        });
+        *///?} else {
         modBus.addListener((RegisterKeyMappingsEvent event) -> event.register(JesClient.OPEN));
+        //?}
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> JesClient.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
 

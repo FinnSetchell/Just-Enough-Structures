@@ -132,3 +132,20 @@ deps.rei = "EAlqUmgQ"
 deps.architectury = "Y7kRthh0"
 deps.explorers_compass = "FN4lCamU"
 
+# NeoForge only runs on the Minecraft version it was built for. Built against the build the 26.1.2
+# instance runs; the floor is the line's base, as launcher instances often sit a few builds behind
+# and a -beta build sorts below a plain one.
+[neoforge."26.1.2"]
+mod.mc_build = "26.1.2"
+mod.mc_compat = "[26.1.2,26.1.3)"
+deps.neoforge_version = "26.1.2.109"
+deps.neoforge_min = "26.1.2.0-beta"
+deps.cloth_config = "26.1.154"
+deps.jei = "29.34.0.90"
+# Modrinth version ids of the NeoForge builds: REI 26.1.819, Architectury 20.1.16 and Explorer's
+# Compass 3.3.0. EMI has no build for 26.1.
+deps.emi = ""
+deps.rei = "isd1MxO2"
+deps.architectury = "9PW5lWrQ"
+deps.explorers_compass = "OuPMcvp4"
+

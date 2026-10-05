@@ -20,7 +20,11 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.common.NeoForge;
+//? if >=26.1 {
+/*import net.neoforged.neoforge.event.AddServerReloadListenersEvent;
+*///?} else {
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
+//?}
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -54,7 +58,12 @@ public final class JustEnoughStructuresNeoForge {
                 PackToolsAccess.joined(player);
             }
         });
+        //? if >=26.1 {
+        /*NeoForge.EVENT_BUS.addListener((AddServerReloadListenersEvent event) ->
+                event.addListener(JustEnoughStructures.id("structure_info"), new StructureInfo.Loader()));
+        *///?} else {
         NeoForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new StructureInfo.Loader()));
+        //?}
         NeoForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
         // Stops the loot index and drops what belonged to that world when it closes.
@@ -64,11 +73,19 @@ public final class JustEnoughStructuresNeoForge {
         NeoForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();
+                //? if >=26.1 {
+                /*server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                *///?} else {
                 server.tell(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                //?}
             }
         });
 
+        //? if >=26.1 {
+        /*if (FMLEnvironment.getDist() == Dist.CLIENT) {
+        *///?} else {
         if (FMLEnvironment.dist == Dist.CLIENT) {
+        //?}
             NeoForgeClient.init(modBus, container);
         }
     }

@@ -45,6 +45,9 @@ sourceSets.main {
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.exclude("**/fabric/**", "**/forge/**")
     resources.exclude("fabric.mod.json")
+    // From 26.1 the tests' environments are registered along with the tests, as NeoForge offers no
+    // way to look up the ones in data.
+    resources.exclude("data/justenoughstructures_gametest/test_environment/**")
     resources.srcDir(rootProject.file("src/neoforge/gametest-resources"))
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
@@ -88,6 +91,25 @@ val devMods = mapOf(
         // Libraries the above need
         "moogs-structure-lib:wcg4mE4e", "yungs-api:2prKITKh", "cristel-lib:Sduz0AWP", "cloth-config:izKINKFg",
         "resourceful-config:lSbyRD6v", "midnightlib:6Gv5jvTB",
+    ),
+    "26.1.2" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // YUNG's
+        "yungs-better-dungeons:e1qEvr8D", "yungs-better-mineshafts:MXPxqNif", "yungs-better-strongholds:jRm5H60F",
+        "yungs-better-ocean-monuments:HwZo1wRg", "yungs-better-desert-temples:c5C5dZJ8", "yungs-better-jungle-temples:ECcz9HDe",
+        "yungs-better-witch-huts:FuqDSl5q", "yungs-better-nether-fortresses:CXSmjEju", "yungs-better-end-island:o9zTzuap",
+        "yungs-bridges:fi6Ilg6W", "yungs-extras:nxaj9k0R",
+        // Other big structure mods. Repurposed Structures and When Dungeons Arise have no 26.1 build.
+        "towns-and-towers:eN3WLQ3P", "structory:TUbwu7eG", "structory-towers:ziO4YIv1", "dungeons-and-taverns:aNzOBwdJ",
+        "explorify:CuBdAr31",
+        // Structure compass
+        "explorers-compass:OuPMcvp4",
+        // Libraries the above need
+        "moogs-structure-lib:xK8AFMA5", "yungs-api:jPWeixDa", "cristel-lib:WWbbl4Rn", "cloth-config:TimoYzse",
+        "resourceful-config:BLREkCgZ", "midnightlib:aDODZlso",
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"

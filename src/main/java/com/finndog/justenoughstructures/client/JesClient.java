@@ -11,7 +11,13 @@ import org.lwjgl.glfw.GLFW;
 *///?}
 
 public final class JesClient {
-    //? if >=26.1 {
+    //? if neoforge && >=26.1 {
+    /*// 26.1 lists each mod's keys under a category, named by key.category.<id>, which NeoForge has
+    // registered along with the keys.
+    public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(JustEnoughStructures.id("main"));
+    public static final KeyMapping OPEN = new KeyMapping("key.justenoughstructures.open", InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_K, CATEGORY);
+    *///?} else if >=26.1 {
     /*// 26.1 lists each mod's keys under a category it registers, named by key.category.<id>.
     public static final KeyMapping OPEN = new KeyMapping("key.justenoughstructures.open", InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_K, KeyMapping.Category.register(JustEnoughStructures.id("main")));

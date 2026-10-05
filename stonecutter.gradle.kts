@@ -89,12 +89,23 @@ stonecutter parameters {
                 replace("batch = \"", "environment = \"justenoughstructures_gametest:")
             }
         }
+        // NeoForge for 26.1 has no annotation for game tests, so the test mod has one of its own, with
+        // the same settings as Fabric's, and registers what it marks. Only on these nodes, as elsewhere
+        // Stonecutter would run the rules backwards.
+        if (loader == "neoforge" && current.parsed >= "26.1") {
+            string(true) {
+                replace("import net.minecraft.gametest.framework.GameTest;", "import com.finndog.justenoughstructures.gametest.neoforge.GameTest;")
+                replace("@GameTest(template = ", "@GameTest(structure = ")
+                replace("timeoutTicks = ", "maxTicks = ")
+                replace("batch = \"", "environment = \"justenoughstructures_gametest:")
+            }
+        }
 
         // Explorer's Compass names a few things differently from its Fabric 1.20.1 build. Only the files
         // that use it turn these on, with `//~ compass_names`. Each loader only gets its own: Stonecutter
         // also matches a rule's other side, which would get in the way of another loader's rule. Its
-        // NeoForge build names them as its Forge one does.
-        if (loader == "forge" || loader == "neoforge") {
+        // NeoForge build names them as its Forge one does, until 26.1.
+        if (loader == "forge" || loader == "neoforge" && current.parsed < "26.1") {
             string(true, "compass_names") {
                 replace("EXPLORERS_COMPASS_ITEM", "explorersCompass")
                 replace("getAllowedStructureIDs", "getAllowedStructureKeys")
@@ -113,6 +124,18 @@ stonecutter parameters {
                 replace("explorerscompass.items.", "explorerscompass.item.")
                 replace("getAllowedStructureIDs", "getAllowedStructureIds")
                 replace("ExplorersCompass.allowedStructureIDs", "ExplorersCompass.allowedStructures")
+            }
+        }
+        // Its NeoForge build for 26.1 took the Fabric build's names, keeping only its item's own. Only on
+        // these nodes, as run backwards on older NeoForge ones it would undo the rule above.
+        if (loader == "neoforge" && current.parsed >= "26.1") {
+            string(true, "compass_names") {
+                replace("EXPLORERS_COMPASS_ITEM", "explorersCompass")
+                replace("explorerscompass.items.", "explorerscompass.item.")
+                replace("getAllowedStructureIDs", "getAllowedStructureIds")
+                replace("ExplorersCompass.allowedStructureIDs", "ExplorersCompass.allowedStructures")
+                replace("getStructureID()", "getStructureId()")
+                replace("compass.getState(", "compass.getCompassState(")
             }
         }
     }

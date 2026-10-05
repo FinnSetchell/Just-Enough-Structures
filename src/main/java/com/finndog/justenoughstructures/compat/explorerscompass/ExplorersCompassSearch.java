@@ -21,7 +21,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.Structure;
-//? if neoforge || forge && >=1.21 {
+//? if neoforge && <26.1 || forge && >=1.21 {
 /*import java.util.List;
 *///?}
 
@@ -69,7 +69,7 @@ public final class ExplorersCompassSearch implements CompassSearch {
             return Component.translatable("screen.justenoughstructures.compass_needs_levels", levels);
         }
         //?}
-        //? if neoforge {
+        //? if neoforge && <26.1 {
         /*// Its NeoForge build searches for a group of structures, here a group of one, as its screen does.
         compass.searchForStructure(level, player, structure, List.of(structure), player.blockPosition(), stack, false);
         *///?} else if forge && >=1.21 {

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.neoforge;
 
+import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.JesPayload;
@@ -33,15 +34,23 @@ final class NeoForgeNetworking {
             ServerPackets.handlers().forEach((channel, handler) -> registrar.playToServer(JesPayload.type(channel),
                     JesPayload.codec(JesPayload.type(channel)), (payload, context) -> {
                         ServerPlayer player = (ServerPlayer) context.player();
-                        handler.handle(player.server, player, Blobs.fromBytes(player.server.registryAccess(), payload.data()));
+                        handler.handle(Players.server(player), player, Blobs.fromBytes(Players.server(player).registryAccess(), payload.data()));
                     }));
             for (ResourceLocation channel : JesNetwork.CLIENTBOUND) {
                 registrar.playToClient(JesPayload.type(channel), JesPayload.codec(JesPayload.type(channel)),
                         (payload, context) -> clientHandler.accept(channel, Blobs.fromBytes(context.player().level().registryAccess(), payload.data())));
             }
+            //? if >=26.1 {
+            /*// From 26.1 a payload sent both ways is handled apart on each side. Here neither does anything.
+            registrar.playBidirectional(JesPayload.type(JesNetwork.PRESENT), JesPayload.codec(JesPayload.type(JesNetwork.PRESENT)),
+                    (payload, context) -> {
+                    }, (payload, context) -> {
+                    });
+            *///?} else {
             registrar.playBidirectional(JesPayload.type(JesNetwork.PRESENT), JesPayload.codec(JesPayload.type(JesNetwork.PRESENT)),
                     (payload, context) -> {
                     });
+            //?}
         });
         JesNetwork.setServerSender((player, channel, buf) -> PacketDistributor.sendToPlayer(player, new JesPayload(JesPayload.type(channel), Blobs.bytes(buf))));
         JesNetwork.setServerCanSend((player, channel) -> player.connection.hasChannel(JesPayload.type(channel)));
