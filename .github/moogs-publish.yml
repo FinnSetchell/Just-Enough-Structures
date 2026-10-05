@@ -51,4 +51,5 @@ targets:
     builds:
       - { mc: "1.21.1", java: 25 }
       - { mc: "26.1.2", java: 25 }
+      - { mc: "26.2", java: 25 }
     dependencies: []

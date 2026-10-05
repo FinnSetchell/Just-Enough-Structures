@@ -24,6 +24,10 @@ import net.minecraft.world.level.chunk.status.ChunkPyramid;
 //? if >=26.1 {
 /*import net.minecraft.world.level.block.Block;
 *///?}
+//? if >=26.2 {
+/*import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.material.FluidState;
+*///?}
 
 /**
  * A real {@link WorldGenRegion} over chunks that belong to no world, so structure code sees exactly
@@ -83,6 +87,27 @@ final class CaptureRegion extends WorldGenRegion {
         super(level, chunks, ChunkStatus.FEATURES, writeRadius);
     }
     //?}
+
+    //? if >=26.2 {
+    /*// 26.2 reports every read outside the write zone around the region's middle chunk, as reading
+    // further from the chunk being generated isn't safe in a real world. A capture's chunks are all
+    // there from the start, each one the centre in turn while it's placed, so the structure reads
+    // across all of them: the same reads, without a report for each.
+    @Override
+    public BlockState getBlockState(BlockPos pos) {
+        return getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())).getBlockState(pos);
+    }
+
+    @Override
+    public FluidState getFluidState(BlockPos pos) {
+        return getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())).getFluidState(pos);
+    }
+
+    @Override
+    public int getHeight(Heightmap.Types type, int x, int z) {
+        return getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z)).getHeight(type, x & 15, z & 15) + 1;
+    }
+    *///?}
 
     LongSet written() {
         return written;

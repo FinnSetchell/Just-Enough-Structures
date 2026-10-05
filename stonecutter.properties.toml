@@ -188,3 +188,17 @@ deps.emi = ""
 deps.rei = "4o0NSIMj"
 deps.architectury = "w3CUWoxd"
 deps.explorers_compass = "z6auypou"
+
+[neoforge."26.2"]
+mod.mc_build = "26.2"
+mod.mc_compat = "[26.2,26.3)"
+deps.neoforge_version = "26.2.0.88"
+deps.neoforge_min = "26.2.0.0-beta"
+deps.cloth_config = "26.2.155"
+deps.jei = "30.39.0.233"
+# Modrinth version ids of the NeoForge builds: REI 26.2.820, Architectury 21.1.11 and Explorer's
+# Compass 3.3.0. EMI has no build for 26.2.
+deps.emi = ""
+deps.rei = "BoY0Dky0"
+deps.architectury = "huNlZW4Q"
+deps.explorers_compass = "r9Okm6YW"
