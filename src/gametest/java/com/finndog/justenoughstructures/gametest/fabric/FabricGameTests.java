@@ -177,6 +177,11 @@ public final class FabricGameTests implements FabricGameTest {
         ServiceTests.impossibleLocateIsQuick(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void locateLooksInOtherDimensions(GameTestHelper helper) {
+        ServiceTests.locateLooksInOtherDimensions(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void teleportLandsSomewhereSafe(GameTestHelper helper) {
         ServiceTests.teleportLandsSomewhereSafe(helper);

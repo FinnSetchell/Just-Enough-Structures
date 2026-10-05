@@ -205,11 +205,17 @@ final class ToolsStructures extends ToolsSection {
 
     /** Every structure the server has, players' and hidden ones, by id. */
     private Map<ResourceLocation, StructureCatalog.Entry> all() {
-        Map<ResourceLocation, StructureCatalog.Entry> out = new LinkedHashMap<>();
-        screen.catalog().forEach(e -> out.put(e.id(), e));
-        screen.state().hidden().forEach(e -> out.put(e.id(), e));
-        return out;
+        screen.catalog().forEach(e -> known.put(e.id(), e));
+        screen.state().hidden().forEach(e -> known.put(e.id(), e));
+        return known;
     }
+
+    /**
+     * Every structure seen since Pack tools opened. The players' list and the hidden one come from
+     * the server separately, so one just shown again is in neither for a moment; kept here, its row
+     * doesn't drop out of the list and back.
+     */
+    private final Map<ResourceLocation, StructureCatalog.Entry> known = new LinkedHashMap<>();
 
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {

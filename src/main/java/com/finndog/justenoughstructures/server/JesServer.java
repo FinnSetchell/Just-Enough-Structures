@@ -31,6 +31,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.nbt.Tag;
@@ -740,11 +741,12 @@ public final class JesServer {
     }
 
     /**
-     * Finds the nearest structure of this kind in the player's dimension, like /locate, and with
-     * {@code teleport} takes the player there, like /tp. Each needs the permission level the server
-     * settings give it; a player who can locate but not teleport just gets told where it is.
-     * Returns what to tell the player. Runs on the server thread because structure lookups load
-     * chunk data.
+     * Finds the nearest structure of this kind, like /locate, and with {@code teleport} takes the
+     * player there, like /tp. It looks in the player's dimension, or for one that can't generate
+     * there, in the dimension where it does, from where a portal would take them, and teleports them
+     * across. Each needs the permission level the server settings give it; a player who can locate
+     * but not teleport just gets told where it is. Returns what to tell the player. Runs on the
+     * server thread because structure lookups load chunk data.
      */
     public static Component locateFor(ServerPlayer player, ResourceLocation id, boolean teleport) {
         ServerConfig.Settings settings = ServerConfig.get();
@@ -754,17 +756,63 @@ public final class JesServer {
         if (settings.hides(id)) {
             return Component.translatable("screen.justenoughstructures.locate_hidden");
         }
-        Located found = find(player.serverLevel(), player.blockPosition(), id);
+        ServerLevel level = player.serverLevel();
+        BlockPos from = player.blockPosition();
+        ServerLevel searched = searchedIn(level, id);
+        ServerLevel elsewhere = searched != null && searched != level ? searched : null;
+        if (elsewhere != null) {
+            double scale = DimensionType.getTeleportationScale(level.dimensionType(), elsewhere.dimensionType());
+            from = BlockPos.containing(from.getX() * scale, from.getY(), from.getZ() * scale);
+            level = elsewhere;
+        }
+        Located found = find(level, from, id, elsewhere == null ? null : dimensionName(elsewhere));
         if (!teleport || !player.hasPermissions(settings.teleportPermission()) || found.pos() == null) {
             return found.message();
         }
-        Optional<BlockPos> spot = standingSpot(player.serverLevel(), found.pos().getX(), found.pos().getZ());
+        Optional<BlockPos> spot = standingSpot(level, found.pos().getX(), found.pos().getZ());
         if (spot.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.locate_no_ground", found.pos().getX(), found.pos().getZ());
         }
         BlockPos to = spot.get();
-        player.teleportTo(player.serverLevel(), to.getX() + 0.5, to.getY(), to.getZ() + 0.5, player.getYRot(), player.getXRot());
-        return Component.translatable("screen.justenoughstructures.locate_teleported", to.getX(), to.getY(), to.getZ());
+        player.teleportTo(level, to.getX() + 0.5, to.getY(), to.getZ() + 0.5, player.getYRot(), player.getXRot());
+        return elsewhere == null ? Component.translatable("screen.justenoughstructures.locate_teleported", to.getX(), to.getY(), to.getZ())
+                : Component.translatable("screen.justenoughstructures.locate_teleported_to", dimensionName(elsewhere), to.getX(), to.getY(), to.getZ());
+    }
+
+    /** Whether this structure can generate in this dimension at all. */
+    private static boolean canGenerate(ServerLevel level, ResourceLocation id) {
+        Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
+                .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
+        return holder.isPresent() && !level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty();
+    }
+
+    /**
+     * The dimension a structure is looked for in from {@code level}: that one if it can generate
+     * there, otherwise the first where it can, the Overworld, the Nether and the End first, or null
+     * if it can't generate anywhere.
+     */
+    public static ServerLevel searchedIn(ServerLevel level, ResourceLocation id) {
+        if (canGenerate(level, id)) {
+            return level;
+        }
+        for (ServerLevel other : level.getServer().getAllLevels()) {
+            if (canGenerate(other, id)) {
+                return other;
+            }
+        }
+        return null;
+    }
+
+    /** "The End", or for a mod's dimension, its id. */
+    private static Component dimensionName(ServerLevel level) {
+        ResourceLocation id = level.dimension().location();
+        String vanilla = switch (id.toString()) {
+            case "minecraft:overworld" -> "overworld";
+            case "minecraft:the_nether" -> "nether";
+            case "minecraft:the_end" -> "end";
+            default -> null;
+        };
+        return vanilla != null ? Component.translatable("screen.justenoughstructures.dimension." + vanilla) : Component.literal(id.toString());
     }
 
     /** Where a locate ended up, or a null position and the reason why not. */
@@ -773,10 +821,11 @@ public final class JesServer {
 
     /** The nearest structure of this kind to {@code from}, as a sentence for the player. */
     public static Component locate(ServerLevel level, BlockPos from, ResourceLocation id) {
-        return find(level, from, id).message();
+        return find(level, from, id, null).message();
     }
 
-    private static Located find(ServerLevel level, BlockPos from, ResourceLocation id) {
+    /** {@code elsewhere} names the dimension searched when it isn't the player's own, to say where it is. */
+    private static Located find(ServerLevel level, BlockPos from, ResourceLocation id, Component elsewhere) {
         Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
                 .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
         // Searching for something that can't generate here makes the game generate chunk after
@@ -797,9 +846,10 @@ public final class JesServer {
         int dz = at.getZ() - from.getZ();
         double angle = Math.toDegrees(Math.atan2(dx, -dz));
         String direction = DIRECTIONS[Math.floorMod((int) Math.round(angle / 45.0), 8)];
-        return new Located(at, Component.translatable("screen.justenoughstructures.locate_found",
-                String.format("%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz)),
-                Component.translatable("screen.justenoughstructures.direction." + direction), at.getX(), at.getZ()));
+        String distance = String.format("%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz));
+        Component way = Component.translatable("screen.justenoughstructures.direction." + direction);
+        return new Located(at, elsewhere == null ? Component.translatable("screen.justenoughstructures.locate_found", distance, way, at.getX(), at.getZ())
+                : Component.translatable("screen.justenoughstructures.locate_found_in", elsewhere, distance, way, at.getX(), at.getZ()));
     }
 
     /**

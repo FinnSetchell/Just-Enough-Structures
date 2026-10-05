@@ -279,6 +279,20 @@ public final class ServiceTests {
         helper.succeed();
     }
 
+    /**
+     * Something that can't generate where the player is gets looked for in the dimension where it
+     * does: an end city, asked for in the overworld, in the End. (The test world has structures
+     * turned off, so this checks where the search goes rather than what it finds.)
+     */
+    public static void locateLooksInOtherDimensions(GameTestHelper helper) {
+        ServerLevel overworld = helper.getLevel();
+        ServerLevel endCity = JesServer.searchedIn(overworld, new ResourceLocation("end_city"));
+        helper.assertTrue(endCity != null && endCity.dimension() == Level.END, "an end city is looked for in " + (endCity == null ? "nowhere" : endCity.dimension()));
+        ServerLevel village = JesServer.searchedIn(overworld, new ResourceLocation("village_plains"));
+        helper.assertTrue(village == overworld, "a village is looked for in " + (village == null ? "nowhere" : village.dimension()) + ", not here");
+        helper.succeed();
+    }
+
     /** Teleporting lands on top of the ground in the overworld, and on a floor under the roof in the Nether. */
     public static void teleportLandsSomewhereSafe(GameTestHelper helper) {
         BlockPos near = helper.absolutePos(BlockPos.ZERO);
