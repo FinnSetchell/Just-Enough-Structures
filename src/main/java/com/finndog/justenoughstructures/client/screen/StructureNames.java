@@ -40,7 +40,7 @@ public final class StructureNames {
 
     private static String name(ResourceLocation id) {
         String key = "structure." + id.getNamespace() + "." + id.getPath().replace('/', '.');
-        if (I18n.exists(key)) {
+        if (Language.getInstance().has(key)) {
             return I18n.get(key);
         }
         return pretty(id.getPath());

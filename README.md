@@ -7,8 +7,8 @@ Structures are built by the code that owns them. Just Enough Structures asks eac
 generate itself in a sandbox, the same way `/place structure` does, and only draws the result. That
 is why it works with structures from any mod or datapack without knowing anything about them.
 
-This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, 1.21.1 on
-Fabric, NeoForge and Forge, and 26.1 on Fabric, NeoForge and Forge, with more versions to follow.
+This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, 1.21.1 and
+26.1 on Fabric, NeoForge and Forge, and 26.2 on Fabric, with more versions to follow.
 
 ## Using it
 
@@ -123,7 +123,7 @@ Explorer's Compass uses.
 
 ## Requirements
 
-- Minecraft 1.20.1, 1.21.1 or 26.1 (26.1.2 on NeoForge and Forge)
+- Minecraft 1.20.1, 1.21.1, 26.1 (26.1.2 on NeoForge and Forge) or 26.2
 - Fabric Loader and Fabric API, Forge, or NeoForge on 1.21.1 and 26.1.2
 - Installed on both the client and the server. In singleplayer that's just your game.
 
@@ -151,7 +151,7 @@ and quits. Pick the structures with `-Pstructures=minecraft:igloo,mymod:tower` a
 watch it. `-Pmode=open` and `-Pmode=showcase` play a scripted clip instead and save every frame, for
 making GIFs.
 
-Gradle needs Java 21 or newer to run, and Java 25 for the 26.1.2 nodes' tasks. The Java each node
+Gradle needs Java 21 or newer to run, and Java 25 for the 26.x nodes' tasks. The Java each node
 compiles with is downloaded for you.
 
 ## License

@@ -227,7 +227,7 @@ final class ToolsRules extends ToolsSection {
     /** A row's tooltip, if its key has one. */
     private void hint(ToolsUi ui, int x, int y, int w, int h, String key) {
         String hintKey = "screen.justenoughstructures.tools." + key + "_hint";
-        if (net.minecraft.client.resources.language.I18n.exists(hintKey)) {
+        if (net.minecraft.locale.Language.getInstance().has(hintKey)) {
             ui.tooltip(x, y, w, h, Component.translatable(hintKey));
         }
     }

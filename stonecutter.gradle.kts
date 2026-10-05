@@ -71,6 +71,49 @@ stonecutter parameters {
             replace("g.renderOutline(", "g.outline(")
         }
 
+        // 26.2 moved the screen being shown into the game's Gui, with the HUD a Hud inside it, a few
+        // registries' constants into classes of their own, and the GPU's primitives out of
+        // VertexFormat. Mobs JES only shows are made whatever the difficulty, as a spawner shows its.
+        // Only on these nodes, as elsewhere Stonecutter would run the rules backwards, and the blend
+        // factors can't be told apart that way.
+        if (current.parsed >= "26.2") string(true) {
+            replace("minecraft.setScreen(", "minecraft.gui.setScreen(")
+            replace("mc.setScreen(", "mc.gui.setScreen(")
+            replace("Minecraft.getInstance().setScreen(", "Minecraft.getInstance().gui.setScreen(")
+            replace("minecraft.screen", "minecraft.gui.screen()")
+            replace("mc.screen", "mc.gui.screen()")
+            replace("Minecraft.getInstance().screen", "Minecraft.getInstance().gui.screen()")
+            replace("mc.getOverlay()", "mc.gui.overlay()")
+            replace("mc.getMainRenderTarget()", "mc.gameRenderer.mainRenderTarget()")
+            replace("minecraft.gui.setOverlayMessage(", "minecraft.gui.hud.setOverlayMessage(")
+            replace("minecraft.gui.extractDeferredSubtitles(", "minecraft.gui.hud.extractDeferredSubtitles(")
+            replace("EntityType.ARMOR_STAND", "net.minecraft.world.entity.EntityTypes.ARMOR_STAND")
+            replace("EntityType.PIG", "net.minecraft.world.entity.EntityTypes.PIG")
+            replace("BlockEntityType.MOB_SPAWNER", "net.minecraft.world.level.block.entity.BlockEntityTypes.MOB_SPAWNER")
+            replace(".markPosForPostprocessing(", ".markPosForPostProcessing(")
+            replace("EntitySpawnReason.LOAD)", "new net.minecraft.world.entity.EntitySpawnRequest(EntitySpawnReason.LOAD, true))")
+            replace("VertexFormat.Mode", "com.mojang.blaze3d.PrimitiveTopology")
+            replace("VertexFormat.IndexType", "com.mojang.blaze3d.IndexType")
+            replace("drawState().mode()", "drawState().primitiveTopology()")
+            // Blend factors for colour and alpha became the one kind, a render pass clears to a colour
+            // rather than a packed int, a vertex buffer is bound as a slice of one, draws name how much
+            // they draw before where they start, and a buffer is mapped by itself.
+            replace("com.mojang.blaze3d.platform.SourceFactor", "com.mojang.blaze3d.platform.BlendFactor")
+            replace("com.mojang.blaze3d.platform.DestFactor", "com.mojang.blaze3d.platform.BlendFactor")
+            replace("SourceFactor.", "BlendFactor.")
+            replace("DestFactor.", "BlendFactor.")
+            replace("OptionalInt.empty(), depth, OptionalDouble.empty()", "java.util.Optional.empty(), depth, OptionalDouble.empty()")
+            replace("pass.setVertexBuffer(0, buffer.vertices())", "pass.setVertexBuffer(0, buffer.vertices().slice())")
+            replace("pass.setVertexBuffer(0, fill.vertices())", "pass.setVertexBuffer(0, fill.vertices().slice())")
+            replace("pass.setVertexBuffer(0, edges.vertices())", "pass.setVertexBuffer(0, edges.vertices().slice())")
+            replace("pass.drawIndexed(0, 0, buffer.indexCount(), 1)", "pass.drawIndexed(buffer.indexCount(), 1, 0, 0, 0)")
+            replace("pass.drawIndexed(0, 0, fill.count(), 1)", "pass.drawIndexed(fill.count(), 1, 0, 0, 0)")
+            replace("pass.draw(0, edges.count())", "pass.draw(edges.count(), 1, 0, 0)")
+            replace("getFormat().pixelSize()", "getFormat().blockSize()")
+            replace("GpuBuffer.MappedView read = encoder.mapBuffer(buffer, true, false)",
+                    "com.mojang.blaze3d.buffers.GpuBufferSlice.MappedView read = buffer.map(true, false)")
+        }
+
         // Fabric API for 26.1 took the game's own names for these.
         if (loader == "fabric") {
             string(current.parsed >= "26.1") {

@@ -117,6 +117,21 @@ val devMods = mapOf(
         "moogs-structure-lib:SbVBqJiu", "yungs-api:lmLenYfY", "cristel-lib:JDTs3eQM", "cloth-config:GFM8zh9J",
         "resourceful-config:GMW14IUd", "midnightlib:jcj4Ev6D",
     ),
+    // YUNG's has no build for 26.2.
+    "26.2" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // Other big structure mods
+        "towns-and-towers:eN3WLQ3P", "structory:TUbwu7eG", "structory-towers:ziO4YIv1", "dungeons-and-taverns:y9AUViOD",
+        "explorify:CuBdAr31",
+        // Structure compass
+        "explorers-compass:z6auypou",
+        // Libraries the above need
+        "moogs-structure-lib:KOfVwVft", "cristel-lib:6cKPC8Up", "cloth-config:Nv3xnWXd",
+        "resourceful-config:RqoPv70U", "midnightlib:3uBvRFE9",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.

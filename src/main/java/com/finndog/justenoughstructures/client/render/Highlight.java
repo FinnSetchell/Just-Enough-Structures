@@ -37,6 +37,9 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 //?}
+//? if >=26.2 {
+/*import net.minecraft.client.renderer.BindGroupLayouts;
+*///?}
 
 /**
  * Blocks tinted in the preview while a row about them is hovered: every block of a kind, a group of
@@ -142,8 +145,27 @@ public final class Highlight implements AutoCloseable {
             }
         }
     }
+    *///?}
 
-    private static RenderPipeline pipeline(String name, VertexFormat.Mode mode, boolean depthTest) {
+    //? if >=26.2 {
+    /*private static RenderPipeline pipeline(String name, VertexFormat.Mode mode, boolean depthTest) {
+        return RenderPipeline.builder()
+                .withLocation(JustEnoughStructures.id("pipeline/highlight_" + name))
+                .withBindGroupLayout(BindGroupLayouts.GLOBALS)
+                .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+                .withVertexShader("core/position_color")
+                .withFragmentShader("core/position_color")
+                .withColorTargetState(new ColorTargetState(GLASS))
+                .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+                .withPrimitiveTopology(mode)
+                // Only the sides facing the camera, so a block's far faces don't stack on its near ones.
+                .withCull(true)
+                // From 26.2 the nearest depth is the greatest.
+                .withDepthStencilState(depthTest ? Optional.of(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false)) : Optional.empty())
+                .build();
+    }
+    *///?} else if >=26.1 {
+    /*private static RenderPipeline pipeline(String name, VertexFormat.Mode mode, boolean depthTest) {
         return RenderPipeline.builder()
                 .withLocation(JustEnoughStructures.id("pipeline/highlight_" + name))
                 .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
@@ -157,8 +179,10 @@ public final class Highlight implements AutoCloseable {
                 .withDepthStencilState(depthTest ? Optional.of(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false)) : Optional.empty())
                 .build();
     }
+    *///?}
 
-    // A mesh on the GPU, and how many indices (for faces) or vertices (for edges) drawing it takes.
+    //? if >=26.1 {
+    /*// A mesh on the GPU, and how many indices (for faces) or vertices (for edges) drawing it takes.
     private record Mesh(GpuBuffer vertices, int count) implements AutoCloseable {
         static Mesh upload(MeshData mesh) {
             GpuBuffer vertices = RenderSystem.getDevice()

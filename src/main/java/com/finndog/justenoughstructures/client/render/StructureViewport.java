@@ -14,7 +14,9 @@ import java.util.Optional;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+//? if <26.2 {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.core.BlockPos;
@@ -40,7 +42,6 @@ import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
-import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -66,6 +67,11 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 //?}
+//? if >=26.2 {
+/*import com.mojang.blaze3d.GpuFormat;
+*///?} else if >=26.1 {
+/*import net.minecraft.client.renderer.ShapeRenderer;
+*///?}
 
 /**
  * Draws a {@link SnapshotView} with an orbit camera into its own render target, then blits that
@@ -114,6 +120,10 @@ public final class StructureViewport implements AutoCloseable {
     // Fog that never starts, so a big structure seen from afar isn't lost in it.
     private static GpuBuffer noFog;
     private final ProjectionMatrixBuffer projectionBuffer = new ProjectionMatrixBuffer("Just Enough Structures preview");
+    *///?}
+    //? if >=26.2 {
+    /*// What the preview's chests, mobs, ground and outlines queue up to be drawn.
+    private SubmitNodeStorage nodes = new SubmitNodeStorage();
     *///?}
 
     public void setView(SnapshotView newView) {
@@ -366,7 +376,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     private static TextureTarget newTarget(int width, int height) {
-        //? if >=26.1 {
+        //? if >=26.2 {
+        /*return new TextureTarget("Just Enough Structures preview", width, height, true, GpuFormat.RGBA8_UNORM);
+        *///?} else if >=26.1 {
         /*return new TextureTarget("Just Enough Structures preview", width, height, true);
         *///?} else {
         return new TextureTarget(width, height, true, Minecraft.ON_OSX);
@@ -378,7 +390,7 @@ public final class StructureViewport implements AutoCloseable {
     private void drawScene(TextureTarget into, float partialTick, Collection<BlockPos> outlines, Highlight highlight, boolean everything) {
         GpuTextureView color = into.getColorTextureView();
         GpuTextureView depth = into.getDepthTextureView();
-        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), 0, into.getDepthTexture(), 1.0);
+        clear(into);
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(projectionBuffer.getBuffer(projection), ProjectionType.PERSPECTIVE);
         // The camera turns the world in the model-view matrix, as when the game draws the world, so
@@ -480,78 +492,6 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
-        // The camera is in the model-view matrix, so these are drawn where they are in the structure.
-        PoseStack pose = new PoseStack();
-        minecraft.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
-        FeatureRenderDispatcher features = minecraft.gameRenderer.getFeatureRenderDispatcher();
-        SubmitNodeStorage nodes = features.getSubmitNodeStorage();
-        CameraRenderState camera = cameraState();
-        int slice = view.sliceY();
-
-        // Drawing something for the first time can load its textures and models, and doing that for
-        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
-        // they come in a few at a time, in the same order every frame.
-        long firstDraws = 0;
-        int index = 0;
-        for (BlockEntity be : view.blockEntities().values()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitBlockEntity(be, slice, partialTick, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-
-        EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        index = view.blockEntities().size();
-        for (Entity entity : view.entities()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitEntity(entity, slice, entities, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-        try {
-            features.renderAllFeatures();
-        } catch (RuntimeException e) {
-            // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
-            features.clearSubmitNodes();
-            JesLog.debug("Drawing the preview's block entities and mobs failed", e);
-        }
-
-        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        if (groundY >= 0 && groundY < slice) {
-            float sx = view.size().getX(), sz = view.size().getZ();
-            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
-            float gy = groundY + 0.002f;
-            Matrix4f m = pose.last().pose();
-            VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
-            quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-        }
-
-        if (!outlines.isEmpty()) {
-            VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
-            float width = minecraft.getWindow().getAppropriateLineWidth();
-            for (BlockPos pos : outlines) {
-                ShapeRenderer.renderShape(pose, lines, OUTLINE, pos.getX(), pos.getY(), pos.getZ(), 0xFFFFFFFF, width);
-            }
-        }
-        buffers.endBatch();
-    }
-
     private void blit(GuiGraphics graphics) {
         // Drawn into the texture from the bottom up, so read from the top down.
         graphics.blit(target.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST),
@@ -642,8 +582,174 @@ public final class StructureViewport implements AutoCloseable {
             JesLog.debug("Entity renderer failed for {}", entity, e);
         }
     }
-
     //?}
+
+    //? if >=26.2 {
+    /*// From 26.2 the nearest depth is the greatest, so the depth starts out at the least.
+    private static void clear(TextureTarget into) {
+        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), new Vector4f(0f, 0f, 0f, 0f), into.getDepthTexture(), 0.0);
+    }
+
+    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
+        // The camera is in the model-view matrix, so these are drawn where they are in the structure.
+        PoseStack pose = new PoseStack();
+        minecraft.gameRenderer.lighting().setupFor(Lighting.Entry.LEVEL);
+        FeatureRenderDispatcher features = minecraft.gameRenderer.featureRenderDispatcher();
+        CameraRenderState camera = cameraState();
+        int slice = view.sliceY();
+
+        // Drawing something for the first time can load its textures and models, and doing that for
+        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
+        // they come in a few at a time, in the same order every frame.
+        long firstDraws = 0;
+        int index = 0;
+        for (BlockEntity be : view.blockEntities().values()) {
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
+            }
+            long started = first ? System.nanoTime() : 0;
+            submitBlockEntity(be, slice, partialTick, pose, nodes, camera);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
+            }
+        }
+
+        EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
+        index = view.blockEntities().size();
+        for (Entity entity : view.entities()) {
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
+            }
+            long started = first ? System.nanoTime() : 0;
+            submitEntity(entity, slice, entities, pose, nodes, camera);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
+            }
+        }
+
+        if (groundY >= 0 && groundY < slice) {
+            float sx = view.size().getX(), sz = view.size().getZ();
+            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
+            float gy = groundY + 0.002f;
+            nodes.submitCustomGeometry(pose, RenderTypes.debugQuads(), (at, quads) -> {
+                Matrix4f m = at.pose();
+                quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            });
+        }
+
+        float width = minecraft.getWindow().getAppropriateLineWidth();
+        for (BlockPos pos : outlines) {
+            pose.pushPose();
+            pose.translate(pos.getX(), pos.getY(), pos.getZ());
+            nodes.submitShapeOutline(pose, OUTLINE, RenderTypes.lines(), 0xFFFFFFFF, width, false);
+            pose.popPose();
+        }
+        try {
+            features.renderAllFeatures(nodes);
+        } catch (RuntimeException e) {
+            // One of them couldn't be drawn after all. What it left behind goes with the old queue.
+            nodes = new SubmitNodeStorage();
+            endFrame(features);
+            JesLog.debug("Drawing the preview's block entities and mobs failed", e);
+        }
+    }
+
+    // A failure while the game's feature drawing was getting a frame ready leaves that frame open, and
+    // it won't open another until it's closed, so the world itself could no longer be drawn. The frame
+    // isn't reachable any other way.
+    private static void endFrame(FeatureRenderDispatcher features) {
+        try {
+            java.lang.reflect.Field frame = FeatureRenderDispatcher.class.getDeclaredField("preparedFrame");
+            frame.setAccessible(true);
+            ((FeatureRenderDispatcher.PreparedFrame) frame.get(features)).close();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            // Already closed: the failure came once it was ready, and drawing it closed it.
+        }
+    }
+    *///?} else if >=26.1 {
+    /*private static void clear(TextureTarget into) {
+        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), 0, into.getDepthTexture(), 1.0);
+    }
+
+    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
+        // The camera is in the model-view matrix, so these are drawn where they are in the structure.
+        PoseStack pose = new PoseStack();
+        minecraft.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
+        FeatureRenderDispatcher features = minecraft.gameRenderer.getFeatureRenderDispatcher();
+        SubmitNodeStorage nodes = features.getSubmitNodeStorage();
+        CameraRenderState camera = cameraState();
+        int slice = view.sliceY();
+
+        // Drawing something for the first time can load its textures and models, and doing that for
+        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
+        // they come in a few at a time, in the same order every frame.
+        long firstDraws = 0;
+        int index = 0;
+        for (BlockEntity be : view.blockEntities().values()) {
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
+            }
+            long started = first ? System.nanoTime() : 0;
+            submitBlockEntity(be, slice, partialTick, pose, nodes, camera);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
+            }
+        }
+
+        EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
+        index = view.blockEntities().size();
+        for (Entity entity : view.entities()) {
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                break;
+            }
+            long started = first ? System.nanoTime() : 0;
+            submitEntity(entity, slice, entities, pose, nodes, camera);
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
+            }
+        }
+        try {
+            features.renderAllFeatures();
+        } catch (RuntimeException e) {
+            // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
+            features.clearSubmitNodes();
+            JesLog.debug("Drawing the preview's block entities and mobs failed", e);
+        }
+
+        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        if (groundY >= 0 && groundY < slice) {
+            float sx = view.size().getX(), sz = view.size().getZ();
+            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
+            float gy = groundY + 0.002f;
+            Matrix4f m = pose.last().pose();
+            VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
+            quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+        }
+
+        if (!outlines.isEmpty()) {
+            VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
+            float width = minecraft.getWindow().getAppropriateLineWidth();
+            for (BlockPos pos : outlines) {
+                ShapeRenderer.renderShape(pose, lines, OUTLINE, pos.getX(), pos.getY(), pos.getZ(), 0xFFFFFFFF, width);
+            }
+        }
+        buffers.endBatch();
+    }
+    *///?}
 
     /**
      * Draws the finished structure from the default angle into a new square texture for the list.
@@ -809,7 +915,12 @@ public final class StructureViewport implements AutoCloseable {
             far = Math.max(far, fromCentre + radius * 2f);
         }
         float aspect = (float) width / Math.max(1, height);
+        //? if >=26.2 {
+        /*// From 26.2 the nearest depth is the greatest, so near and far swap places.
+        projection.setPerspective((float) Math.toRadians(FOV), aspect, far, near, RenderSystem.getDevice().getDeviceInfo().isZZeroToOne());
+        *///?} else {
         projection.setPerspective((float) Math.toRadians(FOV), aspect, near, far);
+        //?}
     }
 
     /** Screen position of a point in structure space, or empty when it's behind the camera. */
@@ -837,8 +948,16 @@ public final class StructureViewport implements AutoCloseable {
         Matrix4f inverse = new Matrix4f(projection).mul(viewMatrix).invert();
         float ndcX = (float) ((mouseX - x) / width * 2.0 - 1.0);
         float ndcY = (float) (1.0 - (mouseY - y) / height * 2.0);
-        Vector4f near = inverse.transform(new Vector4f(ndcX, ndcY, -1f, 1f));
-        Vector4f far = inverse.transform(new Vector4f(ndcX, ndcY, 1f, 1f));
+        //? if >=26.2 {
+        /*// From 26.2 the near plane is at the top of the depth range and the far one at the bottom.
+        float nearZ = 1f;
+        float farZ = RenderSystem.getDevice().getDeviceInfo().isZZeroToOne() ? 0f : -1f;
+        *///?} else {
+        float nearZ = -1f;
+        float farZ = 1f;
+        //?}
+        Vector4f near = inverse.transform(new Vector4f(ndcX, ndcY, nearZ, 1f));
+        Vector4f far = inverse.transform(new Vector4f(ndcX, ndcY, farZ, 1f));
         Vec3 from = new Vec3(near.x() / near.w(), near.y() / near.w(), near.z() / near.w());
         Vec3 to = new Vec3(far.x() / far.w(), far.y() / far.w(), far.z() / far.w());
 

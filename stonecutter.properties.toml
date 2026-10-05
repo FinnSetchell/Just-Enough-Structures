@@ -166,3 +166,25 @@ deps.emi = ""
 deps.rei = ""
 deps.explorers_compass = ""
 
+# ------------------------------------------------------------------ 26.2 (Java 25, unobfuscated)
+["26.2"]
+mod.java = "25"
+
+# Built against what the 26.2 instance runs, so the jar never needs anything newer.
+[fabric."26.2"]
+mod.mc_build = "26.2"
+mod.mc_compat = "~26.2"
+mod.fabric_loader_dep = ">=0.15.0"
+deps.fabric_loader = "0.19.5"
+deps.fabric_api = "0.157.0+26.2"
+deps.modmenu = "20.0.1"
+deps.cloth_config = "26.2.155"
+deps.jei = "30.18.0.146"
+# Modrinth version ids: JEI 30.18.0.146, which needs no config library, REI 26.2.820, Architectury
+# 21.1.11 and Explorer's Compass 2.5.1. EMI has no build for 26.2.
+deps.jei_runtime = "3O5YO7jr"
+deps.jei_config = ""
+deps.emi = ""
+deps.rei = "4o0NSIMj"
+deps.architectury = "w3CUWoxd"
+deps.explorers_compass = "z6auypou"

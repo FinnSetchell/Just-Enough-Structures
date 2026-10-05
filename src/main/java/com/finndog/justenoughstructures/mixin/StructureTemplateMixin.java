@@ -63,6 +63,18 @@ public abstract class StructureTemplateMixin {
         SpawnerPools.processed(processor, current, processed);
         return processed;
     }
+    *///?} else if >=26.2 {
+    /*// 26.2 hands each processor where the block is in the template, rather than all of it as it was there.
+    @WrapOperation(method = "processBlockInfos", require = 0, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureProcessor;processBlock(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;"))
+    private static StructureTemplate.StructureBlockInfo justenoughstructures$processBlock(StructureProcessor processor, LevelReader level, BlockPos offset,
+                                                                                         BlockPos pos, BlockPos templatePos,
+                                                                                         StructureTemplate.StructureBlockInfo current, StructurePlaceSettings settings,
+                                                                                         Operation<StructureTemplate.StructureBlockInfo> call) {
+        StructureTemplate.StructureBlockInfo processed = call.call(processor, level, offset, pos, templatePos, current, settings);
+        SpawnerPools.processed(processor, current, processed);
+        return processed;
+    }
     *///?} else {
     @WrapOperation(method = "processBlockInfos", require = 0, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureProcessor;processBlock(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;"))

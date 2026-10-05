@@ -50,6 +50,11 @@ import net.minecraft.world.level.BlockAndTintGetter;
  * {@link #createRenderables} has to be called on the render thread before it's drawn.
  */
 public final class SnapshotView implements BlockAndTintGetter {
+    //? if >=26.2 {
+    /*// Ids for the entities, below the -1 vanilla gives the mob spinning in a spawner, so they never
+    // share one with an entity in the world.
+    private static final java.util.concurrent.atomic.AtomicInteger NEXT_ENTITY_ID = new java.util.concurrent.atomic.AtomicInteger(-1);
+    *///?}
     private final StructureSnapshot snapshot;
     private final Vec3i size;
     private final BlockState[] palette;
@@ -111,6 +116,11 @@ public final class SnapshotView implements BlockAndTintGetter {
                     //?}
                         ListTag pos = Nbt.list(tag, "Pos", Tag.TAG_DOUBLE);
                         entity.setPos(Nbt.getDouble(pos, 0), Nbt.getDouble(pos, 1), Nbt.getDouble(pos, 2));
+                        //? if >=26.2 {
+                        /*// From 26.2 an entity only gets an id when it joins a world, which these never do,
+                        // and telling two apart reads it.
+                        entity.setId(NEXT_ENTITY_ID.decrementAndGet());
+                        *///?}
                         entities.add(entity);
                     });
                 } catch (RuntimeException e) {

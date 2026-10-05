@@ -29,6 +29,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -1335,10 +1336,12 @@ final class InfoPanel {
 
     /** Where each mob of a kind is, as the block its middle is in, the way the preview marks them. */
     private static LongSet mobPositions(StructureSnapshot s, String type) {
+        // Looked up by id, as EntityType.byString is gone from 26.2.
+        Optional<EntityType<?>> kind = Optional.ofNullable(ResourceLocation.tryParse(type)).flatMap(BuiltInRegistries.ENTITY_TYPE::getOptional);
         //? if >=1.21 {
-        /*float height = EntityType.byString(type).map(t -> t.getDimensions().height()).orElse(1f);
+        /*float height = kind.map(t -> t.getDimensions().height()).orElse(1f);
         *///?} else {
-        float height = EntityType.byString(type).map(t -> t.getDimensions().height).orElse(1f);
+        float height = kind.map(t -> t.getDimensions().height).orElse(1f);
         //?}
         LongSet out = new LongOpenHashSet();
         for (CompoundTag tag : s.entities()) {

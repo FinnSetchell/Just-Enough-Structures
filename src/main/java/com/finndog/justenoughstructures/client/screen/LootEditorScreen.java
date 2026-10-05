@@ -958,7 +958,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 };
                 String hint = "screen.justenoughstructures.editor." + key + "_hint";
                 ui.button(g, label, actionsLeft, barY, ui.buttonWidth(label), 13, true, action,
-                        net.minecraft.client.resources.language.I18n.exists(hint) ? Component.translatable(hint) : null);
+                        net.minecraft.locale.Language.getInstance().has(hint) ? Component.translatable(hint) : null);
                 actionsLeft -= 2;
             }
         }
