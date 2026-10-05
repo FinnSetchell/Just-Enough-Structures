@@ -7,15 +7,36 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
 *///?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import org.joml.Matrix4f;
+//? if >=26.1 {
+/*import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.blaze3d.platform.DestFactor;
+import com.mojang.blaze3d.platform.SourceFactor;
+import com.mojang.blaze3d.shaders.UniformType;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.textures.GpuTextureView;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+*///?} else {
+import com.mojang.blaze3d.vertex.VertexBuffer;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
+//?}
 
 /**
  * Blocks tinted in the preview while a row about them is hovered: every block of a kind, a group of
@@ -45,11 +66,27 @@ public final class Highlight implements AutoCloseable {
     private static ByteBufferBuilder edgeBytes;
     *///?}
 
+    //? if >=26.1 {
+    /*// The tint's own alpha replaces the preview's where it's drawn, so the backdrop behind the
+    // preview shows through what's tinted, like coloured glass.
+    private static final BlendFunction GLASS = new BlendFunction(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA, SourceFactor.ONE, DestFactor.ZERO);
+    // Faces and edges, drawn once faintly through everything in front of them, then again where in sight.
+    private static final RenderPipeline FACES_SEEN = pipeline("fill", VertexFormat.Mode.QUADS, true);
+    private static final RenderPipeline FACES_THROUGH = pipeline("fill_through", VertexFormat.Mode.QUADS, false);
+    private static final RenderPipeline EDGES_SEEN = pipeline("edges", VertexFormat.Mode.DEBUG_LINES, true);
+    private static final RenderPipeline EDGES_THROUGH = pipeline("edges_through", VertexFormat.Mode.DEBUG_LINES, false);
+    *///?}
+
     private final LongSet positions;
     /** False for mobs, which their markers light up instead: a block-sized box would hide them. */
     private final boolean tinted;
+    //? if >=26.1 {
+    /*private Mesh fill;
+    private Mesh edges;
+    *///?} else {
     private VertexBuffer fill;
     private VertexBuffer edges;
+    //?}
     private int builtForSlice = -1;
     private boolean empty;
 
@@ -73,6 +110,68 @@ public final class Highlight implements AutoCloseable {
         return positions;
     }
 
+    //? if >=26.1 {
+    /*void draw(GpuTextureView color, GpuTextureView depth, Matrix4f viewMatrix, int slice) {
+        if (!tinted) {
+            return;
+        }
+        if (builtForSlice != slice) {
+            build(slice);
+        }
+        if (empty) {
+            return;
+        }
+        GpuBufferSlice through = RenderSystem.getDynamicUniforms()
+                .writeTransform(viewMatrix, new Vector4f(1f, 1f, 1f, THROUGH), new Vector3f(), new Matrix4f());
+        GpuBufferSlice inSight = RenderSystem.getDynamicUniforms()
+                .writeTransform(viewMatrix, new Vector4f(1f, 1f, 1f, 1f), new Vector3f(), new Matrix4f());
+        RenderSystem.AutoStorageIndexBuffer quads = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+        GpuBuffer quadIndices = quads.getBuffer(fill.count());
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
+                .createRenderPass(() -> "Just Enough Structures highlight", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
+            RenderSystem.bindDefaultUniforms(pass);
+            for (boolean seen : new boolean[]{false, true}) {
+                pass.setUniform("DynamicTransforms", seen ? inSight : through);
+                pass.setPipeline(seen ? FACES_SEEN : FACES_THROUGH);
+                pass.setVertexBuffer(0, fill.vertices());
+                pass.setIndexBuffer(quadIndices, quads.type());
+                pass.drawIndexed(0, 0, fill.count(), 1);
+                pass.setPipeline(seen ? EDGES_SEEN : EDGES_THROUGH);
+                pass.setVertexBuffer(0, edges.vertices());
+                pass.draw(0, edges.count());
+            }
+        }
+    }
+
+    private static RenderPipeline pipeline(String name, VertexFormat.Mode mode, boolean depthTest) {
+        return RenderPipeline.builder()
+                .withLocation(JustEnoughStructures.id("pipeline/highlight_" + name))
+                .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
+                .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+                .withVertexShader("core/position_color")
+                .withFragmentShader("core/position_color")
+                .withColorTargetState(new ColorTargetState(GLASS))
+                .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, mode)
+                // Only the sides facing the camera, so a block's far faces don't stack on its near ones.
+                .withCull(true)
+                .withDepthStencilState(depthTest ? Optional.of(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false)) : Optional.empty())
+                .build();
+    }
+
+    // A mesh on the GPU, and how many indices (for faces) or vertices (for edges) drawing it takes.
+    private record Mesh(GpuBuffer vertices, int count) implements AutoCloseable {
+        static Mesh upload(MeshData mesh) {
+            GpuBuffer vertices = RenderSystem.getDevice()
+                    .createBuffer(() -> "Just Enough Structures highlight", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer());
+            return new Mesh(vertices, mesh.drawState().mode() == VertexFormat.Mode.QUADS ? mesh.drawState().indexCount() : mesh.drawState().vertexCount());
+        }
+
+        @Override
+        public void close() {
+            vertices.close();
+        }
+    }
+    *///?} else {
     void draw(Matrix4f viewMatrix, Matrix4f projection, int slice) {
         if (!tinted) {
             return;
@@ -112,6 +211,7 @@ public final class Highlight implements AutoCloseable {
         edges.bind();
         edges.drawWithShader(viewMatrix, projection, shader);
     }
+    //?}
 
     /**
      * Fills each face of a block below the slice that doesn't touch another of them, and outlines
@@ -191,6 +291,13 @@ public final class Highlight implements AutoCloseable {
             return;
         }
         //?}
+        //? if >=26.1 {
+        /*try (fillRendered; edgeRendered) {
+            close();
+            fill = Mesh.upload(fillRendered);
+            edges = Mesh.upload(edgeRendered);
+        }
+        *///?} else {
         if (fill == null) {
             fill = new VertexBuffer(VertexBuffer.Usage.STATIC);
             edges = new VertexBuffer(VertexBuffer.Usage.STATIC);
@@ -200,6 +307,7 @@ public final class Highlight implements AutoCloseable {
         edges.bind();
         edges.upload(edgeRendered);
         VertexBuffer.unbind();
+        //?}
     }
 
     private boolean has(int x, int y, int z, int slice) {

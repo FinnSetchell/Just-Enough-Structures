@@ -7,6 +7,8 @@ import com.chaosthedude.explorerscompass.ExplorersCompass;
 import com.chaosthedude.explorerscompass.items.ExplorersCompassItem;
 import com.chaosthedude.explorerscompass.util.ItemUtils;
 import com.chaosthedude.explorerscompass.util.StructureUtils;
+import com.finndog.justenoughstructures.Players;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.server.CompassSearch;
 import com.finndog.justenoughstructures.server.JesServer;
 import java.util.Optional;
@@ -50,14 +52,14 @@ public final class ExplorersCompassSearch implements CompassSearch {
             return Component.translatable("screen.justenoughstructures.compass_broken");
         }
         //?}
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = Players.level(player);
         // What it's set up to refuse, like its blacklist, only ever keeps things out of its screen.
         if (!StructureUtils.getAllowedStructureIDs(level).contains(structure)) {
             return Component.translatable("screen.justenoughstructures.compass_not_allowed");
         }
         // It would still charge for a search that can't start here, and forget what it pointed at.
-        Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
-                .getHolder(ResourceKey.create(Registries.STRUCTURE, structure));
+        Optional<Holder.Reference<Structure>> holder = Regs.holder(level.registryAccess().registryOrThrow(Registries.STRUCTURE),
+                ResourceKey.create(Registries.STRUCTURE, structure));
         if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
             return Component.translatable("screen.justenoughstructures.locate_wrong_dimension");
         }

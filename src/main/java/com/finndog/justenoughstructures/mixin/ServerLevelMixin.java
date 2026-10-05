@@ -24,7 +24,7 @@ public abstract class ServerLevelMixin {
     /** So draws from this world's random during a capture can be told apart, see {@code LegacyRandomSourceMixin}. */
     @Inject(method = "<init>", at = @At("TAIL"))
     private void justenoughstructures$markRandom(CallbackInfo ci) {
-        if (((Level) (Object) this).random instanceof LevelRandom random) {
+        if (((Level) (Object) this).getRandom() instanceof LevelRandom random) {
             random.justenoughstructures$markLevelRandom();
         }
     }

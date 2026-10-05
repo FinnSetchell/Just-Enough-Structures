@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.rei;
 // The 1.21.11 rename would catch REI's own class names, so it's off in this file.
 //~ !identifier
 
+import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import java.util.List;
@@ -20,6 +21,9 @@ import me.shedaniel.rei.api.common.util.EntryStacks;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
+//? if >=26.1 {
+/*import net.minecraft.client.input.MouseButtonEvent;
+*///?}
 
 /** REI's side of a {@link FoundInRow}. */
 final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
@@ -78,22 +82,35 @@ final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
             return bounds;
         }
 
+        //? if >=26.1 {
+        /*@Override
+        public void extractRenderState(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        *///?} else {
         @Override
         public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        //?}
             if (firstRow == null || bounds.y < firstRow[1]) {
                 firstRow = new int[]{bounds.x + 30, bounds.y + bounds.height / 2};
             }
-            g.pose().pushPose();
-            g.pose().translate(bounds.x, bounds.y, 0);
+            Gui.push(g);
+            Gui.translate(g, bounds.x, bounds.y);
             FoundInRow.draw(g, recipe, mouseX - bounds.x, mouseY - bounds.y, REIRuntime.getInstance().isDarkThemeEnabled());
-            g.pose().popPose();
+            Gui.pop(g);
             if (containsMouse(mouseX, mouseY)) {
                 Tooltip.create(new Point(mouseX, mouseY), FoundInRow.tooltip(recipe)).queue();
             }
         }
 
+        //? if >=26.1 {
+        /*@Override
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            double mouseX = event.x();
+            double mouseY = event.y();
+            int button = event.button();
+        *///?} else {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        //?}
             if (button != 0 || !containsMouse(mouseX, mouseY)) {
                 return false;
             }

@@ -16,6 +16,13 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+//? if >=26.1 {
+/*import mezz.jei.api.gui.builder.ITooltipBuilder;
+import mezz.jei.api.gui.inputs.IJeiInputHandler;
+import mezz.jei.api.gui.inputs.IJeiUserInput;
+import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+*///?}
 
 /** JEI's side of a {@link FoundInRow}: one row per structure that can give the item. */
 final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
@@ -39,12 +46,14 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         return FoundInRow.title();
     }
 
+    //? if <26.1 {
     // Older JEI 15 releases size categories by their background instead of the width and height.
     @Override
     @SuppressWarnings({"deprecation", "removal"})
     public IDrawable getBackground() {
         return background;
     }
+    //?}
 
     @Override
     public int getWidth() {
@@ -73,6 +82,37 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         FoundInRow.draw(g, recipe, mouseX, mouseY, false);
     }
 
+    //? if >=26.1 {
+    /*@Override
+    public void getTooltip(ITooltipBuilder tooltip, FoundInRecipe recipe, IRecipeSlotsView slots, double mouseX, double mouseY) {
+        if (FoundInRow.overStructure(mouseX, mouseY)) {
+            tooltip.addAll(FoundInRow.tooltip(recipe));
+        }
+    }
+
+    // JEI 29 hands clicks to handlers a recipe adds, over the area each covers.
+    @Override
+    public void createRecipeExtras(IRecipeExtrasBuilder builder, FoundInRecipe recipe, IFocusGroup focuses) {
+        builder.addInputHandler(new IJeiInputHandler() {
+            @Override
+            public ScreenRectangle getArea() {
+                return new ScreenRectangle(0, 0, FoundInRow.WIDTH - 20, FoundInRow.HEIGHT);
+            }
+
+            @Override
+            public boolean handleInput(double mouseX, double mouseY, IJeiUserInput input) {
+                if (input.getKey().getType() != InputConstants.Type.MOUSE || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT
+                        || !FoundInRow.overStructure(mouseX, mouseY)) {
+                    return false;
+                }
+                if (!input.isSimulate()) {
+                    FoundInRow.open(recipe);
+                }
+                return true;
+            }
+        });
+    }
+    *///?} else {
     @Override
     @SuppressWarnings({"deprecation", "removal"})
     public List<Component> getTooltipStrings(FoundInRecipe recipe, IRecipeSlotsView slots, double mouseX, double mouseY) {
@@ -89,4 +129,5 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         FoundInRow.open(recipe);
         return true;
     }
+    //?}
 }

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import java.util.ArrayList;
@@ -311,10 +312,10 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
         }
         super.render(g, mouseX, mouseY, partialTick);
         navBar.render(g, font, mouseX, mouseY, partialTick);
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 600);
+        Gui.push(g);
+        Gui.lift(g, 600);
         Gui.clippedTooltip(g, font, mouseX, mouseY);
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     /** A word about the mob picked when it isn't a monster: spawners still check where it would normally spawn. */
@@ -323,7 +324,7 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
         if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             return null;
         }
-        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(id);
+        EntityType<?> type = Regs.value(BuiltInRegistries.ENTITY_TYPE, id);
         return type.getCategory() == MobCategory.MONSTER ? null
                 : Component.translatable("screen.justenoughstructures.mob_picker.not_monster", type.getDescription());
     }

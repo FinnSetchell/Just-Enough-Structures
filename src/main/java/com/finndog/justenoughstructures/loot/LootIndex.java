@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.loot;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -129,7 +130,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             Set<ResourceLocation> placed = new TreeSet<>();
             // Jigsaw structures' pieces can all be read without generating anything, which finds
             // rare pieces too. One generation still runs for loot that code sets as it places.
-            Structure structure = registry.get(id);
+            Structure structure = Regs.value(registry, id);
             PoolScan.Reach fromPools = null;
             try {
                 fromPools = structure == null ? null : scan.scan(structure);
@@ -233,7 +234,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 }
                 case "minecraft:tag", "tag" -> {
                     for (Holder<Item> item : BuiltInRegistries.ITEM.getTagOrEmpty(TagKey.create(Registries.ITEM, name))) {
-                        item.unwrapKey().ifPresent(key -> out.add(key.location()));
+                        item.unwrapKey().ifPresent(key -> out.add(Ids.of(key)));
                     }
                 }
                 case "minecraft:loot_table", "loot_table" -> out.addAll(itemsIn(server, name, seen));

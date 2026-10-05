@@ -35,6 +35,8 @@ stonecutter {
         version("1.20.1-forge", "1.20.1").buildscript("build.forge-legacy.gradle.kts")
         // From 1.20.5 Forge runs on official names, so later Forge nodes build with ForgeGradle 7.
         match("1.21.1", "fabric", "neoforge", "forge")
+        // From 26.1 Minecraft ships unobfuscated, and needs Gradle itself on Java 25.
+        match("26.1.2", "fabric")
 
         vcsVersion = "1.20.1-fabric"
     }

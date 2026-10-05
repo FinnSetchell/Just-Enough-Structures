@@ -4,7 +4,6 @@ import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
@@ -14,9 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -37,6 +34,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+//? if <26.1 {
+import java.util.function.Supplier;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.world.entity.player.Player;
+//?}
 
 /**
  * A real level, answering a capturing thread from the sandbox: see {@link RealWorldGuard}. The block
@@ -45,10 +47,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(ServerLevel.class)
 public abstract class ServerLevelGuardMixin extends Level {
+    //? if >=26.1 {
+    /*protected ServerLevelGuardMixin(WritableLevelData data, ResourceKey<Level> dimension, RegistryAccess registries, Holder<DimensionType> type,
+                                    boolean client, boolean debug, long seed, int maxChainedNeighborUpdates) {
+        super(data, dimension, registries, type, client, debug, seed, maxChainedNeighborUpdates);
+    }
+    *///?} else {
     protected ServerLevelGuardMixin(WritableLevelData data, ResourceKey<Level> dimension, RegistryAccess registries, Holder<DimensionType> type,
                                     Supplier<ProfilerFiller> profiler, boolean client, boolean debug, long seed, int maxChainedNeighborUpdates) {
         super(data, dimension, registries, type, profiler, client, debug, seed, maxChainedNeighborUpdates);
     }
+    //?}
 
     @Override
     public BlockState getBlockState(BlockPos pos) {
@@ -136,8 +145,13 @@ public abstract class ServerLevelGuardMixin extends Level {
         }
     }
 
+    // From 26.1 these take whoever caused them, a player or not.
     @Inject(method = "levelEvent", at = @At("HEAD"), cancellable = true, require = 0)
+    //? if >=26.1 {
+    /*private void justenoughstructures$noLevelEvents(Entity source, int type, BlockPos pos, int data, CallbackInfo ci) {
+    *///?} else {
     private void justenoughstructures$noLevelEvents(Player player, int type, BlockPos pos, int data, CallbackInfo ci) {
+    //?}
         justenoughstructures$noEffect(ci);
     }
 
@@ -160,6 +174,21 @@ public abstract class ServerLevelGuardMixin extends Level {
         justenoughstructures$noEffect(ci);
     }
 
+    //? if >=26.1 {
+    /*@Inject(method = "playSeededSound(Lnet/minecraft/world/entity/Entity;DDDLnet/minecraft/core/Holder;Lnet/minecraft/sounds/SoundSource;FFJ)V",
+            at = @At("HEAD"), cancellable = true, require = 0)
+    private void justenoughstructures$noSounds(Entity except, double x, double y, double z, Holder<SoundEvent> sound, SoundSource source,
+                                              float volume, float pitch, long seed, CallbackInfo ci) {
+        justenoughstructures$noEffect(ci);
+    }
+
+    @Inject(method = "playSeededSound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/Holder;Lnet/minecraft/sounds/SoundSource;FFJ)V",
+            at = @At("HEAD"), cancellable = true, require = 0)
+    private void justenoughstructures$noEntitySounds(Entity except, Entity entity, Holder<SoundEvent> sound, SoundSource source,
+                                                    float volume, float pitch, long seed, CallbackInfo ci) {
+        justenoughstructures$noEffect(ci);
+    }
+    *///?} else {
     @Inject(method = "playSeededSound(Lnet/minecraft/world/entity/player/Player;DDDLnet/minecraft/core/Holder;Lnet/minecraft/sounds/SoundSource;FFJ)V",
             at = @At("HEAD"), cancellable = true, require = 0)
     private void justenoughstructures$noSounds(Player player, double x, double y, double z, Holder<SoundEvent> sound, SoundSource source,
@@ -173,6 +202,7 @@ public abstract class ServerLevelGuardMixin extends Level {
                                                     float volume, float pitch, long seed, CallbackInfo ci) {
         justenoughstructures$noEffect(ci);
     }
+    //?}
 
     // Both ways of sending particles end up here.
     @Inject(method = "sendParticles(Lnet/minecraft/server/level/ServerPlayer;ZDDDLnet/minecraft/network/protocol/Packet;)Z",

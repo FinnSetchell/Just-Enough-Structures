@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.finndog.justenoughstructures.server.PackToolsState;
@@ -203,7 +204,7 @@ final class ToolsSpawners extends ToolsSection {
     }
 
     private static Component blockName(ResourceLocation block) {
-        return BuiltInRegistries.BLOCK.get(block).getName();
+        return Regs.value(BuiltInRegistries.BLOCK, block).getName();
     }
 
     /** The mob's egg or other icon, or an empty spawner for none. */
@@ -212,7 +213,7 @@ final class ToolsSpawners extends ToolsSection {
         if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
             return SPAWNER;
         }
-        ItemStack icon = InfoPanel.entityIcon(BuiltInRegistries.ENTITY_TYPE.get(id));
+        ItemStack icon = InfoPanel.entityIcon(Regs.value(BuiltInRegistries.ENTITY_TYPE, id));
         return icon.isEmpty() ? SPAWNER : icon;
     }
 

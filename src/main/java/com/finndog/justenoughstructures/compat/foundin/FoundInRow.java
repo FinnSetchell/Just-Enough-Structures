@@ -2,7 +2,6 @@ package com.finndog.justenoughstructures.compat.foundin;
 
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
-import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
@@ -49,10 +48,7 @@ public final class FoundInRow {
         if (overStructure(mouseX, mouseY)) {
             g.fill(0, 0, WIDTH - 20, HEIGHT, 0x40FFFFFF);
         }
-        int thumbnail = Thumbnails.textureId(recipe.structure());
-        if (thumbnail >= 0) {
-            StructureViewport.drawTexture(g, thumbnail, 1, 3, 18, 18);
-        } else {
+        if (!Thumbnails.draw(g, recipe.structure(), 1, 3, 18)) {
             g.renderItem(MAP, 2, 4);
         }
         int textWidth = chanceX - 26;

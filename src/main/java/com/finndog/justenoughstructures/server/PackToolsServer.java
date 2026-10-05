@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
@@ -24,6 +25,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.loot.LootDataType;
+//? if >=26.1 {
+/*import com.finndog.justenoughstructures.Ids;
+import net.minecraft.resources.ResourceKey;
+*///?}
 
 /**
  * Pack tools on the server: what it shows, and the changes it makes besides editing loot tables,
@@ -55,7 +60,9 @@ public final class PackToolsServer {
                 hidden.add(entry);
             }
         }
-        //? if >=1.21 {
+        //? if >=26.1 {
+        /*List<ResourceLocation> tables = reloadable(server, Registries.LOOT_TABLE);
+        *///?} else if >=1.21 {
         /*List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.LOOT_TABLE)));
         *///?} else {
         List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.TABLE)));
@@ -63,8 +70,11 @@ public final class PackToolsServer {
         Map<String, List<ResourceLocation>> names = new HashMap<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         names.put(PackToolsState.STRUCTURES, new ArrayList<>(new TreeSet<>(registry.keySet())));
-        names.put(PackToolsState.STRUCTURE_TAGS, new ArrayList<>(new TreeSet<>(registry.getTagNames().map(TagKey::location).toList())));
-        //? if >=1.21 {
+        names.put(PackToolsState.STRUCTURE_TAGS, new ArrayList<>(new TreeSet<>(Regs.tagIds(registry).map(TagKey::location).toList())));
+        //? if >=26.1 {
+        /*names.put(PackToolsState.PREDICATES, reloadable(server, Registries.PREDICATE));
+        names.put(PackToolsState.ITEM_MODIFIERS, reloadable(server, Registries.ITEM_MODIFIER));
+        *///?} else if >=1.21 {
         /*names.put(PackToolsState.PREDICATES, new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.PREDICATE))));
         names.put(PackToolsState.ITEM_MODIFIERS, new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.ITEM_MODIFIER))));
         *///?} else {
@@ -74,6 +84,13 @@ public final class PackToolsServer {
         return new PackToolsState(ServerConfig.get(), Set.copyOf(PENDING), LootOverrides.statuses(server.getResourceManager()),
                 ContainerPatches.all(), SpawnerPatches.all(), structures, hidden, tables, names);
     }
+
+    //? if >=26.1 {
+    /*// Every id of this kind the server has loaded from datapacks, sorted.
+    private static <T> List<ResourceLocation> reloadable(MinecraftServer server, ResourceKey<? extends Registry<? extends T>> type) {
+        return new ArrayList<>(new TreeSet<>(server.reloadableRegistries().lookup().lookupOrThrow(type).listElementIds().map(Ids::of).toList()));
+    }
+    *///?}
 
     /**
      * Saves the server's rules to server.json5 and puts them in use. Using changed containers and

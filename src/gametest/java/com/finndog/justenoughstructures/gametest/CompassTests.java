@@ -1,6 +1,8 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import java.util.List;
@@ -37,7 +39,7 @@ public final class CompassTests {
         ServerPlayer player = TestPlayers.mock(helper);
         helper.assertTrue(key(JesServer.compassFor(player, PYRAMID)).endsWith("compass_not_held"), "a player without a compass wasn't told to hold one");
 
-        ItemStack compass = new ItemStack(BuiltInRegistries.ITEM.get(COMPASS));
+        ItemStack compass = new ItemStack(Regs.value(BuiltInRegistries.ITEM, COMPASS));
         player.setItemInHand(InteractionHand.MAIN_HAND, compass);
         player.giveExperienceLevels(30);
 
@@ -72,7 +74,7 @@ public final class CompassTests {
     private static String target(ItemStack compass) {
         //? if >=1.21 {
         /*// Kept in a data component of its own since 1.20.5.
-        DataComponentType<?> type = BuiltInRegistries.DATA_COMPONENT_TYPE.get(Ids.of("explorerscompass", "structure_id"));
+        DataComponentType<?> type = Regs.value(BuiltInRegistries.DATA_COMPONENT_TYPE, Ids.of("explorerscompass", "structure_id"));
         Object id = type == null ? null : compass.get(type);
         return id == null ? null : id.toString();
         *///?} else {
@@ -81,7 +83,7 @@ public final class CompassTests {
         if (tag != null) {
             for (String key : List.of("StructureID", "StructureKey")) {
                 if (tag.contains(key)) {
-                    return tag.getString(key);
+                    return Nbt.string(tag, key);
                 }
             }
         }

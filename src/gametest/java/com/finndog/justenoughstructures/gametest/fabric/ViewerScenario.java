@@ -9,7 +9,9 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+//? if emi {
 import com.finndog.justenoughstructures.compat.emi.JesEmiPlugin;
+//?}
 import com.finndog.justenoughstructures.compat.rei.JesReiPlugin;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -29,11 +31,19 @@ final class ViewerScenario {
     }
 
     static Director build(Minecraft mc) {
+        //? if emi {
         boolean emi = FabricLoader.getInstance().isModLoaded("emi");
-        String name = emi ? "emi" : "rei";
         BooleanSupplier ready = emi ? JesEmiPlugin::ready : JesReiPlugin::ready;
         Consumer<ItemStack> show = emi ? JesEmiPlugin::showFoundIn : JesReiPlugin::showFoundIn;
         Supplier<int[]> firstRow = emi ? JesEmiPlugin::firstRow : JesReiPlugin::firstRow;
+        //?} else {
+        /*// No EMI for this version, so it's REI's page.
+        boolean emi = false;
+        BooleanSupplier ready = JesReiPlugin::ready;
+        Consumer<ItemStack> show = JesReiPlugin::showFoundIn;
+        Supplier<int[]> firstRow = JesReiPlugin::firstRow;
+        *///?}
+        String name = emi ? "emi" : "rei";
         Director d = new Director(mc, null);
         d.then(pause(40))
                 .then(pressKey(GLFW.GLFW_KEY_E))

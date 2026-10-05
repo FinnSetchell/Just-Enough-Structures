@@ -9,6 +9,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -82,7 +83,7 @@ final class CompassScenario {
     private static void giveCompass(Minecraft mc) {
         MinecraftServer server = mc.getSingleplayerServer();
         UUID id = mc.player.getUUID();
-        ItemStack compass = new ItemStack(BuiltInRegistries.ITEM.get(Ids.of("explorerscompass", "explorerscompass")));
+        ItemStack compass = new ItemStack(Regs.value(BuiltInRegistries.ITEM, Ids.of("explorerscompass", "explorerscompass")));
         server.execute(() -> {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {

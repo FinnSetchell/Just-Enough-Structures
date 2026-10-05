@@ -127,8 +127,13 @@ final class ToolsStructures extends ToolsSection {
         notesHeight = Math.max(28, Math.min(64, h / 5));
         if (shown != null && screen.state() != null) {
             // Put in place, and shown, as it's drawn.
+            //? if >=26.1 {
+            /*notesBox = screen.add(MultiLineEditBox.builder().setX(x).setY(y).setPlaceholder(Component.translatable("screen.justenoughstructures.tools.notes_hint"))
+                    .build(font, detailWidth(w) - 8 - 10, notesHeight, Component.translatable("screen.justenoughstructures.tools.notes")));
+            *///?} else {
             notesBox = screen.add(new MultiLineEditBox(font, x, y, detailWidth(w) - 8 - 10, notesHeight,
                     Component.translatable("screen.justenoughstructures.tools.notes_hint"), Component.translatable("screen.justenoughstructures.tools.notes")));
+            //?}
             notesBox.visible = false;
             loadNotes(shown);
             notesBox.setValue(notes);

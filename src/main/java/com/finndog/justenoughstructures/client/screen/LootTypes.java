@@ -57,9 +57,6 @@ public final class LootTypes {
             Map.entry("condition:random_chance_with_enchanted_bonus", "{\"enchantment\": \"minecraft:looting\", \"unenchanted_chance\": 0.1, "
                     + "\"enchanted_chance\": {\"type\": \"minecraft:linear\", \"base\": 0.11, \"per_level_above_first\": 0.01}}"),
             Map.entry("condition:enchantment_active_check", "{\"active\": true}"),
-            // 1.20.1 won't load it with no modifiers, so it starts with one, here as there.
-            Map.entry("function:set_attributes", "{\"modifiers\": [{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:generic.max_health\", "
-                    + "\"amount\": 1, \"operation\": \"add_value\", \"slot\": \"any\"}]}"),
             *///?} else {
             Map.entry("function:enchant_with_levels", "{\"levels\": 30, \"treasure\": false}"),
             Map.entry("function:set_lore", "{\"lore\": []}"),
@@ -68,9 +65,26 @@ public final class LootTypes {
             Map.entry("function:looting_enchant", "{\"count\": 1}"),
             Map.entry("function:set_contents", "{\"type\": \"minecraft:chest\", \"entries\": []}"),
             Map.entry("condition:random_chance_with_looting", "{\"chance\": 0.1, \"looting_multiplier\": 0.01}"),
-            // It won't load with no modifiers, so it starts with one.
+            //?}
+            // 1.20.1 won't load it with no modifiers, so it starts with one on every version.
+            //? if >=1.21.2 {
+            /*// 1.21.2 dropped "generic." from the attributes' names.
+            Map.entry("function:set_attributes", "{\"modifiers\": [{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:max_health\", "
+                    + "\"amount\": 1, \"operation\": \"add_value\", \"slot\": \"any\"}]}"),
+            *///?} else if >=1.21 {
+            /*Map.entry("function:set_attributes", "{\"modifiers\": [{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:generic.max_health\", "
+                    + "\"amount\": 1, \"operation\": \"add_value\", \"slot\": \"any\"}]}"),
+            *///?} else {
             Map.entry("function:set_attributes", "{\"modifiers\": [{\"attribute\": \"minecraft:generic.max_health\", \"name\": \"Modifier\", "
                     + "\"amount\": 1, \"operation\": \"addition\", \"slot\": \"mainhand\"}]}"),
+            //?}
+            //? if >=26.1 {
+            /*// 26.1 keeps time by clocks, a world can have more than one, and added these.
+            Map.entry("condition:time_check", "{\"clock\": \"minecraft:overworld\", \"value\": {\"min\": 0, \"max\": 12000}}"),
+            Map.entry("condition:environment_attribute_check", "{\"attribute\": \"minecraft:gameplay/monsters_burn\", \"value\": true}"),
+            Map.entry("function:set_random_dyes", "{\"number_of_dyes\": 1}"),
+            *///?} else {
+            Map.entry("condition:time_check", "{\"value\": {\"min\": 0, \"max\": 12000}}"),
             //?}
             Map.entry("function:set_damage", "{\"damage\": {\"type\": \"minecraft:uniform\", \"min\": 0.5, \"max\": 1}}"),
             Map.entry("function:set_potion", "{\"id\": \"minecraft:healing\"}"),
@@ -98,8 +112,7 @@ public final class LootTypes {
             Map.entry("condition:any_of", "{\"terms\": []}"),
             Map.entry("condition:all_of", "{\"terms\": []}"),
             Map.entry("condition:table_bonus", "{\"enchantment\": \"minecraft:fortune\", \"chances\": [0.1, 0.2]}"),
-            Map.entry("condition:weather_check", "{\"raining\": true}"),
-            Map.entry("condition:time_check", "{\"value\": {\"min\": 0, \"max\": 12000}}"));
+            Map.entry("condition:weather_check", "{\"raining\": true}"));
 
     private LootTypes() {
     }

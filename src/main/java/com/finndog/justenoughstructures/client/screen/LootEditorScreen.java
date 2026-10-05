@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.JesNetwork;
@@ -401,7 +402,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         rawBox = null;
         if (raw) {
-            rawBox = addRenderableWidget(new JsonEditBox(font, treeX, contentTop, formX + formW - treeX, contentBottom - contentTop,
+            rawBox = addRenderableWidget(JsonEditBox.create(font, treeX, contentTop, formX + formW - treeX, contentBottom - contentTop,
                     Component.empty(), Component.translatable("screen.justenoughstructures.editor.json")));
             rawBox.setCharacterLimit(Integer.MAX_VALUE);
             rawBox.setValue(rawText == null ? "" : rawText);
@@ -863,34 +864,34 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (picker != null || choice != null) {
             // Only what's cut short in the list over the editor counts now.
             Gui.beginClipped();
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 400);
+            Gui.push(g);
+            Gui.lift(g, 400);
             if (picker != null) {
                 picker.render(g, mouseX, mouseY);
             } else {
                 choice.render(g, mouseX, mouseY);
             }
-            g.pose().popPose();
+            Gui.pop(g);
             if (pickerSearch != null && picker != null) {
-                g.pose().pushPose();
-                g.pose().translate(0, 0, 450);
-                pickerSearch.render(g, mouseX, mouseY, partialTick);
-                g.pose().popPose();
+                Gui.push(g);
+                Gui.lift(g, 450);
+                Gui.render(g, pickerSearch, mouseX, mouseY, partialTick);
+                Gui.pop(g);
             }
         }
         if (suggestions != null && editingId != null) {
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 400);
+            Gui.push(g);
+            Gui.lift(g, 400);
             suggestions.render(g, mouseX, mouseY);
-            g.pose().popPose();
+            Gui.pop(g);
         }
         navBar.render(g, font, mouseX, mouseY, partialTick);
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 600);
+        Gui.push(g);
+        Gui.lift(g, 600);
         if (picker != null && picker.hovered != null) {
             List<Component> lines = new ArrayList<>();
-            lines.add(picker.hovered.getDescription());
+            lines.add(StructureNames.item(picker.hovered));
             if (Gui.advanced()) {
                 lines.add(Component.literal(BuiltInRegistries.ITEM.getKey(picker.hovered).toString()).withStyle(ChatFormatting.DARK_GRAY));
             }
@@ -908,7 +909,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         } else {
             Gui.clippedTooltip(g, font, mouseX, mouseY);
         }
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     /** The title, the id, and a line saying how the table stands with what can be done about it. */
@@ -1134,7 +1135,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return switch (kind) {
             case "item" -> {
                 String name = entry.has("name") ? entry.get("name").getAsString() : "";
-                yield LootForm.itemExists(name) ? new ItemStack(BuiltInRegistries.ITEM.get(Ids.parse(name.trim()))) : new ItemStack(Items.BARRIER);
+                yield LootForm.itemExists(name) ? new ItemStack(Regs.value(BuiltInRegistries.ITEM, Ids.parse(name.trim()))) : new ItemStack(Items.BARRIER);
             }
             case "tag" -> new ItemStack(Items.NAME_TAG);
             case "empty" -> new ItemStack(Items.GLASS_BOTTLE);
@@ -1197,15 +1198,15 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             int slotY = sy + (i / 9) * slot;
             ItemStack stack = roll != null && i < roll.size() ? roll.get(i) : ItemStack.EMPTY;
             // Drawn at the chest's own size and scaled up whole, slot, item and count together.
-            g.pose().pushPose();
-            g.pose().translate(sx, slotY, 0);
-            g.pose().scale(rollScale, rollScale, 1);
+            Gui.push(g);
+            Gui.translate(g, sx, slotY);
+            Gui.scale(g, rollScale);
             Gui.slot(g, 0, 0);
             if (!stack.isEmpty()) {
                 g.renderItem(stack, 1, 1);
                 g.renderItemDecorations(font, stack, 1, 1);
             }
-            g.pose().popPose();
+            Gui.pop(g);
             if (!stack.isEmpty() && ui.hovered(sx, slotY, slot, slot)) {
                 hoveredStack = stack;
             }
@@ -1511,12 +1512,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     continue;
                 }
                 if (q.isEmpty() || BuiltInRegistries.ITEM.getKey(item).toString().contains(q)
-                        || item.getDescription().getString().toLowerCase(Locale.ROOT).contains(q)) {
+                        || StructureNames.item(item).getString().toLowerCase(Locale.ROOT).contains(q)) {
                     out.add(item);
                 }
             }
             if (!q.isEmpty()) {
-                out.sort(Comparator.comparing((Item item) -> !item.getDescription().getString().toLowerCase(Locale.ROOT).startsWith(q)));
+                out.sort(Comparator.comparing((Item item) -> !StructureNames.item(item).getString().toLowerCase(Locale.ROOT).startsWith(q)));
             }
             shown = out;
             scroll = 0;

@@ -1,5 +1,7 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import java.util.ArrayList;
@@ -124,10 +126,10 @@ public final class FoundIn {
             }
         }
         matches.sort(Comparator.comparingInt((ResourceLocation id) -> -byItem.get(id).size()).thenComparing(FoundIn::name));
-        return matches.stream().limit(limit).map(BuiltInRegistries.ITEM::get).toList();
+        return matches.stream().limit(limit).map(id -> Regs.value(BuiltInRegistries.ITEM, id)).toList();
     }
 
     private static String name(ResourceLocation item) {
-        return NAMES.computeIfAbsent(item, id -> BuiltInRegistries.ITEM.get(id).getDescription().getString().toLowerCase(Locale.ROOT));
+        return NAMES.computeIfAbsent(item, id -> StructureNames.item(Regs.value(BuiltInRegistries.ITEM, id)).getString().toLowerCase(Locale.ROOT));
     }
 }

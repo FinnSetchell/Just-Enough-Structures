@@ -1,14 +1,21 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+//? if >=26.1 {
+/*import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.animal.pig.Pig;
+*///?} else {
 import net.minecraft.world.entity.animal.Pig;
+//?}
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
@@ -30,20 +37,28 @@ public final class RealWorldTests {
         BlockPos real = helper.absolutePos(new BlockPos(1, 2, 1));
         BlockPos above = real.above();
         level.setBlock(real, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+        //? if >=26.1 {
+        /*ArmorStand stand = EntityType.ARMOR_STAND.create(level, EntitySpawnReason.COMMAND);
+        stand.snapTo(above.getX() + 0.5, above.getY() + 1, above.getZ() + 0.5);
+        level.addFreshEntity(stand);
+        Pig pig = EntityType.PIG.create(level, EntitySpawnReason.COMMAND);
+        pig.snapTo(above.getX() + 0.5, above.getY(), above.getZ() + 0.5);
+        *///?} else {
         ArmorStand stand = EntityType.ARMOR_STAND.create(level);
         stand.moveTo(above.getX() + 0.5, above.getY() + 1, above.getZ() + 0.5);
         level.addFreshEntity(stand);
         Pig pig = EntityType.PIG.create(level);
         pig.moveTo(above.getX() + 0.5, above.getY(), above.getZ() + 0.5);
+        //?}
 
-        ChunkPos centre = new ChunkPos(real);
+        ChunkPos centre = new ChunkPos(SectionPos.blockToSectionCoord(real.getX()), SectionPos.blockToSectionCoord(real.getZ()));
         // A long way out, where nothing has ever been loaded.
-        ChunkPos far = new ChunkPos(centre.x + 4000, centre.z + 4000);
+        ChunkPos far = new ChunkPos(Levels.chunkX(centre) + 4000, Levels.chunkZ(centre) + 4000);
         BlockPos farPos = far.getMiddleBlockPosition(64);
         // On the server's own thread too, where a chunk would otherwise be loaded straight away.
         String onServerThread = StructureCapture.inSandbox(level, centre, () -> {
             try {
-                level.getChunk(far.x, far.z);
+                level.getChunk(Levels.chunkX(far), Levels.chunkZ(far));
                 return "got a chunk outside the sandbox on the server thread";
             } catch (RuntimeException expected) {
                 return level.getBlockState(real).is(Blocks.GOLD_BLOCK) ? "read the real block on the server thread" : null;
@@ -71,7 +86,7 @@ public final class RealWorldTests {
                 return "outside the sandbox wasn't empty";
             }
             try {
-                level.getChunk(far.x, far.z);
+                level.getChunk(Levels.chunkX(far), Levels.chunkZ(far));
                 return "got a chunk outside the sandbox";
             } catch (RuntimeException expected) {
                 // Code that insists on a real chunk fails, rather than loading one.
@@ -82,13 +97,13 @@ public final class RealWorldTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(problem.isDone(), "the sandboxed code is still running");
             String found = problem.join();
-            helper.assertTrue(found == null, found);
+            helper.assertTrue(found == null, String.valueOf(found));
             helper.assertTrue(level.getBlockState(real).is(Blocks.GOLD_BLOCK), "the real block changed");
             helper.assertFalse(level.getBlockState(above).is(Blocks.DIAMOND_BLOCK), "the block placed in the sandbox is in the real world");
             helper.assertTrue(level.getEntitiesOfClass(Pig.class, new AABB(real).inflate(8)).isEmpty(), "the pig is in the real world");
             helper.assertFalse(stand.isRemoved(), "the real armor stand was removed");
             helper.assertFalse(level.getBlockTicks().hasScheduledTick(above, Blocks.DIAMOND_BLOCK), "the tick was scheduled in the real world");
-            helper.assertFalse(level.getChunkSource().hasChunk(far.x, far.z), "a real chunk was loaded for the sandbox");
+            helper.assertFalse(level.getChunkSource().hasChunk(Levels.chunkX(far), Levels.chunkZ(far)), "a real chunk was loaded for the sandbox");
             helper.assertTrue(RealWorldGuard.current() == null, "the server thread thinks it's capturing");
         });
     }

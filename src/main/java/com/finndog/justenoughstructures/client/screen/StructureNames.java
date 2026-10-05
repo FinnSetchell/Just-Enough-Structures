@@ -1,14 +1,23 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Regs;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.alchemy.Potion;
+//? if >=26.1 {
+/*import net.minecraft.world.item.alchemy.PotionContents;
+*///?} else if >=1.21 {
+/*import java.util.Optional;
+*///?}
 
 /** Readable names for structures, mods, loot tables and mobs. */
 public final class StructureNames {
@@ -63,9 +72,29 @@ public final class StructureNames {
         }
         ResourceLocation parsed = ResourceLocation.tryParse(id);
         if (parsed != null && BuiltInRegistries.ENTITY_TYPE.containsKey(parsed)) {
-            return BuiltInRegistries.ENTITY_TYPE.get(parsed).getDescription();
+            return Regs.value(BuiltInRegistries.ENTITY_TYPE, parsed).getDescription();
         }
         return Component.literal(parsed == null ? id : pretty(parsed.getPath()));
+    }
+
+    /** An item's own name. */
+    public static Component item(Item item) {
+        //? if >=26.1 {
+        /*return item.getName(item.getDefaultInstance());
+        *///?} else {
+        return item.getDescription();
+        //?}
+    }
+
+    /** A potion's name as its bottle shows it, like "Potion of Swiftness". */
+    public static Component potion(Holder<Potion> potion) {
+        //? if >=26.1 {
+        /*return new PotionContents(potion).getName("item.minecraft.potion.effect.");
+        *///?} else if >=1.21 {
+        /*return Component.translatable(Potion.getName(Optional.of(potion), "item.minecraft.potion.effect."));
+        *///?} else {
+        return Component.translatable(potion.value().getName("item.minecraft.potion.effect."));
+        //?}
     }
 
     public static String pretty(String path) {

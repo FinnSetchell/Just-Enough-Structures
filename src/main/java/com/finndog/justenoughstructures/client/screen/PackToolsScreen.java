@@ -338,7 +338,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
         // The title row: what this is and any message on the left, what's waiting and the way back on the right.
         int rowY = TOP + 5;
-        g.blit(WRENCH, PAD + 6, rowY - 1, 0, 0, 12, 12, 12, 12);
+        Gui.blit(g, WRENCH, PAD + 6, rowY - 1, 0, 0, 12, 12, 12, 12);
         g.drawString(font, title, PAD + 22, rowY + 2, ToolsUi.TEXT, false);
         int right = width - PAD - 6;
         Component back = Component.translatable("screen.justenoughstructures.tools.browser");
@@ -390,8 +390,8 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         current().renderOver(g, ui, mouseX, mouseY);
         navBar.render(g, font, mouseX, mouseY, partialTick);
         List<Component> tip = ui.tooltip();
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 600);
+        Gui.push(g);
+        Gui.lift(g, 600);
         if (tip != null) {
             List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
             for (Component line : tip) {
@@ -401,7 +401,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         } else {
             Gui.clippedTooltip(g, font, mouseX, mouseY);
         }
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     @Override

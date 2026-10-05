@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -31,6 +32,10 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
+//? if >=26.1 {
+/*import net.minecraft.server.permissions.LevelBasedPermissionSet;
+import net.minecraft.server.permissions.PermissionLevel;
+*///?}
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
@@ -110,7 +115,12 @@ public final class ServiceTests {
         MinecraftServer server = helper.getLevel().getServer();
         helper.assertTrue(server.getCommands().getDispatcher().getRoot().getChild("jes") != null, "/jes isn't registered");
         ServerPlayer player = TestPlayers.mock(helper);
+        //? if >=26.1 {
+        /*CommandSourceStack source = player.createCommandSourceStack()
+                .withPermission(LevelBasedPermissionSet.forLevel(PermissionLevel.ALL)).withSuppressedOutput();
+        *///?} else {
         CommandSourceStack source = player.createCommandSourceStack().withPermission(0).withSuppressedOutput();
+        //?}
         helper.assertTrue(command(server, source, "jes open minecraft:igloo") == 0,
                 "/jes open worked for a player whose game doesn't have the mod");
         helper.assertTrue(command(server, source, "jes open nothing:here") == 0,
@@ -316,7 +326,7 @@ public final class ServiceTests {
     }
 
     private static void checkStandingSpot(GameTestHelper helper, ServerLevel level, int x, int z) {
-        String where = x + ", " + z + " in " + level.dimension().location();
+        String where = x + ", " + z + " in " + Ids.of(level.dimension());
         Optional<BlockPos> spot = JesServer.standingSpot(level, x, z);
         helper.assertTrue(spot.isPresent(), "nowhere to stand at " + where);
         BlockPos feet = spot.get();
@@ -325,7 +335,7 @@ public final class ServiceTests {
                 && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty(), "no room to stand at " + feet + " at " + where);
         helper.assertFalse(level.getFluidState(feet).is(FluidTags.LAVA) || level.getFluidState(feet.above()).is(FluidTags.LAVA), "stood in lava at " + where);
         if (level.dimensionType().hasCeiling()) {
-            int roof = level.getMinBuildHeight() + level.dimensionType().logicalHeight();
+            int roof = Levels.minY(level) + level.dimensionType().logicalHeight();
             helper.assertTrue(feet.getY() < roof - 3, "stood on the roof at " + feet + " at " + where);
         }
     }

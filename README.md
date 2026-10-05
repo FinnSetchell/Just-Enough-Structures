@@ -7,8 +7,8 @@ Structures are built by the code that owns them. Just Enough Structures asks eac
 generate itself in a sandbox, the same way `/place structure` does, and only draws the result. That
 is why it works with structures from any mod or datapack without knowing anything about them.
 
-This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge and 1.21.1 on
-Fabric, NeoForge and Forge, with more versions to follow.
+This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, 1.21.1 on
+Fabric, NeoForge and Forge, and 26.1 on Fabric, with more versions to follow.
 
 ## Using it
 
@@ -123,8 +123,8 @@ Explorer's Compass uses.
 
 ## Requirements
 
-- Minecraft 1.20.1 or 1.21.1
-- Fabric Loader and Fabric API, Forge, or on 1.21.1, NeoForge
+- Minecraft 1.20.1, 1.21.1 or 26.1
+- Fabric Loader and Fabric API, Forge on 1.20.1 and 1.21.1, or NeoForge on 1.21.1
 - Installed on both the client and the server. In singleplayer that's just your game.
 
 ## Building
@@ -139,7 +139,7 @@ loader is its own node under `versions/`.
 ```
 
 The other nodes have the same three, as `:1.21.1-fabric:build`, `:1.20.1-forge:build`,
-`:1.21.1-neoforge:build` and so on.
+`:1.21.1-neoforge:build`, `:26.1.2-fabric:build` and so on.
 The Forge 1.20.1 jar is reobfuscated, as Forge 1.20.1 runs on SRG names, and the Forge 1.21.1 jar
 carries MixinExtras, which that Forge doesn't ship. On Forge and NeoForge `runAutoshot` takes a list
 of structures but has no scripted clips.
@@ -151,7 +151,8 @@ and quits. Pick the structures with `-Pstructures=minecraft:igloo,mymod:tower` a
 watch it. `-Pmode=open` and `-Pmode=showcase` play a scripted clip instead and save every frame, for
 making GIFs.
 
-Gradle needs Java 21 or newer to run. The Java each node compiles with is downloaded for you.
+Gradle needs Java 21 or newer to run, and Java 25 for the 26.1.2 nodes' tasks. The Java each node
+compiles with is downloaded for you.
 
 ## License
 

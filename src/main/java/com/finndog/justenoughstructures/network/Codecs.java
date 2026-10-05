@@ -1,5 +1,7 @@
 package com.finndog.justenoughstructures.network;
 
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -326,7 +328,7 @@ public final class Codecs {
         int paletteSize = buf.readVarInt();
         List<BlockState> palette = new ArrayList<>(paletteSize);
         for (int i = 0; i < paletteSize; i++) {
-            palette.add(NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), buf.readNbt()));
+            palette.add(NbtUtils.readBlockState(Regs.getter(BuiltInRegistries.BLOCK), buf.readNbt()));
         }
         int count = buf.readVarInt();
         int[] positions = new int[count];
@@ -337,8 +339,8 @@ public final class Codecs {
         }
 
         CompoundTag extra = readAnySizeNbt(buf);
-        List<CompoundTag> blockEntities = compounds(extra.getList("BlockEntities", Tag.TAG_COMPOUND));
-        List<CompoundTag> entities = compounds(extra.getList("Entities", Tag.TAG_COMPOUND));
+        List<CompoundTag> blockEntities = compounds(Nbt.list(extra, "BlockEntities", Tag.TAG_COMPOUND));
+        List<CompoundTag> entities = compounds(Nbt.list(extra, "Entities", Tag.TAG_COMPOUND));
         return new StructureSnapshot(id, seed, terrain, origin, size, palette, positions, states, blockEntities, entities, pieces);
     }
 
@@ -538,7 +540,7 @@ public final class Codecs {
     private static List<CompoundTag> compounds(ListTag list) {
         List<CompoundTag> out = new ArrayList<>(list.size());
         for (int i = 0; i < list.size(); i++) {
-            out.add(list.getCompound(i));
+            out.add(Nbt.compound(list, i));
         }
         return out;
     }

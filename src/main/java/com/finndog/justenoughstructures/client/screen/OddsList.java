@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -136,11 +137,11 @@ final class OddsList {
                 ResourceLocation id = ResourceLocation.tryParse(key.substring(12));
                 ClientPacketListener connection = Minecraft.getInstance().getConnection();
                 if (id != null && connection != null) {
-                    connection.registryAccess().registry(Registries.ENCHANTMENT).flatMap(registry -> registry.getHolder(id))
+                    connection.registryAccess().registry(Registries.ENCHANTMENT).flatMap(registry -> Regs.holder(registry, id))
                             .ifPresent(enchantment -> variants.add(Enchantment.getFullname(enchantment, e.getValue())));
                 }
                 *///?} else {
-                Enchantment enchantment = BuiltInRegistries.ENCHANTMENT.get(ResourceLocation.tryParse(key.substring(12)));
+                Enchantment enchantment = Regs.value(BuiltInRegistries.ENCHANTMENT, ResourceLocation.tryParse(key.substring(12)));
                 if (enchantment != null) {
                     variants.add(enchantment.getFullname(e.getValue()));
                 }
@@ -148,10 +149,10 @@ final class OddsList {
             } else if (key.startsWith("potion:")) {
                 //? if >=1.21 {
                 /*ResourceLocation id = ResourceLocation.tryParse(key.substring(7));
-                Optional<Holder<Potion>> potion = id == null ? Optional.empty() : BuiltInRegistries.POTION.getHolder(id).map(holder -> holder);
-                variants.add(Component.translatable(Potion.getName(potion, "item.minecraft.potion.effect.")));
+                Optional<Holder<Potion>> potion = id == null ? Optional.empty() : Regs.holder(BuiltInRegistries.POTION, id).map(holder -> holder);
+                variants.add(potion.map(StructureNames::potion).orElse(Component.translatable("item.minecraft.potion.effect.empty")));
                 *///?} else {
-                Potion potion = BuiltInRegistries.POTION.get(ResourceLocation.tryParse(key.substring(7)));
+                Potion potion = Regs.value(BuiltInRegistries.POTION, ResourceLocation.tryParse(key.substring(7)));
                 variants.add(Component.translatable(potion.getName("item.minecraft.potion.effect.")));
                 //?}
             }

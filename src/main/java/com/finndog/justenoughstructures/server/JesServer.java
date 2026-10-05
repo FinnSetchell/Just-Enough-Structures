@@ -1,7 +1,12 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Levels;
+import com.finndog.justenoughstructures.Players;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -211,7 +216,7 @@ public final class JesServer {
     }
 
     public static void onRequestCatalog(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = Players.server(player);
         if (catalog == null) {
             List<StructureCatalog.Entry> entries = visibleCatalog(server);
             catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCatalog(buf, entries)));
@@ -232,7 +237,7 @@ public final class JesServer {
         if (!canEdit(player)) {
             return new Codecs.TableReply(null, Component.translatable("screen.justenoughstructures.override.no_permission"));
         }
-        return new Codecs.TableReply(LootOverrides.view(player.getServer().getResourceManager(), id), null);
+        return new Codecs.TableReply(LootOverrides.view(Players.server(player).getResourceManager(), id), null);
     }
 
     public static void onRequestTable(ServerPlayer player, int requestId, ResourceLocation id) {
@@ -243,7 +248,7 @@ public final class JesServer {
     /** Which loot tables have an override, for players who can edit them, so the browser can mark them. */
     public static void onRequestOverrides(ServerPlayer player) {
         Map<ResourceLocation, LootOverrides.Status> statuses = canEdit(player)
-                ? LootOverrides.statuses(player.getServer().getResourceManager()) : Map.of();
+                ? LootOverrides.statuses(Players.server(player).getResourceManager()) : Map.of();
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(statuses.size());
         statuses.forEach((id, status) -> {
@@ -259,7 +264,7 @@ public final class JesServer {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
         if (action == JesNetwork.ACTION_KEEP) {
-            return LootOverrides.keep(player.getServer().getResourceManager(), id);
+            return LootOverrides.keep(Players.server(player).getResourceManager(), id);
         }
         Component reply = LootOverrides.remove(id);
         if (replyIs(reply, "override.removed")) {
@@ -289,7 +294,7 @@ public final class JesServer {
         if (problem != null) {
             return new DraftOdds(problem, null);
         }
-        return new DraftOdds(null, LootRolls.odds(player.serverLevel(), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode()));
+        return new DraftOdds(null, LootRolls.odds(Players.level(player), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode()));
     }
 
     /** One roll of an edit that isn't saved yet, or nothing if it can't be rolled. */
@@ -298,14 +303,14 @@ public final class JesServer {
         if (!canEdit(player) || LootOverrides.check(roll.draft().id(), roll.draft().json()) != null) {
             return java.util.Collections.nCopies(size, ItemStack.EMPTY);
         }
-        return LootRolls.fill(player.serverLevel(), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
+        return LootRolls.fill(Players.level(player), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
     }
 
     public static Component saveTable(ServerPlayer player, ResourceLocation id, String json) {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        Component reply = LootOverrides.save(player.getServer().getResourceManager(), id, json);
+        Component reply = LootOverrides.save(Players.server(player).getResourceManager(), id, json);
         if (replyIs(reply, "override.saved")) {
             PackToolsServer.waiting(PackToolsState.tableKey(id));
         }
@@ -320,7 +325,7 @@ public final class JesServer {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = Players.server(player);
         Optional<StructureTemplate> loaded = server.getStructureManager().get(template);
         if (loaded.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.container.no_template");
@@ -328,7 +333,7 @@ public final class JesServer {
         StructureTemplate.StructureBlockInfo container = null;
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) loaded.get()).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.pos().equals(pos) && info.nbt() != null && info.nbt().contains("LootTable", Tag.TAG_STRING)) {
+                if (info.pos().equals(pos) && info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable")) {
                     container = info;
                 }
             }
@@ -344,7 +349,7 @@ public final class JesServer {
         }
         // The template may already be patched, in which case what it had first is what the patch remembers.
         ContainerPatches.Patch existing = ContainerPatches.find(template, pos);
-        String original = existing != null ? existing.original() : ContainerPatches.ownTable(template, pos, container.nbt().getString("LootTable"));
+        String original = existing != null ? existing.original() : ContainerPatches.ownTable(template, pos, Nbt.string(container.nbt(), "LootTable"));
         Component reply = ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
         if (replyIs(reply, "container.saved")) {
             PackToolsServer.waiting(PackToolsState.chestKey(template, pos));
@@ -371,7 +376,7 @@ public final class JesServer {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        Optional<StructureTemplate> loaded = player.getServer().getStructureManager().get(template);
+        Optional<StructureTemplate> loaded = Players.server(player).getStructureManager().get(template);
         if (loaded.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.container.no_template");
         }
@@ -387,7 +392,7 @@ public final class JesServer {
             return Component.translatable("screen.justenoughstructures.spawner.not_there");
         }
         ResourceLocation id = mob.isEmpty() ? null : ResourceLocation.tryParse(mob);
-        if (!mob.isEmpty() && (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id) || !SpawnerPatches.spawnable(BuiltInRegistries.ENTITY_TYPE.get(id)))) {
+        if (!mob.isEmpty() && (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id) || !SpawnerPatches.spawnable(Regs.value(BuiltInRegistries.ENTITY_TYPE, id)))) {
             return Component.translatable("screen.justenoughstructures.spawner.not_a_mob", mob);
         }
         if (!ServerConfig.get().containerChanges()) {
@@ -423,24 +428,24 @@ public final class JesServer {
         if (!canEdit(player)) {
             return;
         }
-        PackToolsState state = PackToolsServer.state(player.getServer());
+        PackToolsState state = PackToolsServer.state(Players.server(player));
         sendBlob(player, JesNetwork.KIND_TOOLS, 0, Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeTools(buf, state))));
     }
 
     public static void onSaveRules(ServerPlayer player, int requestId, ServerConfig.Settings settings) {
-        Component reply = canEdit(player) ? PackToolsServer.saveRules(player.getServer(), settings)
+        Component reply = canEdit(player) ? PackToolsServer.saveRules(Players.server(player), settings)
                 : Component.translatable("screen.justenoughstructures.override.no_permission");
         sendEditReply(player, requestId, reply, null);
     }
 
     public static void onSaveStructure(ServerPlayer player, int requestId, ResourceLocation id, String notes, boolean secret) {
-        Component reply = canEdit(player) ? PackToolsServer.saveStructure(player.getServer(), id, notes, secret)
+        Component reply = canEdit(player) ? PackToolsServer.saveStructure(Players.server(player), id, notes, secret)
                 : Component.translatable("screen.justenoughstructures.override.no_permission");
         sendEditReply(player, requestId, reply, null);
     }
 
     public static void onReload(ServerPlayer player, int requestId) {
-        Component reply = canEdit(player) ? PackToolsServer.reload(player.getServer())
+        Component reply = canEdit(player) ? PackToolsServer.reload(Players.server(player))
                 : Component.translatable("screen.justenoughstructures.override.no_permission");
         sendEditReply(player, requestId, reply, null);
     }
@@ -548,7 +553,7 @@ public final class JesServer {
     }
 
     public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, boolean preview) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = Players.server(player);
         if (ServerConfig.hides(structure)) {
             CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
@@ -677,7 +682,7 @@ public final class JesServer {
     }
 
     public static void onRequestLoot(ServerPlayer player, int requestId, ResourceLocation table, long seed, int size) {
-        List<ItemStack> items = LootRolls.fill(player.serverLevel(), table, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
+        List<ItemStack> items = LootRolls.fill(Players.level(player), table, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeItems(buf, items);
@@ -687,9 +692,9 @@ public final class JesServer {
     public static void onRequestOdds(ServerPlayer player, int requestId, ResourceLocation table) {
         // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
         // Only tables that exist are kept, so made-up names from a client can't fill the cache.
-        LootOdds odds = LootOverrides.exists(player.getServer(), table)
-                ? ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(player.serverLevel(), t, ODDS_ROLLS, t.hashCode()))
-                : LootRolls.odds(player.serverLevel(), table, ODDS_ROLLS, table.hashCode());
+        LootOdds odds = LootOverrides.exists(Players.server(player), table)
+                ? ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(Players.level(player), t, ODDS_ROLLS, t.hashCode()))
+                : LootRolls.odds(Players.level(player), table, ODDS_ROLLS, table.hashCode());
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeOdds(buf, odds);
@@ -759,13 +764,13 @@ public final class JesServer {
      */
     public static Component locateFor(ServerPlayer player, ResourceLocation id, boolean teleport) {
         ServerConfig.Settings settings = ServerConfig.get();
-        if (!player.hasPermissions(settings.locatePermission())) {
+        if (!Players.hasPermission(player, settings.locatePermission())) {
             return Component.translatable("screen.justenoughstructures.locate_no_permission");
         }
         if (settings.hides(id)) {
             return Component.translatable("screen.justenoughstructures.locate_hidden");
         }
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = Players.level(player);
         BlockPos from = player.blockPosition();
         ServerLevel searched = searchedIn(level, id);
         ServerLevel elsewhere = searched != null && searched != level ? searched : null;
@@ -775,7 +780,7 @@ public final class JesServer {
             level = elsewhere;
         }
         Located found = find(level, from, id, elsewhere == null ? null : dimensionName(elsewhere));
-        if (!teleport || !player.hasPermissions(settings.teleportPermission()) || found.pos() == null) {
+        if (!teleport || !Players.hasPermission(player, settings.teleportPermission()) || found.pos() == null) {
             return found.message();
         }
         Optional<BlockPos> spot = standingSpot(level, found.pos().getX(), found.pos().getZ());
@@ -783,15 +788,15 @@ public final class JesServer {
             return Component.translatable("screen.justenoughstructures.locate_no_ground", found.pos().getX(), found.pos().getZ());
         }
         BlockPos to = spot.get();
-        player.teleportTo(level, to.getX() + 0.5, to.getY(), to.getZ() + 0.5, player.getYRot(), player.getXRot());
+        Players.teleport(player, level, to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
         return elsewhere == null ? Component.translatable("screen.justenoughstructures.locate_teleported", to.getX(), to.getY(), to.getZ())
                 : Component.translatable("screen.justenoughstructures.locate_teleported_to", dimensionName(elsewhere), to.getX(), to.getY(), to.getZ());
     }
 
     /** Whether this structure can generate in this dimension at all. */
     private static boolean canGenerate(ServerLevel level, ResourceLocation id) {
-        Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
-                .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
+        Optional<Holder.Reference<Structure>> holder = Regs.holder(level.registryAccess().registryOrThrow(Registries.STRUCTURE),
+                ResourceKey.create(Registries.STRUCTURE, id));
         return holder.isPresent() && !level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty();
     }
 
@@ -814,7 +819,7 @@ public final class JesServer {
 
     /** "The End", or for a mod's dimension, its id. */
     private static Component dimensionName(ServerLevel level) {
-        ResourceLocation id = level.dimension().location();
+        ResourceLocation id = Ids.of(level.dimension());
         String vanilla = switch (id.toString()) {
             case "minecraft:overworld" -> "overworld";
             case "minecraft:the_nether" -> "nether";
@@ -835,11 +840,16 @@ public final class JesServer {
 
     /** {@code elsewhere} names the dimension searched when it isn't the player's own, to say where it is. */
     private static Located find(ServerLevel level, BlockPos from, ResourceLocation id, Component elsewhere) {
-        Optional<Holder.Reference<Structure>> holder = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
-                .getHolder(ResourceKey.create(Registries.STRUCTURE, id));
+        Optional<Holder.Reference<Structure>> holder = Regs.holder(level.registryAccess().registryOrThrow(Registries.STRUCTURE),
+                ResourceKey.create(Registries.STRUCTURE, id));
         // Searching for something that can't generate here makes the game generate chunk after
         // chunk looking for it, which can stall the server for minutes, so rule that out first.
-        if (!level.getServer().getWorldData().worldGenOptions().generateStructures()) {
+        //? if >=26.1 {
+        /*boolean structures = level.getServer().getWorldGenSettings().options().generateStructures();
+        *///?} else {
+        boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
+        //?}
+        if (!structures) {
             return new Located(null, Component.translatable("screen.justenoughstructures.locate_structures_off"));
         }
         if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
@@ -868,7 +878,7 @@ public final class JesServer {
      */
     public static Optional<BlockPos> standingSpot(ServerLevel level, int x, int z) {
         level.getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
-        int bottom = level.getMinBuildHeight();
+        int bottom = Levels.minY(level);
         if (!level.dimensionType().hasCeiling()) {
             BlockPos feet = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), z);
             boolean safe = feet.getY() > bottom && !level.getFluidState(feet.below()).is(FluidTags.LAVA);

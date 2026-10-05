@@ -47,7 +47,7 @@ public final class GridTests {
         BlockGrid grid = new BlockGrid(snapshot);
 
         String wrong = check(grid, snapshot, size, random);
-        helper.assertTrue(wrong == null, wrong);
+        helper.assertTrue(wrong == null, String.valueOf(wrong));
         helper.assertTrue(grid.bytes() < 8L * 1024 * 1024, "the grid takes " + grid.bytes() / 1024 + " KB");
         helper.succeed();
     }
@@ -58,7 +58,7 @@ public final class GridTests {
         helper.assertTrue(result.succeeded(), "village_plains did not capture: " + result.error());
         StructureSnapshot snapshot = result.snapshot();
         String wrong = check(new BlockGrid(snapshot), snapshot, snapshot.size(), new Random(11));
-        helper.assertTrue(wrong == null, wrong);
+        helper.assertTrue(wrong == null, String.valueOf(wrong));
         helper.succeed();
     }
 

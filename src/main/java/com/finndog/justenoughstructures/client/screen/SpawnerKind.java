@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
@@ -21,15 +22,15 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs) {
     public enum Type { MOB, POOL, MIX }
 
     public static SpawnerKind of(CompoundTag tag) {
-        Map<String, Integer> pool = weights(tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
+        Map<String, Integer> pool = weights(Nbt.list(tag, SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
         if (pool.size() > 1) {
             return new SpawnerKind(Type.POOL, pool);
         }
-        Map<String, Integer> potentials = weights(tag.getList("SpawnPotentials", Tag.TAG_COMPOUND), "data", "weight");
+        Map<String, Integer> potentials = weights(Nbt.list(tag, "SpawnPotentials", Tag.TAG_COMPOUND), "data", "weight");
         if (potentials.size() > 1) {
             return new SpawnerKind(Type.MIX, potentials);
         }
-        String mob = tag.getCompound("SpawnData").getCompound("entity").getString("id");
+        String mob = Nbt.string(Nbt.compound(Nbt.compound(tag, "SpawnData"), "entity"), "id");
         return new SpawnerKind(Type.MOB, mob.isEmpty() ? Map.of() : Map.of(mob, 1));
     }
 
@@ -46,8 +47,8 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs) {
         Map<String, Integer> out = new LinkedHashMap<>();
         for (Tag t : list) {
             CompoundTag entry = (CompoundTag) t;
-            String mob = weightKey == null ? entry.getString(key) : entry.getCompound(key).getCompound("entity").getString("id");
-            int weight = entry.getInt(weightKey == null ? "weight" : weightKey);
+            String mob = weightKey == null ? Nbt.string(entry, key) : Nbt.string(Nbt.compound(Nbt.compound(entry, key), "entity"), "id");
+            int weight = Nbt.getInt(entry, weightKey == null ? "weight" : weightKey);
             if (!mob.isEmpty() && weight > 0) {
                 out.merge(mob, weight, Integer::sum);
             }
@@ -59,8 +60,8 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs) {
     public static Map<BlockPos, CompoundTag> tags(StructureSnapshot s) {
         Map<BlockPos, CompoundTag> out = new HashMap<>();
         for (CompoundTag tag : s.blockEntities()) {
-            if (tag.contains("SpawnData", Tag.TAG_COMPOUND)) {
-                out.put(new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), tag);
+            if (Nbt.hasCompound(tag, "SpawnData")) {
+                out.put(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), tag);
             }
         }
         return out;

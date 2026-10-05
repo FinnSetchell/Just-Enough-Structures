@@ -3,6 +3,8 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -63,6 +65,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.lwjgl.glfw.GLFW;
+//? if >=26.1 {
+/*import net.minecraft.nbt.NbtOps;
+*///?}
 
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
 public class JesScreen extends BackdropScreen implements Nav.Page {
@@ -1527,24 +1532,25 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     /** A marker: {@code icon} in a dark box with its top left at left, top, edged in {@code edge}, and how many it stands for when that's more than one. */
     private void drawMarker(GuiGraphics g, float left, float top, int size, ItemStack icon, int edge, int count) {
-        g.pose().pushPose();
+        Gui.push(g);
         // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
         // markers jitter against the smoothly turning preview.
-        g.pose().translate(left, top, 200);
+        Gui.translate(g, left, top);
+        Gui.lift(g, 200);
         g.fill(-1, -1, size + 1, size + 1, edge);
         g.fill(0, 0, size, size, 0xFF2B2B2B);
-        g.pose().pushPose();
-        g.pose().translate(0.5f, 0.5f, 0);
+        Gui.push(g);
+        Gui.translate(g, 0.5f, 0.5f);
         float scale = (size - 1) / 16f;
-        g.pose().scale(scale, scale, 1f);
+        Gui.scale(g, scale);
         g.renderItem(icon, 0, 0);
-        g.pose().popPose();
+        Gui.pop(g);
         if (count > 1) {
             String text = String.valueOf(count);
-            g.pose().translate(0, 0, 200);
+            Gui.lift(g, 200);
             Gui.small(g, font, text, size - Gui.smallWidth(font, text) + 1, size - 5, 0xFFFFFFFF);
         }
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     /** How big markers are, which follows the zoom between limits. */
@@ -1961,7 +1967,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (container.entity()) {
             ResourceLocation id = ResourceLocation.tryParse(container.id());
             return id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id)
-                    ? BuiltInRegistries.ENTITY_TYPE.get(id).getDescription()
+                    ? Regs.value(BuiltInRegistries.ENTITY_TYPE, id).getDescription()
                     : Component.literal(container.id());
         }
         return view != null ? view.rawState(container.pos().getX(), container.pos().getY(), container.pos().getZ()).getBlock().getName()
@@ -1994,13 +2000,16 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             items.add(ItemStack.EMPTY);
         }
         for (CompoundTag tag : result.snapshot().blockEntities()) {
-            if (tag.getInt("x") == container.pos().getX() && tag.getInt("y") == container.pos().getY() && tag.getInt("z") == container.pos().getZ()) {
-                ListTag list = tag.getList("Items", Tag.TAG_COMPOUND);
+            if (Nbt.getInt(tag, "x") == container.pos().getX() && Nbt.getInt(tag, "y") == container.pos().getY() && Nbt.getInt(tag, "z") == container.pos().getZ()) {
+                ListTag list = Nbt.list(tag, "Items", Tag.TAG_COMPOUND);
                 for (int i = 0; i < list.size(); i++) {
-                    CompoundTag item = list.getCompound(i);
-                    int slot = item.getByte("Slot") & 255;
+                    CompoundTag item = Nbt.compound(list, i);
+                    int slot = Nbt.getByte(item, "Slot") & 255;
                     if (slot < items.size()) {
-                        //? if >=1.21 {
+                        //? if >=26.1 {
+                        /*items.set(slot, ItemStack.OPTIONAL_CODEC.parse(minecraft.level.registryAccess().createSerializationContext(NbtOps.INSTANCE), item)
+                                .result().orElse(ItemStack.EMPTY));
+                        *///?} else if >=1.21 {
                         /*items.set(slot, ItemStack.parseOptional(minecraft.level.registryAccess(), item));
                         *///?} else {
                         items.set(slot, ItemStack.of(item));
@@ -2065,8 +2074,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (popupOpen) {
             // Only what's cut short in the popup counts now: the rest is behind it.
             Gui.beginClipped();
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 400);
+            Gui.push(g);
+            Gui.lift(g, 400);
             if ((side != null || popup.container != null) && view != null) {
                 // The preview stays clear beside a container's, spawner's or mob's popup: it's where they're shown.
                 dimAround(g, viewX, viewY, viewW, viewH);
@@ -2077,34 +2086,34 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             layoutPopupButtons();
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible) {
-                    b.render(g, mouseX, mouseY, partialTick);
+                    Gui.render(g, b, mouseX, mouseY, partialTick);
                 }
             }
-            g.pose().popPose();
+            Gui.pop(g);
         }
         popupHovered = popupHover;
         if (foundIn != null) {
             Gui.beginClipped();
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 400);
+            Gui.push(g);
+            Gui.lift(g, 400);
             g.fill(0, 0, width, height, 0x88000000);
             foundIn.render(g, font, mouseX, mouseY);
-            g.pose().popPose();
+            Gui.pop(g);
         }
         navBar.render(g, font, mouseX, mouseY, partialTick);
 
         if (foundIn != null) {
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 600);
+            Gui.push(g);
+            Gui.lift(g, 600);
             Gui.clippedTooltip(g, font, mouseX, mouseY);
-            g.pose().popPose();
+            Gui.pop(g);
             return;
         }
         // Above the popups, whose items are drawn a long way towards the viewer.
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 600);
+        Gui.push(g);
+        Gui.lift(g, 600);
         renderTooltips(g, mouseX, mouseY, popupOpen, popupHover, hover);
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     private void renderTooltips(GuiGraphics g, int mouseX, int mouseY, boolean popupOpen, ItemStack popupHover, StructureViewport.Hit hover) {
@@ -2674,7 +2683,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (side != null) {
             for (Button b : new Button[]{chestPrev, chestNext, chestClose}) {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
-                    return b.mouseClicked(mouseX, mouseY, button);
+                    return Gui.click(b, mouseX, mouseY, button);
                 }
             }
             SpawnerPopup.Action action = spawnerPopup == null ? null : spawnerPopup.actionAt(mouseX, mouseY);
@@ -2699,7 +2708,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (popup != null) {
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
-                    return b.mouseClicked(mouseX, mouseY, button);
+                    return Gui.click(b, mouseX, mouseY, button);
                 }
             }
             ChestPopup.Action action = popup.actionAt(mouseX, mouseY);
@@ -2953,9 +2962,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /** Pack tools' button at the end of the tabs: a wrench, and its name when there's room. */
-    private static final class ToolsButton extends Button {
+    private static final class ToolsButton extends JesButton {
         ToolsButton(int x, int y, int width, OnPress onPress) {
-            super(x, y, width, 18, Component.translatable("screen.justenoughstructures.tools.title"), onPress, DEFAULT_NARRATION);
+            super(x, y, width, 18, Component.translatable("screen.justenoughstructures.tools.title"), onPress);
             setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.tools.title")));
         }
 
@@ -2964,7 +2973,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             boolean label = font.width(getMessage()) + 12 + 10 <= getWidth();
             int contentW = label ? 12 + 3 + font.width(getMessage()) : 12;
             int x = getX() + (getWidth() - contentW) / 2;
-            g.blit(PackToolsScreen.WRENCH, x, getY() + 3, 0, 0, 12, 12, 12, 12);
+            Gui.blit(g, PackToolsScreen.WRENCH, x, getY() + 3, 0, 0, 12, 12, 12, 12);
             if (label) {
                 g.drawString(font, getMessage(), x + 15, getY() + 5, colour, true);
             }

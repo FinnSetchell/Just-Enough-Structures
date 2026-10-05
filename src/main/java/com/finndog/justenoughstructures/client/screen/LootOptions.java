@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import java.util.ArrayList;
@@ -24,9 +25,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.saveddata.maps.MapDecoration;
 //? if >=1.21 {
-/*import java.util.Optional;
-import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.world.item.alchemy.Potion;
+/*import net.minecraft.client.multiplayer.ClientPacketListener;
 *///?}
 
 /**
@@ -85,14 +84,14 @@ final class LootOptions {
         return source;
     }
 
-    static final Source ITEMS = source(() -> registry(BuiltInRegistries.ITEM, item -> item.getDescription().getString(), "minecraft:air"));
+    static final Source ITEMS = source(() -> registry(BuiltInRegistries.ITEM, item -> StructureNames.item(item).getString(), "minecraft:air"));
     /** Item tags as tag entries and item predicates write them, without a "#". */
     static final Source ITEM_TAG_IDS = source(() -> tags(BuiltInRegistries.ITEM, ""));
     static final Source BLOCKS = source(() -> registry(BuiltInRegistries.BLOCK, block -> block.getName().getString(), "minecraft:air"));
     //? if >=1.21 {
     /*static final Source ENCHANTMENTS = source(() -> fromServer(Registries.ENCHANTMENT, enchantment -> enchantment.description().getString()));
     static final Source POTIONS = source(() -> registry(BuiltInRegistries.POTION,
-            potion -> Component.translatable(Potion.getName(Optional.of(BuiltInRegistries.POTION.wrapAsHolder(potion)), "item.minecraft.potion.effect.")).getString(),
+            potion -> StructureNames.potion(BuiltInRegistries.POTION.wrapAsHolder(potion)).getString(),
             null));
     *///?} else {
     static final Source ENCHANTMENTS = source(() -> registry(BuiltInRegistries.ENCHANTMENT,
@@ -110,7 +109,11 @@ final class LootOptions {
     static final Source BANNER_PATTERNS = source(() -> registry(BuiltInRegistries.BANNER_PATTERN, null, null));
     //?}
     /** Instrument tags, which set_instrument wants with their "#". */
+    //? if >=1.21.2 {
+    /*static final Source INSTRUMENT_TAGS = source(() -> fromServerTags(Registries.INSTRUMENT));
+    *///?} else {
     static final Source INSTRUMENT_TAGS = source(() -> tags(BuiltInRegistries.INSTRUMENT, "#"));
+    //?}
     static final Source ENTITY_TYPES = source(() -> registry(BuiltInRegistries.ENTITY_TYPE, type -> type.getDescription().getString(), null));
     /** An entity predicate's type: an entity, or with a "#", a tag of them. */
     static final Source ENTITY_TYPES_OR_TAGS = source(() -> {
@@ -219,7 +222,7 @@ final class LootOptions {
 
     private static Block block(String id) {
         ResourceLocation parsed = ResourceLocation.tryParse(id.trim());
-        return parsed != null && BuiltInRegistries.BLOCK.containsKey(parsed) ? BuiltInRegistries.BLOCK.get(parsed) : null;
+        return parsed != null && BuiltInRegistries.BLOCK.containsKey(parsed) ? Regs.value(BuiltInRegistries.BLOCK, parsed) : null;
     }
 
     private static Source words(String kind, String... ids) {
@@ -273,7 +276,7 @@ final class LootOptions {
             String shown = null;
             if (name != null) {
                 try {
-                    shown = name.apply(registry.get(id));
+                    shown = name.apply(Regs.value(registry, id));
                 } catch (RuntimeException e) {
                     // A mod's own thing that can't name itself: its id will do.
                 }
@@ -286,7 +289,7 @@ final class LootOptions {
     /** A registry's tags, each written with {@code prefix} before it: "#", or nothing where the setting is always a tag. */
     private static <T> List<Option> tags(Registry<T> registry, String prefix) {
         List<Option> out = new ArrayList<>();
-        registry.getTagNames().forEach(tag -> out.add(new Option(prefix + tag.location(), pretty(tag.location()))));
+        Regs.tagIds(registry).forEach(tag -> out.add(new Option(prefix + tag.location(), pretty(tag.location()))));
         return sorted(out);
     }
 
@@ -306,7 +309,7 @@ final class LootOptions {
         List<Option> out = new ArrayList<>();
         if (minecraft.getConnection() != null) {
             for (ResourceKey<Level> level : minecraft.getConnection().levels()) {
-                out.add(new Option(level.location().toString(), pretty(level.location())));
+                out.add(new Option(Ids.of(level).toString(), pretty(Ids.of(level))));
             }
         }
         return sorted(out);

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.server;
 import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Players;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -55,10 +56,10 @@ public final class PackToolsAccess {
     }
 
     public static boolean allowed(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
-        if (server != null && server.isSingleplayerOwner(player.getGameProfile())) {
+        MinecraftServer server = Players.server(player);
+        if (server != null && Players.isSingleplayerOwner(server, player)) {
             // Singleplayer, or the host of a world opened to LAN: cheats on is enough.
-            return player.hasPermissions(2);
+            return Players.hasPermission(player, 2);
         }
         PermissionCheck check = permissions;
         if (check != null) {
@@ -71,7 +72,7 @@ public final class PackToolsAccess {
             }
         }
         ServerConfig.PackTools rules = ServerConfig.get().packTools();
-        if (rules.permissionLevel() >= 0 && player.hasPermissions(rules.permissionLevel())) {
+        if (rules.permissionLevel() >= 0 && Players.hasPermission(player, rules.permissionLevel())) {
             return true;
         }
         return listed(player, rules.players());
@@ -89,7 +90,7 @@ public final class PackToolsAccess {
         }
         Map<String, UUID> tied = known();
         UUID id = player.getUUID();
-        String name = player.getGameProfile().getName();
+        String name = player.getScoreboardName();
         for (String listed : names) {
             String key = listed.toLowerCase(Locale.ROOT);
             UUID owner = tied.get(key);

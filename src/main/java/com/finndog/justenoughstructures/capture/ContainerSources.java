@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.mixin.ListPoolElementAccessor;
 import com.finndog.justenoughstructures.mixin.SinglePoolElementAccessor;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
@@ -69,14 +70,14 @@ final class ContainerSources {
      * patching the template wouldn't change what players find, so the container isn't offered.
      */
     static boolean matches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
-        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(source.getString("block"))
-                && blockEntity.getString("LootTable").equals(source.getString("table"));
+        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(Nbt.string(source, "block"))
+                && Nbt.string(blockEntity, "LootTable").equals(Nbt.string(source, "table"));
     }
 
     /** The same for a spawner: still the block, and still the mob, the template gave it. */
     static boolean spawnerMatches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
-        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(source.getString("block"))
-                && SpawnerPatches.mobOf(blockEntity).equals(source.getString("mob"));
+        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(Nbt.string(source, "block"))
+                && SpawnerPatches.mobOf(blockEntity).equals(Nbt.string(source, "mob"));
     }
 
     private static void trace(StructurePiece piece, StructureTemplateManager templates, Map<Long, StructureTemplate> filledBy,
@@ -115,7 +116,7 @@ final class ContainerSources {
                               Map<Long, StructureTemplate> filledBy, Found out) {
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                boolean container = info.nbt() != null && info.nbt().contains("LootTable", Tag.TAG_STRING);
+                boolean container = info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable");
                 if (!container && !SpawnerPatches.isSpawner(info)) {
                     continue;
                 }
@@ -131,7 +132,7 @@ final class ContainerSources {
                 source.putInt("z", info.pos().getZ());
                 source.putString("block", BuiltInRegistries.BLOCK.getKey(info.state().getBlock()).toString());
                 if (container) {
-                    source.putString("table", info.nbt().getString("LootTable"));
+                    source.putString("table", Nbt.string(info.nbt(), "LootTable"));
                     ContainerPatches.Patch patch = ContainerPatches.find(id, info.pos());
                     if (patch != null) {
                         source.putString("patched_from", patch.original());

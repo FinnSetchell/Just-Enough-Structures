@@ -1,6 +1,8 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -98,7 +100,7 @@ public final class ContainerTests {
         helper.assertTrue(tower != null, "the watchtower template didn't load");
         StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
         helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
-        String original = chest.nbt().getString("LootTable");
+        String original = Nbt.string(chest.nbt(), "LootTable");
         ResourceLocation block = BuiltInRegistries.BLOCK.getKey(chest.state().getBlock());
         Path dir = freshFolder();
         try {
@@ -161,7 +163,7 @@ public final class ContainerTests {
         helper.assertTrue(tower != null, "the watchtower template didn't load");
         StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
         helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
-        String original = chest.nbt().getString("LootTable");
+        String original = Nbt.string(chest.nbt(), "LootTable");
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
@@ -201,7 +203,7 @@ public final class ContainerTests {
         helper.assertTrue(tower != null, "the watchtower template didn't load");
         StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
         helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
-        String original = chest.nbt().getString("LootTable");
+        String original = Nbt.string(chest.nbt(), "LootTable");
         ResourceLocation block = BuiltInRegistries.BLOCK.getKey(chest.state().getBlock());
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
@@ -248,7 +250,7 @@ public final class ContainerTests {
             helper.assertTrue(LootIndex.update(server, marked, () -> false) == marked, "nothing changed, but the scan did");
 
             ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), BuiltInRegistries.BLOCK.getKey(chest.state().getBlock()),
-                    chest.nbt().getString("LootTable"), IGLOO));
+                    Nbt.string(chest.nbt(), "LootTable"), IGLOO));
             StructureScan updated = LootIndex.update(server, marked, () -> false);
             helper.assertFalse(updated.tables().getOrDefault(OUTPOST, Set.of()).contains(MARKER), "the outpost wasn't generated again for its changed container");
             helper.assertTrue(updated.tables().getOrDefault(VILLAGE, Set.of()).contains(MARKER), "the village was generated again, though nothing in it changed");
@@ -273,7 +275,7 @@ public final class ContainerTests {
             return;
         }
         ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), BuiltInRegistries.BLOCK.getKey(chest.state().getBlock()),
-                chest.nbt().getString("LootTable"), IGLOO));
+                Nbt.string(chest.nbt(), "LootTable"), IGLOO));
         CompletableFuture<Void> first = reload(server);
         AtomicReference<CompletableFuture<Void>> second = new AtomicReference<>();
         StructureScan[] after = new StructureScan[1];
@@ -315,7 +317,7 @@ public final class ContainerTests {
             helper.assertTrue(template != null, "the container's template " + source.template() + " doesn't load");
             StructureTemplate.StructureBlockInfo info = containerAt(template, source.pos());
             helper.assertTrue(info != null, "there's no container at " + source.pos() + " in " + source.template());
-            helper.assertTrue(info.nbt().getString("LootTable").equals(container.lootTable())
+            helper.assertTrue(Nbt.string(info.nbt(), "LootTable").equals(container.lootTable())
                             && BuiltInRegistries.BLOCK.getKey(info.state().getBlock()).equals(source.block()),
                     "the container at " + container.pos() + " doesn't match its spot in " + source.template());
             helper.assertTrue(source.patchedFrom() == null, "a container nobody changed says it was changed");
@@ -406,14 +408,14 @@ public final class ContainerTests {
     private static StructureTemplate copy(StructureTemplate template) {
         StructureTemplate copy = new StructureTemplate();
         // Saving hands over the template's own block entity tags, so they're copied to keep the two apart.
-        copy.load(BuiltInRegistries.BLOCK.asLookup(), template.save(new CompoundTag()).copy());
+        copy.load(Regs.getter(BuiltInRegistries.BLOCK), template.save(new CompoundTag()).copy());
         return copy;
     }
 
     private static StructureTemplate.StructureBlockInfo firstContainer(StructureTemplate template) {
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.nbt() != null && info.nbt().contains("LootTable", Tag.TAG_STRING)) {
+                if (info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable")) {
                     return info;
                 }
             }
@@ -424,7 +426,7 @@ public final class ContainerTests {
     private static StructureTemplate.StructureBlockInfo containerAt(StructureTemplate template, BlockPos pos) {
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.pos().equals(pos) && info.nbt() != null && info.nbt().contains("LootTable", Tag.TAG_STRING)) {
+                if (info.pos().equals(pos) && info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable")) {
                     return info;
                 }
             }
@@ -434,7 +436,7 @@ public final class ContainerTests {
 
     private static String tableAt(StructureTemplate template, BlockPos pos) {
         StructureTemplate.StructureBlockInfo info = containerAt(template, pos);
-        return info == null ? null : info.nbt().getString("LootTable");
+        return info == null ? null : Nbt.string(info.nbt(), "LootTable");
     }
 
     private static void expect(GameTestHelper helper, Component reply, String keyEnd) {

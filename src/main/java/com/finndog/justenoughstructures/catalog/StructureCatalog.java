@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.catalog;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Regs;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.Codec;
@@ -40,17 +41,17 @@ public final class StructureCatalog {
         Map<ResourceLocation, List<SetInfo>> setsByStructure = new HashMap<>();
         for (Map.Entry<ResourceKey<StructureSet>, StructureSet> e : sets.entrySet()) {
             StructureSet set = e.getValue();
-            JsonObject placement = encode(StructurePlacement.CODEC, ops, set.placement(), e.getKey().location());
+            JsonObject placement = encode(StructurePlacement.CODEC, ops, set.placement(), Ids.of(e.getKey()));
             for (StructureSet.StructureSelectionEntry sel : set.structures()) {
                 sel.structure().unwrapKey().ifPresent(key -> setsByStructure
-                        .computeIfAbsent(key.location(), k -> new ArrayList<>())
-                        .add(new SetInfo(e.getKey().location(), placement, sel.weight())));
+                        .computeIfAbsent(Ids.of(key), k -> new ArrayList<>())
+                        .add(new SetInfo(Ids.of(e.getKey()), placement, sel.weight())));
             }
         }
 
         List<Entry> out = new ArrayList<>();
         for (Map.Entry<ResourceKey<Structure>, Structure> e : structures.entrySet()) {
-            ResourceLocation id = e.getKey().location();
+            ResourceLocation id = Ids.of(e.getKey());
             try {
                 Structure structure = e.getValue();
                 ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
@@ -71,13 +72,13 @@ public final class StructureCatalog {
 
     /** Whether the structure turns up in new worlds on its own, and if not, why. */
     private static Availability availability(Registry<Structure> structures, ResourceKey<Structure> key, List<SetInfo> sets) {
-        Availability byMod = StructureDisables.check(key.location());
+        Availability byMod = StructureDisables.check(Ids.of(key));
         if (byMod != null) {
             // A replacement that isn't there to look at isn't named.
             return byMod.replacedBy() != null && !structures.containsKey(byMod.replacedBy())
                     ? new Availability(byMod.reason(), byMod.by(), null) : byMod;
         }
-        if (structures.getHolder(key).map(holder -> holder.is(INTEGRATED_API_DISABLED)).orElse(false)) {
+        if (Regs.holder(structures, key).map(holder -> holder.is(INTEGRATED_API_DISABLED)).orElse(false)) {
             return new Availability(Availability.Reason.TAGGED_OFF, "integrated_api", null);
         }
         if (sets.isEmpty()) {

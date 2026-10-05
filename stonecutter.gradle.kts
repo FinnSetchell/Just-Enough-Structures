@@ -44,6 +44,52 @@ stonecutter parameters {
             replace("net.minecraft.world.level.chunk.ChunkStatus;", "net.minecraft.world.level.chunk.status.ChunkStatus;")
         }
 
+        // 1.21.2 renamed getting a registry out of the game's registries. What else it renamed on
+        // registries is in Regs, as those names now mean something else.
+        string(current.parsed >= "1.21.2") {
+            replace(".registryOrThrow(", ".lookupOrThrow(")
+            replace(".registryAccess().registry(", ".registryAccess().lookup(")
+        }
+
+        // 26.1 moved Util, and screens now collect what to draw rather than drawing it, so the
+        // graphics they're handed got a new name and its methods new names. These only catch calls
+        // on a graphics named g, which every screen here uses. What changed more than its name is
+        // in Gui and the bridges in BackdropScreen and JesButton.
+        string(current.parsed >= "26.1") {
+            replace("net.minecraft.Util", "net.minecraft.util.Util")
+            replace("GuiGraphics", "GuiGraphicsExtractor")
+            replace("g.drawString(", "g.text(")
+            replace("g.drawCenteredString(", "g.centeredText(")
+            replace("g.drawWordWrap(", "g.textWithWordWrap(")
+            replace("g.renderItem(", "g.item(")
+            replace("g.renderFakeItem(", "g.fakeItem(")
+            replace("g.renderItemDecorations(", "g.itemDecorations(")
+            replace("g.renderTooltip(", "g.setTooltipForNextFrame(")
+            replace("g.renderComponentTooltip(", "g.setComponentTooltipForNextFrame(")
+            replace("g.hLine(", "g.horizontalLine(")
+            replace("g.vLine(", "g.verticalLine(")
+            replace("g.renderOutline(", "g.outline(")
+        }
+
+        // Fabric API for 26.1 took the game's own names for these.
+        if (loader == "fabric") {
+            string(current.parsed >= "26.1") {
+                replace("PayloadTypeRegistry.playC2S()", "PayloadTypeRegistry.serverboundPlay()")
+                replace("PayloadTypeRegistry.playS2C()", "PayloadTypeRegistry.clientboundPlay()")
+                replace("client.keybinding.v1.KeyBindingHelper", "client.keymapping.v1.KeyMappingHelper")
+                replace("KeyBindingHelper.registerKeyBinding(", "KeyMappingHelper.registerKeyMapping(")
+                replace("Screens.getButtons(", "Screens.getWidgets(")
+            }
+            // Its game tests take Fabric's own annotation, with the vanilla one's settings under new
+            // names. A test's batch becomes the environment it runs in, one for each batch.
+            string(current.parsed >= "26.1") {
+                replace("import net.minecraft.gametest.framework.GameTest;", "import net.fabricmc.fabric.api.gametest.v1.GameTest;")
+                replace("@GameTest(template = ", "@GameTest(structure = ")
+                replace("timeoutTicks = ", "maxTicks = ")
+                replace("batch = \"", "environment = \"justenoughstructures_gametest:")
+            }
+        }
+
         // Explorer's Compass names a few things differently from its Fabric 1.20.1 build. Only the files
         // that use it turn these on, with `//~ compass_names`. Each loader only gets its own: Stonecutter
         // also matches a rule's other side, which would get in the way of another loader's rule. Its
@@ -61,6 +107,12 @@ stonecutter parameters {
             string(current.parsed >= "1.21", "compass_names") {
                 replace("getStructureID()", "getStructureId()")
                 replace("compass.getState(", "compass.getCompassState(")
+            }
+            // Its build for 26.1 moved its item to another package, and spells ID as Id.
+            string(current.parsed >= "26.1", "compass_names") {
+                replace("explorerscompass.items.", "explorerscompass.item.")
+                replace("getAllowedStructureIDs", "getAllowedStructureIds")
+                replace("ExplorersCompass.allowedStructureIDs", "ExplorersCompass.allowedStructures")
             }
         }
     }

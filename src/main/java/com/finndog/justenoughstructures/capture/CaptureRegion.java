@@ -16,9 +16,13 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 //? if >=1.21 {
-/*import net.minecraft.core.SectionPos;
+/*import com.finndog.justenoughstructures.Levels;
+import net.minecraft.core.SectionPos;
 import net.minecraft.util.StaticCache2D;
 import net.minecraft.world.level.chunk.status.ChunkPyramid;
+*///?}
+//? if >=26.1 {
+/*import net.minecraft.world.level.block.Block;
 *///?}
 
 /**
@@ -37,10 +41,10 @@ final class CaptureRegion extends WorldGenRegion {
     private final int writeRadius;
 
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
-        super(level, StaticCache2D.create(middle(chunks).getPos().x, middle(chunks).getPos().z, 0, (x, z) -> null),
+        super(level, StaticCache2D.create(Levels.chunkX(middle(chunks).getPos()), Levels.chunkZ(middle(chunks).getPos()), 0, (x, z) -> null),
                 ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES), middle(chunks));
         for (ChunkAccess chunk : chunks) {
-            this.chunks.put(chunk.getPos().toLong(), chunk);
+            this.chunks.put(Levels.pack(chunk.getPos()), chunk);
         }
         this.writeRadius = writeRadius;
     }
@@ -51,7 +55,7 @@ final class CaptureRegion extends WorldGenRegion {
 
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
-        ChunkAccess chunk = chunks.get(ChunkPos.asLong(chunkX, chunkZ));
+        ChunkAccess chunk = chunks.get(Levels.pack(chunkX, chunkZ));
         if (chunk != null && status.isOrBefore(ChunkStatus.FEATURES)) {
             return chunk;
         }
@@ -63,7 +67,7 @@ final class CaptureRegion extends WorldGenRegion {
 
     @Override
     public boolean hasChunk(int chunkX, int chunkZ) {
-        return chunks.containsKey(ChunkPos.asLong(chunkX, chunkZ));
+        return chunks.containsKey(Levels.pack(chunkX, chunkZ));
     }
 
     @Override
@@ -71,7 +75,8 @@ final class CaptureRegion extends WorldGenRegion {
         int chunkX = SectionPos.blockToSectionCoord(pos.getX());
         int chunkZ = SectionPos.blockToSectionCoord(pos.getZ());
         ChunkPos centre = getCenter();
-        return hasChunk(chunkX, chunkZ) && Math.abs(centre.x - chunkX) <= writeRadius && Math.abs(centre.z - chunkZ) <= writeRadius;
+        return hasChunk(chunkX, chunkZ) && Math.abs(Levels.chunkX(centre) - chunkX) <= writeRadius
+                && Math.abs(Levels.chunkZ(centre) - chunkZ) <= writeRadius;
     }
     *///?} else {
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
@@ -122,7 +127,11 @@ final class CaptureRegion extends WorldGenRegion {
             return false;
         }
         ChunkAccess chunk = getChunk(pos);
+        //? if >=26.1 {
+        /*BlockState old = chunk.setBlockState(pos, state, flags);
+        *///?} else {
         BlockState old = chunk.setBlockState(pos, state, false);
+        //?}
         written.add(pos.asLong());
         if (TemplatePlacements.current() == null) {
             filledBy.remove(pos.asLong());
@@ -139,9 +148,17 @@ final class CaptureRegion extends WorldGenRegion {
             chunk.removeBlockEntity(pos);
         }
 
+        //? if >=26.1 {
+        /*// 26.1 lets a block ask for a neighbour to be looked at again instead of itself.
+        BlockPos again = (flags & Block.UPDATE_KNOWN_SHAPE) == 0 ? state.getPostProcessPos(this, pos) : null;
+        if (again != null && hasChunk(SectionPos.blockToSectionCoord(again.getX()), SectionPos.blockToSectionCoord(again.getZ()))) {
+            getChunk(again).markPosForPostprocessing(again);
+        }
+        *///?} else {
         if (state.hasPostProcess(this, pos)) {
             chunk.markPosForPostprocessing(pos);
         }
+        //?}
         return true;
     }
 }

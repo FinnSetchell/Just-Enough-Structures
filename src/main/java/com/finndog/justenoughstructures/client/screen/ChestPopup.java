@@ -260,18 +260,18 @@ final class ChestPopup {
 
         // The chest's frame: its title bar, a plain strip under it if the name takes two lines, then
         // rows of slots or a plain strip for the list, then its bottom edge.
-        g.blit(TEXTURE, x, y, 0, 0, WIDTH, 17);
+        Gui.blit(g, TEXTURE, x, y, 0, 0, WIDTH, 17);
         for (int filled = 17; filled < header; filled += 12) {
-            g.blit(TEXTURE, x, y + filled, 0, 127, WIDTH, Math.min(12, header - filled));
+            Gui.blit(g, TEXTURE, x, y + filled, 0, 127, WIDTH, Math.min(12, header - filled));
         }
         if (view == View.ROLL) {
-            g.blit(TEXTURE, x, y + header, 0, 17, WIDTH, body);
+            Gui.blit(g, TEXTURE, x, y + header, 0, 17, WIDTH, body);
         } else {
             for (int filled = 0; filled < body; filled += 12) {
-                g.blit(TEXTURE, x, y + header + filled, 0, 127, WIDTH, Math.min(12, body - filled));
+                Gui.blit(g, TEXTURE, x, y + header + filled, 0, 127, WIDTH, Math.min(12, body - filled));
             }
         }
-        g.blit(TEXTURE, x, y + header + body, 0, 215, WIDTH, 7);
+        Gui.blit(g, TEXTURE, x, y + header + body, 0, 215, WIDTH, 7);
 
         int right = x + WIDTH - 8;
         String of = indexText();
@@ -418,19 +418,19 @@ final class ChestPopup {
             }
             hoveredTip = tip;
         }
-        g.pose().pushPose();
-        g.pose().translate(left + 1, top + 1, 0);
-        g.pose().scale(0.75f, 0.75f, 1);
+        Gui.push(g);
+        Gui.translate(g, left + 1, top + 1);
+        Gui.scale(g, 0.75f);
         g.renderItem(stack, 0, 0);
-        g.pose().popPose();
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 200);
-        g.blit(PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
+        Gui.pop(g);
+        Gui.push(g);
+        Gui.lift(g, 200);
+        Gui.blit(g, PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
         if (!enabled) {
             // The panel's own grey over the item and wrench, so they show through faintly.
             g.fill(left, top, right, top + ICON, 0xA0C6C6C6);
         }
-        g.pose().popPose();
+        Gui.pop(g);
         if (enabled) {
             links.put(action, new int[]{left, top, ICON, ICON});
         }

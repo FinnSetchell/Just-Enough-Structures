@@ -2,6 +2,8 @@ package com.finndog.justenoughstructures.loot;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -93,7 +95,7 @@ final class PoolScan {
         Set<ResourceLocation> next = new HashSet<>();
         Set<ResourceLocation> locations = new HashSet<>();
         Registry<StructureTemplatePool> registry = server.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
-        StructureTemplatePool pool = registry.get(id);
+        StructureTemplatePool pool = Regs.value(registry, id);
         JsonElement json = pool == null ? null : StructureTemplatePool.DIRECT_CODEC.encodeStart(ops, pool).result().orElse(null);
         if (json != null) {
             strings(json, "fallback", next::add);
@@ -137,7 +139,7 @@ final class PoolScan {
     private Set<ResourceLocation> processorList(ResourceLocation id) {
         return processorLists.computeIfAbsent(id, key -> {
             Set<ResourceLocation> tables = new HashSet<>();
-            StructureProcessorList list = server.registryAccess().registryOrThrow(Registries.PROCESSOR_LIST).get(key);
+            StructureProcessorList list = Regs.value(server.registryAccess().registryOrThrow(Registries.PROCESSOR_LIST), key);
             if (list != null) {
                 StructureProcessorType.DIRECT_CODEC.encodeStart(ops, list).result()
                         .ifPresent(json -> strings(json, "loot_table", tables::add));
@@ -148,13 +150,13 @@ final class PoolScan {
 
     private static void nbt(Tag tag, Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
         if (tag instanceof CompoundTag compound) {
-            for (String key : compound.getAllKeys()) {
+            for (String key : Nbt.keys(compound)) {
                 Tag value = compound.get(key);
                 if (value instanceof StringTag string) {
                     if (key.equals("LootTable")) {
-                        add(string.getAsString(), tables::add);
+                        add(Nbt.value(string), tables::add);
                     } else if (key.equals("pool")) {
-                        add(string.getAsString(), pools::add);
+                        add(Nbt.value(string), pools::add);
                     }
                 } else {
                     nbt(value, tables, pools);

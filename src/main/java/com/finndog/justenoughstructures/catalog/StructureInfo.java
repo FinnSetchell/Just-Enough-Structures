@@ -2,7 +2,6 @@ package com.finndog.justenoughstructures.catalog;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.TextJson;
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -13,6 +12,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+//? if >=1.21.2 {
+/*import net.minecraft.resources.FileToIdConverter;
+import net.minecraft.util.ExtraCodecs;
+*///?} else {
+import com.google.gson.Gson;
+//?}
 
 /**
  * What a mod or modpack says about one of its structures, from a datapack file at
@@ -94,10 +99,17 @@ public record StructureInfo(Component notes, String author, boolean hideLootLoca
     }
 
     /** Loads every structure's file on server start and /reload. Each loader registers it its own way. */
+    //? if >=1.21.2 {
+    /*public static class Loader extends SimpleJsonResourceReloadListener<JsonElement> {
+        public Loader() {
+            super(ExtraCodecs.JSON, FileToIdConverter.json(DIRECTORY));
+        }
+    *///?} else {
     public static class Loader extends SimpleJsonResourceReloadListener {
         public Loader() {
             super(new Gson(), DIRECTORY);
         }
+    //?}
 
         @Override
         protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager manager, ProfilerFiller profiler) {

@@ -2,7 +2,6 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
-import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.ArrayList;
 import java.util.List;
@@ -106,10 +105,7 @@ abstract class ToolsSection {
         /** A structure's picture from the browser's list, or a map until it has one. */
         static Icon structure(ResourceLocation id) {
             return (g, x, y) -> {
-                int texture = Thumbnails.textureId(id);
-                if (texture >= 0) {
-                    StructureViewport.drawTexture(g, texture, x, y, 16, 16);
-                } else {
+                if (!Thumbnails.draw(g, id, x, y, 16)) {
                     g.renderItem(MAP, x, y);
                 }
             };

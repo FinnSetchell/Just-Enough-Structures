@@ -1,12 +1,14 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
-import java.util.Collection;
 import java.util.List;
 import net.minecraft.gametest.framework.GameTest;
-import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.GameTestHelper;
+//? if <26.1 {
+import java.util.Collection;
+import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.TestFunction;
+//?}
 
 /**
  * Every game test, which each loader's test mod registers: Fabric through its fabric-gametest
@@ -41,6 +43,13 @@ public final class JesGameTests {
         helper.succeed();
     }
 
+    //? if >=26.1 {
+    /*// From 26.1 each test is a method of its own, so the vanilla structures are captured in one test, one a tick.
+    @GameTest(structure = EMPTY_STRUCTURE, environment = "justenoughstructures_gametest:capture", maxTicks = 200)
+    public void captureEveryVanillaStructure(GameTestHelper helper) {
+        CaptureTests.capturesEveryVanillaStructure(helper);
+    }
+    *///?} else {
     @GameTestGenerator
     public Collection<TestFunction> captureEveryVanillaStructure() {
         return CaptureTests.VANILLA.stream()
@@ -48,6 +57,7 @@ public final class JesGameTests {
                         helper -> CaptureTests.capturesVanillaStructure(helper, name)))
                 .toList();
     }
+    //?}
 
     @GameTest(template = EMPTY_STRUCTURE)
     public void lootSetByStructureCodeIsCaptured(GameTestHelper helper) {

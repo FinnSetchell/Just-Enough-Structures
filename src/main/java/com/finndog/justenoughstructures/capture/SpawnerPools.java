@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.capture;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Nbt;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -165,9 +166,9 @@ public final class SpawnerPools {
 
     /** Whether the mob a spawner ended up with is one of its pool's, so the pool is still what decided it. */
     static boolean matches(ListTag pool, CompoundTag spawner) {
-        String mob = spawner.getCompound("SpawnData").getCompound("entity").getString("id");
+        String mob = Nbt.string(Nbt.compound(Nbt.compound(spawner, "SpawnData"), "entity"), "id");
         for (Tag entry : pool) {
-            if (((CompoundTag) entry).getString("entity").equals(mob)) {
+            if (Nbt.string((CompoundTag) entry, "entity").equals(mob)) {
                 return true;
             }
         }

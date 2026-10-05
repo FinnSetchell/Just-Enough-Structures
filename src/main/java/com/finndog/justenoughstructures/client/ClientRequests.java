@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.screen.Nav;
@@ -338,12 +339,12 @@ public final class ClientRequests {
 
     public static boolean canLocate() {
         Minecraft mc = Minecraft.getInstance();
-        return mc.player != null && mc.player.hasPermissions(locatePermission);
+        return mc.player != null && Players.hasPermission(mc.player, locatePermission);
     }
 
     public static boolean canTeleport() {
         Minecraft mc = Minecraft.getInstance();
-        return canLocate() && mc.player.hasPermissions(teleportPermission);
+        return canLocate() && Players.hasPermission(mc.player, teleportPermission);
     }
 
     /**

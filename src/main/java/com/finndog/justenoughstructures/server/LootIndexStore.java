@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.server;
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -172,7 +173,7 @@ public final class LootIndexStore {
         }
         wanted = true;
         if (!checking && !building) {
-            build(player.getServer(), GENERATION.get());
+            build(Players.server(player), GENERATION.get());
         }
         JesServer.sendIndexProgress(player, done, total);
     }
@@ -250,7 +251,12 @@ public final class LootIndexStore {
     public static String fingerprintOf(MinecraftServer server) {
         try {
             Hasher hasher = Hashing.sha256().newHasher();
-            hasher.putString(FORMAT + "|" + SharedConstants.getCurrentVersion().getName() + "|", StandardCharsets.UTF_8);
+            //? if >=26.1 {
+            /*String game = SharedConstants.getCurrentVersion().name();
+            *///?} else {
+            String game = SharedConstants.getCurrentVersion().getName();
+            //?}
+            hasher.putString(FORMAT + "|" + game + "|", StandardCharsets.UTF_8);
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) ->
                     hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
             ResourceManager resources = server.getResourceManager();

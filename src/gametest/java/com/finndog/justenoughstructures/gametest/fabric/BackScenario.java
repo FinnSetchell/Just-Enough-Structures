@@ -10,12 +10,16 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
+//? if >=26.1 {
+/*import net.minecraft.client.input.KeyEvent;
+*///?}
 
 /**
  * Back and Forward: switching tabs and going back, a jump from a Found-in list and back to the
@@ -63,7 +67,7 @@ final class BackScenario {
                 .then(pause(20))
                 .then(shoot("b05_back_to_the_list"))
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
-                .then(run(() -> mc.screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT)))
+                .then(run(() -> shiftBackspace(mc)))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(pause(20))
                 .then(shoot("b06_forward"))
@@ -71,17 +75,26 @@ final class BackScenario {
                 .then(until(() -> mc.screen instanceof LootEditorScreen e && e.loaded(), 200))
                 .then(pause(20))
                 .then(shoot("b07_editor"))
-                .then(run(() -> mc.screen.mouseClicked(100, 100, GLFW.GLFW_MOUSE_BUTTON_4)))
+                .then(run(() -> Gui.click(mc.screen, 100, 100, GLFW.GLFW_MOUSE_BUTTON_4)))
                 .then(until(() -> browser(mc) != null && browser(mc).idle(), 600))
                 .then(pause(20))
                 .then(moveTo(() -> browser(mc).forwardButton(), 10))
                 .then(pause(30))
                 .then(shoot("b08_back_from_editor"))
-                .then(run(() -> mc.screen.mouseClicked(100, 100, GLFW.GLFW_MOUSE_BUTTON_5)))
+                .then(run(() -> Gui.click(mc.screen, 100, 100, GLFW.GLFW_MOUSE_BUTTON_5)))
                 .then(until(() -> mc.screen instanceof LootEditorScreen e && e.loaded(), 200))
                 .then(pause(20))
                 .then(shoot("b09_forward_to_editor"));
         return d;
+    }
+
+    // Shift+Backspace goes Forward.
+    private static void shiftBackspace(Minecraft mc) {
+        //? if >=26.1 {
+        /*mc.screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT));
+        *///?} else {
+        mc.screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT);
+        //?}
     }
 
     private static JesScreen browser(Minecraft mc) {

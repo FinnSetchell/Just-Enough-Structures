@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Levels;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 //? if >=1.21 {
@@ -18,7 +19,9 @@ import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+//? if <1.21.2 {
 import net.minecraft.world.level.levelgen.GenerationStep;
+//?}
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.blending.Blender;
@@ -35,7 +38,7 @@ final class SandboxChunkGenerator extends ChunkGenerator {
     SandboxChunkGenerator(BiomeSource biomeSource, SandboxTerrain terrain, LevelHeightAccessor height) {
         super(biomeSource);
         this.terrain = terrain;
-        this.minY = height.getMinBuildHeight();
+        this.minY = Levels.minY(height);
         this.column = new BlockState[height.getHeight()];
         for (int i = 0; i < column.length; i++) {
             column[i] = terrain.stateAt(minY + i);
@@ -59,10 +62,17 @@ final class SandboxChunkGenerator extends ChunkGenerator {
     }
     //?}
 
+    //? if >=1.21.2 {
+    /*@Override
+    public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomeManager,
+                             StructureManager structureManager, ChunkAccess chunk) {
+    }
+    *///?} else {
     @Override
     public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomeManager,
                              StructureManager structureManager, ChunkAccess chunk, GenerationStep.Carving step) {
     }
+    //?}
 
     @Override
     public void buildSurface(WorldGenRegion region, StructureManager structureManager, RandomState randomState, ChunkAccess chunk) {
@@ -107,7 +117,7 @@ final class SandboxChunkGenerator extends ChunkGenerator {
                 return minY + i + 1;
             }
         }
-        return level.getMinBuildHeight();
+        return Levels.minY(level);
     }
 
     @Override

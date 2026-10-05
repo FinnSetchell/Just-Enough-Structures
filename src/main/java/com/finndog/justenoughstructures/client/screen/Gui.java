@@ -9,9 +9,16 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+//? if >=26.1 {
+/*import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
+import net.minecraft.client.renderer.RenderPipelines;
+*///?}
 
 /**
  * Drawing helpers in the look JEI uses, which is the vanilla container look: the same frames,
@@ -29,7 +36,9 @@ public final class Gui {
 
     /** A vanilla button's background stretched to size: {@code state} 0 for off, 1 normal, 2 under the mouse. */
     public static void buttonBackground(GuiGraphics g, int x, int y, int w, int h, int state) {
-        //? if >=1.21 {
+        //? if >=26.1 {
+        /*g.blitSprite(RenderPipelines.GUI_TEXTURED, state == 0 ? BUTTON_DISABLED : state == 2 ? BUTTON_HIGHLIGHTED : BUTTON, x, y, w, h);
+        *///?} else if >=1.21 {
         /*g.blitSprite(state == 0 ? BUTTON_DISABLED : state == 2 ? BUTTON_HIGHLIGHTED : BUTTON, x, y, w, h);
         *///?} else {
         g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + state * 20);
@@ -166,7 +175,82 @@ public final class Gui {
 
     /** The favourite star, 8 pixels square, its top left at x, y. */
     static void star(GuiGraphics g, int x, int y, boolean favourite, boolean hovered) {
-        g.blit(STAR, x, y, hovered ? 8 : 0, favourite ? 0 : 8, 8, 8, 16, 16);
+        blit(g, STAR, x, y, hovered ? 8 : 0, favourite ? 0 : 8, 8, 8, 16, 16);
+    }
+
+    /** Part of a texture 256 pixels square, as GUI textures used to be. */
+    public static void blit(GuiGraphics g, ResourceLocation texture, int x, int y, int u, int v, int w, int h) {
+        blit(g, texture, x, y, u, v, w, h, 256, 256);
+    }
+
+    /** Part of a texture, the same size on screen as in the texture. */
+    public static void blit(GuiGraphics g, ResourceLocation texture, int x, int y, int u, int v, int w, int h, int textureW, int textureH) {
+        //? if >=26.1 {
+        /*g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, u, v, w, h, textureW, textureH);
+        *///?} else {
+        g.blit(texture, x, y, u, v, w, h, textureW, textureH);
+        //?}
+    }
+
+    /** Draws a widget that a screen draws itself, rather than through its list of widgets. */
+    public static void render(GuiGraphics g, Renderable widget, int mouseX, int mouseY, float partialTick) {
+        //? if >=26.1 {
+        /*widget.extractRenderState(g, mouseX, mouseY, partialTick);
+        *///?} else {
+        widget.render(g, mouseX, mouseY, partialTick);
+        //?}
+    }
+
+    /** Passes a click on to a widget that a screen handles itself. */
+    public static boolean click(GuiEventListener widget, double mouseX, double mouseY, int button) {
+        //? if >=26.1 {
+        /*return widget.mouseClicked(new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(button, 0)), false);
+        *///?} else {
+        return widget.mouseClicked(mouseX, mouseY, button);
+        //?}
+    }
+
+    // ------------------------------------------------------------------ moving what's drawn
+    // 26.1 lays screens out flat: what's drawn later goes over what it overlaps, so there's no depth
+    // to move things along any more, and moving them about takes two numbers rather than three.
+
+    public static void push(GuiGraphics g) {
+        //? if >=26.1 {
+        /*g.pose().pushMatrix();
+        *///?} else {
+        g.pose().pushPose();
+        //?}
+    }
+
+    public static void pop(GuiGraphics g) {
+        //? if >=26.1 {
+        /*g.pose().popMatrix();
+        *///?} else {
+        g.pose().popPose();
+        //?}
+    }
+
+    public static void translate(GuiGraphics g, float x, float y) {
+        //? if >=26.1 {
+        /*g.pose().translate(x, y);
+        *///?} else {
+        g.pose().translate(x, y, 0);
+        //?}
+    }
+
+    public static void scale(GuiGraphics g, float scale) {
+        //? if >=26.1 {
+        /*g.pose().scale(scale, scale);
+        *///?} else {
+        g.pose().scale(scale, scale, 1);
+        //?}
+    }
+
+    /** Puts what's drawn next in front of what's there, by {@code z}. From 26.1 later things go in front anyway. */
+    public static void lift(GuiGraphics g, float z) {
+        //? if <26.1 {
+        g.pose().translate(0, 0, z);
+        //?}
     }
 
     /** A small white arrow with a dark shadow, as on JEI's page buttons, pointing left or right. */
@@ -209,19 +293,19 @@ public final class Gui {
 
     /** Text drawn at any size, with its top left at x, y. */
     static void scaled(GuiGraphics g, Font font, FormattedCharSequence text, int x, int y, int color, float scale) {
-        g.pose().pushPose();
-        g.pose().translate(x, y, 0);
-        g.pose().scale(scale, scale, 1f);
+        push(g);
+        translate(g, x, y);
+        scale(g, scale);
         g.drawString(font, text, 0, 0, color, false);
-        g.pose().popPose();
+        pop(g);
     }
 
     static void scaled(GuiGraphics g, Font font, String text, int x, int y, int color, float scale) {
-        g.pose().pushPose();
-        g.pose().translate(x, y, 0);
-        g.pose().scale(scale, scale, 1f);
+        push(g);
+        translate(g, x, y);
+        scale(g, scale);
         g.drawString(font, text, 0, 0, color, false);
-        g.pose().popPose();
+        pop(g);
     }
 
     /**

@@ -23,7 +23,61 @@ final class OffsetConsumer implements VertexConsumer {
         return this;
     }
 
-    //? if >=1.21 {
+    //? if >=26.1 {
+    /*@Override
+    public VertexConsumer addVertex(float x, float y, float z) {
+        delegate.addVertex(x + (float) dx, y + (float) dy, z + (float) dz);
+        return this;
+    }
+
+    // 26.1's fluid renderer hands over each vertex whole, which the builder writes in one go.
+    @Override
+    public void addVertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+        delegate.addVertex(x + (float) dx, y + (float) dy, z + (float) dz, color, u, v, overlay, light, nx, ny, nz);
+    }
+
+    @Override
+    public VertexConsumer setColor(int r, int g, int b, int a) {
+        delegate.setColor(r, g, b, a);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setColor(int color) {
+        delegate.setColor(color);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv(float u, float v) {
+        delegate.setUv(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv1(int u, int v) {
+        delegate.setUv1(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv2(int u, int v) {
+        delegate.setUv2(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setNormal(float x, float y, float z) {
+        delegate.setNormal(x, y, z);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setLineWidth(float width) {
+        delegate.setLineWidth(width);
+        return this;
+    }
+    *///?} else if >=1.21 {
     /*@Override
     public VertexConsumer addVertex(float x, float y, float z) {
         delegate.addVertex(x + (float) dx, y + (float) dy, z + (float) dz);

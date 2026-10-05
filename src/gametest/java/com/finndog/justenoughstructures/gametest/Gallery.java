@@ -24,13 +24,18 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
 import net.minecraft.world.level.WorldDataConfiguration;
 import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import org.lwjgl.glfw.GLFW;
+//? if >=26.1 {
+/*import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.gamerules.GameRules;
+*///?} else {
+import net.minecraft.world.level.GameRules;
+//?}
 
 /**
  * Dev-only screenshot run, the same on every loader: makes a superflat world, opens the browser on
@@ -93,6 +98,9 @@ public final class Gallery {
             }
             case WAIT_WORLD -> {
                 if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
+                    //? if >=26.1 {
+                    /*stopTheSun(mc);
+                    *///?}
                     screen = new JesScreen();
                     mc.setScreen(screen);
                     go(Step.WAIT_CATALOG);
@@ -198,8 +206,13 @@ public final class Gallery {
     }
 
     private static void shoot(Minecraft mc, String file) {
+        //? if >=26.1 {
+        /*Screenshot.grab(mc.gameDirectory, file + ".png", mc.getMainRenderTarget(), 1, message -> {
+        });
+        *///?} else {
         Screenshot.grab(mc.gameDirectory, file + ".png", mc.getMainRenderTarget(), message -> {
         });
+        //?}
     }
 
     private void record(ResourceLocation id, CaptureResult result, String problem) {
@@ -242,8 +255,31 @@ public final class Gallery {
         return mc.getOverlay() == null && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen);
     }
 
+    //? if >=26.1 {
+    /*// Stops the sun moving, so the world behind the screen stays still between shots. From 26.1 a new
+    // world's rules can only be changed once it's open.
+    private static void stopTheSun(Minecraft mc) {
+        MinecraftServer server = mc.getSingleplayerServer();
+        if (server != null) {
+            server.execute(() -> server.getGameRules().set(GameRules.ADVANCE_TIME, false, server));
+        }
+    }
+    *///?}
+
     /** Sets the window up and makes a superflat world; with {@code structures} it gets villages, for trying locate and teleport. */
     public static void startWorld(Minecraft mc, boolean hide, boolean structures) {
+        //? if >=26.1 {
+        /*if (hide) {
+            GLFW.glfwHideWindow(mc.getWindow().handle());
+        }
+        mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
+        mc.resizeGui();
+        // The sun is stopped once the world is open, as its rules can't be set before.
+        LevelSettings settings = new LevelSettings("JES autoshot", GameType.CREATIVE,
+                new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false), true, WorldDataConfiguration.DEFAULT);
+        mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, structures, false),
+                registries -> registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions(), mc.screen);
+        *///?} else {
         if (hide) {
             GLFW.glfwHideWindow(mc.getWindow().getWindow());
         }
@@ -254,7 +290,10 @@ public final class Gallery {
         rules.getRule(GameRules.RULE_DAYLIGHT).set(false, null);
         LevelSettings settings = new LevelSettings("JES autoshot", GameType.CREATIVE, false, Difficulty.PEACEFUL, true,
                 rules, WorldDataConfiguration.DEFAULT);
-        //? if >=1.21 {
+        //?}
+        //? if >=26.1 {
+        /*// Made above.
+        *///?} else if >=1.21 {
         /*mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, structures, false),
                 registries -> registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions(), mc.screen);
         *///?} else {

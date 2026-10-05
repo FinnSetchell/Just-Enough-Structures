@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Regs;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -1246,13 +1247,13 @@ final class LootForm {
         g.fill(x, y, x + FIELD + 2, y + FIELD, over ? 0xFFFFFFFF : 0xFF555555);
         g.fill(x + 1, y + 1, x + FIELD + 1, y + FIELD - 1, 0xFF8B8B8B);
         String id = JsonPaths.string(draft(), path, "");
-        ItemStack stack = itemExists(id) ? new ItemStack(BuiltInRegistries.ITEM.get(Ids.parse(id))) : ItemStack.EMPTY;
+        ItemStack stack = itemExists(id) ? new ItemStack(Regs.value(BuiltInRegistries.ITEM, Ids.parse(id))) : ItemStack.EMPTY;
         if (!stack.isEmpty()) {
-            g.pose().pushPose();
-            g.pose().translate(x + 2, y + 1, 0);
-            g.pose().scale(0.75f, 0.75f, 1);
+            Gui.push(g);
+            Gui.translate(g, x + 2, y + 1);
+            Gui.scale(g, 0.75f);
             g.renderItem(stack, 0, 0);
-            g.pose().popPose();
+            Gui.pop(g);
         }
         ui.spot(x, y, FIELD + 2, FIELD, () -> host.pickItem(path));
         ui.tooltip(x, y, FIELD + 2, FIELD, text("pick_item"));
@@ -1265,7 +1266,7 @@ final class LootForm {
 
     static Component itemName(String id) {
         if (itemExists(id)) {
-            return BuiltInRegistries.ITEM.get(Ids.parse(id.trim())).getDescription();
+            return StructureNames.item(Regs.value(BuiltInRegistries.ITEM, Ids.parse(id.trim())));
         }
         return Component.translatable("screen.justenoughstructures.editor.unknown_item");
     }

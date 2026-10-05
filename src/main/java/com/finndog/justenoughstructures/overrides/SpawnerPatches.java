@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonElement;
@@ -63,19 +64,19 @@ public final class SpawnerPatches {
 
     /** Whether a block in a template is a spawner with a mob of its own. */
     public static boolean isSpawner(StructureTemplate.StructureBlockInfo info) {
-        return info.nbt() != null && info.nbt().contains("SpawnData", Tag.TAG_COMPOUND) && info.state().getBlock() instanceof SpawnerBlock;
+        return info.nbt() != null && Nbt.hasCompound(info.nbt(), "SpawnData") && info.state().getBlock() instanceof SpawnerBlock;
     }
 
     /** The mob a spawner's data gives it, or "" for none. */
     public static String mobOf(CompoundTag spawner) {
-        return spawner.getCompound("SpawnData").getCompound("entity").getString("id");
+        return Nbt.string(Nbt.compound(Nbt.compound(spawner, "SpawnData"), "entity"), "id");
     }
 
     /** How many other mobs a spawner's data cycles through besides its own. */
     public static int othersOf(CompoundTag spawner) {
         Set<String> mobs = new LinkedHashSet<>();
-        for (Tag entry : spawner.getList("SpawnPotentials", Tag.TAG_COMPOUND)) {
-            String id = ((CompoundTag) entry).getCompound("data").getCompound("entity").getString("id");
+        for (Tag entry : Nbt.list(spawner, "SpawnPotentials", Tag.TAG_COMPOUND)) {
+            String id = Nbt.string(Nbt.compound(Nbt.compound((CompoundTag) entry, "data"), "entity"), "id");
             if (!id.isEmpty()) {
                 mobs.add(id);
             }
@@ -189,7 +190,7 @@ public final class SpawnerPatches {
      * its list of mobs, the spawner makes one from the mob it's given.
      */
     static void setMob(CompoundTag spawner, String mob) {
-        CompoundTag data = spawner.getCompound("SpawnData");
+        CompoundTag data = Nbt.compound(spawner, "SpawnData");
         CompoundTag entity = new CompoundTag();
         if (!mob.isEmpty()) {
             entity.putString("id", mob);

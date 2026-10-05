@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.capture;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Levels;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -132,7 +133,7 @@ public final class RealWorldGuard {
         public int height(Level asked, Heightmap.Types type, int x, int z) {
             note("read heights");
             CaptureRegion r = regionFor(asked, SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
-            return r != null ? r.getHeight(type, x, z) : asked.getMinBuildHeight();
+            return r != null ? r.getHeight(type, x, z) : Levels.minY(asked);
         }
 
         public boolean hasChunk(Level asked, int chunkX, int chunkZ) {

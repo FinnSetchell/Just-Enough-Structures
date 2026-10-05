@@ -1,5 +1,374 @@
 package com.finndog.justenoughstructures.client.render;
 
+//? if >=26.1 {
+/*import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.GpuDevice;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexSorting;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.function.IntConsumer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.block.BlockModelLighter;
+import net.minecraft.client.renderer.block.BlockQuadOutput;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.FluidRenderer;
+import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+
+/^*
+ * GPU meshes for a snapshot, one set per Y layer so the layer slider can hide the top of the
+ * structure without rebuilding everything. The layer the slider cuts through gets its own "cap"
+ * mesh, built as if everything above it were air, so its top faces aren't missing.
+ *
+ * <p>Layers are built a few at a time from the render thread, within a time budget. A layer too big
+ * for one frame's budget is built in pieces, a few rows at a time, over as many frames as it takes.
+ * Each piece is copied to buffers on the GPU as soon as it's built, and drawn with the game's own
+ * pipelines for blocks that aren't part of the world's chunks, like a falling block.
+ ^/
+public final class SnapshotMesh implements AutoCloseable {
+    // Where each kind of layer is built, one at a time. What's built is copied to the GPU straight away.
+    private static final Map<ChunkSectionLayer, ByteBufferBuilder> BUILDERS = new EnumMap<>(ChunkSectionLayer.class);
+
+    private final SnapshotView view;
+    /^* Each finished layer, in the pieces it was built in. ^/
+    private final List<List<Piece>> layers = new ArrayList<>();
+    /^* The pieces so far of the layer being built, and the row it's up to. ^/
+    private final List<Piece> current = new ArrayList<>();
+    private int nextRow;
+    private List<Piece> cap = List.of();
+    private int capY = -1;
+    private boolean closed;
+    // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
+    private final List<Buffer> translucent = new ArrayList<>();
+    private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
+    /^* The most indices a piece without its own needs, from the shared list of them. ^/
+    private int sharedIndices;
+
+    public SnapshotMesh(SnapshotView view) {
+        this.view = view;
+    }
+
+    public boolean building() {
+        return layers.size() < view.size().getY();
+    }
+
+    public float progress() {
+        if (view.size().getY() == 0) {
+            return 1f;
+        }
+        return (layers.size() + (float) nextRow / Math.max(1, view.size().getZ())) / view.size().getY();
+    }
+
+    /^* Builds layers until {@code budgetNanos} is used up. Translucent faces are sorted from {@code eye}. ^/
+    public void buildSome(long budgetNanos, Vector3f eye) {
+        long deadline = System.nanoTime() + budgetNanos;
+        int keepSlice = view.sliceY();
+        view.setSliceY(view.size().getY());
+        try {
+            while (building() && System.nanoTime() < deadline) {
+                Piece piece = tesselate(layers.size(), nextRow, deadline, eye);
+                current.add(piece);
+                nextRow = piece.lastRow();
+                if (nextRow >= view.size().getZ()) {
+                    layers.add(List.copyOf(current));
+                    current.clear();
+                    nextRow = 0;
+                }
+            }
+        } finally {
+            view.setSliceY(keepSlice);
+        }
+    }
+
+    /^* Draws the layers below the slice into {@code color} and {@code depth}, as {@code viewMatrix} sees them. ^/
+    public void draw(GpuTextureView color, GpuTextureView depth, Matrix4f viewMatrix, Vector3f eye) {
+        // Re-sort see-through faces once the eye has moved far enough to change their order. From
+        // far away that takes a bigger move, which keeps a spinning preview of a big structure
+        // from re-sorting every frame.
+        float fromCentre = eye.distance(view.size().getX() / 2f, view.size().getY() / 2f, view.size().getZ() / 2f);
+        float threshold = Math.max(1.5f, fromCentre * 0.04f);
+        if (Float.isNaN(sortedFrom.x()) || sortedFrom.distanceSquared(eye) > threshold * threshold) {
+            resort(eye);
+        }
+        int slice = view.sliceY();
+        boolean sliced = slice < view.size().getY();
+        if (sliced && capY != slice - 1) {
+            cap.forEach(this::closePiece);
+            cap = List.of(tesselate(slice - 1, 0, Long.MAX_VALUE, eye));
+            capY = slice - 1;
+        }
+        int fullLayers = Math.min(layers.size(), sliced ? slice - 1 : slice);
+        // The cap, when there is one, is the layer straight above the full ones.
+        int drawn = fullLayers + (sliced && layers.size() >= slice - 1 ? 1 : 0);
+
+        Minecraft minecraft = Minecraft.getInstance();
+        GpuBufferSlice transforms = RenderSystem.getDynamicUniforms()
+                .writeTransform(viewMatrix, new Vector4f(1f, 1f, 1f, 1f), new Vector3f(), new Matrix4f());
+        GpuTextureView atlas = minecraft.getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS).getTextureView();
+        // Made ready before drawing starts, as making it longer can't happen while a draw is open.
+        RenderSystem.AutoStorageIndexBuffer quads = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+        GpuBuffer quadIndices = quads.getBuffer(Math.max(6, sharedIndices));
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
+                .createRenderPass(() -> "Just Enough Structures preview", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
+            RenderSystem.bindDefaultUniforms(pass);
+            pass.setUniform("DynamicTransforms", transforms);
+            // Each smaller copy of a texture sampled to the nearest pixel, as the game's own textures
+            // are made to be. Blended within one, a flower's edges went see-through, and far away
+            // most flowers vanished.
+            pass.bindTexture("Sampler0", atlas, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST, true));
+            pass.bindTexture("Sampler2", minecraft.gameRenderer.lightmap(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+            for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
+                if (!anyOf(layer, fullLayers, drawn)) {
+                    continue;
+                }
+                pass.setPipeline(pipeline(layer));
+                if (layer == ChunkSectionLayer.TRANSLUCENT) {
+                    // See-through layers furthest from the eye first, so nearer ones blend over them
+                    // from below as well as above, and the same for the pieces of each layer.
+                    farthestFirst(drawn, (int) Math.floor(eye.y()), y -> {
+                        List<Piece> pieces = layer(y, fullLayers);
+                        farthestFirst(pieces.size(), pieceAt(pieces, eye.z()),
+                                i -> drawBuffer(pass, pieces.get(i).buffers().get(layer), quadIndices, quads.type()));
+                    });
+                } else {
+                    for (int y = 0; y < drawn; y++) {
+                        for (Piece piece : layer(y, fullLayers)) {
+                            drawBuffer(pass, piece.buffers().get(layer), quadIndices, quads.type());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // The game's pipelines for blocks drawn on their own, rather than as part of a chunk: the same
+    // shaders, without needing the structure cut into chunk-sized sections.
+    private static RenderPipeline pipeline(ChunkSectionLayer layer) {
+        return switch (layer) {
+            case SOLID -> RenderPipelines.SOLID_BLOCK;
+            case CUTOUT -> RenderPipelines.CUTOUT_BLOCK;
+            case TRANSLUCENT -> RenderPipelines.TRANSLUCENT_BLOCK;
+        };
+    }
+
+    private boolean anyOf(ChunkSectionLayer layer, int fullLayers, int drawn) {
+        for (int y = 0; y < drawn; y++) {
+            for (Piece piece : layer(y, fullLayers)) {
+                if (piece.buffers().containsKey(layer)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private List<Piece> layer(int y, int fullLayers) {
+        return y < fullLayers ? layers.get(y) : cap;
+    }
+
+    /^* Which of a layer's pieces has the row {@code z} in it, or the nearest one. ^/
+    private static int pieceAt(List<Piece> pieces, float z) {
+        for (int i = 0; i < pieces.size(); i++) {
+            if (z < pieces.get(i).lastRow()) {
+                return i;
+            }
+        }
+        return pieces.size() - 1;
+    }
+
+    /^* Calls {@code draw} with 0 to {@code count - 1}, furthest from {@code nearest} first. ^/
+    private static void farthestFirst(int count, int nearest, IntConsumer draw) {
+        nearest = Math.max(0, Math.min(count - 1, nearest));
+        int low = 0;
+        int high = count - 1;
+        while (low <= high) {
+            // Whichever end is further goes next.
+            if (nearest - low >= high - nearest) {
+                draw.accept(low++);
+            } else {
+                draw.accept(high--);
+            }
+        }
+    }
+
+    private static void drawBuffer(RenderPass pass, Buffer buffer, GpuBuffer quadIndices, VertexFormat.IndexType quadType) {
+        if (buffer == null) {
+            return;
+        }
+        pass.setVertexBuffer(0, buffer.vertices());
+        if (buffer.indices() != null) {
+            pass.setIndexBuffer(buffer.indices(), buffer.indexType());
+        } else {
+            pass.setIndexBuffer(quadIndices, quadType);
+        }
+        pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+    }
+
+    /^*
+     * Builds layer {@code y} from row {@code fromRow}, a row at a time until the end of the layer or
+     * {@code deadline}, whichever comes first, but always at least one row.
+     ^/
+    private Piece tesselate(int y, int fromRow, long deadline, Vector3f eye) {
+        Minecraft minecraft = Minecraft.getInstance();
+        BlockStateModelSet models = minecraft.getModelManager().getBlockStateModelSet();
+        ModelBlockRenderer blocks = new ModelBlockRenderer(minecraft.options.ambientOcclusion().get(), true, minecraft.getBlockColors());
+        FluidRenderer fluids = new FluidRenderer(minecraft.getModelManager().getFluidStateModelSet());
+        boolean cutoutLeaves = minecraft.options.cutoutLeaves().get();
+        Map<ChunkSectionLayer, BufferBuilder> started = new EnumMap<>(ChunkSectionLayer.class);
+        // Each quad goes in the layer its model says, as the game builds chunks, and leaves that
+        // the options draw solid go in the solid one.
+        BlockQuadOutput output = (qx, qy, qz, quad, instance) -> begin(started, quad.materialInfo().layer()).putBlockBakedQuad(qx, qy, qz, quad, instance);
+        BlockQuadOutput solid = (qx, qy, qz, quad, instance) -> begin(started, ChunkSectionLayer.SOLID).putBlockBakedQuad(qx, qy, qz, quad, instance);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+
+        int z = fromRow;
+        BlockModelLighter.enableCaching();
+        try {
+            while (z < view.size().getZ()) {
+                for (int x = 0; x < view.size().getX(); x++) {
+                    pos.set(x, y, z);
+                    BlockState state = view.getBlockState(pos);
+                    if (state.isAir()) {
+                        continue;
+                    }
+                    FluidState fluid = state.getFluidState();
+                    if (!fluid.isEmpty()) {
+                        int fx = x;
+                        int fz = z;
+                        fluids.tesselate(view, pos, layer -> new OffsetConsumer(begin(started, layer)).at(fx, y, fz), state, fluid);
+                    }
+                    if (state.getRenderShape() == RenderShape.MODEL) {
+                        blocks.tesselateBlock(ModelBlockRenderer.forceOpaque(cutoutLeaves, state) ? solid : output,
+                                x, y, z, view, pos, state, models.get(state), state.getSeed(pos));
+                    }
+                }
+                z++;
+                if (deadline != Long.MAX_VALUE && System.nanoTime() >= deadline) {
+                    break;
+                }
+            }
+        } finally {
+            BlockModelLighter.clearCache();
+        }
+
+        Map<ChunkSectionLayer, Buffer> out = new EnumMap<>(ChunkSectionLayer.class);
+        for (Map.Entry<ChunkSectionLayer, BufferBuilder> e : started.entrySet()) {
+            try (MeshData mesh = e.getValue().build()) {
+                if (mesh == null) {
+                    continue;
+                }
+                // Sorted into the same buffer the mesh was built in, as the game sorts chunk sections.
+                MeshData.SortState sort = e.getKey() == ChunkSectionLayer.TRANSLUCENT
+                        ? mesh.sortQuads(BUILDERS.get(ChunkSectionLayer.TRANSLUCENT), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
+                Buffer buffer = Buffer.upload(mesh, sort);
+                out.put(e.getKey(), buffer);
+                if (sort != null) {
+                    translucent.add(buffer);
+                } else if (buffer.indices() == null) {
+                    sharedIndices = Math.max(sharedIndices, buffer.indexCount());
+                }
+            }
+        }
+        return new Piece(z, out);
+    }
+
+    /^* Re-sorts every transparent layer from {@code eye}, the way the game does for chunk sections. ^/
+    private void resort(Vector3f eye) {
+        sortedFrom.set(eye);
+        if (translucent.isEmpty()) {
+            return;
+        }
+        VertexSorting sorting = VertexSorting.byDistance(eye.x(), eye.y(), eye.z());
+        ByteBufferBuilder target = BUILDERS.computeIfAbsent(ChunkSectionLayer.TRANSLUCENT, k -> new ByteBufferBuilder(256 * 1024));
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        for (Buffer buffer : translucent) {
+            try (ByteBufferBuilder.Result indices = buffer.sort().buildSortedIndexBuffer(target, sorting)) {
+                if (indices != null) {
+                    encoder.writeToBuffer(buffer.indices().slice(), indices.byteBuffer());
+                }
+            }
+        }
+    }
+
+    private void closePiece(Piece piece) {
+        for (Buffer buffer : piece.buffers().values()) {
+            translucent.remove(buffer);
+            buffer.close();
+        }
+    }
+
+    /^* Part of a layer, built in one go: its rows up to {@code lastRow} (not included). ^/
+    private record Piece(int lastRow, Map<ChunkSectionLayer, Buffer> buffers) {
+    }
+
+    /^*
+     * One kind of layer of a piece, on the GPU. Only see-through ones have indices of their own, as
+     * they're sorted from the eye; the rest share the game's list of indices for drawing quads.
+     ^/
+    private record Buffer(GpuBuffer vertices, GpuBuffer indices, VertexFormat.IndexType indexType, int indexCount,
+                          MeshData.SortState sort) implements AutoCloseable {
+        static Buffer upload(MeshData mesh, MeshData.SortState sort) {
+            GpuDevice device = RenderSystem.getDevice();
+            GpuBuffer vertices = device.createBuffer(() -> "Just Enough Structures preview vertices", GpuBuffer.USAGE_VERTEX, mesh.vertexBuffer());
+            GpuBuffer indices = mesh.indexBuffer() == null ? null : device.createBuffer(() -> "Just Enough Structures preview indices",
+                    GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, mesh.indexBuffer());
+            return new Buffer(vertices, indices, mesh.drawState().indexType(), mesh.drawState().indexCount(), sort);
+        }
+
+        @Override
+        public void close() {
+            vertices.close();
+            if (indices != null) {
+                indices.close();
+            }
+        }
+    }
+
+    private static BufferBuilder begin(Map<ChunkSectionLayer, BufferBuilder> started, ChunkSectionLayer layer) {
+        return started.computeIfAbsent(layer, l -> new BufferBuilder(BUILDERS.computeIfAbsent(l, k -> new ByteBufferBuilder(256 * 1024)),
+                VertexFormat.Mode.QUADS, l.vertexFormat()));
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        layers.forEach(layer -> layer.forEach(this::closePiece));
+        layers.clear();
+        current.forEach(this::closePiece);
+        current.clear();
+        cap.forEach(this::closePiece);
+        cap = List.of();
+        translucent.clear();
+    }
+}
+*///?} else {
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -413,3 +782,4 @@ public final class SnapshotMesh implements AutoCloseable {
         translucent.clear();
     }
 }
+//?}

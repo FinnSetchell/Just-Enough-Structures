@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
-import com.finndog.justenoughstructures.client.render.StructureViewport;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -149,7 +148,7 @@ final class StructureList {
                 out.add(new Row(LOOT_HEADER, items.size(), null, null, null, top, HEADER));
                 top += HEADER;
                 for (Item item : items) {
-                    out.add(new Row(null, FoundIn.structuresFor(item).size(), null, item.getDescription().getString(), item, top, ROW));
+                    out.add(new Row(null, FoundIn.structuresFor(item).size(), null, StructureNames.item(item).getString(), item, top, ROW));
                     top += ROW;
                 }
             }
@@ -268,10 +267,7 @@ final class StructureList {
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.LABEL_SOFT, false);
                 continue;
             }
-            int thumbnail = Thumbnails.textureId(row.entry().id());
-            if (thumbnail >= 0) {
-                StructureViewport.drawTexture(g, thumbnail, x + 1, top + 1, 16, 16);
-            } else {
+            if (!Thumbnails.draw(g, row.entry().id(), x + 1, top + 1, 16)) {
                 g.renderItem(ICON, x + 1, top + 1);
             }
             // The star: always there on favourites, and on the row under the mouse to add one.

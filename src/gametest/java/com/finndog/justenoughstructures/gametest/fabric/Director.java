@@ -10,8 +10,14 @@ import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.Screenshot;
+import com.finndog.justenoughstructures.client.screen.Gui;
 import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.glfw.GLFW;
+//? if >=26.1 {
+/*import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonInfo;
+*///?}
 
 /**
  * Plays a script of mouse and keyboard actions one frame at a time, through Minecraft's own input
@@ -68,6 +74,7 @@ final class Director {
     private static Method onPress;
     private static Method onScroll;
     private static Method charTyped;
+    private static Method keyPress;
 
     Director(Minecraft mc, String recordTo) {
         this.mc = mc;
@@ -99,8 +106,7 @@ final class Director {
                 return;
             }
             consumedRenders = renders;
-            Screenshot.grab(mc.gameDirectory, String.format("%s/f_%04d.png", recordTo, recorded++), mc.getMainRenderTarget(), m -> {
-            });
+            grab(String.format("%s/f_%04d.png", recordTo, recorded++));
         }
         clickAge++;
         if (current == null) {
@@ -121,8 +127,8 @@ final class Director {
         if (!showCursor) {
             return;
         }
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 800);
+        Gui.push(g);
+        Gui.lift(g, 800);
         if (clickAge < 8) {
             int r = 3 + clickAge * 2;
             int alpha = (int) (160 * (1f - clickAge / 8f)) << 24;
@@ -141,7 +147,7 @@ final class Director {
                 }
             }
         }
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     private static void ring(GuiGraphics g, int cx, int cy, int r, int color) {
@@ -164,12 +170,20 @@ final class Director {
         clickX = (int) Math.round(cursorX);
         clickY = (int) Math.round(cursorY);
         clickAge = 0;
-        call("onPress", mc.mouseHandler, window(), button, GLFW.GLFW_PRESS, 0);
+        button(button, GLFW.GLFW_PRESS);
     }
 
     void release(int button) {
         pressed = false;
-        call("onPress", mc.mouseHandler, window(), button, GLFW.GLFW_RELEASE, 0);
+        button(button, GLFW.GLFW_RELEASE);
+    }
+
+    private void button(int button, int action) {
+        //? if >=26.1 {
+        /*call("onPress", mc.mouseHandler, window(), new MouseButtonInfo(button, 0), action);
+        *///?} else {
+        call("onPress", mc.mouseHandler, window(), button, action, 0);
+        //?}
     }
 
     void scroll(double amount) {
@@ -177,22 +191,44 @@ final class Director {
     }
 
     void key(int key) {
+        //? if >=26.1 {
+        /*call("keyPress", mc.keyboardHandler, window(), GLFW.GLFW_PRESS, new KeyEvent(key, 0, 0));
+        call("keyPress", mc.keyboardHandler, window(), GLFW.GLFW_RELEASE, new KeyEvent(key, 0, 0));
+        *///?} else {
         mc.keyboardHandler.keyPress(window(), key, 0, GLFW.GLFW_PRESS, 0);
         mc.keyboardHandler.keyPress(window(), key, 0, GLFW.GLFW_RELEASE, 0);
+        //?}
     }
 
     void typeChar(char c) {
+        //? if >=26.1 {
+        /*call("charTyped", mc.keyboardHandler, window(), new CharacterEvent(c));
+        *///?} else {
         call("charTyped", mc.keyboardHandler, window(), (int) c, 0);
+        //?}
     }
 
     void screenshot(String name) {
         new File(mc.gameDirectory, "screenshots/review").mkdirs();
-        Screenshot.grab(mc.gameDirectory, "review/" + name + ".png", mc.getMainRenderTarget(), m -> {
+        grab("review/" + name + ".png");
+    }
+
+    private void grab(String file) {
+        //? if >=26.1 {
+        /*Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), 1, m -> {
         });
+        *///?} else {
+        Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), m -> {
+        });
+        //?}
     }
 
     private long window() {
+        //? if >=26.1 {
+        /*return mc.getWindow().handle();
+        *///?} else {
         return mc.getWindow().getWindow();
+        //?}
     }
 
     private double scaleX() {
@@ -207,10 +243,18 @@ final class Director {
         try {
             if (onMove == null) {
                 onMove = MouseHandler.class.getDeclaredMethod("onMove", long.class, double.class, double.class);
-                onPress = MouseHandler.class.getDeclaredMethod("onPress", long.class, int.class, int.class, int.class);
                 onScroll = MouseHandler.class.getDeclaredMethod("onScroll", long.class, double.class, double.class);
+                //? if >=26.1 {
+                /*// 26.1 hands the game each button and key as an event, and keeps the key handler to itself.
+                onPress = MouseHandler.class.getDeclaredMethod("onButton", long.class, MouseButtonInfo.class, int.class);
+                charTyped = KeyboardHandler.class.getDeclaredMethod("charTyped", long.class, CharacterEvent.class);
+                keyPress = KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, KeyEvent.class);
+                *///?} else {
+                onPress = MouseHandler.class.getDeclaredMethod("onPress", long.class, int.class, int.class, int.class);
                 charTyped = KeyboardHandler.class.getDeclaredMethod("charTyped", long.class, int.class, int.class);
-                for (Method m : new Method[]{onMove, onPress, onScroll, charTyped}) {
+                keyPress = onPress;
+                //?}
+                for (Method m : new Method[]{onMove, onPress, onScroll, charTyped, keyPress}) {
                     m.setAccessible(true);
                 }
             }
@@ -219,6 +263,7 @@ final class Director {
                 case "onPress" -> onPress;
                 case "onScroll" -> onScroll;
                 case "charTyped" -> charTyped;
+                case "keyPress" -> keyPress;
                 default -> throw new IllegalArgumentException(name);
             };
             method.invoke(target, args);

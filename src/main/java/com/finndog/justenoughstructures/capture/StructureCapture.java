@@ -1,6 +1,9 @@
 package com.finndog.justenoughstructures.capture;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Levels;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -60,6 +63,9 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.ticks.ProtoChunkTicks;
+//? if >=26.1 {
+/*import net.minecraft.world.level.chunk.PalettedContainerFactory;
+*///?}
 
 /**
  * Generates a structure with its own code and records what it placed.
@@ -115,7 +121,7 @@ public final class StructureCapture {
         long started = System.nanoTime();
         List<Component> attempts = new ArrayList<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
-        Optional<Holder.Reference<Structure>> holder = registry.getHolder(ResourceKey.create(Registries.STRUCTURE, structureId));
+        Optional<Holder.Reference<Structure>> holder = Regs.holder(registry, ResourceKey.create(Registries.STRUCTURE, structureId));
         if (holder.isEmpty()) {
             return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.unknown_structure", structureId.toString()), attempts, elapsed(started));
         }
@@ -126,12 +132,12 @@ public final class StructureCapture {
             try {
                 StructureSnapshot snapshot;
                 try {
-                    snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
+                    snapshot = captureOn(server, structureId, holder.get(), terrain, seed, attempts);
                 } catch (ConcurrentModificationException e) {
                     // The world's own generation threads can still race us over those caches. It
                     // says nothing about the terrain, so try the same one again.
                     attempts.add(Component.translatable("screen.justenoughstructures.attempt.retrying", terrain.name()));
-                    snapshot = captureOn(server, structureId, structure, terrain, seed, attempts);
+                    snapshot = captureOn(server, structureId, holder.get(), terrain, seed, attempts);
                 }
                 if (snapshot != null) {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
@@ -179,7 +185,7 @@ public final class StructureCapture {
         return List.of(SandboxTerrain.LAND, SandboxTerrain.OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.VOID);
     }
 
-    private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Structure structure,
+    private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
                                                SandboxTerrain terrain, long seed, List<Component> attempts) {
         ServerLevel level = levelFor(server, terrain);
         // Structure code that reaches past the sandbox to the real world gets the sandbox anyway,
@@ -192,15 +198,21 @@ public final class StructureCapture {
         }
     }
 
-    private static StructureSnapshot captureGuarded(MinecraftServer server, ResourceLocation structureId, Structure structure, SandboxTerrain terrain,
+    private static StructureSnapshot captureGuarded(MinecraftServer server, ResourceLocation structureId, Holder<Structure> holder, SandboxTerrain terrain,
                                                     long seed, List<Component> attempts, ServerLevel level, RealWorldGuard.Sandbox guard) {
+        Structure structure = holder.value();
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
         Holder<Biome> biome = biomeFor(structure, terrain, biomes);
         FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
 
+        //? if >=26.1 {
+        /*StructureStart start = structure.generate(holder, level.dimension(), server.registryAccess(), generator, biomeSource,
+                level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+        *///?} else {
         StructureStart start = structure.generate(server.registryAccess(), generator, biomeSource,
                 level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+        //?}
         if (!start.isValid()) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.no_start", terrain.name()));
             return null;
@@ -248,8 +260,8 @@ public final class StructureCapture {
                     WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(RandomSupport.generateUniqueSeed()));
                     long decorationSeed = random.setDecorationSeed(seed, pos.getMinBlockX(), pos.getMinBlockZ());
                     random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
-                    BoundingBox writable = new BoundingBox(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
-                            pos.getMaxBlockX(), level.getMaxBuildHeight() - 1, pos.getMaxBlockZ());
+                    BoundingBox writable = new BoundingBox(pos.getMinBlockX(), Levels.minY(level), pos.getMinBlockZ(),
+                            pos.getMaxBlockX(), Levels.maxY(level), pos.getMaxBlockZ());
                     region.placing(pos);
                     start.placeInChunk(region, structureManager, generator, random, writable, pos);
                 }
@@ -292,12 +304,12 @@ public final class StructureCapture {
      */
     public static <T> T inSandbox(ServerLevel level, ChunkPos centre, Supplier<T> action) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
-        Holder<Biome> biome = biomes.getHolderOrThrow(Biomes.PLAINS);
+        Holder<Biome> biome = Regs.holderOrThrow(biomes, Biomes.PLAINS);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(new FixedBiomeSource(biome), SandboxTerrain.LAND, level);
         List<ChunkAccess> chunks = new ArrayList<>();
         for (int dz = -1; dz <= 1; dz++) {
             for (int dx = -1; dx <= 1; dx++) {
-                chunks.add(sandboxChunk(new ChunkPos(centre.x + dx, centre.z + dz), level, generator, biomes, biome));
+                chunks.add(sandboxChunk(new ChunkPos(Levels.chunkX(centre) + dx, Levels.chunkZ(centre) + dz), level, generator, biomes, biome));
             }
         }
         CaptureRegion region = new CaptureRegion(level, chunks, 1);
@@ -342,7 +354,7 @@ public final class StructureCapture {
         if (any != null) {
             return any;
         }
-        return biomes.getHolderOrThrow(switch (terrain.kind()) {
+        return Regs.holderOrThrow(biomes, switch (terrain.kind()) {
             case NETHER -> Biomes.NETHER_WASTES;
             case END -> Biomes.THE_END;
             case OCEAN -> Biomes.OCEAN;
@@ -361,9 +373,16 @@ public final class StructureCapture {
             for (int y = 1; y < 16 && uniform; y++) {
                 uniform = terrain.stateAt(minY + y) == bottom;
             }
+            //? if >=26.1 {
+            /*PalettedContainerFactory containers = level.palettedContainerFactory();
+            LevelChunkSection section = new LevelChunkSection(
+                    new PalettedContainer<>(uniform ? bottom : Blocks.AIR.defaultBlockState(), containers.blockStatesStrategy()),
+                    new PalettedContainer<>(biome, containers.biomeStrategy()));
+            *///?} else {
             LevelChunkSection section = new LevelChunkSection(
                     new PalettedContainer<>(Block.BLOCK_STATE_REGISTRY, uniform ? bottom : Blocks.AIR.defaultBlockState(), PalettedContainer.Strategy.SECTION_STATES),
                     new PalettedContainer<>(biomes.asHolderIdMap(), biome, PalettedContainer.Strategy.SECTION_BIOMES));
+            //?}
             if (!uniform) {
                 for (int y = 0; y < 16; y++) {
                     BlockState state = terrain.stateAt(minY + y);
@@ -379,7 +398,12 @@ public final class StructureCapture {
             }
             sections[i] = section;
         }
+        //? if >=26.1 {
+        /*ProtoChunk chunk = new ProtoChunk(pos, UpgradeData.EMPTY, sections, new ProtoChunkTicks<>(), new ProtoChunkTicks<>(), level,
+                level.palettedContainerFactory(), null);
+        *///?} else {
         ProtoChunk chunk = new ProtoChunk(pos, UpgradeData.EMPTY, sections, new ProtoChunkTicks<>(), new ProtoChunkTicks<>(), level, biomes, null);
+        //?}
         // FEATURES is the step structures are placed in. Anything later wants a light engine.
         //? if >=1.21 {
         /*chunk.setPersistedStatus(ChunkStatus.FEATURES);
@@ -540,12 +564,12 @@ public final class StructureCapture {
         for (ChunkAccess chunk : chunks) {
             for (CompoundTag entity : ((ProtoChunk) chunk).getEntities()) {
                 CompoundTag copy = entity.copy();
-                ListTag pos = copy.getList("Pos", Tag.TAG_DOUBLE);
+                ListTag pos = Nbt.list(copy, "Pos", Tag.TAG_DOUBLE);
                 if (pos.size() == 3) {
                     ListTag local = new ListTag();
-                    local.add(DoubleTag.valueOf(pos.getDouble(0) - minX));
-                    local.add(DoubleTag.valueOf(pos.getDouble(1) - minY));
-                    local.add(DoubleTag.valueOf(pos.getDouble(2) - minZ));
+                    local.add(DoubleTag.valueOf(Nbt.getDouble(pos, 0) - minX));
+                    local.add(DoubleTag.valueOf(Nbt.getDouble(pos, 1) - minY));
+                    local.add(DoubleTag.valueOf(Nbt.getDouble(pos, 2) - minZ));
                     copy.put("Pos", local);
                 }
                 entities.add(copy);

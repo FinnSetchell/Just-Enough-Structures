@@ -1,5 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.ArrayList;
@@ -68,14 +70,14 @@ final class SpawnerPopup extends SidePopup {
     /** "Up to 4 at a time, every 10 to 40 seconds, while a player is within 16 blocks", from a spawner's settings. */
     private static Component timing(CompoundTag tag) {
         for (String key : new String[]{"MinSpawnDelay", "MaxSpawnDelay", "SpawnCount", "RequiredPlayerRange"}) {
-            if (!tag.contains(key, Tag.TAG_ANY_NUMERIC)) {
+            if (!Nbt.hasNumber(tag, key)) {
                 return null;
             }
         }
-        int min = tag.getShort("MinSpawnDelay");
-        int max = tag.getShort("MaxSpawnDelay");
-        int spawnCount = tag.getShort("SpawnCount");
-        int range = tag.getShort("RequiredPlayerRange");
+        int min = Nbt.getShort(tag, "MinSpawnDelay");
+        int max = Nbt.getShort(tag, "MaxSpawnDelay");
+        int spawnCount = Nbt.getShort(tag, "SpawnCount");
+        int range = Nbt.getShort(tag, "RequiredPlayerRange");
         return min == max
                 ? Component.translatable("screen.justenoughstructures.spawner.timing_exact", spawnCount, seconds(min), range)
                 : Component.translatable("screen.justenoughstructures.spawner.timing", spawnCount, seconds(min), seconds(max), range);
@@ -149,11 +151,11 @@ final class SpawnerPopup extends SidePopup {
         int body = listHeight();
 
         // The chest's frame: its title bar, a plain strip for the list, then its bottom edge.
-        g.blit(TEXTURE, x, y, 0, 0, WIDTH, 17);
+        Gui.blit(g, TEXTURE, x, y, 0, 0, WIDTH, 17);
         for (int filled = 0; filled < body; filled += 12) {
-            g.blit(TEXTURE, x, y + 17 + filled, 0, 127, WIDTH, Math.min(12, body - filled));
+            Gui.blit(g, TEXTURE, x, y + 17 + filled, 0, 127, WIDTH, Math.min(12, body - filled));
         }
-        g.blit(TEXTURE, x, y + 17 + body, 0, 215, WIDTH, 7);
+        Gui.blit(g, TEXTURE, x, y + 17 + body, 0, 215, WIDTH, 7);
         renderTitle(g, font);
 
         renderList(g, font, mouseX, mouseY, y + 17, body);
@@ -197,7 +199,7 @@ final class SpawnerPopup extends SidePopup {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 boolean over = mouseX >= left && mouseX < right && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
                 ResourceLocation id = ResourceLocation.tryParse(mob.id());
-                EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
+                EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? Regs.value(BuiltInRegistries.ENTITY_TYPE, id) : null;
                 ItemStack icon = type == null ? SPAWNER : InfoPanel.entityIcon(type);
                 Component name = StructureNames.mob(mob.id());
                 OddsList.drawRow(g, font, icon, name.getString(), "", mob.chance(), left, cy, right - 1, over);
@@ -237,19 +239,19 @@ final class SpawnerPopup extends SidePopup {
             }
             hoveredTip = enabled ? List.of(Component.translatable("screen.justenoughstructures.tools.open_spawner")) : pickOne();
         }
-        g.pose().pushPose();
-        g.pose().translate(left + 1, top + 1, 0);
-        g.pose().scale(0.75f, 0.75f, 1);
+        Gui.push(g);
+        Gui.translate(g, left + 1, top + 1);
+        Gui.scale(g, 0.75f);
         g.renderItem(SPAWNER, 0, 0);
-        g.pose().popPose();
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 200);
-        g.blit(PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
+        Gui.pop(g);
+        Gui.push(g);
+        Gui.lift(g, 200);
+        Gui.blit(g, PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
         if (!enabled) {
             // The panel's own grey over the spawner and wrench, so they show through faintly.
             g.fill(left, top, right, top + ICON, 0xA0C6C6C6);
         }
-        g.pose().popPose();
+        Gui.pop(g);
         if (enabled) {
             links.put(Action.TOOLS, new int[]{left, top, ICON, ICON});
         }

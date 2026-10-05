@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -60,6 +61,20 @@ public final class CaptureTests {
     }
 
     public static void capturesVanillaStructure(GameTestHelper helper, String name) {
+        checkVanillaStructure(helper, name);
+        helper.succeed();
+    }
+
+    /** Every vanilla structure in one test, one a tick, for 26.1, which has no way to make a test for each. */
+    public static void capturesEveryVanillaStructure(GameTestHelper helper) {
+        for (int i = 0; i < VANILLA.size(); i++) {
+            String name = VANILLA.get(i);
+            helper.runAtTickTime(i + 1, () -> checkVanillaStructure(helper, name));
+        }
+        helper.runAtTickTime(VANILLA.size() + 1, helper::succeed);
+    }
+
+    private static void checkVanillaStructure(GameTestHelper helper, String name) {
         ResourceLocation id = Ids.of("minecraft", name);
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), id, SEED);
         if (!result.succeeded()) {
@@ -79,7 +94,6 @@ public final class CaptureTests {
             helper.assertTrue(found.stream().anyMatch(expected::contains),
                     name + " should have a container using one of " + expected + " but had " + found);
         }
-        helper.succeed();
     }
 
     /** Shipwreck NBT has no loot tables. They're set by vanilla code from data markers during placement. */
@@ -125,9 +139,9 @@ public final class CaptureTests {
     private static Set<Set<String>> pools(StructureSnapshot snapshot) {
         Set<Set<String>> out = new HashSet<>();
         for (CompoundTag tag : snapshot.blockEntities()) {
-            ListTag pool = tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND);
+            ListTag pool = Nbt.list(tag, SpawnerPools.TAG, Tag.TAG_COMPOUND);
             if (!pool.isEmpty()) {
-                out.add(pool.stream().map(t -> ((CompoundTag) t).getString("entity")).collect(Collectors.toSet()));
+                out.add(pool.stream().map(t -> Nbt.string((CompoundTag) t, "entity")).collect(Collectors.toSet()));
             }
         }
         return out;

@@ -222,10 +222,10 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
         Gui.endScissor(g);
         super.render(g, mouseX, mouseY, partialTick);
         navBar.render(g, font, mouseX, mouseY, partialTick);
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 600);
+        Gui.push(g);
+        Gui.lift(g, 600);
         Gui.clippedTooltip(g, font, mouseX, mouseY);
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     @Override

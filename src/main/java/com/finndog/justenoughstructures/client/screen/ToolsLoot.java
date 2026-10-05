@@ -381,10 +381,10 @@ final class ToolsLoot extends ToolsSection {
         if (hoveredRow != null) {
             List<Component> lines = new ArrayList<>(net.minecraft.client.gui.screens.Screen.getTooltipFromItem(net.minecraft.client.Minecraft.getInstance(), hoveredRow.example()));
             lines.addAll(OddsList.tooltip(hoveredRow, hoveredChance, 1, Component.translatable("screen.justenoughstructures.container").getString()));
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 600);
+            Gui.push(g);
+            Gui.lift(g, 600);
             g.renderComponentTooltip(font, lines, mouseX, mouseY);
-            g.pose().popPose();
+            Gui.pop(g);
         }
     }
 }

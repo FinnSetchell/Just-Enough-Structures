@@ -2,7 +2,6 @@ package com.finndog.justenoughstructures.client.screen;
 
 import java.util.function.Supplier;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -12,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
  * A small square button showing an item, with its label as a tooltip. A toggle that's on is drawn
  * pressed in, the way JEI shows its own toggles.
  */
-final class IconButton extends Button {
+final class IconButton extends JesButton {
     private interface Icon {
         void draw(GuiGraphics g, int x, int y);
     }
@@ -26,11 +25,11 @@ final class IconButton extends Button {
 
     /** A plain 16x16 texture, for items that would animate, like a recovery compass with nowhere to point. */
     IconButton(int x, int y, ResourceLocation texture, Component label, OnPress onPress) {
-        this(x, y, (g, ix, iy) -> g.blit(texture, ix, iy, 0, 0, 16, 16, 16, 16), null, label, onPress);
+        this(x, y, (g, ix, iy) -> Gui.blit(g, texture, ix, iy, 0, 0, 16, 16, 16, 16), null, label, onPress);
     }
 
     private IconButton(int x, int y, Icon icon, Supplier<Boolean> on, Component label, OnPress onPress) {
-        super(x, y, 20, 20, Component.empty(), onPress, DEFAULT_NARRATION);
+        super(x, y, 20, 20, Component.empty(), onPress);
         this.icon = icon;
         this.on = on;
         setTooltip(Tooltip.create(label));
@@ -44,10 +43,10 @@ final class IconButton extends Button {
     protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         if (on != null && on.get()) {
             Gui.pressedButton(g, getX(), getY(), width, height, isHoveredOrFocused());
-            g.pose().pushPose();
-            g.pose().translate(0.5f, 0.5f, 0);
+            Gui.push(g);
+            Gui.translate(g, 0.5f, 0.5f);
             icon.draw(g, getX() + 2, getY() + 2);
-            g.pose().popPose();
+            Gui.pop(g);
             return;
         }
         super.renderWidget(g, mouseX, mouseY, partialTick);

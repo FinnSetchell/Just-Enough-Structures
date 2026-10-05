@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonElement;
@@ -144,11 +145,11 @@ public final class ContainerPatches {
         boolean applied = false;
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (!info.pos().equals(patch.pos()) || info.nbt() == null || !info.nbt().contains("LootTable", Tag.TAG_STRING)
+                if (!info.pos().equals(patch.pos()) || info.nbt() == null || !Nbt.hasString(info.nbt(), "LootTable")
                         || !BuiltInRegistries.BLOCK.getKey(info.state().getBlock()).equals(patch.block())) {
                     continue;
                 }
-                String now = info.nbt().getString("LootTable");
+                String now = Nbt.string(info.nbt(), "LootTable");
                 if (!now.equals(patch.original()) && !now.equals(patch.table().toString())) {
                     JesLog.warnOnce("patch-changed:" + patch.template() + "@" + patch.pos().toShortString(),
                             "The container at {} in {} had its loot table changed by its mod, from {} to {}; using {} as set in the browser",

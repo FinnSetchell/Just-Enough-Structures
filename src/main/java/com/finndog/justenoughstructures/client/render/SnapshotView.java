@@ -1,6 +1,8 @@
 package com.finndog.justenoughstructures.client.render;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
@@ -10,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.Vec3i;
@@ -21,7 +22,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.ColorResolver;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
@@ -31,6 +31,16 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
+//? if >=26.1 {
+/*import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.storage.TagValueInput;
+*///?} else {
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.BlockAndTintGetter;
+//?}
 
 /**
  * A snapshot laid out so the block renderer can read it by position. Anything at or above
@@ -76,7 +86,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         // Loading other mods' entities makes vanilla warn about things like attributes it doesn't know.
         JesLog.quietly(() -> {
             for (CompoundTag tag : snapshot.blockEntities()) {
-                BlockPos pos = new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
+                BlockPos pos = new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z"));
                 try {
                     //? if >=1.21 {
                     /*BlockEntity be = BlockEntity.loadStatic(pos, getBlockState(pos), tag, level.registryAccess());
@@ -88,18 +98,23 @@ public final class SnapshotView implements BlockAndTintGetter {
                         blockEntities.put(pos, be);
                     }
                 } catch (RuntimeException e) {
-                    JesLog.debug("Couldn't recreate block entity {} at {}", tag.getString("id"), pos, e);
+                    JesLog.debug("Couldn't recreate block entity {} at {}", Nbt.string(tag, "id"), pos, e);
                 }
             }
             for (CompoundTag tag : snapshot.entities()) {
                 try {
+                    //? if >=26.1 {
+                    /*EntityType.create(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag), level, EntitySpawnReason.LOAD)
+                            .ifPresent(entity -> {
+                    *///?} else {
                     EntityType.create(tag, level).ifPresent(entity -> {
-                        ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
-                        entity.setPos(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
+                    //?}
+                        ListTag pos = Nbt.list(tag, "Pos", Tag.TAG_DOUBLE);
+                        entity.setPos(Nbt.getDouble(pos, 0), Nbt.getDouble(pos, 1), Nbt.getDouble(pos, 2));
                         entities.add(entity);
                     });
                 } catch (RuntimeException e) {
-                    JesLog.debug("Couldn't recreate entity {}", tag.getString("id"), e);
+                    JesLog.debug("Couldn't recreate entity {}", Nbt.string(tag, "id"), e);
                 }
             }
         });
@@ -210,6 +225,13 @@ public final class SnapshotView implements BlockAndTintGetter {
         return pos.getY() >= sliceY ? null : blockEntities.get(pos);
     }
 
+    //? if >=26.1 {
+    /*// How much darker each side of a block is drawn, as in the overworld.
+    @Override
+    public CardinalLighting cardinalLighting() {
+        return CardinalLighting.DEFAULT;
+    }
+    *///?} else {
     @Override
     public float getShade(Direction direction, boolean shade) {
         if (!shade) {
@@ -222,6 +244,7 @@ public final class SnapshotView implements BlockAndTintGetter {
             case WEST, EAST -> 0.6f;
         };
     }
+    //?}
 
     @Override
     public LevelLightEngine getLightEngine() {
@@ -249,10 +272,17 @@ public final class SnapshotView implements BlockAndTintGetter {
         return size.getY();
     }
 
+    //? if >=1.21.2 {
+    /*@Override
+    public int getMinY() {
+        return 0;
+    }
+    *///?} else {
     @Override
     public int getMinBuildHeight() {
         return 0;
     }
+    //?}
 
     private static Holder<Biome> biomeFor(ClientLevel level, SandboxTerrain terrain) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
@@ -262,6 +292,6 @@ public final class SnapshotView implements BlockAndTintGetter {
             case OCEAN -> Biomes.OCEAN;
             default -> Biomes.PLAINS;
         };
-        return biomes.getHolderOrThrow(key);
+        return Regs.holderOrThrow(biomes, key);
     }
 }

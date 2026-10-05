@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
@@ -40,7 +41,7 @@ final class ToolsChests extends ToolsSection {
     record ChestRef(ResourceLocation structure, long seed, BlockPos pos, boolean entity, String block, ResourceLocation template,
                     BlockPos templatePos, String table, Component title, int size) {
         static ChestRef of(ContainerPatches.Patch patch) {
-            Block block = BuiltInRegistries.BLOCK.get(patch.block());
+            Block block = Regs.value(BuiltInRegistries.BLOCK, patch.block());
             return new ChestRef(null, 0, null, false, patch.block().toString(), patch.template(), patch.pos(), patch.table().toString(),
                     block.getName(), sizeOf(block));
         }
@@ -189,7 +190,7 @@ final class ToolsChests extends ToolsSection {
             ChestRef ref = ChestRef.of(patch);
             boolean isSelected = selected != null && selected.same(patch);
             String name = Component.translatable("screen.justenoughstructures.tools.chest_name", templateName(patch.template()),
-                    BuiltInRegistries.BLOCK.get(patch.block()).getName()).getString();
+                    Regs.value(BuiltInRegistries.BLOCK, patch.block()).getName()).getString();
             String detailText = Component.translatable("screen.justenoughstructures.tools.changed", ToolsOverview.tableName(patch.original()),
                     StructureNames.lootTable(patch.table().toString())).getString();
             if (screen.waiting(PackToolsState.chestKey(patch.template(), patch.pos()))) {
@@ -219,7 +220,7 @@ final class ToolsChests extends ToolsSection {
     private static ItemStack icon(String block) {
         ResourceLocation id = ResourceLocation.tryParse(block);
         if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
-            return new ItemStack(BuiltInRegistries.ITEM.get(id));
+            return new ItemStack(Regs.value(BuiltInRegistries.ITEM, id));
         }
         return CHEST;
     }
@@ -326,10 +327,10 @@ final class ToolsChests extends ToolsSection {
     @Override
     void renderOver(GuiGraphics g, ToolsUi ui, int mouseX, int mouseY) {
         if (!hovered.isEmpty()) {
-            g.pose().pushPose();
-            g.pose().translate(0, 0, 600);
+            Gui.push(g);
+            Gui.lift(g, 600);
             g.renderTooltip(font, hovered, mouseX, mouseY);
-            g.pose().popPose();
+            Gui.pop(g);
         }
     }
 }

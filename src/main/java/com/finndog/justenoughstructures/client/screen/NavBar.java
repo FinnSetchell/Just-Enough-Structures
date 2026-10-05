@@ -3,7 +3,6 @@ package com.finndog.justenoughstructures.client.screen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.Tooltip;
@@ -65,10 +64,10 @@ final class NavBar {
         back.active = backTo != null;
         forward.active = forwardTo != null;
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 500);
-        back.render(g, mouseX, mouseY, partialTick);
-        forward.render(g, mouseX, mouseY, partialTick);
+        Gui.push(g);
+        Gui.lift(g, 500);
+        Gui.render(g, back, mouseX, mouseY, partialTick);
+        Gui.render(g, forward, mouseX, mouseY, partialTick);
         int textY = Y + (HEIGHT - 8) / 2;
         if (backTo != null && written) {
             Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.nav.to", backTo).getString(),
@@ -79,7 +78,7 @@ final class NavBar {
             String text = Gui.clip(font, full, room);
             Gui.drawClipped(g, font, full, forward.getX() - 4 - font.width(text), textY, room, 0xFFDDDDDD, true);
         }
-        g.pose().popPose();
+        Gui.pop(g);
     }
 
     private static boolean same(Component a, Component b) {
@@ -110,7 +109,7 @@ final class NavBar {
             Nav.forward();
             return true;
         }
-        return back.mouseClicked(mouseX, mouseY, button) || forward.mouseClicked(mouseX, mouseY, button);
+        return Gui.click(back, mouseX, mouseY, button) || Gui.click(forward, mouseX, mouseY, button);
     }
 
     /** Backspace goes back and Shift+Backspace forward, unless a text box has the keyboard. */
@@ -142,12 +141,12 @@ final class NavBar {
     }
 
     /** A short button with a chevron before or after its label. */
-    private static final class Arrow extends Button {
+    private static final class Arrow extends JesButton {
         private static final int CHEVRON = 5;
         private final boolean pointsBack;
 
         Arrow(boolean pointsBack, Component label, OnPress onPress) {
-            super(0, Y, 40, HEIGHT, label, onPress, DEFAULT_NARRATION);
+            super(0, Y, 40, HEIGHT, label, onPress);
             this.pointsBack = pointsBack;
         }
 

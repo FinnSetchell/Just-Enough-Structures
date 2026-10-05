@@ -90,6 +90,12 @@ public final class ExplorersCompassLink implements CompassLink {
         }
         ItemStack stack = ItemUtils.getHeldItem(player, ExplorersCompass.EXPLORERS_COMPASS_ITEM);
         ExplorersCompassItem compass = ExplorersCompass.EXPLORERS_COMPASS_ITEM;
+        //? if fabric && >=26.1 {
+        /*// Its build for 26.1 keeps what it found in the compass's components, with nothing to read them by.
+        String saved = stack.isEmpty() ? null : stack.get(ExplorersCompass.STRUCTURE_ID);
+        // A compass whose saved target doesn't read as an id points at nothing.
+        ResourceLocation target = saved == null ? null : ResourceLocation.tryParse(saved);
+        *///?} else {
         ResourceLocation target;
         try {
             target = stack.isEmpty() ? null : compass.getStructureID(stack);
@@ -97,13 +103,20 @@ public final class ExplorersCompassLink implements CompassLink {
             // A compass whose saved target doesn't read as an id points at nothing.
             target = null;
         }
+        //?}
         if (!structure.equals(target)) {
             return null;
         }
         return switch (compass.getState(stack)) {
             case SEARCHING -> Component.translatable("screen.justenoughstructures.compass_searching");
+            //? if fabric && >=26.1 {
+            /*case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format("%,d",
+                    StructureUtils.getHorizontalDistanceToLocation(player, stack.getOrDefault(ExplorersCompass.FOUND_X, 0),
+                            stack.getOrDefault(ExplorersCompass.FOUND_Z, 0))));
+            *///?} else {
             case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format("%,d",
                     StructureUtils.getHorizontalDistanceToLocation(player, compass.getFoundStructureX(stack), compass.getFoundStructureZ(stack))));
+            //?}
             case NOT_FOUND -> Component.translatable("screen.justenoughstructures.compass_not_found");
             case INACTIVE -> null;
         };

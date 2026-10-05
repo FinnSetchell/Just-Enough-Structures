@@ -3,7 +3,6 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
-import com.finndog.justenoughstructures.client.render.StructureViewport;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -102,10 +101,7 @@ final class FoundInPopup {
             if (hovered) {
                 g.fill(x + 7, ry, x + WIDTH - 7, ry + ROW, Gui.ROW_HOVER);
             }
-            int thumbnail = Thumbnails.textureId(row.structure());
-            if (thumbnail >= 0) {
-                StructureViewport.drawTexture(g, thumbnail, x + 9, ry + 2, 18, 18);
-            } else {
+            if (!Thumbnails.draw(g, row.structure(), x + 9, ry + 2, 18)) {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
             double chance = chance(row);

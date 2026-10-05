@@ -1,6 +1,8 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -31,6 +33,10 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
+//? if >=26.1 {
+/*import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.storage.TagValueInput;
+*///?}
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -101,13 +107,13 @@ public final class SpawnerTests {
             // A rule about light, which belongs to the spot rather than the mob, is kept.
             CompoundTag rules = new CompoundTag();
             rules.putInt("block_light_limit", 7);
-            spawnerAt(patched, spawner.pos()).nbt().getCompound("SpawnData").put("custom_spawn_rules", rules);
+            Nbt.compound(spawnerAt(patched, spawner.pos()).nbt(), "SpawnData").put("custom_spawn_rules", rules);
             SpawnerPatches.apply(BASIN, patched);
             CompoundTag now = spawnerAt(patched, spawner.pos()).nbt();
-            CompoundTag entity = now.getCompound("SpawnData").getCompound("entity");
-            helper.assertTrue(entity.size() == 1 && HUSK.equals(entity.getString("id")), "the spawner's mob is " + entity + ", not just a husk");
+            CompoundTag entity = Nbt.compound(Nbt.compound(now, "SpawnData"), "entity");
+            helper.assertTrue(entity.size() == 1 && HUSK.equals(Nbt.string(entity, "id")), "the spawner's mob is " + entity + ", not just a husk");
             helper.assertFalse(now.contains("SpawnPotentials"), "the spawner still has a list to go back to the old mob from");
-            helper.assertTrue(rules.equals(now.getCompound("SpawnData").getCompound("custom_spawn_rules")), "the spawner's rule about light went");
+            helper.assertTrue(rules.equals(Nbt.compound(Nbt.compound(now, "SpawnData"), "custom_spawn_rules")), "the spawner's rule about light went");
             helper.assertTrue(MAGMA_CUBE.equals(SpawnerPatches.mobOf(spawnerAt(basin, spawner.pos()).nbt())), "patching a copy changed the loaded template");
             helper.assertTrue(ContainerPatches.byTemplate().isEmpty(), "a changed spawner made the loot index think a container changed");
 
@@ -115,7 +121,7 @@ public final class SpawnerTests {
             expect(helper, SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, spawner.pos(), block, original, 0, "")), "spawner.saved");
             StructureTemplate emptied = copy(basin);
             SpawnerPatches.apply(BASIN, emptied);
-            helper.assertTrue(spawnerAt(emptied, spawner.pos()).nbt().getCompound("SpawnData").getCompound("entity").isEmpty(),
+            helper.assertTrue(Nbt.compound(Nbt.compound(spawnerAt(emptied, spawner.pos()).nbt(), "SpawnData"), "entity").isEmpty(),
                     "the spawner wasn't emptied");
 
             // The spawner's block changed, the spot is empty, and one entry is nonsense: none of them apply, and nothing throws.
@@ -185,7 +191,7 @@ public final class SpawnerTests {
         CompoundTag onlyMob = spawner.nbt().copy();
         CompoundTag husk = new CompoundTag();
         husk.putString("id", HUSK);
-        onlyMob.getCompound("SpawnData").put("entity", husk);
+        Nbt.compound(onlyMob, "SpawnData").put("entity", husk);
         helper.assertTrue(nextMobs(onlyMob, server.registryAccess()).contains(MAGMA_CUBE), "keeping the list didn't bring the magma cube back, so this test proves nothing");
         helper.succeed();
     }
@@ -281,11 +287,11 @@ public final class SpawnerTests {
             for (int i = 0; i < 4; i++) {
                 StructureSnapshot snapshot = capture(server, arena, CaptureTests.SEED + i);
                 for (CompoundTag tag : snapshot.blockEntities()) {
-                    if (tag.getList(SpawnerPools.TAG, Tag.TAG_COMPOUND).isEmpty()) {
+                    if (Nbt.list(tag, SpawnerPools.TAG, Tag.TAG_COMPOUND).isEmpty()) {
                         continue;
                     }
                     picked++;
-                    BlockPos pos = new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
+                    BlockPos pos = new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z"));
                     helper.assertTrue(snapshot.spawners().stream().noneMatch(s -> s.pos().equals(pos) && s.source() != null),
                             "a spawner whose mob a processor picked, at " + pos + " in " + arena + ", claimed its template");
                 }
@@ -401,14 +407,17 @@ public final class SpawnerTests {
     private static List<String> nextMobs(CompoundTag data, RegistryAccess registries) {
         CompoundTag tag = data.copy();
         SpawnerBlockEntity spawner = new SpawnerBlockEntity(BlockPos.ZERO, Blocks.SPAWNER.defaultBlockState());
-        //? if >=1.21 {
+        //? if >=26.1 {
+        /*spawner.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, tag));
+        ListTag potentials = Nbt.list(spawner.saveWithoutMetadata(registries), "SpawnPotentials", Tag.TAG_COMPOUND);
+        *///?} else if >=1.21 {
         /*spawner.loadWithComponents(tag, registries);
-        ListTag potentials = spawner.saveWithoutMetadata(registries).getList("SpawnPotentials", Tag.TAG_COMPOUND);
+        ListTag potentials = Nbt.list(spawner.saveWithoutMetadata(registries), "SpawnPotentials", Tag.TAG_COMPOUND);
         *///?} else {
         spawner.load(tag);
-        ListTag potentials = spawner.saveWithoutMetadata().getList("SpawnPotentials", Tag.TAG_COMPOUND);
+        ListTag potentials = Nbt.list(spawner.saveWithoutMetadata(), "SpawnPotentials", Tag.TAG_COMPOUND);
         //?}
-        return potentials.stream().map(t -> ((CompoundTag) t).getCompound("data").getCompound("entity").getString("id")).toList();
+        return potentials.stream().map(t -> Nbt.string(Nbt.compound(Nbt.compound((CompoundTag) t, "data"), "entity"), "id")).toList();
     }
 
     private static StructureSnapshot capture(MinecraftServer server, ResourceLocation structure, long seed) {
@@ -434,7 +443,7 @@ public final class SpawnerTests {
     private static StructureTemplate copy(StructureTemplate template) {
         StructureTemplate copy = new StructureTemplate();
         // Saving hands over the template's own block entity tags, so they're copied to keep the two apart.
-        copy.load(BuiltInRegistries.BLOCK.asLookup(), template.save(new CompoundTag()).copy());
+        copy.load(Regs.getter(BuiltInRegistries.BLOCK), template.save(new CompoundTag()).copy());
         return copy;
     }
 

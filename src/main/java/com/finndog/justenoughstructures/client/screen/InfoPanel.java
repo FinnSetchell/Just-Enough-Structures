@@ -1,6 +1,9 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Nbt;
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.Availability;
@@ -64,6 +67,9 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+//? if >=26.1 {
+/*import net.minecraft.world.entity.EntitySpawnReason;
+*///?}
 
 /** The tabs on the right: what the structure is, its loot, its blocks and its mobs. */
 final class InfoPanel {
@@ -596,12 +602,12 @@ final class InfoPanel {
             if (id.startsWith("#")) {
                 ResourceLocation tag = ResourceLocation.tryParse(id.substring(1));
                 if (tag != null) {
-                    registry.getTag(TagKey.create(Registries.BIOME, tag)).ifPresent(set -> set.forEach(out::add));
+                    Regs.tag(registry, TagKey.create(Registries.BIOME, tag)).ifPresent(set -> set.forEach(out::add));
                 }
             } else {
                 ResourceLocation biome = ResourceLocation.tryParse(id);
                 if (biome != null) {
-                    registry.getHolder(ResourceKey.create(Registries.BIOME, biome)).ifPresent(out::add);
+                    Regs.holder(registry, ResourceKey.create(Registries.BIOME, biome)).ifPresent(out::add);
                 }
             }
         }
@@ -610,8 +616,8 @@ final class InfoPanel {
 
     // Some mods leave biomes unnamed, which gets a name made from the id rather than the raw key.
     private static String biomeName(Holder<Biome> biome) {
-        return biome.unwrapKey().map(key -> Component.translatableWithFallback("biome." + key.location().getNamespace() + "." + key.location().getPath(),
-                StructureNames.pretty(key.location().getPath())).getString()).orElse("?");
+        return biome.unwrapKey().map(key -> Component.translatableWithFallback("biome." + Ids.of(key).getNamespace() + "." + Ids.of(key).getPath(),
+                StructureNames.pretty(Ids.of(key).getPath())).getString()).orElse("?");
     }
 
     /** Why a structure won't turn up in new worlds, in a sentence. */
@@ -1089,7 +1095,7 @@ final class InfoPanel {
             }
         }
         ResourceLocation id = ResourceLocation.tryParse(container.id());
-        Item item = id == null ? Items.CHEST : BuiltInRegistries.ITEM.get(id);
+        Item item = id == null ? Items.CHEST : Regs.value(BuiltInRegistries.ITEM, id);
         return new ItemStack(item == Items.AIR ? Items.CHEST : item);
     }
 
@@ -1184,7 +1190,7 @@ final class InfoPanel {
 
     // ------------------------------------------------------------------ mobs
 
-    private static final String SPAWNER = String.valueOf(BlockEntityType.getKey(BlockEntityType.MOB_SPAWNER));
+    private static final String SPAWNER = String.valueOf(BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(BlockEntityType.MOB_SPAWNER));
 
     private int mobs(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (result == null || !result.succeeded()) {
@@ -1193,7 +1199,7 @@ final class InfoPanel {
         StructureSnapshot s = result.snapshot();
         Map<String, Integer> placed = new LinkedHashMap<>();
         for (CompoundTag tag : s.entities()) {
-            placed.merge(tag.getString("id"), 1, Integer::sum);
+            placed.merge(Nbt.string(tag, "id"), 1, Integer::sum);
         }
         // Spawners by what they make: a mob, a list each got one of, or a mix they keep making. A
         // row shows its spawners in the preview while it's hovered, and opens them when clicked.
@@ -1201,7 +1207,7 @@ final class InfoPanel {
         Map<BlockPos, CompoundTag> spawnerTags = SpawnerKind.tags(s);
         for (StructureSnapshot.Spawner spawner : s.spawners()) {
             CompoundTag tag = spawnerTags.get(spawner.pos());
-            if (tag != null && tag.getString("id").equals(SPAWNER)) {
+            if (tag != null && Nbt.string(tag, "id").equals(SPAWNER)) {
                 byKind.computeIfAbsent(SpawnerKind.of(tag), k -> new ArrayList<>()).add(spawner);
             }
         }
@@ -1336,9 +1342,9 @@ final class InfoPanel {
         //?}
         LongSet out = new LongOpenHashSet();
         for (CompoundTag tag : s.entities()) {
-            if (tag.getString("id").equals(type)) {
-                ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
-                out.add(BlockPos.containing(pos.getDouble(0), pos.getDouble(1) + height / 2, pos.getDouble(2)).asLong());
+            if (Nbt.string(tag, "id").equals(type)) {
+                ListTag pos = Nbt.list(tag, "Pos", Tag.TAG_DOUBLE);
+                out.add(BlockPos.containing(Nbt.getDouble(pos, 0), Nbt.getDouble(pos, 1) + height / 2, Nbt.getDouble(pos, 2)).asLong());
             }
         }
         return out;
@@ -1367,7 +1373,7 @@ final class InfoPanel {
      */
     private int mobRow(GuiGraphics g, int cy, String mob, String right, boolean hovered, boolean opens) {
         ResourceLocation id = ResourceLocation.tryParse(mob);
-        EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
+        EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? Regs.value(BuiltInRegistries.ENTITY_TYPE, id) : null;
         // "?" is a spawner with no mob at all.
         boolean empty = mob.equals("?");
         Component name = type != null ? type.getDescription() : empty ? StructureNames.mob("") : Component.literal(mob);
@@ -1398,10 +1404,17 @@ final class InfoPanel {
      * Failing that, an item with the entity's own id, or nothing.
      */
     static ItemStack entityIcon(EntityType<?> type) {
+        //? if >=26.1 {
+        /*ItemStack egg = SpawnEggItem.byId(type).map(ItemStack::new).orElse(null);
+        if (egg != null) {
+            return egg;
+        }
+        *///?} else {
         SpawnEggItem egg = SpawnEggItem.byId(type);
         if (egg != null) {
             return new ItemStack(egg);
         }
+        //?}
         ItemStack known = ENTITY_ITEMS.get(type);
         if (known != null) {
             return known;
@@ -1412,7 +1425,11 @@ final class InfoPanel {
             try {
                 // A bare one, never added to the world: an item frame made from the structure's own
                 // data would give the item in it instead of the frame.
+                //? if >=26.1 {
+                /*Entity entity = type.create(level, EntitySpawnReason.LOAD);
+                *///?} else {
                 Entity entity = type.create(level);
+                //?}
                 ItemStack picked = entity == null ? null : entity.getPickResult();
                 if (picked != null && !picked.isEmpty()) {
                     found = picked.copyWithCount(1);
@@ -1422,7 +1439,7 @@ final class InfoPanel {
             }
         }
         if (found.isEmpty()) {
-            Item named = BuiltInRegistries.ITEM.get(BuiltInRegistries.ENTITY_TYPE.getKey(type));
+            Item named = Regs.value(BuiltInRegistries.ITEM, BuiltInRegistries.ENTITY_TYPE.getKey(type));
             found = named == Items.AIR ? ItemStack.EMPTY : new ItemStack(named);
         }
         if (level != null) {

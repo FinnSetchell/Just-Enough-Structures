@@ -82,11 +82,11 @@ final class MobPopup extends SidePopup {
         int body = bodyHeight();
 
         // The chest's frame: its title bar, a row of slots for what it wears and holds, then its bottom edge.
-        g.blit(TEXTURE, x, y, 0, 0, WIDTH, 17);
+        Gui.blit(g, TEXTURE, x, y, 0, 0, WIDTH, 17);
         if (body > 0) {
-            g.blit(TEXTURE, x, y + 17, 0, 17, WIDTH, body);
+            Gui.blit(g, TEXTURE, x, y + 17, 0, 17, WIDTH, body);
         }
-        g.blit(TEXTURE, x, y + 17 + body, 0, 215, WIDTH, 7);
+        Gui.blit(g, TEXTURE, x, y + 17 + body, 0, 215, WIDTH, 7);
         renderTitle(g, font);
 
         ItemStack hovered = ItemStack.EMPTY;

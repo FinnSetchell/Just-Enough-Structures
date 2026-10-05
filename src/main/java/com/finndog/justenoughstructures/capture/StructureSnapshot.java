@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import java.util.ArrayList;
@@ -186,18 +187,18 @@ public final class StructureSnapshot {
     private List<Container> findContainers() {
         List<Container> out = new ArrayList<>();
         for (CompoundTag tag : blockEntities) {
-            String table = tag.contains("LootTable", Tag.TAG_STRING) ? tag.getString("LootTable") : null;
-            boolean hasItems = tag.contains("Items", Tag.TAG_LIST) && !tag.getList("Items", Tag.TAG_COMPOUND).isEmpty();
+            String table = Nbt.hasString(tag, "LootTable") ? Nbt.string(tag, "LootTable") : null;
+            boolean hasItems = Nbt.hasList(tag, "Items") && !Nbt.list(tag, "Items", Tag.TAG_COMPOUND).isEmpty();
             if (table != null || hasItems) {
-                out.add(new Container(new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), tag.getString("id"),
-                        table, tag.getLong("LootTableSeed"), false, Source.read(tag.getCompound(ContainerSources.TAG))));
+                out.add(new Container(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), Nbt.string(tag, "id"),
+                        table, Nbt.getLong(tag, "LootTableSeed"), false, Source.read(Nbt.compound(tag, ContainerSources.TAG))));
             }
         }
         for (CompoundTag tag : entities) {
-            if (tag.contains("LootTable", Tag.TAG_STRING)) {
-                ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
-                BlockPos at = BlockPos.containing(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
-                out.add(new Container(at, tag.getString("id"), tag.getString("LootTable"), tag.getLong("LootTableSeed"), true, null));
+            if (Nbt.hasString(tag, "LootTable")) {
+                ListTag pos = Nbt.list(tag, "Pos", Tag.TAG_DOUBLE);
+                BlockPos at = BlockPos.containing(Nbt.getDouble(pos, 0), Nbt.getDouble(pos, 1), Nbt.getDouble(pos, 2));
+                out.add(new Container(at, Nbt.string(tag, "id"), Nbt.string(tag, "LootTable"), Nbt.getLong(tag, "LootTableSeed"), true, null));
             }
         }
         return out;
@@ -209,9 +210,9 @@ public final class StructureSnapshot {
         if (found == null) {
             List<Spawner> out = new ArrayList<>();
             for (CompoundTag tag : blockEntities) {
-                if (tag.contains("SpawnData", Tag.TAG_COMPOUND)) {
-                    out.add(new Spawner(new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), SpawnerPatches.mobOf(tag),
-                            SpawnerPatches.othersOf(tag), Source.read(tag.getCompound(ContainerSources.SPAWNER_TAG))));
+                if (Nbt.hasCompound(tag, "SpawnData")) {
+                    out.add(new Spawner(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), SpawnerPatches.mobOf(tag),
+                            SpawnerPatches.othersOf(tag), Source.read(Nbt.compound(tag, ContainerSources.SPAWNER_TAG))));
                 }
             }
             found = List.copyOf(out);
@@ -243,13 +244,13 @@ public final class StructureSnapshot {
      */
     public record Source(ResourceLocation template, BlockPos pos, ResourceLocation block, String patchedFrom) {
         static Source read(CompoundTag tag) {
-            ResourceLocation template = ResourceLocation.tryParse(tag.getString("template"));
-            ResourceLocation block = ResourceLocation.tryParse(tag.getString("block"));
+            ResourceLocation template = ResourceLocation.tryParse(Nbt.string(tag, "template"));
+            ResourceLocation block = ResourceLocation.tryParse(Nbt.string(tag, "block"));
             if (tag.isEmpty() || template == null || block == null) {
                 return null;
             }
-            return new Source(template, new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z")), block,
-                    tag.contains("patched_from") ? tag.getString("patched_from") : null);
+            return new Source(template, new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), block,
+                    tag.contains("patched_from") ? Nbt.string(tag, "patched_from") : null);
         }
     }
 }

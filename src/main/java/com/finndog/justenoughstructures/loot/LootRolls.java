@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -109,11 +110,11 @@ public final class LootRolls {
                 }
                 //? if >=1.21 {
                 /*for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
-                    e.getKey().unwrapKey().ifPresent(key -> row.variant("enchantment:" + key.location(), e.getIntValue()));
+                    e.getKey().unwrapKey().ifPresent(key -> row.variant("enchantment:" + Ids.of(key), e.getIntValue()));
                 }
                 PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
                 if (potion != null) {
-                    potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> row.variant("potion:" + key.location(), 0));
+                    potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> row.variant("potion:" + Ids.of(key), 0));
                 }
                 *///?} else {
                 EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
@@ -127,7 +128,7 @@ public final class LootRolls {
         }
         List<LootOdds.Row> sorted = new ArrayList<>(rows.values());
         sorted.sort((a, b) -> b.hits() != a.hits() ? Integer.compare(b.hits(), a.hits())
-                : a.example().getDescriptionId().compareTo(b.example().getDescriptionId()));
+                : a.example().getItem().getDescriptionId().compareTo(b.example().getItem().getDescriptionId()));
         return new LootOdds(tableId, rolls, empty, sorted);
     }
 

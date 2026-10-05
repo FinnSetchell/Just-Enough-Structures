@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.compat.foundin;
 
+import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,7 +35,7 @@ public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<Reso
                 }
             }
             tablesByItem.forEach((id, tables) -> {
-                Item item = BuiltInRegistries.ITEM.get(id);
+                Item item = Regs.value(BuiltInRegistries.ITEM, id);
                 if (item != Items.AIR) {
                     out.add(new FoundInRecipe(structure, new ItemStack(item), Set.copyOf(tables)));
                 }

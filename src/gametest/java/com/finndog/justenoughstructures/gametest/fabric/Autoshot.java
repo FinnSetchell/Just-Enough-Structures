@@ -10,7 +10,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+//? if >=26.1 {
+/*import com.finndog.justenoughstructures.Ids;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+*///?} else {
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+//?}
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 
@@ -46,6 +51,19 @@ public final class Autoshot implements ClientModInitializer {
         }
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         // The scripted modes draw a cursor and count frames after every screen and the HUD.
+        //? if >=26.1 {
+        /*ScreenEvents.AFTER_INIT.register((mc, screen, w, h) ->
+                ScreenEvents.afterExtract(screen).register((s, graphics, mouseX, mouseY, partial) -> {
+                    if (director != null) {
+                        director.onRender(graphics);
+                    }
+                }));
+        HudElementRegistry.addLast(Ids.of("justenoughstructures_gametest", "director"), (graphics, delta) -> {
+            if (director != null && Minecraft.getInstance().screen == null) {
+                director.onRender(graphics);
+            }
+        });
+        *///?} else {
         ScreenEvents.AFTER_INIT.register((mc, screen, w, h) ->
                 ScreenEvents.afterRender(screen).register((s, graphics, mouseX, mouseY, partial) -> {
                     if (director != null) {
@@ -57,6 +75,7 @@ public final class Autoshot implements ClientModInitializer {
                 director.onRender(graphics);
             }
         });
+        //?}
     }
 
     private void tick(Minecraft mc) {
