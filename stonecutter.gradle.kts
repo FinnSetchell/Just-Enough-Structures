@@ -89,6 +89,18 @@ stonecutter parameters {
                 replace("batch = \"", "environment = \"justenoughstructures_gametest:")
             }
         }
+        // Forge for 26.1 made ModList all static, and puts its own game test annotation where the game
+        // had one, with Fabric's settings. Only on these nodes, as elsewhere Stonecutter would run the
+        // rules backwards.
+        if (loader == "forge" && current.parsed >= "26.1") {
+            string(true) {
+                replace("ModList.get().", "ModList.")
+                replace("import net.minecraft.gametest.framework.GameTest;", "import net.minecraftforge.gametest.GameTest;")
+                replace("@GameTest(template = ", "@GameTest(structure = ")
+                replace("timeoutTicks = ", "maxTicks = ")
+                replace("batch = \"", "environment = \"justenoughstructures_gametest:")
+            }
+        }
         // NeoForge for 26.1 has no annotation for game tests, so the test mod has one of its own, with
         // the same settings as Fabric's, and registers what it marks. Only on these nodes, as elsewhere
         // Stonecutter would run the rules backwards.

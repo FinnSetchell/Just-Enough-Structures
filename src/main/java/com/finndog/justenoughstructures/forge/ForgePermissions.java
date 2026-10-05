@@ -21,7 +21,11 @@ final class ForgePermissions {
     }
 
     static void install() {
+        //? if >=26.1 {
+        /*PermissionGatherEvent.Nodes.BUS.addListener(event -> event.addNodes(PACK_TOOLS));
+        *///?} else {
         MinecraftForge.EVENT_BUS.addListener((PermissionGatherEvent.Nodes event) -> event.addNodes(PACK_TOOLS));
+        //?}
         PackToolsAccess.setPermissions((player, node) -> PermissionAPI.getPermission(player, PACK_TOOLS));
     }
 }

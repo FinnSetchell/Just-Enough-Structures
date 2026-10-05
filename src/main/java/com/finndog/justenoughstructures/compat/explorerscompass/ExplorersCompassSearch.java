@@ -21,7 +21,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.Structure;
-//? if neoforge && <26.1 || forge && >=1.21 {
+// Stonecutter reads && and || left to right, so these stay apart.
+//? if neoforge && <26.1 {
+/*import java.util.List;
+*///?}
+//? if forge && >=1.21 {
 /*import java.util.List;
 *///?}
 

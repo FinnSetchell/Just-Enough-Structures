@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.forge;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.ServerPackets;
@@ -79,7 +80,7 @@ final class ForgeNetworking {
         if (player != null) {
             ServerPackets.Handler handler = ServerPackets.handlers().get(packet.channel());
             if (handler != null) {
-                handler.handle(player.server, player, Blobs.fromBytes(player.server.registryAccess(), packet.data()));
+                handler.handle(Players.server(player), player, Blobs.fromBytes(Players.server(player).registryAccess(), packet.data()));
             }
         } else {
             clientHandler.accept(packet.channel(), packet.data());

@@ -27,6 +27,14 @@ base.archivesName = "${property("archives_base_name")}-forge-$mcBuild"
 // version is blank in stonecutter.properties.toml, this keeps their code out of the build, and
 // `//? if <name>` leaves out what refers to it.
 fun has(mod: String) = !sc.properties.getOrNull<String>("deps.$mod").isNullOrEmpty()
+// Forge 1.21.1 doesn't ship MixinExtras, which the mixins use, so its jar carries it. Forge for 26.1
+// has its own.
+val carriesMixinExtras = has("mixinextras")
+// The pack formats the jar's resources and data are made for: one number before 26.1, and from 26.1,
+// which numbers the two apart, the range from one to the other, given as "84-101".
+val packFormats: String = prop("mod.pack_format").split("-").let {
+    if (it.size == 2) "\"min_format\": ${it[0]}, \"max_format\": ${it[1]}" else "\"pack_format\": ${it[0]}"
+}
 val withoutIntegrations = buildList {
     if (!has("jei")) add("**/compat/jei/**")
     if (!has("emi")) add("**/compat/emi/**")
@@ -71,6 +79,18 @@ val devMods = mapOf(
         "explorers-compass:${prop("deps.explorers_compass")}",
         // Libraries the above need
         "moogs-structure-lib:Fm0UjMHR", "yungs-api:GKQLlzpD", "cloth-config:XMYFN6Zc",
+    ),
+    // YUNG's, Explorer's Compass and Cloth Config have no Forge build for 26.1, and Structory Towers'
+    // build for it freezes Forge 26.1.2 at the loading screen.
+    "26.1.2" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // Other big structure mods
+        "structory:TUbwu7eG", "dungeons-and-taverns:nwBBc4Lf", "explorify:CuBdAr31",
+        // Libraries the above need
+        "moogs-structure-lib:7uEyqo4R",
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
@@ -149,14 +169,18 @@ repositories {
     }
 }
 
-jarJar.register()
+if (carriesMixinExtras) {
+    jarJar.register()
+}
 
 dependencies {
     implementation(minecraft.dependency("net.minecraftforge:forge:$mcBuild-${prop("deps.forge_version")}"))
 
-    compileOnly("io.github.llamalad7:mixinextras-common:${prop("deps.mixinextras")}")
-    implementation("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
-    "jarJar"("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
+    if (carriesMixinExtras) {
+        compileOnly("io.github.llamalad7:mixinextras-common:${prop("deps.mixinextras")}")
+        implementation("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
+        "jarJar"("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
+    }
 
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
     if (has("jei")) compileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
@@ -190,7 +214,7 @@ tasks {
             "license" to modLicense,
             "mc_compat" to prop("mod.mc_compat"),
             "forge_min" to prop("deps.forge_min"),
-            "pack_format" to prop("mod.pack_format"),
+            "pack_formats" to packFormats,
         )
         props.forEach { (k, v) -> inputs.property(k, v) }
         filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
@@ -198,15 +222,17 @@ tasks {
     }
 
     named<ProcessResources>("processGametestResources") {
-        val props = mapOf("forge_min" to prop("deps.forge_min"), "pack_format" to prop("mod.pack_format"))
+        val props = mapOf("forge_min" to prop("deps.forge_min"), "pack_formats" to packFormats)
         props.forEach { (k, v) -> inputs.property(k, v) }
         filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
         exclude("fabric.mod.json")
     }
 
     jar {
-        // Without MixinExtras inside, so never the one shipped.
-        archiveClassifier = "slim"
+        // Where the jar carries MixinExtras, this one without it is never the one shipped.
+        if (carriesMixinExtras) {
+            archiveClassifier = "slim"
+        }
         from(rootProject.file("LICENSE")) { rename { "${it}_$modName" } }
         manifest {
             attributes(
@@ -223,10 +249,12 @@ tasks {
     }
 
     // The shipped jar, with MixinExtras inside it.
-    named<Jar>("jarJar") {
-        archiveClassifier = null as String?
+    if (carriesMixinExtras) {
+        named<Jar>("jarJar") {
+            archiveClassifier = null as String?
+        }
+        assemble { dependsOn("jarJar") }
     }
-    assemble { dependsOn("jarJar") }
 
     // Minecraft must not be set up before Stonecutter has written this node's sources.
     withType<JavaCompile>().configureEach {
@@ -293,7 +321,7 @@ tasks {
     register<Copy>("buildAndCollect") {
         group = "build"
         description = "Builds the mod jar and copies it to build/libs/{mod version}/"
-        from(named<Jar>("jarJar").flatMap { it.archiveFile })
+        from((if (carriesMixinExtras) named<Jar>("jarJar") else jar).flatMap { it.archiveFile })
         into(rootProject.layout.buildDirectory.dir("libs/$version"))
     }
 }

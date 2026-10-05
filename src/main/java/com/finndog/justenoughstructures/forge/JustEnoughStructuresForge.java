@@ -47,6 +47,32 @@ public final class JustEnoughStructuresForge {
         //?}
         ForgePermissions.install();
 
+        //? if >=26.1 {
+        /*// From 26.1 each of Forge's events has a bus of its own.
+        RegisterCommandsEvent.BUS.addListener(event -> JesCommands.register(event.getDispatcher()));
+        PlayerEvent.PlayerLoggedInEvent.BUS.addListener(event -> {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                PackToolsAccess.joined(player);
+            }
+        });
+        AddReloadListenerEvent.BUS.addListener(event -> event.addListener(new StructureInfo.Loader()));
+        ServerStartingEvent.BUS.addListener(event -> JesServer.starting(event.getServer()));
+        ServerStartedEvent.BUS.addListener(event -> JesServer.reload(event.getServer()));
+        // Stops the loot index and drops what belonged to that world when it closes.
+        ServerStoppingEvent.BUS.addListener(event -> JesServer.stop());
+        // Sent to everyone at once only after /reload. It comes partway through putting the new data
+        // in place, so JES starts over on the next tick, once the rest of it is in.
+        OnDatapackSyncEvent.BUS.addListener(event -> {
+            if (event.getPlayer() == null) {
+                MinecraftServer server = event.getPlayerList().getServer();
+                server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+            }
+        });
+
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            ForgeClient.init();
+        }
+        *///?} else {
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent event) -> JesCommands.register(event.getDispatcher()));
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
@@ -70,5 +96,6 @@ public final class JustEnoughStructuresForge {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeClient.init(FMLJavaModLoadingContext.get().getModEventBus());
         }
+        //?}
     }
 }

@@ -149,3 +149,20 @@ deps.rei = "isd1MxO2"
 deps.architectury = "9PW5lWrQ"
 deps.explorers_compass = "OuPMcvp4"
 
+# Forge 64 is the 26.1.2 line. Built against the 26.1.2 instance's own build, so the jar never needs
+# anything newer than launchers commonly run. From here Forge ships MixinExtras itself, and none of
+# JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge build for 26.1.
+[forge."26.1.2"]
+mod.mc_build = "26.1.2"
+mod.mc_compat = "[26.1.2,26.1.3)"
+# 26.1 numbers resource pack and data pack formats apart, so this is from the one to the other.
+mod.pack_format = "84-101"
+deps.forge_version = "64.0.8"
+deps.forge_min = "64"
+deps.mixinextras = ""
+deps.cloth_config = ""
+deps.jei = ""
+deps.emi = ""
+deps.rei = ""
+deps.explorers_compass = ""
+

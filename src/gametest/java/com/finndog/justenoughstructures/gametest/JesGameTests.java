@@ -12,14 +12,18 @@ import net.minecraft.gametest.framework.TestFunction;
 
 /**
  * Every game test, which each loader's test mod registers: Fabric through its fabric-gametest
- * entrypoint, Forge and NeoForge by the annotations here, and NeoForge from 26.1 through
- * NeoForgeGameTests, by its own annotation. Each test runs in an empty 8x8x8 structure.
+ * entrypoint, Forge and NeoForge by the annotations here, and from 26.1 Forge through ForgeGameTests
+ * and NeoForge through NeoForgeGameTests. Each test runs in an empty 8x8x8 structure.
  */
 //? if forge && <1.21 {
 /*@net.minecraftforge.gametest.GameTestHolder("justenoughstructures_gametest")
 @net.minecraftforge.gametest.PrefixGameTestTemplate(false)
-*///?} else if forge {
+*///?} else if forge && <26.1 {
 /*@net.minecraftforge.gametest.GameTestHolder("justenoughstructures_gametest")
+*///?} else if forge {
+/*// Forge from 26.1 names each test after its method, in the test mod's namespace.
+@net.minecraftforge.gametest.GameTestNamespace("justenoughstructures_gametest")
+@net.minecraftforge.gametest.GameTestDontPrefix
 *///?} else if neoforge && <26.1 {
 /*@net.neoforged.neoforge.gametest.GameTestHolder("justenoughstructures_gametest")
 @net.neoforged.neoforge.gametest.PrefixGameTestTemplate(false)
@@ -28,9 +32,12 @@ public final class JesGameTests {
     //? if fabric {
     private static final String EMPTY_STRUCTURE = "fabric-gametest-api-v1:empty";
     private static final String EMPTY_STRUCTURE_ID = EMPTY_STRUCTURE;
-    //?} else if forge && >=1.21 || neoforge && >=26.1 {
-    /*// Forge 1.21 puts the holder's name in front of a template, unless it's given with its namespace,
-    // and NeoForge from 26.1 takes it as it is.
+    //?} else if forge && >=1.21 {
+    /*// Forge 1.21 puts the holder's name in front of a template, unless it's given with its namespace.
+    private static final String EMPTY_STRUCTURE = "justenoughstructures_gametest:empty";
+    private static final String EMPTY_STRUCTURE_ID = EMPTY_STRUCTURE;
+    *///?} else if neoforge && >=26.1 {
+    /*// NeoForge from 26.1 takes it as it is.
     private static final String EMPTY_STRUCTURE = "justenoughstructures_gametest:empty";
     private static final String EMPTY_STRUCTURE_ID = EMPTY_STRUCTURE;
     *///?} else {

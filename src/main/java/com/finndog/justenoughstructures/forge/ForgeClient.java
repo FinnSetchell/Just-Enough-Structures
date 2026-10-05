@@ -20,7 +20,9 @@ import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
+//? if <26.1 {
 import net.minecraftforge.eventbus.api.IEventBus;
+//?}
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 //? if >=1.21 {
@@ -35,7 +37,11 @@ final class ForgeClient {
     private ForgeClient() {
     }
 
+    //? if >=26.1 {
+    /*static void init() {
+    *///?} else {
     static void init(IEventBus modBus) {
+    //?}
         ForgeNetworking.clientHandler = (channel, data) -> {
             ClientPackets.Handler handler = ClientPackets.handlers().get(channel);
             if (handler != null) {
@@ -69,6 +75,12 @@ final class ForgeClient {
             }
         });
 
+        //? if >=26.1 {
+        /*// From 26.1 each of Forge's events has a bus of its own.
+        RegisterKeyMappingsEvent.BUS.addListener(event -> event.register(JesClient.OPEN));
+        TickEvent.ClientTickEvent.Post.BUS.addListener(event -> JesClient.tick(Minecraft.getInstance()));
+        ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> ClientRequests.reset());
+        *///?} else {
         modBus.addListener((RegisterKeyMappingsEvent event) -> event.register(JesClient.OPEN));
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {
@@ -76,6 +88,7 @@ final class ForgeClient {
             }
         });
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
+        //?}
 
         //? if explorers_compass {
         if (ModList.get().isLoaded("explorerscompass")) {
