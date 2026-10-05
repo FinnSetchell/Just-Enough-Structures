@@ -92,6 +92,17 @@ val devMods = mapOf(
         // Libraries the above need
         "moogs-structure-lib:7uEyqo4R",
     ),
+    // Structory Towers' build for 26.2 freezes Forge at the loading screen too.
+    "26.2" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // Other big structure mods
+        "structory:TUbwu7eG", "dungeons-and-taverns:AXS4pp9z", "explorify:CuBdAr31",
+        // Libraries the above need
+        "moogs-structure-lib:gkOcGRxT",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 

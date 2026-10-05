@@ -202,3 +202,18 @@ deps.emi = ""
 deps.rei = "BoY0Dky0"
 deps.architectury = "huNlZW4Q"
 deps.explorers_compass = "r9Okm6YW"
+
+# Forge 65 is the 26.2 line, built against the 26.2 instance's own build. None of JEI, EMI, REI, Cloth
+# Config and Explorer's Compass has a Forge build for 26.2.
+[forge."26.2"]
+mod.mc_build = "26.2"
+mod.mc_compat = "[26.2,26.3)"
+mod.pack_format = "88-107"
+deps.forge_version = "65.0.0"
+deps.forge_min = "65"
+deps.mixinextras = ""
+deps.cloth_config = ""
+deps.jei = ""
+deps.emi = ""
+deps.rei = ""
+deps.explorers_compass = ""
