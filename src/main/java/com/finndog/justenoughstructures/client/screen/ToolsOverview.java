@@ -13,11 +13,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Pack tools' first page: how much has been changed, anything that needs looking at, ways to start,
- * and everything changed so far.
+ * Pack tools' first page: anything that needs looking at, ways to start, and everything changed so far.
  */
 final class ToolsOverview extends ToolsSection {
-    /** The widest the page gets, so its counts and rows don't stretch across a wide screen. */
+    /** The widest the page gets, so its rows don't stretch across a wide screen. */
     private static final int WIDEST = 640;
     private final Scroller scroller = new Scroller();
 
@@ -41,7 +40,7 @@ final class ToolsOverview extends ToolsSection {
         PackToolsState state = screen.state();
         int top = scroller.begin(g, ui, x, y, Math.min(w, WIDEST), h);
         int cw = scroller.width();
-        int cy = top + cards(g, ui, state, x, top, cw);
+        int cy = top;
 
         List<Map.Entry<ResourceLocation, LootOverrides.Status>> needs = new ArrayList<>();
         for (Map.Entry<ResourceLocation, LootOverrides.Status> e : state.overrides().entrySet()) {
@@ -102,53 +101,6 @@ final class ToolsOverview extends ToolsSection {
             cy += spawnerRow(g, ui, x, cy, cw, patch);
         }
         scroller.end(g, ui, cy - top + 2);
-    }
-
-    /** The four counts along the top, each opening its section. Returns their height. */
-    private int cards(GuiGraphics g, ToolsUi ui, PackToolsState state, int x, int y, int w) {
-        int notes = 0;
-        for (PackToolsState.Written written : state.structures().values()) {
-            if (written.fromPack() && written.info().notes() != null) {
-                notes++;
-            }
-        }
-        int[] counts = {state.overrides().size(), state.patches().size(),
-                state.settings().hiddenStructures().size() + state.settings().hiddenMods().size(), notes};
-        String[] keys = {"tables", "chests", "hidden", "notes"};
-        PackToolsScreen.Section[] goes = {PackToolsScreen.Section.LOOT, PackToolsScreen.Section.CHESTS,
-                PackToolsScreen.Section.STRUCTURES, PackToolsScreen.Section.STRUCTURES};
-        String[] labels = new String[4];
-        int widest = 0;
-        for (int i = 0; i < 4; i++) {
-            labels[i] = Component.translatable("screen.justenoughstructures.tools.count." + keys[i]).getString();
-            widest = Math.max(widest, Gui.fineWidth(font, labels[i]));
-        }
-        // Four across only when every label fits on one line; otherwise two, their labels wrapped if need be.
-        int columns = (w - 12) / 4 - 10 >= widest ? 4 : 2;
-        int cardW = (w - (columns - 1) * 4) / columns;
-        int lines = 1;
-        for (String label : labels) {
-            lines = Math.max(lines, font.split(Component.literal(label), (int) ((cardW - 10) / Gui.fineScale())).size());
-        }
-        int lineH = Gui.fineLine(font) + 1;
-        int cardH = 32 + (lines - 1) * lineH;
-        for (int i = 0; i < 4; i++) {
-            int cx = x + (i % columns) * (cardW + 4);
-            int cy = y + (i / columns) * (cardH + 4);
-            Gui.card(g, cx, cy, cardW, cardH);
-            if (ui.hovered(cx, cy, cardW, cardH)) {
-                g.fill(cx + 1, cy + 1, cx + cardW - 1, cy + cardH - 1, 0x40FFFFFF);
-            }
-            g.pose().pushPose();
-            g.pose().translate(cx + 5, cy + 4, 0);
-            g.pose().scale(2, 2, 1);
-            g.drawString(font, String.valueOf(counts[i]), 0, 0, ToolsUi.TEXT, false);
-            g.pose().popPose();
-            Gui.fineWrapped(g, font, Component.literal(labels[i]), cx + 5, cy + cardH - 3 - lines * lineH, cardW - 10, Gui.LABEL_SOFT);
-            PackToolsScreen.Section to = goes[i];
-            ui.spot(cx, cy, cardW, cardH, () -> screen.go(to, null));
-        }
-        return (4 / columns) * (cardH + 4) + 4;
     }
 
     /** An edited table: what it is, where it's used, and what can be done with it. */

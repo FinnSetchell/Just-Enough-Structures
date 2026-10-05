@@ -1363,7 +1363,8 @@ public class JesScreen extends Screen implements Nav.Page {
         switch (action) {
             case ROLL, ODDS -> {
                 open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
-                open.place(width, height, font);
+                // Where it was: beside the preview for a container, in the middle for a table on its own.
+                placePopup();
                 layoutPopupButtons();
             }
             case CHANGE -> changeContainer(open);

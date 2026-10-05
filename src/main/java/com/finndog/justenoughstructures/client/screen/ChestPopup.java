@@ -122,7 +122,17 @@ final class ChestPopup {
     /** Sits beside the preview at {@code x}, so the containers it's about can be seen. */
     void placeAt(int x, int screenHeight, Font font) {
         this.x = x;
-        y = Math.max(4, (screenHeight - height(font)) / 2);
+        y = Math.max(4, (screenHeight - placedHeight(font)) / 2);
+    }
+
+    /**
+     * How tall it's taken to be when it's placed: as tall as it can get, with the taller view and the
+     * most lines of notes, so switching tabs or rolling again changes only how far down it reaches,
+     * and its title and tabs stay where they are.
+     */
+    private int placedHeight(Font font) {
+        int body = hasTabs() ? Math.max(rows * 18, ODDS_HEIGHT) : bodyHeight();
+        return headerHeight(font) + body + 7 + infoHeight(font, 2);
     }
 
     /** Whether there's a table to show the chances of, which is what the tabs switch to. */
@@ -144,8 +154,12 @@ final class ChestPopup {
     }
 
     private int infoHeight(Font font) {
+        return infoHeight(font, noteLines(font).size());
+    }
+
+    private int infoHeight(Font font, int notes) {
         int fine = Gui.fineLine(font);
-        int height = 5 + labelRow(font) + font.lineHeight + 1 + noteLines(font).size() * (fine + 1) + 3 + 20 + 6;
+        int height = 5 + labelRow(font) + font.lineHeight + 1 + notes * (fine + 1) + 3 + 20 + 6;
         if (Gui.advanced() && table != null) {
             height += fine + 1;
         }
@@ -210,7 +224,7 @@ final class ChestPopup {
 
     void place(int screenWidth, int screenHeight, Font font) {
         x = (screenWidth - WIDTH) / 2;
-        y = Math.max(4, (screenHeight - height(font)) / 2);
+        y = Math.max(4, (screenHeight - placedHeight(font)) / 2);
     }
 
     boolean contains(double mouseX, double mouseY, Font font) {
