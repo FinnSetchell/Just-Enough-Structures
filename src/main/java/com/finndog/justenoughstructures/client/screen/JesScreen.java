@@ -374,7 +374,6 @@ public class JesScreen extends Screen implements Nav.Page {
                 view.setSliceY(shown);
             }
         }));
-        slider.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.layers_tooltip")));
         updateSlider();
 
         // The details panel starts lower, so its tabs can sit on top of it the way JEI's do.
@@ -2093,13 +2092,8 @@ public class JesScreen extends Screen implements Nav.Page {
         } else if (picking != Picking.NONE) {
             pickingStrip(g, mouseX, mouseY);
         } else {
-            String controls = markerKind() == MarkerKind.MOBS ? "screen.justenoughstructures.controls_mobs"
-                    : lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
-            String hint = Component.translatable(controls).getString();
-            if (Gui.fineWidth(font, hint) > viewW - 12) {
-                hint = Component.translatable(controls + "_short").getString();
-            }
-            Gui.fineClipped(g, font, hint, viewX + 6, viewY + viewH - 3 - Gui.fineLine(font), viewW - 12, 0xFFE0E0E0);
+            Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.controls").getString(),
+                    viewX + 6, viewY + viewH - 3 - Gui.fineLine(font), viewW - 12, 0xFFE0E0E0);
         }
         Gui.endScissor(g);
 
@@ -2298,12 +2292,10 @@ public class JesScreen extends Screen implements Nav.Page {
             if (grouped > 1) {
                 lines.add(Component.translatable("screen.justenoughstructures.hover_grouped", grouped).withStyle(ChatFormatting.GRAY));
             }
-            lines.add(Component.translatable("screen.justenoughstructures.hover_open").withStyle(ChatFormatting.YELLOW));
         }
         StructureSnapshot.Spawner spawner = container == null ? spawnerAt(hit) : null;
         if (spawner != null) {
             lines.add(spawns(spawner).withStyle(ChatFormatting.AQUA));
-            lines.add(Component.translatable("screen.justenoughstructures.hover_open").withStyle(ChatFormatting.YELLOW));
         }
         ResourceLocation id = hit.entity() != null ? BuiltInRegistries.ENTITY_TYPE.getKey(hit.entity().getType())
                 : BuiltInRegistries.BLOCK.getKey(hit.state().getBlock());
@@ -2663,9 +2655,7 @@ public class JesScreen extends Screen implements Nav.Page {
         if (markersSecret()) {
             return Component.translatable("screen.justenoughstructures.markers_secret");
         }
-        return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off")
-                .append("\n").append(Component.translatable(markerKind() == MarkerKind.MOBS ? "screen.justenoughstructures.markers_mobs"
-                        : "screen.justenoughstructures.markers_containers").withStyle(ChatFormatting.GRAY));
+        return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
     }
 
     /** Only there while the player holds a compass it can open. Ctrl-click is mentioned when the server can do it. */
@@ -2740,8 +2730,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private static final class ToolsButton extends Button {
         ToolsButton(int x, int y, int width, OnPress onPress) {
             super(x, y, width, 18, Component.translatable("screen.justenoughstructures.tools.title"), onPress, DEFAULT_NARRATION);
-            setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.tools.title").append("\n")
-                    .append(Component.translatable("screen.justenoughstructures.tools.button_hint").withStyle(ChatFormatting.GRAY))));
+            setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.tools.title")));
         }
 
         @Override

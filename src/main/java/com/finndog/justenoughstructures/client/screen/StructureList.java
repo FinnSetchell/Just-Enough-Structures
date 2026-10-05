@@ -319,8 +319,7 @@ final class StructureList {
         }
         if (hovered.item() != null) {
             return List.of(Component.literal(hovered.name()),
-                    Component.translatable("screen.justenoughstructures.found_in", hovered.count()).withStyle(ChatFormatting.GRAY),
-                    Component.translatable("screen.justenoughstructures.found_hint").withStyle(ChatFormatting.DARK_GRAY));
+                    Component.translatable("screen.justenoughstructures.found_in", hovered.count()).withStyle(ChatFormatting.GRAY));
         }
         return List.of();
     }

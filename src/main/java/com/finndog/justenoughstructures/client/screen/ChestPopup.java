@@ -167,7 +167,10 @@ final class ChestPopup {
         return height;
     }
 
-    /** The line under the table's name: what's showing, or what a changed container was. Up to two lines. */
+    /**
+     * The line under the table's name, when there's something to say: what a changed container was,
+     * or that each of a group saved with their items has its own. Up to two lines.
+     */
     private List<FormattedCharSequence> noteLines(Font font) {
         String changedFrom = container == null || container.source() == null ? null : container.source().patchedFrom();
         Component note;
@@ -175,15 +178,8 @@ final class ChestPopup {
             note = Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.lootTable(changedFrom));
         } else if (overview() && table == null) {
             note = Component.translatable("screen.justenoughstructures.popup_pick_saved");
-        } else if (table == null) {
-            note = Component.translatable("screen.justenoughstructures.popup_saved_items");
-        } else if (view == View.ODDS) {
-            note = Component.translatable("screen.justenoughstructures.popup_odds_hint", kind);
-        } else if (items == null) {
-            note = Component.translatable("screen.justenoughstructures.rolling");
         } else {
-            note = container == null || overview() ? Component.translatable("screen.justenoughstructures.popup_table_roll_hint")
-                    : Component.translatable("screen.justenoughstructures.popup_roll_hint", kind);
+            return List.of();
         }
         List<FormattedCharSequence> lines = font.split(note, (int) ((WIDTH - 14) / Gui.fineScale()));
         return lines.size() > 2 ? lines.subList(0, 2) : lines;
@@ -310,14 +306,13 @@ final class ChestPopup {
             // Pack tools' shortcuts: the table, and the container itself, each with a wrench on it.
             if (table != null) {
                 iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY, true, false,
-                        List.of(Component.translatable("screen.justenoughstructures.tools.open_table"),
-                                Component.translatable("screen.justenoughstructures.tools.open_table_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
+                        List.of(Component.translatable("screen.justenoughstructures.tools.open_table")));
             }
             if (container != null) {
                 // The table is the same for the whole group, but the container has to be a particular one.
                 toolsIcon(g, Action.TOOLS_CONTAINER, icon.isEmpty() ? new ItemStack(net.minecraft.world.item.Items.CHEST) : icon, iconRight - 2, cy,
-                        mouseX, mouseY, !overview(), picking, overview() ? pickOne() : List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
-                                Component.translatable("screen.justenoughstructures.tools.open_container_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
+                        mouseX, mouseY, !overview(), picking, overview() ? pickOne()
+                                : List.of(Component.translatable("screen.justenoughstructures.tools.open_container")));
             }
         }
         cy += labelRow(font);
@@ -354,6 +349,11 @@ final class ChestPopup {
                 g.fill(sx, sy, sx + 16, sy + 16, 0x80FFFFFF);
                 hovered = stack;
             }
+        }
+        if (items == null) {
+            // Waiting for the roll, said over the empty slots so the popup keeps its size.
+            String rolling = Component.translatable("screen.justenoughstructures.rolling").getString();
+            g.drawString(font, rolling, x + (WIDTH - font.width(rolling)) / 2, bodyTop + (rows * 18 - font.lineHeight) / 2, 0xFF404040, false);
         }
         return hovered;
     }
@@ -396,8 +396,7 @@ final class ChestPopup {
 
     /** The tooltip of what can't be done until a specific container is picked. */
     private static List<Component> pickOne() {
-        return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one"),
-                Component.translatable("screen.justenoughstructures.tools.pick_one_hint").withStyle(net.minecraft.ChatFormatting.GRAY));
+        return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one"));
     }
 
     /**

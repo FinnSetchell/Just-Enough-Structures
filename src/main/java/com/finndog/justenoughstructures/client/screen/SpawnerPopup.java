@@ -282,8 +282,7 @@ final class SpawnerPopup {
                 g.fill(left, top, right, top + ICON, 0xFF555555);
                 g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
             }
-            hoveredTip = enabled ? List.of(Component.translatable("screen.justenoughstructures.tools.open_spawner"),
-                    Component.translatable("screen.justenoughstructures.tools.open_spawner_hint").withStyle(ChatFormatting.GRAY)) : pickOne();
+            hoveredTip = enabled ? List.of(Component.translatable("screen.justenoughstructures.tools.open_spawner")) : pickOne();
         }
         g.pose().pushPose();
         g.pose().translate(left + 1, top + 1, 0);
@@ -304,8 +303,7 @@ final class SpawnerPopup {
     }
 
     private static List<Component> pickOne() {
-        return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one_spawner"),
-                Component.translatable("screen.justenoughstructures.tools.pick_one_hint").withStyle(ChatFormatting.GRAY));
+        return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one_spawner"));
     }
 
     /** The link at a point, or null. */

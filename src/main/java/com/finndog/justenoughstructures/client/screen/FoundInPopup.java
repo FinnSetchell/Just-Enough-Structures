@@ -118,14 +118,10 @@ final class FoundInPopup {
                     .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
             Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40, Gui.LABEL_SOFT);
         }
-        int moreW = 0;
         if (list.size() > VISIBLE_ROWS) {
             String more = Component.translatable("screen.justenoughstructures.found_in_range", scroll + 1, Math.min(list.size(), scroll + VISIBLE_ROWS), list.size()).getString();
-            moreW = Gui.smallWidth(font, more) + 6;
             Gui.small(g, font, more, x + WIDTH - 8 - Gui.smallWidth(font, more), y + height() - 11, Gui.LABEL_SOFT);
         }
-        Gui.smallClipped(g, font, Component.translatable("screen.justenoughstructures.found_hint").getString(), x + 8, y + height() - 11,
-                WIDTH - 16 - moreW, Gui.LABEL_SOFT);
     }
 
     Optional<Row> click(double mouseX, double mouseY) {

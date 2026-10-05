@@ -10,6 +10,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -29,11 +30,11 @@ final class NavBar {
     private final Arrow forward = new Arrow(false, Component.translatable("screen.justenoughstructures.nav.forward"), b -> Nav.forward());
     private Component backTo;
     private Component forwardTo;
+    /** Whether where they go is written beside the buttons, so their tooltips needn't say it. */
+    private boolean written;
 
     NavBar(Screen screen) {
         this.screen = screen;
-        back.setTooltip(tooltip(null, true));
-        forward.setTooltip(tooltip(null, false));
     }
 
     /** Drawn after everything else on the screen, so it stays usable over a popup. */
@@ -42,36 +43,38 @@ final class NavBar {
         Nav.Place forwardPlace = Nav.forwardTarget(screen);
         Component newBack = backPlace == null ? null : backPlace.label();
         Component newForward = forwardPlace == null ? null : forwardPlace.label();
-        if (!same(newBack, backTo)) {
-            backTo = newBack;
-            back.setTooltip(tooltip(backTo, true));
-        }
-        if (!same(newForward, forwardTo)) {
-            forwardTo = newForward;
-            forward.setTooltip(tooltip(forwardTo, false));
-        }
-        back.active = backTo != null;
-        forward.active = forwardTo != null;
 
         back.setWidth(back.contentWidth(font) + 10);
         forward.setWidth(forward.contentWidth(font) + 10);
         back.setPosition(SIDE, Y);
         forward.setPosition(screen.width - SIDE - forward.getWidth(), Y);
+        // Where each goes, beside it, each given half of what's left between them, or all of it
+        // when the other has nowhere to go.
+        int between = forward.getX() - back.getX() - back.getWidth() - 16;
+        int room = newBack != null && newForward != null ? between / 2 : between;
+        boolean nowWritten = room > 20;
+        if (!same(newBack, backTo) || nowWritten != written) {
+            back.setTooltip(tooltip(newBack, true, nowWritten));
+        }
+        if (!same(newForward, forwardTo) || nowWritten != written) {
+            forward.setTooltip(tooltip(newForward, false, nowWritten));
+        }
+        backTo = newBack;
+        forwardTo = newForward;
+        written = nowWritten;
+        back.active = backTo != null;
+        forward.active = forwardTo != null;
 
         g.pose().pushPose();
         g.pose().translate(0, 0, 500);
         back.render(g, mouseX, mouseY, partialTick);
         forward.render(g, mouseX, mouseY, partialTick);
-        // Where each goes, beside it, each given half of what's left between them, or all of it
-        // when the other has nowhere to go.
-        int between = forward.getX() - back.getX() - back.getWidth() - 16;
-        int room = backTo != null && forwardTo != null ? between / 2 : between;
         int textY = Y + (HEIGHT - 8) / 2;
-        if (backTo != null && room > 20) {
+        if (backTo != null && written) {
             Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.nav.to", backTo).getString(),
                     back.getX() + back.getWidth() + 4, textY, room, 0xFFDDDDDD, true);
         }
-        if (forwardTo != null && room > 20) {
+        if (forwardTo != null && written) {
             String full = Component.translatable("screen.justenoughstructures.nav.to", forwardTo).getString();
             String text = Gui.clip(font, full, room);
             Gui.drawClipped(g, font, full, forward.getX() - 4 - font.width(text), textY, room, 0xFFDDDDDD, true);
@@ -83,13 +86,18 @@ final class NavBar {
         return a == null ? b == null : b != null && a.getString().equals(b.getString());
     }
 
-    private static Tooltip tooltip(Component to, boolean isBack) {
-        String which = isBack ? "back" : "forward";
+    /** Its keys, and where it goes when that isn't written beside it, or none when there's nowhere to go. */
+    private static Tooltip tooltip(Component to, boolean isBack, boolean written) {
         if (to == null) {
-            return Tooltip.create(Component.translatable("screen.justenoughstructures.nav." + which + "_none"));
+            return null;
+        }
+        String which = isBack ? "back" : "forward";
+        MutableComponent keys = Component.translatable("screen.justenoughstructures.nav." + which + "_keys");
+        if (written) {
+            return Tooltip.create(keys);
         }
         return Tooltip.create(Component.translatable("screen.justenoughstructures.nav." + which + "_to", to)
-                .append("\n").append(Component.translatable("screen.justenoughstructures.nav." + which + "_keys").withStyle(ChatFormatting.GRAY)));
+                .append("\n").append(keys.withStyle(ChatFormatting.GRAY)));
     }
 
     /** Clicks on the bar, and the mouse's back and forward buttons anywhere. */

@@ -211,10 +211,9 @@ final class ToolsChests extends ToolsSection {
         detail.end(g, ui, end - dTop);
     }
 
-    /** What this section is for, while nothing's picked. Returns the y below it. */
+    /** What a change here does, while nothing's picked. Returns the y below it. */
     private int intro(GuiGraphics g, int x, int y, int w) {
-        int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro"), x, y, w, Gui.LABEL_SOFT);
-        return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro_more"), x, ty + 4, w, Gui.LABEL_SOFT);
+        return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro"), x, y, w, Gui.LABEL_SOFT);
     }
 
     private static ItemStack icon(String block) {
@@ -235,7 +234,7 @@ final class ToolsChests extends ToolsSection {
                 : StructureNames.structure(ref.structure()) + " · " + StructureNames.mod(ref.structure().getNamespace());
         List<RowButton> show = ref.structure() == null ? List.of()
                 : List.of(new RowButton(Component.translatable("screen.justenoughstructures.tools.show_in_browser"), screen.browser() == null ? null
-                : () -> screen.showContainerInBrowser(ref), Component.translatable("screen.justenoughstructures.tools.show_in_browser_hint")));
+                : () -> screen.showContainerInBrowser(ref)));
         int cy = y + row(g, ui, x, y, w, Icon.item(icon(ref.block())), name, null, 0, where, show, null, 0, false);
         Component from = ref.byCode() ? Component.translatable("screen.justenoughstructures.tools.by_code")
                 : Component.translatable("screen.justenoughstructures.tools.from_template", ref.template().toString(), ref.templatePos().toShortString());

@@ -342,14 +342,13 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
         int right = width - PAD - 6;
         Component back = Component.translatable("screen.justenoughstructures.tools.browser");
         right -= ui.backButtonWidth(back);
-        ui.backButton(g, back, right, rowY - 1, parent != null, this::toBrowser,
-                Component.translatable("screen.justenoughstructures.tools.browser_hint"));
+        ui.backButton(g, back, right, rowY - 1, parent != null, this::toBrowser);
         right -= 6;
         int waiting = state == null ? 0 : state.waiting();
         if (waiting > 0) {
             Component reload = Component.translatable("screen.justenoughstructures.tools.reload");
             right -= ui.buttonWidth(reload);
-            ui.button(g, reload, right, rowY - 1, true, this::reloadNow, Component.translatable("screen.justenoughstructures.tools.reload_hint"));
+            ui.button(g, reload, right, rowY - 1, true, this::reloadNow);
             right -= 4;
         }
         String status = Component.translatable(waiting > 0 ? "screen.justenoughstructures.tools.waiting" : "screen.justenoughstructures.tools.applied",

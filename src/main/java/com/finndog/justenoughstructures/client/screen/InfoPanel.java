@@ -750,8 +750,7 @@ final class InfoPanel {
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 String key = "loot:" + table + "|" + first.id();
                 if (hovered) {
-                    List<Component> lines = new ArrayList<>(List.of(Component.literal(name),
-                            Component.translatable("screen.justenoughstructures.group_hint").withStyle(ChatFormatting.YELLOW)));
+                    List<Component> lines = new ArrayList<>(List.of(Component.literal(name)));
                     if (Gui.advanced() && !table.isEmpty()) {
                         lines.add(Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
                     }
@@ -768,30 +767,29 @@ final class InfoPanel {
             cy += 2;
             fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
             cy += secondaryLine() + 2;
+            // One line each, as the heading already says they aren't in this layout.
+            int otherHeight = 20;
             for (String table : others) {
-                boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
-                Gui.card(g, x, cy, contentRight - x, rowHeight);
+                boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, otherHeight, clipTop, clipHeight);
+                Gui.card(g, x, cy, contentRight - x, otherHeight);
                 if (hovered) {
-                    g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, Gui.ROW_HOVER);
+                    g.fill(x + 1, cy + 1, contentRight - 1, cy + otherHeight - 1, Gui.ROW_HOVER);
                 }
-                Gui.slot(g, x + PAD + 1, cy + 2);
-                g.renderItem(SECRET_ICON, x + PAD + 2, cy + 3);
-                int textWidth = contentRight - x - PAD - 23 - 12;
-                Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 3, textWidth, TEXT);
-                int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
-                fineClipped(g, Component.translatable("screen.justenoughstructures.not_in_layout").getString(), x + PAD + 23, cy + 13, textWidth - mark, Gui.LABEL_SOFT);
-                g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
+                Gui.slot(g, x + PAD + 1, cy + 1);
+                g.renderItem(SECRET_ICON, x + PAD + 2, cy + 2);
+                int mark = editedMark(g, table, contentRight - 12, cy + 7);
+                Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12 - mark, TEXT);
+                g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 if (hovered) {
-                    List<Component> lines = new ArrayList<>(List.of(Component.literal(StructureNames.lootTable(table)),
-                            Component.translatable("screen.justenoughstructures.not_in_layout_hint").withStyle(ChatFormatting.GRAY)));
+                    List<Component> lines = new ArrayList<>(List.of(Component.literal(StructureNames.lootTable(table))));
                     if (Gui.advanced()) {
                         lines.add(Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
                     }
                     hoveredText = withEditedNote(lines, table);
                 }
-                highlightRows.put("other:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
-                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenTable.accept(table)));
-                cy += rowHeight + 1;
+                highlightRows.put("other:" + table, new int[]{x + (contentRight - x) / 2, cy + otherHeight / 2});
+                hotspots.add(new Hotspot(x, cy, contentRight - x, otherHeight, () -> onOpenTable.accept(table)));
+                cy += otherHeight + 1;
             }
         }
         return lootTotals(g, cy, snapshot, mouseX, mouseY, clipTop, clipHeight);
@@ -820,16 +818,14 @@ final class InfoPanel {
      * containers use it.
      */
     private int lootTotals(GuiGraphics g, int cy, StructureSnapshot snapshot, int mouseX, int mouseY, int clipTop, int clipHeight) {
-        // How many containers use each table, by kind, and how many of each kind there are in all.
+        // How many containers use each table, by kind.
         Map<String, Map<String, Integer>> perTable = new LinkedHashMap<>();
-        Map<String, Integer> perKind = new LinkedHashMap<>();
         for (StructureSnapshot.Container c : snapshot.containers()) {
             if (c.lootTable() == null) {
                 continue;
             }
             String kind = containerIcon(snapshot, c).getHoverName().getString();
             perTable.computeIfAbsent(c.lootTable(), k -> new LinkedHashMap<>()).merge(kind, 1, Integer::sum);
-            perKind.merge(kind, 1, Integer::sum);
         }
         if (perTable.isEmpty()) {
             return cy;
@@ -841,11 +837,6 @@ final class InfoPanel {
         }
         Gui.band(g, font, heading, x, cy, contentRight - x, 13);
         cy += 16;
-        int containers = perKind.values().stream().mapToInt(Integer::intValue).sum();
-        String what = counted(perKind);
-        Component counts = containers == 1 ? Component.translatable("screen.justenoughstructures.whole_only_one", what)
-                : Component.translatable("screen.justenoughstructures.whole_together", what);
-        cy = fineWrapped(g, counts, x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 1;
         cy = sortLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
 
         // Every table's chances are needed before the totals mean anything.
@@ -929,9 +920,6 @@ final class InfoPanel {
         int linkHeight = secondaryLine() + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
         fine(g, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
-        if (overSort) {
-            hoveredText = List.of(Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_to_common" : "screen.justenoughstructures.sort_to_rare"));
-        }
         hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
             ClientState.rarestFirst = !ClientState.rarestFirst;
             ClientState.save();
@@ -944,7 +932,6 @@ final class InfoPanel {
      * lists its loot tables from the loot index instead of from the containers in the layout.
      */
     private int secretLoot(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
-        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_secret_note"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT) + 3;
         Set<ResourceLocation> tables = FoundIn.tablesIn(entry.id());
         if (tables == null) {
             ClientRequests.index();
@@ -1026,8 +1013,7 @@ final class InfoPanel {
             return cy;
         }
         cy += 4;
-        Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds", selectedName == null ? "" : selectedName).getString(),
-                x, cy, contentRight - x, 13);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, cy, contentRight - x, 13);
         cy += 16;
         cy = sortLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         if (odds == null) {
@@ -1259,7 +1245,7 @@ final class InfoPanel {
             }
             cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", mouseX, mouseY, clipTop, clipHeight);
             cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", mouseX, mouseY, clipTop, clipHeight);
-            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.mobs_spawners_note"), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
+            cy += 4;
         }
         cy = mobSection(g, cy, "over_time", overTime, false);
         return cy;
@@ -1303,8 +1289,6 @@ final class InfoPanel {
             LongSet positions = new LongOpenHashSet();
             spawners.forEach(spawner -> positions.add(spawner.pos().asLong()));
             hoveredBlocks = new Hovered(key, s -> positions);
-            hoveredText = List.of(Component.translatable(spawners.size() > 1 ? "screen.justenoughstructures.spawner_row_many"
-                    : "screen.justenoughstructures.spawner_row_one").withStyle(ChatFormatting.YELLOW));
         }
         StructureSnapshot.Spawner first = spawners.get(0);
         hotspots.add(new Hotspot(x, top, contentRight - x, bottom - top, () -> onOpenSpawner.accept(first, spawners.size() > 1)));
@@ -1319,8 +1303,7 @@ final class InfoPanel {
         for (Map.Entry<String, Integer> e : mobs.entrySet()) {
             cy = mobRow(g, cy, e.getKey(), counts ? Component.translatable("screen.justenoughstructures.times", e.getValue()).getString() : "");
         }
-        Component note = Component.translatable("screen.justenoughstructures.mobs_" + key + "_note");
-        return fineWrapped(g, note, x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 6;
+        return cy + 4;
     }
 
     /** A mob's card: its icon, its name and, on the right, {@code right}. */

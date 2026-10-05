@@ -239,7 +239,7 @@ final class ToolsSpawners extends ToolsSection {
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.mob"), x, cy + 2, w);
         List<RowButton> buttons = ref.byCode() ? List.of() : List.of(new RowButton(Component.translatable("screen.justenoughstructures.container.change"),
-                () -> screen.changeSpawner(ref, mob), Component.translatable("screen.justenoughstructures.spawner.change_hint")));
+                () -> screen.changeSpawner(ref, mob)));
         String id = mob.isEmpty() ? Component.translatable("screen.justenoughstructures.hover_spawns_nothing").getString() : mob;
         cy += row(g, ui, x, cy, w, Icon.item(mobIcon(mob)), mobName(mob, others).getString(), null, 0, id, buttons, null, 0, false) + 2;
 

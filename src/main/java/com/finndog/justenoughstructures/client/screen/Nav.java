@@ -215,8 +215,7 @@ public final class Nav {
                     } else {
                         mc.setScreen(top);
                     }
-                }, Component.translatable("screen.justenoughstructures.editor.unsaved.title"),
-                        Component.translatable("screen.justenoughstructures.editor.unsaved.message")));
+                }, Component.translatable("screen.justenoughstructures.editor.unsaved.title"), Component.empty()));
                 return;
             }
         }

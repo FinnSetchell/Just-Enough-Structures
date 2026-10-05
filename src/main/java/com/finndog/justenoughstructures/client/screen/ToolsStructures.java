@@ -354,9 +354,8 @@ final class ToolsStructures extends ToolsSection {
         Component save = Component.translatable("screen.justenoughstructures.tools.save_notes");
         int saveW = ui.buttonWidth(save);
         String status = notesChanged ? Component.translatable("screen.justenoughstructures.tools.notes_unsaved").getString()
-                : info.notes() == null ? ""
-                : Component.translatable(state.structures().getOrDefault(id, new PackToolsState.Written(info, false)).fromPack()
-                ? "screen.justenoughstructures.tools.notes_shown" : "screen.justenoughstructures.tools.notes_from_mod").getString();
+                : info.notes() == null || state.structures().getOrDefault(id, new PackToolsState.Written(info, false)).fromPack() ? ""
+                : Component.translatable("screen.justenoughstructures.tools.notes_from_mod").getString();
         List<FormattedCharSequence> statusLines = status.isEmpty() ? List.of()
                 : font.split(Component.literal(status), (int) (Math.max(20, w - saveW - 16) / Gui.fineScale()));
         int lineH = Gui.fineLine(font) + 1;

@@ -113,8 +113,7 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
             int reloadWidth = font.width(Component.translatable("screen.justenoughstructures.picker.use_reload")) + 12;
             x -= reloadWidth + 4;
             useReload = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use_reload"), b -> apply(true))
-                    .bounds(x, y, reloadWidth, 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.use_reload_hint"))).build());
+                    .bounds(x, y, reloadWidth, 20).build());
         }
         int useWidth = font.width(Component.translatable("screen.justenoughstructures.picker.use")) + 12;
         use = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.picker.use"), b -> apply(false))

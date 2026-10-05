@@ -238,11 +238,9 @@ final class ToolsLoot extends ToolsSection {
 
         int dx = x + leftW + 6;
         int dw = Math.min(w - leftW - 6, READABLE);
-        if (selected == null) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_table"), dx, y + 4, dw, Gui.LABEL_SOFT);
-            return;
+        if (selected != null) {
+            detail(g, ui, dx, y, dw, h, state);
         }
-        detail(g, ui, dx, y, dw, h, state);
     }
 
     private void listRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, ResourceLocation table, LootOverrides.Status status) {

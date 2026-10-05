@@ -75,18 +75,13 @@ final class ToolsRules extends ToolsSection {
         // No wider than reads well, or than the file as saved needs for its longest line.
         int top = scroller.begin(g, ui, x, y, Math.min(w, Math.max(READABLE, codeW) + 8), h);
         int cw = scroller.width();
-        int cy = top;
-        cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.rules_where"), x, cy, cw, Gui.LABEL_SOFT) + 5;
-
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_can"), x, cy, cw);
+        int cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_can"), x, top, cw);
         cy = levelRow(g, ui, x, cy, cw, "locate", s.locatePermission(), 0, level -> with(s, level, s.teleportPermission(), s.packTools()));
         cy = levelRow(g, ui, x, cy, cw, "teleport", s.teleportPermission(), 0, level -> with(s, s.locatePermission(), level, s.packTools()));
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.who_tools"), x, cy + HEADING_GAP, cw);
         cy = label(g, ui, x, cy, cw, "singleplayer", Component.translatable("screen.justenoughstructures.tools.cheats_on"));
-        Component byName = Component.translatable("screen.justenoughstructures.tools.by_name");
-        Gui.drawClipped(g, font, byName.getString(), x + 2, cy + 4, cw - 4, ToolsUi.TEXT, false);
-        ui.tooltip(x, cy + 2, Math.min(cw, font.width(byName) + 4), 12, Component.translatable("screen.justenoughstructures.tools.by_name_hint"));
+        Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.tools.by_name").getString(), x + 2, cy + 4, cw - 4, ToolsUi.TEXT, false);
         cy += 15;
         int cx = x + 2;
         List<String> players = s.packTools().players();
@@ -201,8 +196,7 @@ final class ToolsRules extends ToolsSection {
         int h = under ? LINE + ToolsUi.BUTTON + 1 : LINE;
         hint(ui, x, y, under ? w : w - buttonW - 4, under ? 14 : LINE - 1, key);
         int next = level >= 4 ? lowest : level + 1;
-        ui.button(g, levelName(level), x + w - buttonW - 2, under ? y + 15 : y + 2, buttonW, ToolsUi.BUTTON, true, () -> save(change.apply(next)),
-                Component.translatable("screen.justenoughstructures.tools.level_next", levelName(next)));
+        ui.button(g, levelName(level), x + w - buttonW - 2, under ? y + 15 : y + 2, buttonW, ToolsUi.BUTTON, true, () -> save(change.apply(next)));
         g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
         return y + h;
     }

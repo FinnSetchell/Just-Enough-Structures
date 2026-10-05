@@ -417,9 +417,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     private void addToolbar(int left, int right) {
         int y = height - PAD - 26;
         Button mode = addRenderableWidget(Button.builder(Component.translatable(raw ? "screen.justenoughstructures.editor.form"
-                : "screen.justenoughstructures.editor.json"), b -> toggleMode()).bounds(left, y, buttonWidth(raw ? "form" : "json"), 20)
-                .tooltip(Tooltip.create(Component.translatable(raw ? "screen.justenoughstructures.editor.form_hint" : "screen.justenoughstructures.editor.json_hint")))
-                .build());
+                : "screen.justenoughstructures.editor.json"), b -> toggleMode()).bounds(left, y, buttonWidth(raw ? "form" : "json"), 20).build());
         mode.active = view != null;
 
         int x = right;
@@ -429,8 +427,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         if (ClientRequests.canUsePackTools()) {
             x -= buttonWidth("save_reload") + 4;
             Button saveReload = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.save_reload"),
-                    b -> save(true)).bounds(x, y, buttonWidth("save_reload"), 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.save_reload_hint"))).build());
+                    b -> save(true)).bounds(x, y, buttonWidth("save_reload"), 20).build());
             saveReload.active = view != null;
         }
         x -= buttonWidth("save") + 4;
@@ -772,8 +769,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             return;
         }
         minecraft.setScreen(new ConfirmScreen(leave -> minecraft.setScreen(leave ? parent : this),
-                Component.translatable("screen.justenoughstructures.editor.unsaved.title"),
-                Component.translatable("screen.justenoughstructures.editor.unsaved.message")));
+                Component.translatable("screen.justenoughstructures.editor.unsaved.title"), Component.empty()));
     }
 
     @Override
@@ -1205,18 +1201,13 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
                 hoveredStack = stack;
             }
         }
-        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll,
-                Component.translatable("screen.justenoughstructures.editor.roll_hint"));
+        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll);
     }
 
     /** Every item's chance in a container, from rolling the edit as it stands. */
     private void renderOdds(GuiGraphics g) {
         int x = oddsX;
-        String heading = Component.translatable("screen.justenoughstructures.editor.preview").getString();
-        if (font.width(heading) > oddsW - 4) {
-            heading = Component.translatable("screen.justenoughstructures.editor.preview_short").getString();
-        }
-        Gui.band(g, font, heading, x, contentTop, oddsW, 13);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.preview").getString(), x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
             Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, BAD);

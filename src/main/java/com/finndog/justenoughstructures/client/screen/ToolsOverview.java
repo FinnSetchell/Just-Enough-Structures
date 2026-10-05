@@ -64,7 +64,6 @@ final class ToolsOverview extends ToolsSection {
             cy += 4;
         }
 
-        cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.start"), x, cy, cw);
         int bx = x;
         String[][] starts = {{"edit", "LOOT"}, {"chest", "CHESTS"}, {"spawner", "SPAWNERS"}, {"new", null}, {"hide", "STRUCTURES"}, {"notes", "STRUCTURES"}};
         for (String[] start : starts) {
