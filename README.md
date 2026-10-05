@@ -7,8 +7,8 @@ Structures are built by the code that owns them. Just Enough Structures asks eac
 generate itself in a sandbox, the same way `/place structure` does, and only draws the result. That
 is why it works with structures from any mod or datapack without knowing anything about them.
 
-This is early work. The first release targets Minecraft 1.20.1 on Fabric, with more versions and
-loaders to follow.
+This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, with more
+versions and loaders to follow.
 
 ## Using it
 
@@ -124,7 +124,7 @@ Explorer's Compass uses.
 ## Requirements
 
 - Minecraft 1.20.1
-- Fabric Loader and Fabric API
+- Fabric Loader and Fabric API, or Forge
 - Installed on both the client and the server. In singleplayer that's just your game.
 
 ## Building
@@ -137,6 +137,10 @@ loader is its own node under `versions/`.
 ./gradlew :1.20.1-fabric:runGameTest
 ./gradlew :1.20.1-fabric:runAutoshot
 ```
+
+The Forge node has the same three, as `:1.20.1-forge:build` and so on. Its jar is reobfuscated, as
+Forge 1.20.1 runs on SRG names, and its `runAutoshot` takes a list of structures but has no scripted
+clips.
 
 `runGameTest` generates every vanilla structure headlessly and checks the loot, the network format
 and that previews leave the world untouched. `runAutoshot` opens the browser in a throwaway world,

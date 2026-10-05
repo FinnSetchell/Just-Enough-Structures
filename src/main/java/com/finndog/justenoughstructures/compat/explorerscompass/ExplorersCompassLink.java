@@ -1,5 +1,8 @@
 package com.finndog.justenoughstructures.compat.explorerscompass;
 
+// Its Forge build's names differ, see stonecutter.gradle.kts.
+//~ compass_names
+
 import com.chaosthedude.explorerscompass.ExplorersCompass;
 import com.chaosthedude.explorerscompass.gui.ExplorersCompassScreen;
 import com.chaosthedude.explorerscompass.gui.StructureSearchEntry;

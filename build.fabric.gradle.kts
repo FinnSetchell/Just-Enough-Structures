@@ -8,6 +8,8 @@ fun prop(key: String): String = sc.properties.get<String>(key)
 val modId = property("mod_id").toString()
 val modName = property("mod_name").toString()
 val modAuthor = property("mod_author").toString()
+// Read here: inside a task, property() looks at the task, and a task has its own description.
+val modDescription = property("description").toString()
 val requiredJava: JavaVersion = JavaVersion.toVersion(prop("mod.java"))
 val mcBuild: String = prop("mod.mc_build")
 
@@ -181,7 +183,7 @@ tasks {
             "version" to version.toString(),
             "mod_id" to modId,
             "mod_name" to modName,
-            "description" to property("description").toString(),
+            "description" to modDescription,
             "mod_author" to modAuthor,
             "mc_compat" to prop("mod.mc_compat"),
             "fabric_loader_dep" to prop("mod.fabric_loader_dep"),

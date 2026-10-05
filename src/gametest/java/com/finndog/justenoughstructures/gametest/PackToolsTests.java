@@ -122,7 +122,7 @@ public final class PackToolsTests {
     /** Saving a table or turning an edit off waits for a /reload, and Pack tools says so. */
     public static void changesWaitForReload(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         LootOverrides.setFolder(temp("jes-overrides"));
         try {
@@ -150,7 +150,7 @@ public final class PackToolsTests {
 
     /** The editor's roll of an edit not saved yet fills a chest from it; one the game can't load fills nothing. */
     public static void draftsRollIntoAChest(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));

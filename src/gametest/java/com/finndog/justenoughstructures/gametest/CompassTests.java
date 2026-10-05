@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -27,7 +28,7 @@ public final class CompassTests {
             helper.succeed();
             return;
         }
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         helper.assertTrue(key(JesServer.compassFor(player, PYRAMID)).endsWith("compass_not_held"), "a player without a compass wasn't told to hold one");
 
         ItemStack compass = new ItemStack(BuiltInRegistries.ITEM.get(COMPASS));
@@ -60,9 +61,17 @@ public final class CompassTests {
         helper.succeed();
     }
 
+    // Its Fabric build keeps what it's set to as StructureID, its Forge build as StructureKey.
     private static String target(ItemStack compass) {
         CompoundTag tag = compass.getTag();
-        return tag == null || !tag.contains("StructureID") ? null : tag.getString("StructureID");
+        if (tag != null) {
+            for (String key : List.of("StructureID", "StructureKey")) {
+                if (tag.contains(key)) {
+                    return tag.getString(key);
+                }
+            }
+        }
+        return null;
     }
 
     private static String key(Component reply) {

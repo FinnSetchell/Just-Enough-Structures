@@ -3,6 +3,7 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
         maven("https://maven.fabricmc.net/") { name = "FabricMC" }
+        maven("https://maven.neoforged.net/releases/") { name = "NeoForged" }
         maven("https://maven.kikugie.dev/releases") { name = "KikuGie Releases" }
         maven("https://maven.kikugie.dev/snapshots") { name = "KikuGie Snapshots" }
     }
@@ -29,6 +30,9 @@ stonecutter {
         }
 
         match("1.20.1", "fabric")
+        // Forge 1.20.1 runs on SRG names, so its jar has to be reobfuscated, which only ModDevGradle's
+        // legacy Forge plugin does. The node keeps the -forge name, so `//? if forge` covers it too.
+        version("1.20.1-forge", "1.20.1").buildscript("build.forge-legacy.gradle.kts")
 
         vcsVersion = "1.20.1-fabric"
     }

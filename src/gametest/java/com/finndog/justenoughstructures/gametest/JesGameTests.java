@@ -1,37 +1,41 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
-import com.finndog.justenoughstructures.gametest.CaptureTests;
-import com.finndog.justenoughstructures.gametest.CompassTests;
-import com.finndog.justenoughstructures.gametest.ContainerTests;
-import com.finndog.justenoughstructures.gametest.GridTests;
-import com.finndog.justenoughstructures.gametest.OverrideTests;
-import com.finndog.justenoughstructures.gametest.PackToolsTests;
-import com.finndog.justenoughstructures.gametest.PerfTests;
-import com.finndog.justenoughstructures.gametest.RealWorldTests;
-import com.finndog.justenoughstructures.gametest.ServiceTests;
-import com.finndog.justenoughstructures.gametest.SettingsTests;
-import com.finndog.justenoughstructures.gametest.SpawnerTests;
 import java.util.Collection;
 import java.util.List;
-import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.TestFunction;
 
-public final class FabricGameTests implements FabricGameTest {
+/**
+ * Every game test, which each loader's test mod registers: Fabric through its fabric-gametest
+ * entrypoint, Forge by the annotations here. Each test runs in an empty 8x8x8 structure.
+ */
+//? if forge {
+/*@net.minecraftforge.gametest.GameTestHolder("justenoughstructures_gametest")
+@net.minecraftforge.gametest.PrefixGameTestTemplate(false)
+*///?}
+public final class JesGameTests {
+    //? if fabric {
+    private static final String EMPTY_STRUCTURE = "fabric-gametest-api-v1:empty";
+    private static final String EMPTY_STRUCTURE_ID = EMPTY_STRUCTURE;
+    //?} else {
+    /*// Forge puts the holder's namespace in front of a test's template, but not a generated test's.
+    private static final String EMPTY_STRUCTURE = "empty";
+    private static final String EMPTY_STRUCTURE_ID = "justenoughstructures_gametest:empty";
+    *///?}
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void modIsLoaded(GameTestHelper helper) {
-        helper.assertTrue(FabricLoader.getInstance().isModLoaded(JustEnoughStructures.MOD_ID), "mod not loaded");
+        helper.assertTrue(JustEnoughStructures.modVersions().containsKey(JustEnoughStructures.MOD_ID), "mod not loaded");
         helper.succeed();
     }
 
     @GameTestGenerator
     public Collection<TestFunction> captureEveryVanillaStructure() {
         return CaptureTests.VANILLA.stream()
-                .map(name -> new TestFunction("capture", "capture_" + name, EMPTY_STRUCTURE, 200, 0L, true,
+                .map(name -> new TestFunction("capture", "capture_" + name, EMPTY_STRUCTURE_ID, 200, 0L, true,
                         helper -> CaptureTests.capturesVanillaStructure(helper, name)))
                 .toList();
     }

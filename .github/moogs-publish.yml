@@ -16,7 +16,7 @@ discord:
   pingDefault: true
 artifacts:
   - type: mod-jar
-# Each loader gets its own target and tag, e.g. 0.1.0-fabric. Each build is one node from
+# Each loader gets its own target and tag, e.g. 0.1.0-fabric or 0.1.0-forge. Each build is one node from
 # settings.gradle.kts. `java` is the Java that runs Gradle; the node's own toolchain is downloaded.
 targets:
   - branch: main
@@ -28,3 +28,11 @@ targets:
       - { mc: "1.20.1", java: 25 }
     dependencies:
       - { modrinth: P7dR8mSH, curseforge: fabric-api, type: required }
+  - branch: main
+    tagLabel: forge
+    loaders: [forge]
+    buildCommand: ":{mc}-forge:build"
+    jarDir: "versions/{mc}-forge/build/libs"
+    builds:
+      - { mc: "1.20.1", java: 25 }
+    dependencies: []

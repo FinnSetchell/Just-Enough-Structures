@@ -10,7 +10,7 @@
   ],
   "entrypoints": {
     "fabric-gametest": [
-      "com.finndog.justenoughstructures.gametest.fabric.FabricGameTests"
+      "com.finndog.justenoughstructures.gametest.JesGameTests"
     ],
     "client": [
       "com.finndog.justenoughstructures.gametest.fabric.Autoshot"

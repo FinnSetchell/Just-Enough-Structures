@@ -98,7 +98,7 @@ public final class ServiceTests {
     public static void jesOpenCommand(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         helper.assertTrue(server.getCommands().getDispatcher().getRoot().getChild("jes") != null, "/jes isn't registered");
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         CommandSourceStack source = player.createCommandSourceStack().withPermission(0).withSuppressedOutput();
         helper.assertTrue(server.getCommands().performPrefixedCommand(source, "jes open minecraft:igloo") == 0,
                 "/jes open worked for a player whose game doesn't have the mod");
@@ -321,7 +321,7 @@ public final class ServiceTests {
 
     /** Only operators can teleport, the same as /tp. */
     public static void onlyOperatorsCanTeleport(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         Vec3 before = player.position();
         Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);
         helper.assertTrue(reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_no_permission"),

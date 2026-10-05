@@ -213,7 +213,7 @@ public final class SettingsTests {
             helper.assertFalse(ids.contains(new ResourceLocation("igloo")), "a hidden structure is in the list");
             helper.assertTrue(ids.contains(new ResourceLocation("desert_pyramid")), "a structure that isn't hidden is missing");
 
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.mock(helper);
             Component reply = JesServer.locateFor(player, new ResourceLocation("igloo"), false);
             helper.assertTrue(key(reply).endsWith("locate_hidden"), "locating a hidden structure got " + reply.getString());
 
@@ -230,7 +230,7 @@ public final class SettingsTests {
     public static void locateLevelsComeFromTheSettings(GameTestHelper helper) {
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            ServerPlayer player = TestPlayers.mock(helper);
             Vec3 start = player.position();
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, ServerConfig.PackTools.level(4)));
             Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);

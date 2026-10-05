@@ -1,5 +1,8 @@
 package com.finndog.justenoughstructures.compat.rei;
 
+// The 1.21.11 rename would catch REI's own class names, so it's off in this file.
+//~ !identifier
+
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import java.util.List;

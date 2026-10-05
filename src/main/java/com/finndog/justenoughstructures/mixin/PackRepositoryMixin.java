@@ -1,7 +1,7 @@
 package com.finndog.justenoughstructures.mixin;
 
 import com.finndog.justenoughstructures.overrides.OverridePack;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.server.packs.repository.RepositorySource;
@@ -25,7 +25,8 @@ public abstract class PackRepositoryMixin {
     @Inject(method = "<init>", at = @At("RETURN"))
     private void justenoughstructures$addLootOverrides(RepositorySource[] given, CallbackInfo ci) {
         if (sources.stream().anyMatch(source -> source instanceof ServerPacksSource)) {
-            Set<RepositorySource> withOverrides = new HashSet<>(sources);
+            // In order, and still open to more: Forge adds its mods' packs to this set later.
+            Set<RepositorySource> withOverrides = new LinkedHashSet<>(sources);
             withOverrides.add(new OverridePack());
             sources = withOverrides;
         }

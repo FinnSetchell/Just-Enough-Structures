@@ -1,7 +1,9 @@
 package com.finndog.justenoughstructures.catalog;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
 import java.util.ArrayList;
@@ -9,7 +11,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -38,7 +39,7 @@ public final class StructureCatalog {
         Map<ResourceLocation, List<SetInfo>> setsByStructure = new HashMap<>();
         for (Map.Entry<ResourceKey<StructureSet>, StructureSet> e : sets.entrySet()) {
             StructureSet set = e.getValue();
-            JsonObject placement = encode(StructurePlacement.CODEC.encodeStart(ops, set.placement()).result());
+            JsonObject placement = encode(StructurePlacement.CODEC, ops, set.placement(), e.getKey().location());
             for (StructureSet.StructureSelectionEntry sel : set.structures()) {
                 sel.structure().unwrapKey().ifPresent(key -> setsByStructure
                         .computeIfAbsent(key.location(), k -> new ArrayList<>())
@@ -49,11 +50,16 @@ public final class StructureCatalog {
         List<Entry> out = new ArrayList<>();
         for (Map.Entry<ResourceKey<Structure>, Structure> e : structures.entrySet()) {
             ResourceLocation id = e.getKey().location();
-            Structure structure = e.getValue();
-            ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
-            JsonObject definition = encode(Structure.DIRECT_CODEC.encodeStart(ops, structure).result());
-            List<SetInfo> inSets = List.copyOf(setsByStructure.getOrDefault(id, List.of()));
-            out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets)));
+            try {
+                Structure structure = e.getValue();
+                ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
+                JsonObject definition = encode(Structure.DIRECT_CODEC, ops, structure, id);
+                List<SetInfo> inSets = List.copyOf(setsByStructure.getOrDefault(id, List.of()));
+                out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets)));
+            } catch (RuntimeException | LinkageError ex) {
+                // A structure some mod left broken is left out, rather than taking the whole list with it.
+                JesLog.warnOnce("catalog:" + id, "Left {} out of the structure list, as it couldn't be read: {}", id, ex.toString());
+            }
         }
         out.sort(Comparator.comparing(entry -> entry.id().toString()));
         return out;
@@ -89,8 +95,17 @@ public final class StructureCatalog {
         }
     }
 
-    private static JsonObject encode(Optional<JsonElement> json) {
-        return json.filter(JsonElement::isJsonObject).map(JsonElement::getAsJsonObject).orElse(null);
+    /**
+     * What {@code codec} writes for {@code value}, or null if it can't. Some mods' codecs throw rather
+     * than say so, which would otherwise take the whole list down with them.
+     */
+    private static <T> JsonObject encode(Codec<T> codec, DynamicOps<JsonElement> ops, T value, ResourceLocation id) {
+        try {
+            return codec.encodeStart(ops, value).result().filter(JsonElement::isJsonObject).map(JsonElement::getAsJsonObject).orElse(null);
+        } catch (RuntimeException | LinkageError e) {
+            JesLog.debug("Couldn't write out {}: {}", id, e.toString());
+            return null;
+        }
     }
 
     /**

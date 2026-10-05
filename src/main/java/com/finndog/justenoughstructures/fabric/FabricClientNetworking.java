@@ -1,22 +1,12 @@
 package com.finndog.justenoughstructures.fabric;
 
+import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
-import com.finndog.justenoughstructures.client.JesClient;
-import com.finndog.justenoughstructures.loot.LootOdds;
-import com.finndog.justenoughstructures.network.Blobs;
-import com.finndog.justenoughstructures.network.Codecs;
-import com.finndog.justenoughstructures.network.JesNetwork;
-import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
 
 final class FabricClientNetworking {
     private FabricClientNetworking() {
@@ -40,68 +30,8 @@ final class FabricClientNetworking {
             }
         });
 
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.TRANSFER, (client, handler, buf, responder) -> {
-            Blobs.Part part = Blobs.Part.read(buf);
-            client.execute(() -> ClientRequests.onTransferPart(part));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.LOOT, (client, handler, buf, responder) -> {
-            int requestId = buf.readVarInt();
-            List<ItemStack> items = Codecs.readItems(buf);
-            client.execute(() -> ClientRequests.onLoot(requestId, items));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.ODDS, (client, handler, buf, responder) -> {
-            int requestId = buf.readVarInt();
-            LootOdds odds = Codecs.readOdds(buf);
-            client.execute(() -> ClientRequests.onOdds(requestId, odds));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.INDEX_PROGRESS, (client, handler, buf, responder) -> {
-            int done = buf.readVarInt();
-            int total = buf.readVarInt();
-            client.execute(() -> ClientRequests.onIndexProgress(done, total));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.LOCATE, (client, handler, buf, responder) -> {
-            int requestId = buf.readVarInt();
-            Component reply = buf.readComponent();
-            client.execute(() -> ClientRequests.onLocate(requestId, reply));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.OPEN_BROWSER, (client, handler, buf, responder) -> {
-            ResourceLocation structure = buf.readBoolean() ? buf.readResourceLocation() : null;
-            client.execute(() -> JesClient.openBrowser(client, structure));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.SETTINGS, (client, handler, buf, responder) -> {
-            int locate = buf.readVarInt();
-            int teleport = buf.readVarInt();
-            boolean reloaded = buf.readBoolean();
-            boolean compass = buf.readBoolean();
-            boolean packTools = buf.readBoolean();
-            boolean structuresChanged = buf.readBoolean();
-            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, packTools, structuresChanged));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.OVERRIDES, (client, handler, buf, responder) -> {
-            Map<ResourceLocation, LootOverrides.Status> statuses = new HashMap<>();
-            LootOverrides.Status[] all = LootOverrides.Status.values();
-            int count = buf.readVarInt();
-            for (int i = 0; i < count; i++) {
-                ResourceLocation id = buf.readResourceLocation();
-                int status = buf.readVarInt();
-                if (status >= 0 && status < all.length) {
-                    statuses.put(id, all[status]);
-                }
-            }
-            client.execute(() -> ClientRequests.onOverrides(statuses));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(JesNetwork.EDIT_REPLY, (client, handler, buf, responder) -> {
-            int requestId = buf.readVarInt();
-            Component message = buf.readBoolean() ? buf.readComponent() : null;
-            LootOdds odds = buf.readBoolean() ? Codecs.readOdds(buf) : null;
-            client.execute(() -> ClientRequests.onEditReply(requestId, message, odds));
-        });
+        ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(channel,
+                (client, listener, buf, responder) -> handler.handle(client, buf)));
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
     }

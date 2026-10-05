@@ -35,6 +35,21 @@ public abstract class StructureTemplateMixin {
     }
 
     // Optional, so a mod that rewrites this method costs the Mobs tab its spawner lists rather than crashing.
+    //? if forge {
+    /*// Forge runs each processor through its own process method, which takes the template too. Both
+    // that and the method calling it are Forge's own, so their names are never obfuscated.
+    @WrapOperation(method = "processBlockInfos(Lnet/minecraft/world/level/ServerLevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;Ljava/util/List;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;)Ljava/util/List;",
+            require = 0, remap = false, at = @At(value = "INVOKE", remap = false,
+            target = "Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureProcessor;process(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;"))
+    private static StructureTemplate.StructureBlockInfo justenoughstructures$processBlock(StructureProcessor processor, LevelReader level, BlockPos offset,
+                                                                                         BlockPos pos, StructureTemplate.StructureBlockInfo original,
+                                                                                         StructureTemplate.StructureBlockInfo current, StructurePlaceSettings settings,
+                                                                                         StructureTemplate template, Operation<StructureTemplate.StructureBlockInfo> call) {
+        StructureTemplate.StructureBlockInfo processed = call.call(processor, level, offset, pos, original, current, settings, template);
+        SpawnerPools.processed(processor, current, processed);
+        return processed;
+    }
+    *///?} else {
     @WrapOperation(method = "processBlockInfos", require = 0, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureProcessor;processBlock(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructurePlaceSettings;)Lnet/minecraft/world/level/levelgen/structure/templatesystem/StructureTemplate$StructureBlockInfo;"))
     private static StructureTemplate.StructureBlockInfo justenoughstructures$processBlock(StructureProcessor processor, LevelReader level, BlockPos offset,
@@ -45,4 +60,5 @@ public abstract class StructureTemplateMixin {
         SpawnerPools.processed(processor, current, processed);
         return processed;
     }
+    //?}
 }

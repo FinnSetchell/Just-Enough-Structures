@@ -161,7 +161,7 @@ public final class ContainerTests {
         StructureTemplate.StructureBlockInfo chest = firstContainer(tower);
         helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
         String original = chest.nbt().getString("LootTable");
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
@@ -202,7 +202,7 @@ public final class ContainerTests {
         helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
         String original = chest.nbt().getString("LootTable");
         ResourceLocation block = BuiltInRegistries.BLOCK.getKey(chest.state().getBlock());
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
@@ -337,7 +337,7 @@ public final class ContainerTests {
             return;
         }
         StructureSnapshot.Source source = before.source();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings settings = ServerConfig.get();
         ServerConfig.Settings open = new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0));
         ServerConfig.set(open);

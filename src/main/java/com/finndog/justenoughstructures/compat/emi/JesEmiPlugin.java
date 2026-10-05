@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import dev.emi.emi.api.EmiApi;
+import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
@@ -23,6 +24,8 @@ import net.minecraft.world.item.ItemStack;
  * after the world is joined. EMI only takes recipes while it loads, so once the index is here EMI is
  * loaded again with them.
  */
+// The annotation is how EMI finds it on Forge; Fabric uses the entrypoint in fabric.mod.json.
+@EmiEntrypoint
 public final class JesEmiPlugin implements EmiPlugin {
     static final EmiRecipeCategory FOUND_IN = new EmiRecipeCategory(JustEnoughStructures.id("found_in"), EmiStack.of(FoundInRow.MAP)) {
         @Override

@@ -241,7 +241,7 @@ public final class OverrideTests {
 
     /** The editor's preview rolls the edit itself, and only for players allowed to edit. */
     public static void draftsRollBeforeSaving(GameTestHelper helper) {
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));

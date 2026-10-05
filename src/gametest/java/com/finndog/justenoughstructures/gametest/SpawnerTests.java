@@ -195,7 +195,7 @@ public final class SpawnerTests {
         StructureTemplate.StructureBlockInfo spawner = basin == null ? null : firstSpawner(basin);
         helper.assertTrue(spawner != null, "the lava basin has no spawner");
         BlockPos pos = spawner.pos();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
@@ -339,7 +339,7 @@ public final class SpawnerTests {
         }
         long seed = treasureSeed;
         StructureSnapshot.Source source = before.source();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings settings = ServerConfig.get();
         ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
         Component saved = JesServer.patchSpawner(player, source.template(), source.pos(), HUSK);

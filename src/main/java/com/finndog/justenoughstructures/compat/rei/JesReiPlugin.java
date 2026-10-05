@@ -1,5 +1,8 @@
 package com.finndog.justenoughstructures.compat.rei;
 
+// The 1.21.11 rename would catch REI's own class names, so it's off in this file.
+//~ !identifier
+
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
@@ -27,7 +30,8 @@ import net.minecraft.world.item.ItemStack;
  * structures whose loot can give it. The rows are made when REI asks for them, from whichever loot
  * index arrived last, so they're there as soon as the server sends it without REI reloading.
  */
-public final class JesReiPlugin implements REIClientPlugin {
+// Not final: on Forge, REI finds a subclass by an annotation only its Forge build has.
+public class JesReiPlugin implements REIClientPlugin {
     static final CategoryIdentifier<FoundInDisplay> FOUND_IN = CategoryIdentifier.of(JustEnoughStructures.id("found_in"));
 
     private static volatile List<FoundInDisplay> all = List.of();

@@ -1,12 +1,16 @@
 package com.finndog.justenoughstructures;
 
+import java.util.List;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.filter.AbstractFilter;
+import org.apache.logging.log4j.core.filter.CompositeFilter;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
@@ -26,7 +30,15 @@ final class QuietFilter extends AbstractFilter {
         if (LogManager.getContext(false) instanceof LoggerContext context) {
             QuietFilter filter = new QuietFilter();
             filter.start();
-            context.addFilter(filter);
+            // First, as the first filter with an answer decides: Forge's own starts by letting every
+            // warning through, which would leave this nothing to quiet.
+            Configuration config = context.getConfiguration();
+            Filter existing = config.getFilter();
+            List<Filter> others = existing instanceof CompositeFilter composite ? List.of(composite.getFiltersArray())
+                    : existing == null ? List.of() : List.of(existing);
+            others.forEach(config::removeFilter);
+            config.addFilter(filter);
+            others.forEach(config::addFilter);
         }
     }
 

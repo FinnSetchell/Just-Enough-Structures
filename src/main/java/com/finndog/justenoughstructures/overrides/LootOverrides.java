@@ -180,7 +180,7 @@ public final class LootOverrides {
             return jsonProblem(e);
         }
         try {
-            LootTable table = LootDataType.TABLE.parser().fromJson(parsed, LootTable.class);
+            LootTable table = fromJson(id, parsed);
             return table == null ? Component.translatable("screen.justenoughstructures.override.invalid_table", "") : null;
         } catch (RuntimeException e) {
             return Component.translatable("screen.justenoughstructures.override.invalid_table", message(e));
@@ -190,10 +190,20 @@ public final class LootOverrides {
     /** A draft as a loot table, or null if it isn't one. For rolling it before it's saved. */
     public static LootTable parse(String json) {
         try {
-            return LootDataType.TABLE.parser().fromJson(JsonParser.parseString(json), LootTable.class);
+            return fromJson(JustEnoughStructures.id("draft"), JsonParser.parseString(json));
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /** Reads a loot table the way the game reads one from a datapack. */
+    private static LootTable fromJson(ResourceLocation id, JsonElement json) {
+        //? if forge {
+        /*// Forge names each pool as a table is read, which only works inside its own loading.
+        return net.minecraftforge.common.ForgeHooks.loadLootTable(LootDataType.TABLE.parser(), id, json, true);
+        *///?} else {
+        return LootDataType.TABLE.parser().fromJson(json, LootTable.class);
+        //?}
     }
 
     /** Saves an edit, remembering the table it was made from. It applies after /reload. */

@@ -25,6 +25,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+//? if forge {
+/*import net.minecraft.client.resources.model.BakedModel;
+import net.minecraftforge.client.model.data.ModelData;
+*///?}
 
 /**
  * GPU meshes for a snapshot, one set per Y layer so the layer slider can hide the top of the
@@ -258,11 +262,25 @@ public final class SnapshotMesh implements AutoCloseable {
                     dispatcher.renderLiquid(pos, view, new OffsetConsumer(builder).at(x, y, z), state, fluid);
                 }
                 if (state.getRenderShape() == RenderShape.MODEL) {
+                    //? if forge {
+                    /*// Forge models can say which layers they draw in themselves, often in their json,
+                    // which the vanilla lookup doesn't know about. This is how Forge builds chunks.
+                    BakedModel model = dispatcher.getBlockModel(state);
+                    random.setSeed(state.getSeed(pos));
+                    for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {
+                        BufferBuilder builder = begin(started, type);
+                        pose.pushPose();
+                        pose.translate(x, y, z);
+                        dispatcher.renderBatched(state, pos, view, pose, builder, true, random, ModelData.EMPTY, type);
+                        pose.popPose();
+                    }
+                    *///?} else {
                     BufferBuilder builder = begin(started, ItemBlockRenderTypes.getChunkRenderType(state));
                     pose.pushPose();
                     pose.translate(x, y, z);
                     dispatcher.renderBatched(state, pos, view, pose, builder, true, random);
                     pose.popPose();
+                    //?}
                 }
             }
             z++;

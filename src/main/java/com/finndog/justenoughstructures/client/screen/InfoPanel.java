@@ -608,9 +608,10 @@ final class InfoPanel {
         return out;
     }
 
+    // Some mods leave biomes unnamed, which gets a name made from the id rather than the raw key.
     private static String biomeName(Holder<Biome> biome) {
-        return biome.unwrapKey().map(key -> Component.translatable("biome." + key.location().getNamespace() + "." + key.location().getPath()).getString())
-                .orElse("?");
+        return biome.unwrapKey().map(key -> Component.translatableWithFallback("biome." + key.location().getNamespace() + "." + key.location().getPath(),
+                StructureNames.pretty(key.location().getPath())).getString()).orElse("?");
     }
 
     /** Why a structure won't turn up in new worlds, in a sentence. */

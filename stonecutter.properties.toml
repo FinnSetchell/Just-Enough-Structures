@@ -29,3 +29,21 @@ deps.rei = "nYcMSS03"
 deps.architectury = "WbL7MStR"
 # Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.
 deps.explorers_compass = "qD2j03H6"
+
+# Forge's own line carried on past the NeoForge fork, so it covers 1.20.1 too. The floor is the
+# major version rather than the build, as launcher instances often sit a few builds behind.
+[forge."1.20.1"]
+mod.mc_build = "1.20.1"
+mod.mc_compat = "[1.20.1,1.20.2)"
+deps.forge_version = "47.4.10"
+deps.forge_min = "47"
+# Forge 1.20.1 doesn't ship MixinExtras, which the mixins use, so the jar carries it.
+deps.mixinextras = "0.4.1"
+deps.cloth_config = "11.1.136"
+deps.jei = "15.56.0.205"
+# Modrinth version ids of the Forge builds: EMI 1.1.24, REI 12.1.785, Architectury 9.2.14 and
+# Explorer's Compass 1.4.0.
+deps.emi = "Axuu9I9R"
+deps.rei = "IoS2AjPk"
+deps.architectury = "1MKTLiiG"
+deps.explorers_compass = "7ZdJbCOx"
