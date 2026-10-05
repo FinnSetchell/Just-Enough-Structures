@@ -5,16 +5,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+//? if >=1.21 {
+/*import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.enchantment.Enchantment;
+*///?} else {
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionUtils;
 import net.minecraft.world.item.alchemy.Potions;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
+//?}
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
@@ -28,12 +39,21 @@ public final class LootRolls {
     }
 
     public static boolean exists(ServerLevel level, ResourceLocation tableId) {
-        return level.getServer().getLootData().getLootTable(tableId) != LootTable.EMPTY;
+        return table(level.getServer(), tableId) != LootTable.EMPTY;
+    }
+
+    /** The loaded loot table by that name, or {@link LootTable#EMPTY} if there isn't one. */
+    public static LootTable table(MinecraftServer server, ResourceLocation tableId) {
+        //? if >=1.21 {
+        /*return server.reloadableRegistries().getLootTable(ResourceKey.create(Registries.LOOT_TABLE, tableId));
+        *///?} else {
+        return server.getLootData().getLootTable(tableId);
+        //?}
     }
 
     /** Fills a container of {@code size} slots the way a chest is filled when it's first opened. */
     public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, long seed, int size) {
-        return fill(level, level.getServer().getLootData().getLootTable(tableId), seed, size);
+        return fill(level, table(level.getServer(), tableId), seed, size);
     }
 
     /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
@@ -51,7 +71,7 @@ public final class LootRolls {
 
     /** Rolls the table {@code rolls} times and counts how often each item turned up. */
     public static LootOdds odds(ServerLevel level, ResourceLocation tableId, int rolls, long seed) {
-        return odds(level, tableId, level.getServer().getLootData().getLootTable(tableId), rolls, seed);
+        return odds(level, tableId, table(level.getServer(), tableId), rolls, seed);
     }
 
     /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
@@ -87,12 +107,22 @@ public final class LootRolls {
                 if (row == null) {
                     continue;
                 }
+                //? if >=1.21 {
+                /*for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+                    e.getKey().unwrapKey().ifPresent(key -> row.variant("enchantment:" + key.location(), e.getIntValue()));
+                }
+                PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
+                if (potion != null) {
+                    potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> row.variant("potion:" + key.location(), 0));
+                }
+                *///?} else {
                 EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
                         row.variant("enchantment:" + BuiltInRegistries.ENCHANTMENT.getKey(enchantment), enchantmentLevel));
                 Potion potion = PotionUtils.getPotion(stack);
                 if (potion != Potions.EMPTY) {
                     row.variant("potion:" + BuiltInRegistries.POTION.getKey(potion), 0);
                 }
+                //?}
             }
         }
         List<LootOdds.Row> sorted = new ArrayList<>(rows.values());

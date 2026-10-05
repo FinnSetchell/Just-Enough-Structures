@@ -7,9 +7,9 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -21,7 +21,7 @@ final class SpinScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))

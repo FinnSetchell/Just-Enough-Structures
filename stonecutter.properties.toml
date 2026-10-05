@@ -29,6 +29,9 @@ deps.rei = "nYcMSS03"
 deps.architectury = "WbL7MStR"
 # Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.
 deps.explorers_compass = "qD2j03H6"
+# The JEI the dev runtime runs, a Modrinth version id, and the config library its later builds need.
+deps.jei_runtime = "YRfUnbXb"
+deps.jei_config = ""
 
 # Forge's own line carried on past the NeoForge fork, so it covers 1.20.1 too. The floor is the
 # major version rather than the build, as launcher instances often sit a few builds behind.
@@ -47,3 +50,26 @@ deps.emi = "Axuu9I9R"
 deps.rei = "IoS2AjPk"
 deps.architectury = "1MKTLiiG"
 deps.explorers_compass = "7ZdJbCOx"
+
+# ------------------------------------------------------------------ 1.21.1 (Java 21)
+["1.21.1"]
+mod.java = "21"
+
+[fabric."1.21.1"]
+mod.mc_build = "1.21.1"
+# 1.21 and 1.21.1 are the same game to a mod; 1.21.2 isn't.
+mod.mc_compat = ">=1.21 <1.21.2"
+mod.fabric_loader_dep = ">=0.15.0"
+deps.fabric_loader = "0.19.5"
+deps.fabric_api = "0.116.17+1.21.1"
+deps.modmenu = "11.0.3"
+deps.cloth_config = "15.0.140"
+deps.jei = "19.57.0.451"
+# 19.56.0.441: JEI's later builds need Loom 1.18, which needs Gradle on Java 25.
+deps.jei_runtime = "r1Jkfnic"
+deps.jei_config = "Q5Yns1Qe"
+# Modrinth version ids: EMI 1.1.24, REI 16.0.799, Architectury 13.0.11, Explorer's Compass 2.6.0.
+deps.emi = "on5GT1qh"
+deps.rei = "aWzTESNC"
+deps.architectury = "Pzc2FP5K"
+deps.explorers_compass = "qSRKiE4D"

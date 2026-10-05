@@ -65,6 +65,25 @@ val devMods = mapOf(
         "moogs-structure-lib:ynssyzOT", "yungs-api:lscV1N5k", "cristel-lib:tBnivdbu", "cloth-config:2xQdCMyG",
         "resourceful-config:2gStMKhM", "midnightlib:rXX4FCV8",
     ),
+    "1.21.1" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // YUNG's
+        "yungs-better-dungeons:fQ7EjDPE", "yungs-better-mineshafts:4ybDuGhA", "yungs-better-strongholds:uYZShp1p",
+        "yungs-better-ocean-monuments:TGK6gpeO", "yungs-better-desert-temples:M6eeDRkC", "yungs-better-jungle-temples:uiGCmR8O",
+        "yungs-better-witch-huts:bdpPtvTn", "yungs-better-nether-fortresses:gxBGYcIL", "yungs-better-end-island:zpUYcjIg",
+        "yungs-bridges:8h9N9fvs", "yungs-extras:aVsikHca",
+        // Other big structure mods
+        "repurposed-structures-fabric:JRMMCb1O", "towns-and-towers:DZxwgj6V", "structory:TUbwu7eG", "structory-towers:ziO4YIv1",
+        "when-dungeons-arise:g8oglmT0", "dungeons-and-taverns:EUlNXs9V", "explorify:CuBdAr31",
+        // Structure compass
+        "explorers-compass:qSRKiE4D",
+        // Libraries the above need
+        "moogs-structure-lib:wwRK5XgA", "yungs-api:9rzwORd6", "cristel-lib:K1dyr5gj", "cloth-config:HpMb5wGb",
+        "resourceful-config:dQh99ERC", "midnightlib:as2ZKoB1",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
@@ -99,7 +118,10 @@ dependencies {
                 modLocalRuntime("maven.modrinth:rei:${prop("deps.rei")}")
                 modLocalRuntime("maven.modrinth:architectury-api:${prop("deps.architectury")}")
             }
-            else -> modLocalRuntime("maven.modrinth:jei:YRfUnbXb")
+            else -> {
+                modLocalRuntime("maven.modrinth:jei:${prop("deps.jei_runtime")}")
+                prop("deps.jei_config").takeIf { it.isNotEmpty() }?.let { modLocalRuntime("maven.modrinth:mezzconfig:$it") }
+            }
         }
         modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
         // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:

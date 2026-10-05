@@ -1,8 +1,11 @@
 package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.FileFormat;
+import com.finndog.justenoughstructures.Folders;
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.loot.LootRolls;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -32,6 +35,13 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.level.storage.loot.LootDataType;
 import net.minecraft.world.level.storage.loot.LootTable;
+//? if >=1.21 {
+/*import com.finndog.justenoughstructures.server.JesServer;
+import com.mojang.serialization.JsonOps;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.resources.RegistryOps;
+*///?}
 
 /**
  * Loot tables edited in the browser. Each edit is saved as an override in a datapack of its own,
@@ -89,7 +99,7 @@ public final class LootOverrides {
     }
 
     static Path file(Path root, ResourceLocation id) {
-        return root.resolve("data").resolve(id.getNamespace()).resolve("loot_tables").resolve(id.getPath() + ".json");
+        return root.resolve("data").resolve(id.getNamespace()).resolve(Folders.LOOT_TABLES).resolve(id.getPath() + ".json");
     }
 
     public static View view(ResourceManager resources, ResourceLocation id) {
@@ -129,9 +139,9 @@ public final class LootOverrides {
         }
         try (Stream<Path> files = Files.walk(data)) {
             files.filter(f -> f.toString().endsWith(".json")).forEach(f -> {
-                // data/<namespace>/loot_tables/<path>.json
+                // data/<namespace>/loot_tables/<path>.json, or loot_table from 1.21
                 Path relative = data.relativize(f);
-                if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals("loot_tables")) {
+                if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals(Folders.LOOT_TABLES)) {
                     return;
                 }
                 String path = relative.subpath(2, relative.getNameCount()).toString().replace('\\', '/');
@@ -148,7 +158,7 @@ public final class LootOverrides {
 
     /** The table as the mods and datapacks have it, leaving out any override, or null if none of them has it. */
     public static String original(ResourceManager resources, ResourceLocation id) {
-        ResourceLocation location = new ResourceLocation(id.getNamespace(), "loot_tables/" + id.getPath() + ".json");
+        ResourceLocation location = Ids.of(id.getNamespace(), Folders.LOOT_TABLES + "/" + id.getPath() + ".json");
         List<Resource> stack = resources.getResourceStack(location);
         // Lowest priority first, so the last one that isn't ours is what would be used without us.
         for (int i = stack.size() - 1; i >= 0; i--) {
@@ -168,7 +178,7 @@ public final class LootOverrides {
 
     /** Whether there's a loot table by that name, loaded or saved here since the last /reload. */
     public static boolean exists(MinecraftServer server, ResourceLocation id) {
-        return server.getLootData().getLootTable(id) != LootTable.EMPTY || Files.exists(file(folder(), id));
+        return LootRolls.table(server, id) != LootTable.EMPTY || Files.exists(file(folder(), id));
     }
 
     /** What's wrong with a draft, or null if the game can load it as a loot table. */
@@ -196,9 +206,26 @@ public final class LootOverrides {
         }
     }
 
+    //? if >=1.21 {
+    /*private static HolderLookup.Provider vanilla;
+
+    private static synchronized HolderLookup.Provider vanillaRegistries() {
+        if (vanilla == null) {
+            vanilla = VanillaRegistries.createLookup();
+        }
+        return vanilla;
+    }
+    *///?}
+
     /** Reads a loot table the way the game reads one from a datapack. */
     private static LootTable fromJson(ResourceLocation id, JsonElement json) {
-        //? if forge {
+        //? if >=1.21 {
+        /*// Read with the running server's registries, or before there's one, the game's own, which is
+        // enough to tell a table that loads from one that doesn't.
+        MinecraftServer server = JesServer.running();
+        HolderLookup.Provider registries = server != null ? server.registryAccess() : vanillaRegistries();
+        return LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, registries), json).getOrThrow(JsonParseException::new);
+        *///?} else if forge {
         /*// Forge names each pool as a table is read, which only works inside its own loading.
         return net.minecraftforge.common.ForgeHooks.loadLootTable(LootDataType.TABLE.parser(), id, json, true);
         *///?} else {

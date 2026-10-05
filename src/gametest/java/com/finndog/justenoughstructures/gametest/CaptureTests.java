@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -59,7 +60,7 @@ public final class CaptureTests {
     }
 
     public static void capturesVanillaStructure(GameTestHelper helper, String name) {
-        ResourceLocation id = new ResourceLocation("minecraft", name);
+        ResourceLocation id = Ids.of("minecraft", name);
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), id, SEED);
         if (!result.succeeded()) {
             helper.fail(name + " did not capture: " + result.error() + " " + attempts(result));
@@ -83,7 +84,7 @@ public final class CaptureTests {
 
     /** Shipwreck NBT has no loot tables. They're set by vanilla code from data markers during placement. */
     public static void lootSetByStructureCodeIsCaptured(GameTestHelper helper) {
-        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), new ResourceLocation("shipwreck"), SEED);
+        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), Ids.parse("shipwreck"), SEED);
         helper.assertTrue(result.succeeded(), "shipwreck did not capture: " + result.error());
         boolean shipwreckLoot = result.snapshot().containers().stream()
                 .anyMatch(c -> c.lootTable() != null && c.lootTable().startsWith("minecraft:chests/shipwreck_"));
@@ -104,7 +105,7 @@ public final class CaptureTests {
                 "mss:small_tower", Set.of("minecraft:witch", "minecraft:wither_skeleton"));
         Registry<Structure> structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         for (Map.Entry<String, Set<String>> e : expected.entrySet()) {
-            ResourceLocation id = new ResourceLocation(e.getKey());
+            ResourceLocation id = Ids.parse(e.getKey());
             if (!structures.containsKey(id)) {
                 continue;
             }
@@ -133,7 +134,7 @@ public final class CaptureTests {
     }
 
     public static void sameSeedGivesSameSnapshot(GameTestHelper helper) {
-        ResourceLocation id = new ResourceLocation("village_plains");
+        ResourceLocation id = Ids.parse("village_plains");
         StructureSnapshot a = StructureCapture.capture(helper.getLevel().getServer(), id, SEED).snapshot();
         StructureSnapshot b = StructureCapture.capture(helper.getLevel().getServer(), id, SEED).snapshot();
         helper.assertTrue(a != null && b != null, "village_plains did not capture");
@@ -154,7 +155,7 @@ public final class CaptureTests {
     public static void captureLeavesTheWorldAlone(GameTestHelper helper) {
         ServerLevel level = helper.getLevel().getServer().overworld();
         // A seed no other test uses, so these positions can't already hold POIs from another capture.
-        StructureSnapshot snapshot = StructureCapture.capture(level.getServer(), new ResourceLocation("village_plains"), SEED + 7919).snapshot();
+        StructureSnapshot snapshot = StructureCapture.capture(level.getServer(), Ids.parse("village_plains"), SEED + 7919).snapshot();
         helper.assertTrue(snapshot != null, "village_plains did not capture");
         List<BlockPos> poiBlocks = new ArrayList<>();
         for (int i = 0; i < snapshot.blockCount(); i++) {
@@ -186,9 +187,9 @@ public final class CaptureTests {
     public static void parallelCapturesMatchSerialOnes(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         List<Job> jobs = List.of(
-                new Job(new ResourceLocation("village_plains"), SEED + 1), new Job(new ResourceLocation("village_plains"), SEED + 2),
-                new Job(new ResourceLocation("village_plains"), SEED + 3), new Job(new ResourceLocation("bastion_remnant"), SEED + 1),
-                new Job(new ResourceLocation("bastion_remnant"), SEED + 2), new Job(new ResourceLocation("pillager_outpost"), SEED + 1));
+                new Job(Ids.parse("village_plains"), SEED + 1), new Job(Ids.parse("village_plains"), SEED + 2),
+                new Job(Ids.parse("village_plains"), SEED + 3), new Job(Ids.parse("bastion_remnant"), SEED + 1),
+                new Job(Ids.parse("bastion_remnant"), SEED + 2), new Job(Ids.parse("pillager_outpost"), SEED + 1));
         // Drop the loaded templates so their block caches start empty, which is when they get filled in.
         server.getStructureManager().onResourceManagerReload(server.getResourceManager());
         ExecutorService pool = Executors.newFixedThreadPool(jobs.size());
@@ -240,7 +241,7 @@ public final class CaptureTests {
     }
 
     public static void unknownStructureFailsCleanly(GameTestHelper helper) {
-        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), new ResourceLocation("justenoughstructures", "does_not_exist"), SEED);
+        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), Ids.of("justenoughstructures", "does_not_exist"), SEED);
         helper.assertFalse(result.succeeded(), "an unknown structure should not capture");
         helper.succeed();
     }

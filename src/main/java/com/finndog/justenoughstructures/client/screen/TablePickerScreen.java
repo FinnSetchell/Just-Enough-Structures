@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
@@ -21,7 +22,7 @@ import net.minecraft.util.FormattedCharSequence;
  * by id, or a new one made and saved in the editor first. The change is saved on the server as a
  * patch to the container's template and applies from the next /reload.
  */
-public final class TablePickerScreen extends Screen implements Nav.Page {
+public final class TablePickerScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int ROW = 24;
@@ -221,7 +222,7 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
         ResourceLocation id = typed;
         if (id == null) {
             String path = source.template().getPath();
-            id = new ResourceLocation("justenoughstructures", "chests/" + path.substring(path.lastIndexOf('/') + 1));
+            id = Ids.of("justenoughstructures", "chests/" + path.substring(path.lastIndexOf('/') + 1));
         }
         search.setValue(id.toString());
         Nav.remember();
@@ -232,7 +233,9 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
     @Override
     public void tick() {
         super.tick();
+        //? if <1.21 {
         search.tick();
+        //?}
         if (!indexed && FoundIn.ready()) {
             indexed = true;
             refilter();
@@ -289,7 +292,7 @@ public final class TablePickerScreen extends Screen implements Nav.Page {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = left();
         int right = right();

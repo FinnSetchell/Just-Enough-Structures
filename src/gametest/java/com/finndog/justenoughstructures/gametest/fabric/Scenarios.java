@@ -13,6 +13,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -21,7 +22,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
@@ -90,7 +90,7 @@ final class Scenarios {
 
     /** A tour of every part of the screen, one screenshot per state, for reviewing the UI. */
     private static Director review(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("village_plains"));
+        JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressKey(GLFW.GLFW_KEY_K))
@@ -123,7 +123,7 @@ final class Scenarios {
                 .then(shoot("r05_search_item"))
                 .then(run(() -> erase(d, 12)))
                 .then(pause(2))
-                .then(moveTo(() -> screen(mc).structureRow(new ResourceLocation("desert_pyramid")).orElse(new int[]{0, 0}), 12))
+                .then(moveTo(() -> screen(mc).structureRow(Ids.parse("desert_pyramid")).orElse(new int[]{0, 0}), 12))
                 .then(click())
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 110), 8))
@@ -168,7 +168,7 @@ final class Scenarios {
                 .then(dragBy(-60, 20, 12))
                 .then(pause(6))
                 .then(shoot("r15_zoomed"))
-                .then(moveTo(() -> screen(mc).structureRow(new ResourceLocation("ancient_city")).orElse(new int[]{0, 0}), 10))
+                .then(moveTo(() -> screen(mc).structureRow(Ids.parse("ancient_city")).orElse(new int[]{0, 0}), 10))
                 .then(click())
                 .then(pause(3))
                 .then(shoot("r16_generating"))
@@ -192,7 +192,7 @@ final class Scenarios {
     /** Opening the browser and watching a mansion generate and build up. */
     private static Director open(Minecraft mc) {
         // Open and close it once first, so the recording isn't of a cold server.
-        JesScreen.startOn(new ResourceLocation("igloo"));
+        JesScreen.startOn(Ids.parse("igloo"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressKey(GLFW.GLFW_KEY_K))
@@ -200,7 +200,7 @@ final class Scenarios {
                 .then(until(() -> idle(mc), 400))
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
                 .then(until(() -> screen(mc) == null, 40))
-                .then(run(() -> JesScreen.startOn(new ResourceLocation("mansion"))))
+                .then(run(() -> JesScreen.startOn(Ids.parse("mansion"))))
                 .then(pause(20))
                 .then(record("open"))
                 .then(pause(12))
@@ -221,7 +221,7 @@ final class Scenarios {
      * villages), then a screenshot and a log line of where the player ended up.
      */
     private static Director teleport(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("village_plains"));
+        JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
@@ -270,7 +270,7 @@ final class Scenarios {
 
     /** A few seconds of a desert pyramid turning on its own, to check the loot markers keep up with it. */
     private static Director spin(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("desert_pyramid"));
+        JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressKey(GLFW.GLFW_KEY_K))
@@ -284,7 +284,7 @@ final class Scenarios {
 
     /** About ten seconds showing off the main features on a desert pyramid. */
     private static Director showcase(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("desert_pyramid"));
+        JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         // Get everything loaded before recording, so it opens on a finished preview.

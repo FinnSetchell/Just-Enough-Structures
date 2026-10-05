@@ -56,7 +56,7 @@ public final class PerfTests {
                 continue;
             }
             long seed = StructureCapture.defaultSeed(id);
-            int bytes = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, id, seed, result))).length;
+            int bytes = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, result))).length;
             rows.add(new Row(id, true, result.snapshot().blockCount(), result.snapshot().containers().size(), millis, bytes, ""));
         }
         long captureMillis = (System.nanoTime() - started) / 1_000_000;

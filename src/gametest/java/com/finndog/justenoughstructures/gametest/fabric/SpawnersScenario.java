@@ -8,12 +8,12 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -28,7 +28,7 @@ final class SpawnersScenario {
 
     static Director build(Minecraft mc) {
         String requested = System.getProperty("jes.autoshot.structures", "");
-        JesScreen.startOn(new ResourceLocation(requested.isBlank() ? "repurposed_structures:stronghold_nether" : requested.split(",")[0].trim()));
+        JesScreen.startOn(Ids.parse(requested.isBlank() ? "repurposed_structures:stronghold_nether" : requested.split(",")[0].trim()));
         Director d = new Director(mc, null);
         int[] tries = {0};
         CaptureResult[] checked = new CaptureResult[1];

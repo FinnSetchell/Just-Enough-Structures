@@ -50,7 +50,7 @@ public final class JustEnoughStructuresForge {
             }
         });
         MinecraftForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new StructureInfo.Loader()));
-        MinecraftForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting());
+        MinecraftForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
         // Stops the loot index and drops what belonged to that world when it closes.
         MinecraftForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> JesServer.stop());

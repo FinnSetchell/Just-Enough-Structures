@@ -55,13 +55,22 @@ public final class PackToolsServer {
                 hidden.add(entry);
             }
         }
+        //? if >=1.21 {
+        /*List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.LOOT_TABLE)));
+        *///?} else {
         List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.TABLE)));
+        //?}
         Map<String, List<ResourceLocation>> names = new HashMap<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         names.put(PackToolsState.STRUCTURES, new ArrayList<>(new TreeSet<>(registry.keySet())));
         names.put(PackToolsState.STRUCTURE_TAGS, new ArrayList<>(new TreeSet<>(registry.getTagNames().map(TagKey::location).toList())));
+        //? if >=1.21 {
+        /*names.put(PackToolsState.PREDICATES, new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.PREDICATE))));
+        names.put(PackToolsState.ITEM_MODIFIERS, new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.ITEM_MODIFIER))));
+        *///?} else {
         names.put(PackToolsState.PREDICATES, new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.PREDICATE))));
         names.put(PackToolsState.ITEM_MODIFIERS, new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.MODIFIER))));
+        //?}
         return new PackToolsState(ServerConfig.get(), Set.copyOf(PENDING), LootOverrides.statuses(server.getResourceManager()),
                 ContainerPatches.all(), SpawnerPatches.all(), structures, hidden, tables, names);
     }
@@ -103,7 +112,7 @@ public final class PackToolsServer {
         }
         Set<String> mods = new TreeSet<>();
         for (String mod : s.hiddenMods()) {
-            if (ResourceLocation.isValidResourceLocation(mod + ":any")) {
+            if (ResourceLocation.tryParse(mod + ":any") != null) {
                 mods.add(mod);
             }
         }

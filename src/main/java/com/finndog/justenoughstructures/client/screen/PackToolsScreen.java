@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -26,7 +27,7 @@ import net.minecraft.resources.ResourceLocation;
  * and what they're told about them, and the server's rules. Opened from the browser, which it goes
  * back to.
  */
-public final class PackToolsScreen extends Screen implements Nav.Page {
+public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     static final ResourceLocation WRENCH = JustEnoughStructures.id("textures/gui/wrench.png");
@@ -226,7 +227,7 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
 
     /** The editor on a new table, which can be named before it's saved. */
     void newTable() {
-        ResourceLocation id = new ResourceLocation(JustEnoughStructures.MOD_ID, "chests/new_table");
+        ResourceLocation id = Ids.of(JustEnoughStructures.MOD_ID, "chests/new_table");
         openEditor(id, false);
     }
 
@@ -331,7 +332,7 @@ public final class PackToolsScreen extends Screen implements Nav.Page {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         ui.begin(mouseX, mouseY);
 

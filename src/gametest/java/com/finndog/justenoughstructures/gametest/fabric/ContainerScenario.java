@@ -9,6 +9,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -16,7 +17,6 @@ import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import org.lwjgl.glfw.GLFW;
 
@@ -32,7 +32,7 @@ final class ContainerScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
@@ -74,7 +74,7 @@ final class ContainerScenario {
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
                 .then(until(() -> browser(mc) != null, 40))
                 // The test datapack hides the jungle pyramid's loot, so the desert pyramid shows a chest placed by code.
-                .then(run(() -> browser(mc).select(new ResourceLocation("desert_pyramid"))))
+                .then(run(() -> browser(mc).select(Ids.parse("desert_pyramid"))))
                 .then(until(() -> captured(mc), 600))
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() == null && c.lootTable() != null)))

@@ -50,7 +50,7 @@ public final class ClientPackets {
 
         on(JesNetwork.LOCATE, (client, buf) -> {
             int requestId = buf.readVarInt();
-            Component reply = buf.readComponent();
+            Component reply = Codecs.readComponent(buf);
             client.execute(() -> ClientRequests.onLocate(requestId, reply));
         });
 
@@ -85,7 +85,7 @@ public final class ClientPackets {
 
         on(JesNetwork.EDIT_REPLY, (client, buf) -> {
             int requestId = buf.readVarInt();
-            Component message = buf.readBoolean() ? buf.readComponent() : null;
+            Component message = buf.readBoolean() ? Codecs.readComponent(buf) : null;
             LootOdds odds = buf.readBoolean() ? Codecs.readOdds(buf) : null;
             client.execute(() -> ClientRequests.onEditReply(requestId, message, odds));
         });

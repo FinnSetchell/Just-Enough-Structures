@@ -1,5 +1,8 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Folders;
+import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.client.screen.LootTypes;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
@@ -8,6 +11,7 @@ import com.finndog.justenoughstructures.overrides.OverridePack;
 import com.finndog.justenoughstructures.overrides.TableDraft;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -32,7 +36,7 @@ import net.minecraft.world.item.Items;
 
 /** Loot tables edited in the browser, saved as overrides. Every test works in a folder of its own. */
 public final class OverrideTests {
-    private static final ResourceLocation IGLOO = new ResourceLocation("chests/igloo_chest");
+    private static final ResourceLocation IGLOO = Ids.parse("chests/igloo_chest");
     private static final String DIAMONDS_ONLY = """
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
@@ -109,7 +113,7 @@ public final class OverrideTests {
                     "keeping the edit didn't clear the flag");
 
             // A table made from scratch has no original, and isn't flagged for it.
-            ResourceLocation made = new ResourceLocation("justenoughstructures", "chests/nothing_here");
+            ResourceLocation made = Ids.of("justenoughstructures", "chests/nothing_here");
             LootOverrides.save(server.getResourceManager(), made, DIAMONDS_ONLY);
             helper.assertTrue(LootOverrides.view(server.getResourceManager(), made).status() == LootOverrides.Status.ACTIVE,
                     "a new table was flagged for having no original");
@@ -152,6 +156,37 @@ public final class OverrideTests {
                 "the new item wasn't added");
         helper.assertTrue(LootOverrides.check(IGLOO, table.toString()) == null, "the edited table doesn't load: " + LootOverrides.check(IGLOO, table.toString()));
         helper.succeed();
+    }
+
+    /** Every function and condition the editor can add starts out as something the game loads. */
+    public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
+        List<String> broken = new ArrayList<>();
+        for (String type : LootTypes.functionTypes()) {
+            // A reference needs an item modifier to point at, and the game has none of its own.
+            if (type.startsWith("minecraft:") && !type.equals("minecraft:reference")) {
+                problem(type, "functions", LootTypes.function(type), broken);
+            }
+        }
+        for (String type : LootTypes.conditionTypes()) {
+            if (type.startsWith("minecraft:") && !type.equals("minecraft:reference")) {
+                problem(type, "conditions", LootTypes.condition(type), broken);
+            }
+        }
+        helper.assertTrue(broken.isEmpty(), "these don't load as the editor starts them: " + broken);
+        helper.succeed();
+    }
+
+    private static void problem(String type, String list, JsonObject added, List<String> broken) {
+        JsonObject entry = JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}").getAsJsonObject();
+        JsonArray kinds = new JsonArray();
+        kinds.add(added);
+        entry.add(list, kinds);
+        JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
+        table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
+        Component problem = LootOverrides.check(IGLOO, table.toString());
+        if (problem != null) {
+            broken.add(type + " (" + problem.getString() + ")");
+        }
     }
 
     /** A mod's update and a dev's edit to different parts both survive a merge; the same part is a conflict, keeping the dev's. */
@@ -219,16 +254,16 @@ public final class OverrideTests {
         Path dir = freshFolder();
         try {
             LootOverrides.save(server.getResourceManager(), IGLOO, DIAMONDS_ONLY);
-            Path broken = dir.resolve("data/minecraft/loot_tables/chests/shipwreck_map.json");
+            Path broken = dir.resolve("data/minecraft/" + Folders.LOOT_TABLES + "/chests/shipwreck_map.json");
             Files.createDirectories(broken.getParent());
             Files.writeString(broken, "{ this was edited by hand and broke");
             List<Pack> packs = new ArrayList<>();
             new OverridePack().loadPacks(packs::add);
             helper.assertTrue(packs.size() == 1, "the override folder wasn't offered as a datapack");
             try (PackResources resources = packs.get(0).open()) {
-                helper.assertTrue(resources.getResource(PackType.SERVER_DATA, new ResourceLocation("loot_tables/chests/igloo_chest.json")) != null,
+                helper.assertTrue(resources.getResource(PackType.SERVER_DATA, Ids.parse(Folders.LOOT_TABLES + "/chests/igloo_chest.json")) != null,
                         "a good override was left out");
-                helper.assertTrue(resources.getResource(PackType.SERVER_DATA, new ResourceLocation("loot_tables/chests/shipwreck_map.json")) == null,
+                helper.assertTrue(resources.getResource(PackType.SERVER_DATA, Ids.parse(Folders.LOOT_TABLES + "/chests/shipwreck_map.json")) == null,
                         "a broken override was let through");
             }
         } catch (IOException e) {

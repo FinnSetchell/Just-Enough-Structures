@@ -8,9 +8,9 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -23,7 +23,7 @@ final class HighlightScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
@@ -52,7 +52,7 @@ final class HighlightScenario {
                 .then(pause(15))
                 .then(shoot("h04_sliced"))
                 .then(run(() -> browser(mc).setLayers(1000)))
-                .then(run(() -> browser(mc).select(new ResourceLocation("repurposed_structures:stronghold_nether"))))
+                .then(run(() -> browser(mc).select(Ids.parse("repurposed_structures:stronghold_nether"))))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(moveTo(() -> browser(mc).tab("entities"), 8))
                 .then(click())

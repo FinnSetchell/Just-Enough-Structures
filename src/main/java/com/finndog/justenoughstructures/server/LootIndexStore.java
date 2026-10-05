@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootIndex;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.minecraft.SharedConstants;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -56,7 +58,7 @@ public final class LootIndexStore {
     /** Goes up whenever what's saved changes shape, so old files are never read as new ones. */
     private static final String FORMAT = "2";
     private static final int KEPT_FILES = 4;
-    private static final List<String> SOURCES = List.of("structures", "worldgen/structure", "worldgen/template_pool",
+    private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list");
 
     // The index captures every structure, so it gets its own thread and never holds up previews.
@@ -209,7 +211,7 @@ public final class LootIndexStore {
     /** Works out what players get, leaving hidden structures out, and sends it to everyone who asked. */
     private static void publish(MinecraftServer server) {
         LootIndex shown = visible(index);
-        payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeIndex(buf, shown)));
+        payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeIndex(buf, shown)));
         for (UUID id : WAITING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
@@ -278,7 +280,7 @@ public final class LootIndexStore {
             return null;
         }
         try {
-            StructureScan saved = Codecs.readScan(Blobs.fromBytes(Blobs.inflate(Files.readAllBytes(file))));
+            StructureScan saved = Codecs.readScan(Blobs.fromBytes(RegistryAccess.EMPTY, Blobs.inflate(Files.readAllBytes(file))));
             // Marks it as recently used, so it's kept over older ones.
             Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis()));
             return saved;
@@ -293,7 +295,7 @@ public final class LootIndexStore {
         try {
             Files.createDirectories(dir);
             Path temp = dir.resolve(key + ".tmp");
-            Files.write(temp, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeScan(buf, saved))));
+            Files.write(temp, Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
             Files.move(temp, dir.resolve(key + ".bin"), StandardCopyOption.REPLACE_EXISTING);
             List<Path> files;
             try (Stream<Path> list = Files.list(dir)) {

@@ -37,6 +37,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+//? if >=1.21 {
+/*import org.joml.Matrix4fStack;
+*///?}
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -329,9 +332,15 @@ public final class StructureViewport implements AutoCloseable {
 
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+        //? if >=1.21 {
+        /*Matrix4fStack modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        modelView.identity();
+        *///?} else {
         PoseStack modelView = RenderSystem.getModelViewStack();
         modelView.pushPose();
         modelView.setIdentity();
+        //?}
         RenderSystem.applyModelViewMatrix();
         float fogStart = RenderSystem.getShaderFogStart();
         RenderSystem.setShaderFogStart(Float.MAX_VALUE);
@@ -353,7 +362,11 @@ public final class StructureViewport implements AutoCloseable {
         } finally {
             lightTexture.turnOffLightLayer();
             RenderSystem.setShaderFogStart(fogStart);
+            //? if >=1.21 {
+            /*modelView.popMatrix();
+            *///?} else {
             modelView.popPose();
+            //?}
             RenderSystem.applyModelViewMatrix();
             RenderSystem.restoreProjectionMatrix();
             minecraft.getMainRenderTarget().bindWrite(true);
@@ -431,8 +444,13 @@ public final class StructureViewport implements AutoCloseable {
 
     private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
         PoseStack pose = new PoseStack();
+        //? if >=1.21 {
+        /*pose.mulPose(viewMatrix);
+        Lighting.setupLevel();
+        *///?} else {
         pose.mulPoseMatrix(viewMatrix);
         Lighting.setupLevel(new Matrix4f(viewMatrix));
+        //?}
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         int slice = view.sliceY();
 
@@ -477,10 +495,17 @@ public final class StructureViewport implements AutoCloseable {
             float gy = groundY + 0.002f;
             Matrix4f m = pose.last().pose();
             VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
+            //? if >=1.21 {
+            /*quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            *///?} else {
             quads.vertex(m, -margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
             quads.vertex(m, -margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
             quads.vertex(m, sx + margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
             quads.vertex(m, sx + margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+            //?}
         }
 
         if (!outlines.isEmpty()) {
@@ -504,6 +529,14 @@ public final class StructureViewport implements AutoCloseable {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         Matrix4f m = graphics.pose().last().pose();
+        //? if >=1.21 {
+        /*BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        builder.addVertex(m, x, y + height, 0).setUv(0f, 0f);
+        builder.addVertex(m, x + width, y + height, 0).setUv(1f, 0f);
+        builder.addVertex(m, x + width, y, 0).setUv(1f, 1f);
+        builder.addVertex(m, x, y, 0).setUv(0f, 1f);
+        BufferUploader.drawWithShader(builder.buildOrThrow());
+        *///?} else {
         BufferBuilder builder = Tesselator.getInstance().getBuilder();
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         builder.vertex(m, x, y + height, 0).uv(0f, 0f).endVertex();
@@ -511,6 +544,7 @@ public final class StructureViewport implements AutoCloseable {
         builder.vertex(m, x + width, y, 0).uv(1f, 1f).endVertex();
         builder.vertex(m, x, y, 0).uv(0f, 1f).endVertex();
         BufferUploader.drawWithShader(builder.end());
+        //?}
         RenderSystem.disableBlend();
     }
 

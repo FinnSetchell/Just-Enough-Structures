@@ -46,7 +46,9 @@ final class ToolsRules extends ToolsSection {
     @Override
     void tick() {
         if (nameBox != null) {
+            //? if <1.21 {
             nameBox.tick();
+            //?}
         }
     }
 

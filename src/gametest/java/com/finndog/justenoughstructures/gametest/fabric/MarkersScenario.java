@@ -6,6 +6,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
@@ -21,7 +22,7 @@ import org.lwjgl.glfw.GLFW;
  * makes is removed again at the end.
  */
 final class MarkersScenario {
-    private static final ResourceLocation TABLE = new ResourceLocation("chests/pillager_outpost");
+    private static final ResourceLocation TABLE = Ids.parse("chests/pillager_outpost");
     private static final String DIAMONDS_ONLY = """
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
@@ -30,7 +31,7 @@ final class MarkersScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         JesScreen[] opened = new JesScreen[1];
         d.then(pressKey(GLFW.GLFW_KEY_K))

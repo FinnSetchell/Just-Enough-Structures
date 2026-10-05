@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -37,11 +38,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /** Containers in structure templates pointed at other loot tables from the browser. Every test works in a folder of its own. */
 public final class ContainerTests {
-    private static final ResourceLocation TOWER = new ResourceLocation("pillager_outpost/watchtower");
-    private static final ResourceLocation IGLOO = new ResourceLocation("chests/igloo_chest");
-    private static final ResourceLocation OUTPOST = new ResourceLocation("pillager_outpost");
-    private static final ResourceLocation VILLAGE = new ResourceLocation("village_plains");
-    private static final ResourceLocation MARKER = new ResourceLocation("justenoughstructures", "test/marker");
+    private static final ResourceLocation TOWER = Ids.parse("pillager_outpost/watchtower");
+    private static final ResourceLocation IGLOO = Ids.parse("chests/igloo_chest");
+    private static final ResourceLocation OUTPOST = Ids.parse("pillager_outpost");
+    private static final ResourceLocation VILLAGE = Ids.parse("village_plains");
+    private static final ResourceLocation MARKER = Ids.of("justenoughstructures", "test/marker");
     private static final String DIAMONDS_ONLY = """
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
@@ -77,8 +78,8 @@ public final class ContainerTests {
             Files.writeString(file, newer);
             ContainerPatches.load();
             helper.assertTrue(ContainerPatches.all().isEmpty(), "read a file a newer version saved");
-            Component saved = ContainerPatches.save(new ContainerPatches.Patch(new ResourceLocation("pillager_outpost/feature_cage1"),
-                    new BlockPos(1, 2, 3), new ResourceLocation("chest"), "", IGLOO));
+            Component saved = ContainerPatches.save(new ContainerPatches.Patch(Ids.parse("pillager_outpost/feature_cage1"),
+                    new BlockPos(1, 2, 3), Ids.parse("chest"), "", IGLOO));
             helper.assertTrue(key(saved).endsWith("override.save_failed"), "saved over a file a newer version saved: " + saved.getString());
             helper.assertTrue(newer.equals(Files.readString(file)), "a file a newer version saved was changed");
             helper.succeed();
@@ -169,9 +170,9 @@ public final class ContainerTests {
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), IGLOO), "no_permission");
 
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
-            expect(helper, JesServer.patchContainer(player, new ResourceLocation("justenoughstructures", "no/such/template"), chest.pos(), IGLOO), "no_template");
+            expect(helper, JesServer.patchContainer(player, Ids.of("justenoughstructures", "no/such/template"), chest.pos(), IGLOO), "no_template");
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos().above(60), IGLOO), "not_there");
-            ResourceLocation fresh = new ResourceLocation("justenoughstructures", "chests/made_in_a_test");
+            ResourceLocation fresh = Ids.of("justenoughstructures", "chests/made_in_a_test");
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), fresh), "no_table");
             helper.assertTrue(ContainerPatches.find(TOWER, chest.pos()) == null, "a refused patch was saved");
 
@@ -360,7 +361,7 @@ public final class ContainerTests {
                 // Changed again before the next /reload, the loaded template still has the undone
                 // table, and the new patch has to remember the container's own one.
                 ServerConfig.set(open);
-                JesServer.patchContainer(player, source.template(), source.pos(), new ResourceLocation("chests/desert_pyramid"));
+                JesServer.patchContainer(player, source.template(), source.pos(), Ids.parse("chests/desert_pyramid"));
                 ServerConfig.set(settings);
                 rechanged[0] = ContainerPatches.all().stream()
                         .filter(p -> p.template().equals(source.template()) && p.pos().equals(source.pos()))
@@ -383,7 +384,7 @@ public final class ContainerTests {
     }
 
     private static StructureSnapshot capture(MinecraftServer server, String structure) {
-        CaptureResult result = StructureCapture.capture(server, new ResourceLocation(structure), CaptureTests.SEED);
+        CaptureResult result = StructureCapture.capture(server, Ids.parse(structure), CaptureTests.SEED);
         if (!result.succeeded()) {
             throw new AssertionError(structure + " did not capture: " + result.error());
         }

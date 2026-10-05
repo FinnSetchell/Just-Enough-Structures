@@ -35,6 +35,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+//? if >=1.21 {
+/*import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.ComponentSerialization;
+*///?}
 
 /** Wire formats for everything the server sends back. */
 public final class Codecs {
@@ -43,6 +48,49 @@ public final class Codecs {
     public static final int MAX_NOTES = 8192;
 
     private Codecs() {
+    }
+
+    // ------------------------------------------------------------------ items and text
+    // From 1.20.5 these need the game's registries, which every buffer from Blobs carries.
+
+    public static void writeItem(FriendlyByteBuf buf, ItemStack stack) {
+        //? if >=1.21 {
+        /*ItemStack.OPTIONAL_STREAM_CODEC.encode((RegistryFriendlyByteBuf) buf, stack);
+        *///?} else {
+        buf.writeItem(stack);
+        //?}
+    }
+
+    public static ItemStack readItem(FriendlyByteBuf buf) {
+        //? if >=1.21 {
+        /*return ItemStack.OPTIONAL_STREAM_CODEC.decode((RegistryFriendlyByteBuf) buf);
+        *///?} else {
+        return buf.readItem();
+        //?}
+    }
+
+    public static void writeComponent(FriendlyByteBuf buf, Component component) {
+        //? if >=1.21 {
+        /*ComponentSerialization.TRUSTED_STREAM_CODEC.encode((RegistryFriendlyByteBuf) buf, component);
+        *///?} else {
+        buf.writeComponent(component);
+        //?}
+    }
+
+    public static Component readComponent(FriendlyByteBuf buf) {
+        //? if >=1.21 {
+        /*return ComponentSerialization.TRUSTED_STREAM_CODEC.decode((RegistryFriendlyByteBuf) buf);
+        *///?} else {
+        return buf.readComponent();
+        //?}
+    }
+
+    private static CompoundTag readAnySizeNbt(FriendlyByteBuf buf) {
+        //? if >=1.21 {
+        /*return (CompoundTag) buf.readNbt(NbtAccounter.unlimitedHeap());
+        *///?} else {
+        return buf.readAnySizeNbt();
+        //?}
     }
 
     // ------------------------------------------------------------------ catalog
@@ -72,7 +120,7 @@ public final class Codecs {
     private static void writeInfo(FriendlyByteBuf buf, StructureInfo info) {
         buf.writeBoolean(info.notes() != null);
         if (info.notes() != null) {
-            buf.writeComponent(info.notes());
+            writeComponent(buf, info.notes());
         }
         buf.writeBoolean(info.author() != null);
         if (info.author() != null) {
@@ -82,7 +130,7 @@ public final class Codecs {
     }
 
     private static StructureInfo readInfo(FriendlyByteBuf buf) {
-        Component notes = buf.readBoolean() ? buf.readComponent() : null;
+        Component notes = buf.readBoolean() ? readComponent(buf) : null;
         String author = buf.readBoolean() ? buf.readUtf() : null;
         return new StructureInfo(notes, author, buf.readBoolean());
     }
@@ -208,12 +256,12 @@ public final class Codecs {
         buf.writeLong(seed);
         buf.writeVarLong(result.millis());
         buf.writeVarInt(result.attempts().size());
-        result.attempts().forEach(buf::writeComponent);
+        result.attempts().forEach(c -> writeComponent(buf, c));
         buf.writeBoolean(result.succeeded());
         if (result.succeeded()) {
             writeSnapshot(buf, result.snapshot());
         } else {
-            buf.writeComponent(result.reason());
+            writeComponent(buf, result.reason());
         }
     }
 
@@ -228,11 +276,11 @@ public final class Codecs {
         int attemptCount = buf.readVarInt();
         List<Component> attempts = new ArrayList<>(attemptCount);
         for (int i = 0; i < attemptCount; i++) {
-            attempts.add(buf.readComponent());
+            attempts.add(readComponent(buf));
         }
         CaptureResult result = buf.readBoolean()
                 ? CaptureResult.success(readSnapshot(buf), attempts, millis)
-                : CaptureResult.failure(buf.readComponent(), attempts, millis);
+                : CaptureResult.failure(readComponent(buf), attempts, millis);
         return new CaptureReply(id, seed, result);
     }
 
@@ -288,7 +336,7 @@ public final class Codecs {
             states[i] = buf.readVarInt();
         }
 
-        CompoundTag extra = buf.readAnySizeNbt();
+        CompoundTag extra = readAnySizeNbt(buf);
         List<CompoundTag> blockEntities = compounds(extra.getList("BlockEntities", Tag.TAG_COMPOUND));
         List<CompoundTag> entities = compounds(extra.getList("Entities", Tag.TAG_COMPOUND));
         return new StructureSnapshot(id, seed, terrain, origin, size, palette, positions, states, blockEntities, entities, pieces);
@@ -298,14 +346,14 @@ public final class Codecs {
 
     public static void writeItems(FriendlyByteBuf buf, List<ItemStack> items) {
         buf.writeVarInt(items.size());
-        items.forEach(buf::writeItem);
+        items.forEach(s -> writeItem(buf, s));
     }
 
     public static List<ItemStack> readItems(FriendlyByteBuf buf) {
         int count = buf.readVarInt();
         List<ItemStack> out = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            out.add(buf.readItem());
+            out.add(readItem(buf));
         }
         return out;
     }
@@ -316,7 +364,7 @@ public final class Codecs {
         buf.writeVarInt(odds.emptyRolls());
         buf.writeVarInt(odds.rows().size());
         for (LootOdds.Row row : odds.rows()) {
-            buf.writeItem(row.example());
+            writeItem(buf, row.example());
             buf.writeVarInt(row.hits());
             buf.writeVarInt(row.total());
             buf.writeVarInt(row.min());
@@ -332,7 +380,7 @@ public final class Codecs {
         int count = buf.readVarInt();
         List<LootOdds.Row> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            rows.add(new LootOdds.Row(buf.readItem(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+            rows.add(new LootOdds.Row(readItem(buf), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                     new TreeMap<>(buf.readMap(b -> b.readUtf(), b -> b.readVarInt()))));
         }
         return new LootOdds(table, rolls, empty, rows);
@@ -404,7 +452,7 @@ public final class Codecs {
     public static void writeTable(FriendlyByteBuf buf, TableReply reply) {
         buf.writeBoolean(reply.problem() != null);
         if (reply.problem() != null) {
-            buf.writeComponent(reply.problem());
+            writeComponent(buf, reply.problem());
             return;
         }
         LootOverrides.View view = reply.view();
@@ -417,7 +465,7 @@ public final class Codecs {
 
     public static TableReply readTable(FriendlyByteBuf buf) {
         if (buf.readBoolean()) {
-            return new TableReply(null, buf.readComponent());
+            return new TableReply(null, readComponent(buf));
         }
         ResourceLocation id = buf.readResourceLocation();
         LootOverrides.Status status = buf.readEnum(LootOverrides.Status.class);

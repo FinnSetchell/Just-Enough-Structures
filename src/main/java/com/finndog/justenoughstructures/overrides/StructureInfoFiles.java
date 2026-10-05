@@ -1,8 +1,10 @@
 package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.FileFormat;
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.TextJson;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -18,7 +20,11 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.network.chat.Component;
+//? if >=1.21 {
+/*import net.minecraft.network.chat.contents.PlainTextContents.LiteralContents;
+*///?} else {
 import net.minecraft.network.chat.contents.LiteralContents;
+//?}
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -46,7 +52,7 @@ public final class StructureInfoFiles {
 
     /** What the mods and datapacks say about a structure, leaving out the JES pack. */
     public static StructureInfo fromMods(ResourceManager resources, ResourceLocation id) {
-        ResourceLocation location = new ResourceLocation(id.getNamespace(), StructureInfo.DIRECTORY + "/" + id.getPath() + ".json");
+        ResourceLocation location = Ids.of(id.getNamespace(), StructureInfo.DIRECTORY + "/" + id.getPath() + ".json");
         List<Resource> stack = resources.getResourceStack(location);
         for (int i = stack.size() - 1; i >= 0; i--) {
             Resource resource = stack.get(i);
@@ -123,7 +129,7 @@ public final class StructureInfoFiles {
             if (plain) {
                 json.addProperty("notes", info.notes().getString());
             } else {
-                json.add("notes", Component.Serializer.toJsonTree(info.notes()));
+                json.add("notes", TextJson.toJson(info.notes()));
             }
         }
         if (info.author() != null) {

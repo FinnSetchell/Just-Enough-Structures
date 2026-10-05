@@ -16,7 +16,7 @@ import net.minecraft.network.chat.Component;
  * The mod's current table and an edit of it side by side, line by line, with what one has and the
  * other doesn't marked. For deciding what to do when a mod has changed a table since it was edited.
  */
-final class DiffScreen extends Screen implements Nav.Page {
+final class DiffScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int LINE = 10;
@@ -186,7 +186,7 @@ final class DiffScreen extends Screen implements Nav.Page {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = PAD + 6;
         int column = (width - PAD * 2 - 18) / 2;

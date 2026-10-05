@@ -78,7 +78,11 @@ public final class SnapshotView implements BlockAndTintGetter {
             for (CompoundTag tag : snapshot.blockEntities()) {
                 BlockPos pos = new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
                 try {
+                    //? if >=1.21 {
+                    /*BlockEntity be = BlockEntity.loadStatic(pos, getBlockState(pos), tag, level.registryAccess());
+                    *///?} else {
                     BlockEntity be = BlockEntity.loadStatic(pos, getBlockState(pos), tag);
+                    //?}
                     if (be != null) {
                         be.setLevel(level);
                         blockEntities.put(pos, be);

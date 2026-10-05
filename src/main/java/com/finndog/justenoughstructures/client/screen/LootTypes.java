@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -13,44 +14,77 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * Every kind of entry, function and condition a loot table can use, from the game's own lists so
- * mods' kinds are there too, and what a new one of each starts as.
+ * mods' kinds are there too, and what a new one of each starts as. Public for the game tests, which
+ * check every new one loads.
  */
-final class LootTypes {
+public final class LootTypes {
     static final List<String> TABLE_TYPES = List.of("minecraft:chest", "minecraft:archaeology", "minecraft:generic", "minecraft:entity",
             "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
             "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location", "minecraft:empty");
 
     /** The ones people use most, first, in this order; then the rest by name. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
+    // Each version's names for the same thing sit side by side; only the ones the game has are listed.
     private static final List<String> FUNCTIONS_FIRST = List.of("set_count", "enchant_randomly", "enchant_with_levels", "set_enchantments", "set_damage",
-            "set_potion", "set_stew_effect", "set_name", "set_lore", "set_nbt", "set_instrument", "exploration_map", "limit_count", "looting_enchant",
-            "apply_bonus", "explosion_decay", "furnace_smelt");
-    private static final List<String> CONDITIONS_FIRST = List.of("random_chance", "random_chance_with_looting", "killed_by_player",
-            "survives_explosion", "inverted", "any_of", "all_of", "table_bonus");
+            "set_potion", "set_stew_effect", "set_name", "set_lore", "set_nbt", "set_custom_data", "set_components", "set_instrument", "exploration_map",
+            "limit_count", "looting_enchant", "enchanted_count_increase", "apply_bonus", "explosion_decay", "furnace_smelt");
+    private static final List<String> CONDITIONS_FIRST = List.of("random_chance", "random_chance_with_looting", "random_chance_with_enchanted_bonus",
+            "killed_by_player", "survives_explosion", "inverted", "any_of", "all_of", "table_bonus");
 
     /** What a new function or condition of each kind starts with, so it loads as it is. */
     private static final Map<String, String> DEFAULTS = Map.ofEntries(
             Map.entry("function:set_count", "{\"count\": 1}"),
+            //? if >=1.21 {
+            /*// 1.20.5 moved items' NBT into components, and 1.21 made enchantments data, which renamed or
+            // reshaped these.
+            Map.entry("function:enchant_with_levels", "{\"levels\": 30}"),
+            Map.entry("function:set_lore", "{\"lore\": [], \"mode\": \"append\"}"),
+            Map.entry("function:set_custom_data", "{\"tag\": \"{}\"}"),
+            Map.entry("function:set_components", "{\"components\": {}}"),
+            Map.entry("function:copy_custom_data", "{\"source\": \"block_entity\", \"ops\": []}"),
+            Map.entry("function:copy_components", "{\"source\": \"block_entity\"}"),
+            Map.entry("function:enchanted_count_increase", "{\"enchantment\": \"minecraft:looting\", \"count\": 1}"),
+            Map.entry("function:set_contents", "{\"component\": \"minecraft:container\", \"entries\": []}"),
+            Map.entry("function:modify_contents", "{\"component\": \"minecraft:container\", \"modifier\": []}"),
+            Map.entry("function:filtered", "{\"item_filter\": {}, \"modifier\": []}"),
+            Map.entry("function:sequence", "{\"functions\": []}"),
+            Map.entry("function:set_item", "{\"item\": \"minecraft:stick\"}"),
+            Map.entry("function:set_writable_book_pages", "{\"pages\": [], \"mode\": \"append\"}"),
+            Map.entry("function:set_written_book_pages", "{\"pages\": [], \"mode\": \"append\"}"),
+            Map.entry("function:set_ominous_bottle_amplifier", "{\"amplifier\": 0}"),
+            Map.entry("function:set_custom_model_data", "{\"value\": 0}"),
+            Map.entry("function:toggle_tooltips", "{\"toggles\": {}}"),
+            Map.entry("condition:random_chance_with_enchanted_bonus", "{\"enchantment\": \"minecraft:looting\", \"unenchanted_chance\": 0.1, "
+                    + "\"enchanted_chance\": {\"type\": \"minecraft:linear\", \"base\": 0.11, \"per_level_above_first\": 0.01}}"),
+            Map.entry("condition:enchantment_active_check", "{\"active\": true}"),
+            // 1.20.1 won't load it with no modifiers, so it starts with one, here as there.
+            Map.entry("function:set_attributes", "{\"modifiers\": [{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:generic.max_health\", "
+                    + "\"amount\": 1, \"operation\": \"add_value\", \"slot\": \"any\"}]}"),
+            *///?} else {
             Map.entry("function:enchant_with_levels", "{\"levels\": 30, \"treasure\": false}"),
+            Map.entry("function:set_lore", "{\"lore\": []}"),
+            Map.entry("function:set_nbt", "{\"tag\": \"{}\"}"),
+            Map.entry("function:copy_nbt", "{\"source\": \"block_entity\", \"ops\": []}"),
+            Map.entry("function:looting_enchant", "{\"count\": 1}"),
+            Map.entry("function:set_contents", "{\"type\": \"minecraft:chest\", \"entries\": []}"),
+            Map.entry("condition:random_chance_with_looting", "{\"chance\": 0.1, \"looting_multiplier\": 0.01}"),
+            // It won't load with no modifiers, so it starts with one.
+            Map.entry("function:set_attributes", "{\"modifiers\": [{\"attribute\": \"minecraft:generic.max_health\", \"name\": \"Modifier\", "
+                    + "\"amount\": 1, \"operation\": \"addition\", \"slot\": \"mainhand\"}]}"),
+            //?}
             Map.entry("function:set_damage", "{\"damage\": {\"type\": \"minecraft:uniform\", \"min\": 0.5, \"max\": 1}}"),
             Map.entry("function:set_potion", "{\"id\": \"minecraft:healing\"}"),
             Map.entry("function:exploration_map", "{\"destination\": \"minecraft:on_treasure_maps\", \"decoration\": \"red_x\", \"zoom\": 1, \"skip_existing_chunks\": false}"),
             Map.entry("function:set_name", "{\"name\": \"Name\"}"),
-            Map.entry("function:set_lore", "{\"lore\": []}"),
-            Map.entry("function:set_nbt", "{\"tag\": \"{}\"}"),
             Map.entry("function:limit_count", "{\"limit\": {\"min\": 1, \"max\": 64}}"),
-            Map.entry("function:looting_enchant", "{\"count\": 1}"),
             Map.entry("function:set_instrument", "{\"options\": \"#minecraft:goat_horns\"}"),
             Map.entry("function:apply_bonus", "{\"enchantment\": \"minecraft:fortune\", \"formula\": \"minecraft:ore_drops\"}"),
             Map.entry("function:set_loot_table", "{\"name\": \"minecraft:chests/simple_dungeon\", \"type\": \"minecraft:chest\"}"),
             Map.entry("function:set_stew_effect", "{\"effects\": []}"),
             Map.entry("function:copy_name", "{\"source\": \"block_entity\"}"),
-            Map.entry("function:copy_nbt", "{\"source\": \"block_entity\", \"ops\": []}"),
             Map.entry("function:copy_state", "{\"block\": \"minecraft:stone\", \"properties\": []}"),
             Map.entry("function:fill_player_head", "{\"entity\": \"this\"}"),
-            Map.entry("function:set_attributes", "{\"modifiers\": []}"),
             Map.entry("function:set_banner_pattern", "{\"patterns\": [], \"append\": false}"),
-            Map.entry("function:set_contents", "{\"type\": \"minecraft:chest\", \"entries\": []}"),
             Map.entry("function:set_enchantments", "{\"enchantments\": {}}"),
             Map.entry("condition:block_state_property", "{\"block\": \"minecraft:stone\"}"),
             Map.entry("condition:entity_properties", "{\"entity\": \"this\", \"predicate\": {}}"),
@@ -60,7 +94,6 @@ final class LootTypes {
             Map.entry("condition:damage_source_properties", "{\"predicate\": {}}"),
             Map.entry("condition:value_check", "{\"value\": 1, \"range\": {\"min\": 0, \"max\": 1}}"),
             Map.entry("condition:random_chance", "{\"chance\": 0.5}"),
-            Map.entry("condition:random_chance_with_looting", "{\"chance\": 0.1, \"looting_multiplier\": 0.01}"),
             Map.entry("condition:inverted", "{\"term\": {\"condition\": \"minecraft:random_chance\", \"chance\": 0.5}}"),
             Map.entry("condition:any_of", "{\"terms\": []}"),
             Map.entry("condition:all_of", "{\"terms\": []}"),
@@ -71,22 +104,22 @@ final class LootTypes {
     private LootTypes() {
     }
 
-    static List<String> entryTypes() {
+    public static List<String> entryTypes() {
         return ordered(BuiltInRegistries.LOOT_POOL_ENTRY_TYPE, ENTRIES_FIRST);
     }
 
-    static List<String> functionTypes() {
+    public static List<String> functionTypes() {
         return ordered(BuiltInRegistries.LOOT_FUNCTION_TYPE, FUNCTIONS_FIRST);
     }
 
-    static List<String> conditionTypes() {
+    public static List<String> conditionTypes() {
         return ordered(BuiltInRegistries.LOOT_CONDITION_TYPE, CONDITIONS_FIRST);
     }
 
     private static List<String> ordered(Registry<?> registry, List<String> first) {
         List<String> out = new ArrayList<>();
         for (String path : first) {
-            if (registry.containsKey(new ResourceLocation(path))) {
+            if (registry.containsKey(Ids.parse(path))) {
                 out.add("minecraft:" + path);
             }
         }
@@ -102,13 +135,13 @@ final class LootTypes {
     }
 
     /** A new function of this kind, with what it needs filled in. */
-    static JsonObject function(String type) {
+    public static JsonObject function(String type) {
         JsonObject out = defaults("function:" + shortId(type));
         out.addProperty("function", type);
         return reorder(out, "function");
     }
 
-    static JsonObject condition(String type) {
+    public static JsonObject condition(String type) {
         JsonObject out = defaults("condition:" + shortId(type));
         out.addProperty("condition", type);
         return reorder(out, "condition");

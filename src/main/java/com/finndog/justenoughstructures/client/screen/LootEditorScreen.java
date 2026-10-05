@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.JesNetwork;
@@ -47,7 +48,7 @@ import org.lwjgl.glfw.GLFW;
  * table's JSON underneath, which can be edited directly too. Saving writes an override, which
  * applies from the next /reload; the server refuses anything the game couldn't load.
  */
-public final class LootEditorScreen extends Screen implements Nav.Page, LootForm.Host {
+public final class LootEditorScreen extends BackdropScreen implements Nav.Page, LootForm.Host {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int TREE_ROW = 18;
@@ -634,16 +635,24 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     public void tick() {
         super.tick();
         if (rawBox != null) {
+            //? if <1.21 {
             rawBox.tick();
+            //?}
         }
         if (idBox != null) {
+            //? if <1.21 {
             idBox.tick();
+            //?}
         }
         if (inline != null) {
+            //? if <1.21 {
             inline.tick();
+            //?}
         }
         if (pickerSearch != null) {
+            //? if <1.21 {
             pickerSearch.tick();
+            //?}
         }
         if (previewDue > 0 && Util.getMillis() >= previewDue && view != null) {
             previewDue = 0;
@@ -823,7 +832,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         boolean overlay = picker != null || choice != null;
         int mx = overlay ? -1 : mouseX;
@@ -1125,7 +1134,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         return switch (kind) {
             case "item" -> {
                 String name = entry.has("name") ? entry.get("name").getAsString() : "";
-                yield LootForm.itemExists(name) ? new ItemStack(BuiltInRegistries.ITEM.get(new ResourceLocation(name.trim()))) : new ItemStack(Items.BARRIER);
+                yield LootForm.itemExists(name) ? new ItemStack(BuiltInRegistries.ITEM.get(Ids.parse(name.trim()))) : new ItemStack(Items.BARRIER);
             }
             case "tag" -> new ItemStack(Items.NAME_TAG);
             case "empty" -> new ItemStack(Items.GLASS_BOTTLE);
@@ -1525,7 +1534,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             Component cancel = Component.translatable("gui.cancel");
             int cancelW = ui.buttonWidth(cancel);
             boolean overCancel = mouseX >= x + w - 8 - cancelW && mouseX < x + w - 8 && mouseY >= y + 5 && mouseY < y + 19;
-            g.blitNineSliced(new ResourceLocation("textures/gui/widgets.png"), x + w - 8 - cancelW, y + 5, cancelW, 14, 20, 4, 200, 20, 0, overCancel ? 86 : 66);
+            Gui.buttonBackground(g, x + w - 8 - cancelW, y + 5, cancelW, 14, overCancel ? 2 : 1);
             g.drawString(font, cancel, x + w - 8 - cancelW + 5, y + 8, 0xFFFFFFFF, true);
             if (pickerSearch != null) {
                 pickerSearch.setX(x + 8);

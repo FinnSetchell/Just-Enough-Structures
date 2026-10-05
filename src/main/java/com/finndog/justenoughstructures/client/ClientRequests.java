@@ -12,7 +12,6 @@ import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
-import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -24,7 +23,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -302,7 +303,7 @@ public final class ClientRequests {
 
     /** Something bigger than one packet, sent in parts. */
     private static void sendUpload(int kind, int requestId, Consumer<FriendlyByteBuf> writer) {
-        byte[] compressed = Blobs.deflate(Blobs.toBytes(writer::accept));
+        byte[] compressed = Blobs.deflate(Blobs.toBytes(registries(), writer::accept));
         List<byte[]> parts = Blobs.split(compressed, Blobs.UPLOAD_PART_SIZE);
         int transferId = nextUploadId++;
         for (int i = 0; i < parts.size(); i++) {
@@ -513,7 +514,7 @@ public final class ClientRequests {
             onCapture(part.requestId(), transfer.bytes());
             return;
         }
-        FriendlyByteBuf buf = Blobs.fromBytes(Blobs.inflate(transfer.bytes()));
+        FriendlyByteBuf buf = Blobs.fromBytes(registries(), Blobs.inflate(transfer.bytes()));
         if (part.kind() == JesNetwork.KIND_CATALOG) {
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
             Thumbnails.onCatalog(entries);
@@ -549,11 +550,12 @@ public final class ClientRequests {
      * clicked away from.
      */
     private static void onCapture(int requestId, byte[] compressed) {
+        RegistryAccess registries = registries();
         CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(requestId);
         if (future == null || future.isDone()) {
             return;
         }
-        CompletableFuture.supplyAsync(() -> Codecs.readCapture(Blobs.fromBytes(Blobs.inflate(compressed))), Util.backgroundExecutor())
+        CompletableFuture.supplyAsync(() -> Codecs.readCapture(Blobs.fromBytes(registries, Blobs.inflate(compressed))), Util.backgroundExecutor())
                 .whenCompleteAsync((reply, error) -> {
                     if (error != null) {
                         JesLog.errorOnce("capture-read", "Couldn't read a structure from the server", error);
@@ -618,11 +620,17 @@ public final class ClientRequests {
         sendWaitingOdds();
     }
 
+    /** The game's registries as the server sent them, which reading items and text needs from 1.20.5. */
+    private static RegistryAccess registries() {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        return connection != null ? connection.registryAccess() : RegistryAccess.EMPTY;
+    }
+
     private static void send(ResourceLocation channel, Consumer<FriendlyByteBuf> writer) {
         if (sender == null) {
             return;
         }
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(registries());
         writer.accept(buf);
         sender.send(channel, buf);
     }

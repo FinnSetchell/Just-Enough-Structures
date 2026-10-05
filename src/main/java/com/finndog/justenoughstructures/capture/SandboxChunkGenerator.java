@@ -1,9 +1,13 @@
 package com.finndog.justenoughstructures.capture;
 
-import com.mojang.serialization.Codec;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+//? if >=1.21 {
+/*import com.mojang.serialization.MapCodec;
+*///?} else {
+import com.mojang.serialization.Codec;
 import java.util.concurrent.Executor;
+//?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.LevelHeightAccessor;
@@ -42,11 +46,18 @@ final class SandboxChunkGenerator extends ChunkGenerator {
         return terrain;
     }
 
+    // Never saved or sent anywhere.
+    //? if >=1.21 {
+    /*@Override
+    protected MapCodec<? extends ChunkGenerator> codec() {
+        return MapCodec.unit(this);
+    }
+    *///?} else {
     @Override
     protected Codec<? extends ChunkGenerator> codec() {
-        // Never saved or sent anywhere.
         return Codec.unit(this);
     }
+    //?}
 
     @Override
     public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomeManager,
@@ -66,11 +77,18 @@ final class SandboxChunkGenerator extends ChunkGenerator {
         return column.length;
     }
 
+    //? if >=1.21 {
+    /*@Override
+    public CompletableFuture<ChunkAccess> fillFromNoise(Blender blender, RandomState randomState, StructureManager structureManager, ChunkAccess chunk) {
+        return CompletableFuture.completedFuture(chunk);
+    }
+    *///?} else {
     @Override
     public CompletableFuture<ChunkAccess> fillFromNoise(Executor executor, Blender blender, RandomState randomState,
                                                         StructureManager structureManager, ChunkAccess chunk) {
         return CompletableFuture.completedFuture(chunk);
     }
+    //?}
 
     @Override
     public int getSeaLevel() {

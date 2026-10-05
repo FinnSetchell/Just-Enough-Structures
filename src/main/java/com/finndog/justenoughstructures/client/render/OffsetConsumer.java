@@ -23,6 +23,43 @@ final class OffsetConsumer implements VertexConsumer {
         return this;
     }
 
+    //? if >=1.21 {
+    /*@Override
+    public VertexConsumer addVertex(float x, float y, float z) {
+        delegate.addVertex(x + (float) dx, y + (float) dy, z + (float) dz);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setColor(int r, int g, int b, int a) {
+        delegate.setColor(r, g, b, a);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv(float u, float v) {
+        delegate.setUv(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv1(int u, int v) {
+        delegate.setUv1(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setUv2(int u, int v) {
+        delegate.setUv2(u, v);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer setNormal(float x, float y, float z) {
+        delegate.setNormal(x, y, z);
+        return this;
+    }
+    *///?} else {
     @Override
     public VertexConsumer vertex(double x, double y, double z) {
         delegate.vertex(x + dx, y + dy, z + dz);
@@ -73,4 +110,5 @@ final class OffsetConsumer implements VertexConsumer {
     public void unsetDefaultColor() {
         delegate.unsetDefaultColor();
     }
+    //?}
 }

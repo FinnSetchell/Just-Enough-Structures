@@ -9,11 +9,11 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -27,7 +27,7 @@ final class InfoTabsScenario {
 
     static Director build(Minecraft mc) {
         String requested = System.getProperty("jes.autoshot.structures", "");
-        JesScreen.startOn(new ResourceLocation(requested.isBlank() ? "minecraft:pillager_outpost" : requested.split(",")[0].trim()));
+        JesScreen.startOn(Ids.parse(requested.isBlank() ? "minecraft:pillager_outpost" : requested.split(",")[0].trim()));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))

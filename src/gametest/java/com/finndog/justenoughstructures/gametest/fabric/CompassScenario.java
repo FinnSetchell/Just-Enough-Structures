@@ -8,11 +8,11 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -30,7 +30,7 @@ final class CompassScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("desert_pyramid"));
+        JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         d.then(run(() -> giveCompass(mc)))
                 .then(pause(20))
@@ -59,7 +59,7 @@ final class CompassScenario {
                 // strongholds can generate in the superflat world.
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
                 .then(until(() -> mc.screen == null, 40))
-                .then(run(() -> JesScreen.startOn(new ResourceLocation("village_plains"))))
+                .then(run(() -> JesScreen.startOn(Ids.parse("village_plains"))))
                 .then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
@@ -82,7 +82,7 @@ final class CompassScenario {
     private static void giveCompass(Minecraft mc) {
         MinecraftServer server = mc.getSingleplayerServer();
         UUID id = mc.player.getUUID();
-        ItemStack compass = new ItemStack(BuiltInRegistries.ITEM.get(new ResourceLocation("explorerscompass", "explorerscompass")));
+        ItemStack compass = new ItemStack(BuiltInRegistries.ITEM.get(Ids.of("explorerscompass", "explorerscompass")));
         server.execute(() -> {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player != null) {

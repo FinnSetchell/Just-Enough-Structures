@@ -3,6 +3,10 @@ package com.finndog.justenoughstructures.client.render;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+//? if >=1.21 {
+/*import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+*///?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
@@ -40,7 +44,11 @@ import net.minecraftforge.client.model.data.ModelData;
  * one frame's budget is built in pieces, a few rows at a time, over as many frames as it takes.
  */
 public final class SnapshotMesh implements AutoCloseable {
+    //? if >=1.21 {
+    /*private static final Map<RenderType, ByteBufferBuilder> BUILDERS = new HashMap<>();
+    *///?} else {
     private static final Map<RenderType, BufferBuilder> BUILDERS = new HashMap<>();
+    //?}
 
     private final SnapshotView view;
     /** Each finished layer, in the pieces it was built in. */
@@ -52,7 +60,11 @@ public final class SnapshotMesh implements AutoCloseable {
     private int capY = -1;
     private boolean closed;
     // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
+    //? if >=1.21 {
+    /*private final Map<VertexBuffer, MeshData.SortState> translucent = new HashMap<>();
+    *///?} else {
     private final Map<VertexBuffer, BufferBuilder.SortState> translucent = new HashMap<>();
+    //?}
     private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
 
     public SnapshotMesh(SnapshotView view) {
@@ -192,9 +204,11 @@ public final class SnapshotMesh implements AutoCloseable {
         if (shader.PROJECTION_MATRIX != null) {
             shader.PROJECTION_MATRIX.set(projection);
         }
+        //? if <1.21 {
         if (shader.INVERSE_VIEW_ROTATION_MATRIX != null) {
             shader.INVERSE_VIEW_ROTATION_MATRIX.set(RenderSystem.getInverseViewRotationMatrix());
         }
+        //?}
         if (shader.COLOR_MODULATOR != null) {
             shader.COLOR_MODULATOR.set(RenderSystem.getShaderColor());
         }
@@ -291,6 +305,18 @@ public final class SnapshotMesh implements AutoCloseable {
 
         Map<RenderType, VertexBuffer> out = new HashMap<>();
         for (Map.Entry<RenderType, BufferBuilder> e : started.entrySet()) {
+            //? if >=1.21 {
+            /*MeshData mesh = e.getValue().build();
+            if (mesh == null) {
+                continue;
+            }
+            // Sorted into the same buffer the mesh was built in, as vanilla sorts chunk sections.
+            MeshData.SortState sortState = e.getKey() == RenderType.translucent()
+                    ? mesh.sortQuads(BUILDERS.get(RenderType.translucent()), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
+            VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+            buffer.bind();
+            buffer.upload(mesh);
+            *///?} else {
             BufferBuilder builder = e.getValue();
             BufferBuilder.SortState sortState = null;
             if (e.getKey() == RenderType.translucent()) {
@@ -304,6 +330,7 @@ public final class SnapshotMesh implements AutoCloseable {
             VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
             buffer.bind();
             buffer.upload(rendered);
+            //?}
             out.put(e.getKey(), buffer);
             if (sortState != null) {
                 translucent.put(buffer, sortState);
@@ -319,6 +346,16 @@ public final class SnapshotMesh implements AutoCloseable {
         if (translucent.isEmpty()) {
             return;
         }
+        //? if >=1.21 {
+        /*ByteBufferBuilder sorting = BUILDERS.computeIfAbsent(RenderType.translucent(), k -> new ByteBufferBuilder(256 * 1024));
+        for (Map.Entry<VertexBuffer, MeshData.SortState> e : translucent.entrySet()) {
+            ByteBufferBuilder.Result indices = e.getValue().buildSortedIndexBuffer(sorting, VertexSorting.byDistance(eye.x(), eye.y(), eye.z()));
+            if (indices != null) {
+                e.getKey().bind();
+                e.getKey().uploadIndexBuffer(indices);
+            }
+        }
+        *///?} else {
         BufferBuilder builder = BUILDERS.computeIfAbsent(RenderType.translucent(), k -> new BufferBuilder(256 * 1024));
         for (Map.Entry<VertexBuffer, BufferBuilder.SortState> e : translucent.entrySet()) {
             builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
@@ -329,6 +366,7 @@ public final class SnapshotMesh implements AutoCloseable {
             e.getKey().bind();
             e.getKey().upload(rendered);
         }
+        //?}
         VertexBuffer.unbind();
     }
 
@@ -347,9 +385,13 @@ public final class SnapshotMesh implements AutoCloseable {
 
     private static BufferBuilder begin(Map<RenderType, BufferBuilder> started, RenderType type) {
         return started.computeIfAbsent(type, t -> {
+            //? if >=1.21 {
+            /*return new BufferBuilder(BUILDERS.computeIfAbsent(t, k -> new ByteBufferBuilder(256 * 1024)), VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            *///?} else {
             BufferBuilder builder = BUILDERS.computeIfAbsent(t, k -> new BufferBuilder(256 * 1024));
             builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
             return builder;
+            //?}
         });
     }
 

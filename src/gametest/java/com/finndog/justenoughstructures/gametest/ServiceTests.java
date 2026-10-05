@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -13,6 +14,7 @@ import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,7 +45,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** Tests for the catalog, the wire format and loot rolls. */
 public final class ServiceTests {
-    private static final ResourceLocation DESERT_PYRAMID_LOOT = new ResourceLocation("chests/desert_pyramid");
+    private static final ResourceLocation DESERT_PYRAMID_LOOT = Ids.parse("chests/desert_pyramid");
 
     private ServiceTests() {
     }
@@ -53,14 +55,14 @@ public final class ServiceTests {
         Map<ResourceLocation, StructureCatalog.Entry> byId = entries.stream()
                 .collect(Collectors.toMap(StructureCatalog.Entry::id, Function.identity()));
         for (String name : CaptureTests.VANILLA) {
-            StructureCatalog.Entry entry = byId.get(new ResourceLocation(name));
+            StructureCatalog.Entry entry = byId.get(Ids.parse(name));
             helper.assertTrue(entry != null, name + " is missing from the catalog");
             helper.assertTrue(entry.definition() != null && entry.definition().has("type"), name + " has no definition");
             helper.assertTrue(!entry.sets().isEmpty() && entry.sets().get(0).placement() != null, name + " has no placement");
         }
 
-        List<StructureCatalog.Entry> decoded = Codecs.readCatalog(Blobs.fromBytes(Blobs.inflate(
-                Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCatalog(buf, entries))))));
+        List<StructureCatalog.Entry> decoded = Codecs.readCatalog(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
+                Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCatalog(buf, entries))))));
         helper.assertTrue(decoded.size() == entries.size(), "catalog lost entries on the way through");
         for (int i = 0; i < entries.size(); i++) {
             helper.assertTrue(decoded.get(i).id().equals(entries.get(i).id()), "catalog order changed at " + i);
@@ -80,18 +82,27 @@ public final class ServiceTests {
         Map<ResourceLocation, StructureCatalog.Entry> byId = StructureCatalog.build(helper.getLevel().registryAccess()).stream()
                 .collect(Collectors.toMap(StructureCatalog.Entry::id, Function.identity()));
         for (String name : CaptureTests.VANILLA) {
-            Availability availability = byId.get(new ResourceLocation(name)).availability();
+            Availability availability = byId.get(Ids.parse(name)).availability();
             helper.assertTrue(availability != null, name + " doesn't say whether it generates");
             helper.assertTrue(availability.generates() || availability.reason() == Availability.Reason.REPLACED
                     || availability.reason() == Availability.Reason.TURNED_OFF, name + " is " + availability + ", but it's in a structure set");
         }
-        if (byId.containsKey(new ResourceLocation("betterstrongholds", "stronghold"))) {
-            Availability stronghold = byId.get(new ResourceLocation("stronghold")).availability();
+        if (byId.containsKey(Ids.of("betterstrongholds", "stronghold"))) {
+            Availability stronghold = byId.get(Ids.parse("stronghold")).availability();
             helper.assertTrue(stronghold.reason() == Availability.Reason.REPLACED && "betterstrongholds".equals(stronghold.by())
-                            && new ResourceLocation("betterstrongholds", "stronghold").equals(stronghold.replacedBy()),
+                            && Ids.of("betterstrongholds", "stronghold").equals(stronghold.replacedBy()),
                     "the vanilla stronghold should be replaced by Better Strongholds' one, but is " + stronghold);
         }
         helper.succeed();
+    }
+
+    /** A command's result, 0 when it's refused, as running it from chat would give. */
+    private static int command(MinecraftServer server, CommandSourceStack source, String command) {
+        try {
+            return server.getCommands().getDispatcher().execute(command, source);
+        } catch (CommandSyntaxException e) {
+            return 0;
+        }
     }
 
     /** /jes open is there for anyone, and turns away a player without the mod, or a structure that doesn't exist, without failing. */
@@ -100,19 +111,19 @@ public final class ServiceTests {
         helper.assertTrue(server.getCommands().getDispatcher().getRoot().getChild("jes") != null, "/jes isn't registered");
         ServerPlayer player = TestPlayers.mock(helper);
         CommandSourceStack source = player.createCommandSourceStack().withPermission(0).withSuppressedOutput();
-        helper.assertTrue(server.getCommands().performPrefixedCommand(source, "jes open minecraft:igloo") == 0,
+        helper.assertTrue(command(server, source, "jes open minecraft:igloo") == 0,
                 "/jes open worked for a player whose game doesn't have the mod");
-        helper.assertTrue(server.getCommands().performPrefixedCommand(source, "jes open nothing:here") == 0,
+        helper.assertTrue(command(server, source, "jes open nothing:here") == 0,
                 "/jes open worked for a structure that doesn't exist");
         helper.succeed();
     }
 
     public static void snapshotSurvivesTheWire(GameTestHelper helper) {
-        ResourceLocation id = new ResourceLocation("desert_pyramid");
+        ResourceLocation id = Ids.parse("desert_pyramid");
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), id, CaptureTests.SEED);
         helper.assertTrue(result.succeeded(), "desert_pyramid did not capture");
-        byte[] wire = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, id, CaptureTests.SEED, result)));
-        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(Blobs.inflate(wire)));
+        byte[] wire = Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, CaptureTests.SEED, result)));
+        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(wire)));
 
         StructureSnapshot a = result.snapshot();
         StructureSnapshot b = reply.result().snapshot();
@@ -133,11 +144,11 @@ public final class ServiceTests {
     }
 
     public static void failedCaptureSurvivesTheWire(GameTestHelper helper) {
-        ResourceLocation id = new ResourceLocation("justenoughstructures", "nope");
+        ResourceLocation id = Ids.of("justenoughstructures", "nope");
         CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", "it didn't work"),
                 List.of(Component.translatable("screen.justenoughstructures.attempt.no_start", "LAND")), 12);
-        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(Blobs.inflate(
-                Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, id, 5, failed))))));
+        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
+                Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, 5, failed))))));
         helper.assertFalse(reply.result().succeeded(), "a failure came back as a success");
         helper.assertTrue(failed.reason().equals(reply.result().reason()), "the error message changed");
         helper.assertTrue(reply.result().attempts().equals(failed.attempts()), "the attempts changed");
@@ -164,7 +175,7 @@ public final class ServiceTests {
     /** A treasure map roll must not go looking for a real buried treasure, which would take ages. */
     public static void treasureMapRollsAreQuick(GameTestHelper helper) {
         long started = System.nanoTime();
-        LootOdds odds = LootRolls.odds(helper.getLevel(), new ResourceLocation("chests/shipwreck_map"), 200, 3L);
+        LootOdds odds = LootRolls.odds(helper.getLevel(), Ids.parse("chests/shipwreck_map"), 200, 3L);
         long millis = (System.nanoTime() - started) / 1_000_000L;
         helper.assertTrue(millis < 5_000, "200 shipwreck map rolls took " + millis + " ms");
         helper.assertTrue(odds.rows().stream().anyMatch(r -> BuiltInRegistries.ITEM.getKey(r.example().getItem()).getPath().contains("map")),
@@ -173,30 +184,30 @@ public final class ServiceTests {
     }
 
     public static void lootIndexFindsItemsInStructures(GameTestHelper helper) {
-        List<ResourceLocation> ids = List.of(new ResourceLocation("desert_pyramid"), new ResourceLocation("shipwreck"));
+        List<ResourceLocation> ids = List.of(Ids.parse("desert_pyramid"), Ids.parse("shipwreck"));
         LootIndex index = LootIndex.build(helper.getLevel().getServer(), ids, done -> {
         }, () -> false);
         helper.assertTrue(index != null, "the index wasn't built");
         helper.assertTrue(index.tablesByStructure().getOrDefault(ids.get(0), Set.of()).contains(DESERT_PYRAMID_LOOT),
                 "the desert pyramid should use its chest loot table, found " + index.tablesByStructure().get(ids.get(0)));
         Set<ResourceLocation> pyramidItems = index.itemsByTable().getOrDefault(DESERT_PYRAMID_LOOT, Set.of());
-        helper.assertTrue(pyramidItems.contains(new ResourceLocation("diamond")), "diamonds are missing from the desert pyramid table");
-        helper.assertTrue(pyramidItems.contains(new ResourceLocation("enchanted_book")), "books enchanted by the table should count as enchanted books");
-        Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(new ResourceLocation("chests/shipwreck_map"), Set.of());
-        helper.assertTrue(mapItems.contains(new ResourceLocation("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
+        helper.assertTrue(pyramidItems.contains(Ids.parse("diamond")), "diamonds are missing from the desert pyramid table");
+        helper.assertTrue(pyramidItems.contains(Ids.parse("enchanted_book")), "books enchanted by the table should count as enchanted books");
+        Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(Ids.parse("chests/shipwreck_map"), Set.of());
+        helper.assertTrue(mapItems.contains(Ids.parse("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
         helper.succeed();
     }
 
     /** JEI gets one entry per item per structure, listing every table in the structure that gives it. */
     public static void foundInRecipesComeFromTheIndex(GameTestHelper helper) {
-        ResourceLocation a = new ResourceLocation("test", "a");
-        ResourceLocation b = new ResourceLocation("test", "b");
-        ResourceLocation t1 = new ResourceLocation("test", "chests/one");
-        ResourceLocation t2 = new ResourceLocation("test", "chests/two");
+        ResourceLocation a = Ids.of("test", "a");
+        ResourceLocation b = Ids.of("test", "b");
+        ResourceLocation t1 = Ids.of("test", "chests/one");
+        ResourceLocation t2 = Ids.of("test", "chests/two");
         LootIndex index = new LootIndex(
                 Map.of(b, Set.of(t2), a, Set.of(t1, t2)),
-                Map.of(t1, Set.of(new ResourceLocation("diamond"), new ResourceLocation("gold_ingot")),
-                        t2, Set.of(new ResourceLocation("diamond"), new ResourceLocation("test", "not_an_item"))));
+                Map.of(t1, Set.of(Ids.parse("diamond"), Ids.parse("gold_ingot")),
+                        t2, Set.of(Ids.parse("diamond"), Ids.of("test", "not_an_item"))));
         List<FoundInRecipe> recipes = FoundInRecipe.fromIndex(index, ResourceLocation::toString);
         List<String> got = recipes.stream()
                 .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size())
@@ -207,9 +218,9 @@ public final class ServiceTests {
 
     /** The saved scan reads back as it was, a damaged one is rebuilt rather than trusted, and old ones are cleared out. */
     public static void savedLootIndexReadsBack(GameTestHelper helper) {
-        ResourceLocation structure = new ResourceLocation("test", "tower");
-        ResourceLocation table = new ResourceLocation("test", "chests/tower");
-        ResourceLocation template = new ResourceLocation("test", "tower/top");
+        ResourceLocation structure = Ids.of("test", "tower");
+        ResourceLocation table = Ids.of("test", "chests/tower");
+        ResourceLocation template = Ids.of("test", "tower/top");
         StructureScan index = new StructureScan(Map.of(structure, Set.of(table)), Map.of(structure, Set.of(template)),
                 Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"));
         try {
@@ -248,12 +259,12 @@ public final class ServiceTests {
 
     /** Players never get hidden structures in the index, or loot tables only they use. */
     public static void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
-        ResourceLocation shown = new ResourceLocation("test", "shown");
-        ResourceLocation hidden = new ResourceLocation("test", "secret");
-        ResourceLocation shared = new ResourceLocation("test", "chests/shared");
-        ResourceLocation own = new ResourceLocation("test", "chests/secret");
+        ResourceLocation shown = Ids.of("test", "shown");
+        ResourceLocation hidden = Ids.of("test", "secret");
+        ResourceLocation shared = Ids.of("test", "chests/shared");
+        ResourceLocation own = Ids.of("test", "chests/secret");
         LootIndex full = new LootIndex(Map.of(shown, Set.of(shared), hidden, Set.of(shared, own)),
-                Map.of(shared, Set.of(new ResourceLocation("bread")), own, Set.of(new ResourceLocation("diamond"))));
+                Map.of(shared, Set.of(Ids.parse("bread")), own, Set.of(Ids.parse("diamond"))));
         ServerConfig.Settings before = ServerConfig.get();
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(hidden), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
@@ -269,7 +280,7 @@ public final class ServiceTests {
     /** Looking for something that can't generate here must answer straight away, not search for minutes. */
     public static void impossibleLocateIsQuick(GameTestHelper helper) {
         long started = System.nanoTime();
-        Component reply = JesServer.locate(helper.getLevel(), helper.absolutePos(BlockPos.ZERO), new ResourceLocation("end_city"));
+        Component reply = JesServer.locate(helper.getLevel(), helper.absolutePos(BlockPos.ZERO), Ids.parse("end_city"));
         long millis = (System.nanoTime() - started) / 1_000_000L;
         helper.assertTrue(millis < 2_000, "locating an end city in the overworld took " + millis + " ms");
         // The test world has structures turned off, and an end city can't be in the overworld anyway.
@@ -286,9 +297,9 @@ public final class ServiceTests {
      */
     public static void locateLooksInOtherDimensions(GameTestHelper helper) {
         ServerLevel overworld = helper.getLevel();
-        ServerLevel endCity = JesServer.searchedIn(overworld, new ResourceLocation("end_city"));
+        ServerLevel endCity = JesServer.searchedIn(overworld, Ids.parse("end_city"));
         helper.assertTrue(endCity != null && endCity.dimension() == Level.END, "an end city is looked for in " + (endCity == null ? "nowhere" : endCity.dimension()));
-        ServerLevel village = JesServer.searchedIn(overworld, new ResourceLocation("village_plains"));
+        ServerLevel village = JesServer.searchedIn(overworld, Ids.parse("village_plains"));
         helper.assertTrue(village == overworld, "a village is looked for in " + (village == null ? "nowhere" : village.dimension()) + ", not here");
         helper.succeed();
     }
@@ -323,7 +334,7 @@ public final class ServiceTests {
     public static void onlyOperatorsCanTeleport(GameTestHelper helper) {
         ServerPlayer player = TestPlayers.mock(helper);
         Vec3 before = player.position();
-        Component reply = JesServer.locateFor(player, new ResourceLocation("village_plains"), true);
+        Component reply = JesServer.locateFor(player, Ids.parse("village_plains"), true);
         helper.assertTrue(reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith("locate_no_permission"),
                 "a player who isn't an operator got " + reply.getString());
         helper.assertTrue(player.position().equals(before), "a player who isn't an operator was moved");
@@ -331,7 +342,7 @@ public final class ServiceTests {
     }
 
     public static void unknownLootTableIsEmpty(GameTestHelper helper) {
-        ResourceLocation table = new ResourceLocation("justenoughstructures", "nope");
+        ResourceLocation table = Ids.of("justenoughstructures", "nope");
         helper.assertFalse(LootRolls.exists(helper.getLevel(), table), "a made up loot table exists");
         helper.assertTrue(LootRolls.fill(helper.getLevel(), table, 1L, 27).stream().allMatch(ItemStack::isEmpty), "a made up loot table gave items");
         helper.succeed();

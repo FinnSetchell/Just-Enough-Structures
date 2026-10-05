@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -26,7 +27,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+//? if >=1.21 {
+/*import com.mojang.serialization.JsonOps;
+import net.minecraft.resources.RegistryOps;
+*///?} else {
 import net.minecraft.world.level.storage.loot.LootDataType;
+//?}
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.loot.LootTable;
 
@@ -186,12 +192,16 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         if (!seen.add(tableId)) {
             return out;
         }
-        LootTable table = server.getLootData().getLootTable(tableId);
+        LootTable table = LootRolls.table(server, tableId);
         if (table == LootTable.EMPTY) {
             return out;
         }
         try {
+            //? if >=1.21 {
+            /*walk(server, LootTable.DIRECT_CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()), table).getOrThrow(), out, seen);
+            *///?} else {
             walk(server, LootDataType.TABLE.parser().toJsonTree(table), out, seen);
+            //?}
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read loot table {}", tableId, e);
         }
@@ -215,10 +225,10 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     out.add(name);
                     String functions = object.has("functions") ? object.get("functions").toString() : "";
                     if (name.getPath().equals("book") && functions.contains("enchant")) {
-                        out.add(new ResourceLocation("enchanted_book"));
+                        out.add(Ids.parse("enchanted_book"));
                     }
                     if (name.getPath().equals("map") && functions.contains("exploration_map")) {
-                        out.add(new ResourceLocation("filled_map"));
+                        out.add(Ids.parse("filled_map"));
                     }
                 }
                 case "minecraft:tag", "tag" -> {

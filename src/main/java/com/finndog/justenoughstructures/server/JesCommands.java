@@ -1,9 +1,9 @@
 package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.network.Blobs;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import io.netty.buffer.Unpooled;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -52,7 +52,7 @@ public final class JesCommands {
             source.sendFailure(Component.translatable("commands.justenoughstructures.open.unknown", structure.toString()));
             return 0;
         }
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(source.registryAccess());
         buf.writeBoolean(structure != null);
         if (structure != null) {
             buf.writeResourceLocation(structure);

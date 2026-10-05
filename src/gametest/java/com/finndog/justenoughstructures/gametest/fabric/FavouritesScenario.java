@@ -8,6 +8,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
@@ -20,14 +21,14 @@ import org.lwjgl.glfw.GLFW;
  * taken off at the end.
  */
 final class FavouritesScenario {
-    private static final ResourceLocation IGLOO = new ResourceLocation("igloo");
-    private static final ResourceLocation MANSION = new ResourceLocation("mansion");
+    private static final ResourceLocation IGLOO = Ids.parse("igloo");
+    private static final ResourceLocation MANSION = Ids.parse("mansion");
 
     private FavouritesScenario() {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("pillager_outpost"));
+        JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))

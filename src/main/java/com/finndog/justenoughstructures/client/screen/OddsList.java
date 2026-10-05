@@ -15,6 +15,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.enchantment.Enchantment;
+//? if >=1.21 {
+/*import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+*///?}
 
 /**
  * Rows of items with how likely each is: its icon and name, then a line with how many come, a bar
@@ -124,13 +131,29 @@ final class OddsList {
         for (Map.Entry<String, Integer> e : found.entrySet()) {
             String key = e.getKey();
             if (key.startsWith("enchantment:")) {
+                //? if >=1.21 {
+                /*// Enchantments are the server's own since 1.21, sent over with the world.
+                ResourceLocation id = ResourceLocation.tryParse(key.substring(12));
+                ClientPacketListener connection = Minecraft.getInstance().getConnection();
+                if (id != null && connection != null) {
+                    connection.registryAccess().registry(Registries.ENCHANTMENT).flatMap(registry -> registry.getHolder(id))
+                            .ifPresent(enchantment -> variants.add(Enchantment.getFullname(enchantment, e.getValue())));
+                }
+                *///?} else {
                 Enchantment enchantment = BuiltInRegistries.ENCHANTMENT.get(ResourceLocation.tryParse(key.substring(12)));
                 if (enchantment != null) {
                     variants.add(enchantment.getFullname(e.getValue()));
                 }
+                //?}
             } else if (key.startsWith("potion:")) {
+                //? if >=1.21 {
+                /*ResourceLocation id = ResourceLocation.tryParse(key.substring(7));
+                Optional<Holder<Potion>> potion = id == null ? Optional.empty() : BuiltInRegistries.POTION.getHolder(id).map(holder -> holder);
+                variants.add(Component.translatable(Potion.getName(potion, "item.minecraft.potion.effect.")));
+                *///?} else {
                 Potion potion = BuiltInRegistries.POTION.get(ResourceLocation.tryParse(key.substring(7)));
                 variants.add(Component.translatable(potion.getName("item.minecraft.potion.effect.")));
+                //?}
             }
         }
         List<Component> lines = new ArrayList<>();

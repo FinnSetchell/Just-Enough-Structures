@@ -25,11 +25,7 @@ public final class JustEnoughStructures {
     }
 
     public static ResourceLocation id(String path) {
-        //? if >=1.21 {
-        /*return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
-        *///?} else {
-        return new ResourceLocation(MOD_ID, path);
-        //?}
+        return Ids.of(MOD_ID, path);
     }
 
     /** Set by the loader: turns a namespace into the name of the mod that owns it. */

@@ -1329,7 +1329,11 @@ final class InfoPanel {
 
     /** Where each mob of a kind is, as the block its middle is in, the way the preview marks them. */
     private static LongSet mobPositions(StructureSnapshot s, String type) {
+        //? if >=1.21 {
+        /*float height = EntityType.byString(type).map(t -> t.getDimensions().height()).orElse(1f);
+        *///?} else {
         float height = EntityType.byString(type).map(t -> t.getDimensions().height).orElse(1f);
+        //?}
         LongSet out = new LongOpenHashSet();
         for (CompoundTag tag : s.entities()) {
             if (tag.getString("id").equals(type)) {

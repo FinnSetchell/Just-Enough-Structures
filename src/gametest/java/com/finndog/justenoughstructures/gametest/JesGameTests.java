@@ -151,6 +151,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void newFunctionsAndConditionsLoad(GameTestHelper helper) {
+        OverrideTests.newFunctionsAndConditionsLoad(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void mergesKeepBothSidesChanges(GameTestHelper helper) {
         OverrideTests.mergesKeepBothSidesChanges(helper);
     }

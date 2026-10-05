@@ -147,7 +147,11 @@ public abstract class ServerLevelGuardMixin extends Level {
     }
 
     @Inject(method = "gameEvent", at = @At("HEAD"), cancellable = true, require = 0)
+    //? if >=1.21 {
+    /*private void justenoughstructures$noGameEvents(Holder<GameEvent> event, Vec3 at, GameEvent.Context context, CallbackInfo ci) {
+    *///?} else {
     private void justenoughstructures$noGameEvents(GameEvent event, Vec3 at, GameEvent.Context context, CallbackInfo ci) {
+    //?}
         justenoughstructures$noEffect(ci);
     }
 

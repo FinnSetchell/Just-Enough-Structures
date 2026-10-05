@@ -13,14 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Each Stonecutter node compiles on its own toolchain (17 for 1.20.1). The last one listed
-      # becomes JAVA_HOME and runs Gradle.
-      - name: Set up Java 17 and 25
+      # Each Stonecutter node compiles on its own toolchain (17 for 1.20.1, 21 for 1.21.1). The last
+      # one listed becomes JAVA_HOME and runs Gradle.
+      - name: Set up Java 17, 21 and 25
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: |
             17
+            21
             25
 
       - name: Setup Gradle
@@ -30,7 +31,7 @@ jobs:
         run: ./gradlew buildAndCollect
 
       - name: Game tests
-        run: ./gradlew :1.20.1-fabric:runGameTest :1.20.1-forge:runGameTest
+        run: ./gradlew :1.20.1-fabric:runGameTest :1.20.1-forge:runGameTest :1.21.1-fabric:runGameTest
 
       - name: Upload jars
         uses: actions/upload-artifact@v4

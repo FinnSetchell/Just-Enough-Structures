@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -12,7 +13,6 @@ import java.util.Random;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -54,7 +54,7 @@ public final class GridTests {
 
     /** Every block of a real capture reads back from the grid as it was placed, and nothing else is there. */
     public static void gridMatchesACapturedVillage(GameTestHelper helper) {
-        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), new ResourceLocation("village_plains"), CaptureTests.SEED);
+        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), Ids.parse("village_plains"), CaptureTests.SEED);
         helper.assertTrue(result.succeeded(), "village_plains did not capture: " + result.error());
         StructureSnapshot snapshot = result.snapshot();
         String wrong = check(new BlockGrid(snapshot), snapshot, snapshot.size(), new Random(11));
@@ -100,7 +100,7 @@ public final class GridTests {
             states[i] = e.getIntValue();
             i++;
         }
-        return new StructureSnapshot(new ResourceLocation("test", "sparse"), 0, SandboxTerrain.LAND, BlockPos.ZERO, size,
+        return new StructureSnapshot(Ids.of("test", "sparse"), 0, SandboxTerrain.LAND, BlockPos.ZERO, size,
                 palette, positions, states, new ArrayList<>(), new ArrayList<>(), 1);
     }
 }

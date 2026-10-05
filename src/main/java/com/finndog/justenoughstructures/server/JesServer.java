@@ -15,7 +15,6 @@ import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
-import io.netty.buffer.Unpooled;
 import com.mojang.datafixers.util.Pair;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
@@ -110,11 +109,19 @@ public final class JesServer {
     private JesServer() {
     }
 
+    /** The server that's running, for code with nothing else to ask, like a datapack being read. Null between worlds. */
+    private static volatile MinecraftServer running;
+
+    public static MinecraftServer running() {
+        return running;
+    }
+
     /**
      * Reads the server settings again and starts over, when the server starts and after /reload.
      * Mentions hidden ids that aren't structures, which are usually typos.
      */
     public static void reload(MinecraftServer server) {
+        running = server;
         ServerConfig.Settings settings = ServerConfig.load();
         var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         for (ResourceLocation id : settings.hiddenStructures()) {
@@ -160,7 +167,8 @@ public final class JesServer {
      * Before the world loads, so the settings and container changes are in place for the first
      * chunks it generates, not just from the first /reload.
      */
-    public static void starting() {
+    public static void starting(MinecraftServer server) {
+        running = server;
         ServerConfig.load();
         ContainerPatches.load();
         SpawnerPatches.load();
@@ -180,6 +188,7 @@ public final class JesServer {
 
     /** When the server stops: drops what belonged to that world and stops the loot index. */
     public static void stop() {
+        running = null;
         invalidate();
         Uploads.clear();
         LootIndexStore.stop();
@@ -195,7 +204,7 @@ public final class JesServer {
     }
 
     static void sendIndexProgress(ServerPlayer player, int done, int total) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(done);
         buf.writeVarInt(total);
         JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
@@ -205,7 +214,7 @@ public final class JesServer {
         MinecraftServer server = player.getServer();
         if (catalog == null) {
             List<StructureCatalog.Entry> entries = visibleCatalog(server);
-            catalog = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCatalog(buf, entries)));
+            catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCatalog(buf, entries)));
         }
         BROWSING.add(player.getUUID());
         sendSettings(player, false, false);
@@ -228,14 +237,14 @@ public final class JesServer {
 
     public static void onRequestTable(ServerPlayer player, int requestId, ResourceLocation id) {
         Codecs.TableReply reply = tableFor(player, id);
-        sendBlob(player, JesNetwork.KIND_TABLE, requestId, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeTable(buf, reply))));
+        sendBlob(player, JesNetwork.KIND_TABLE, requestId, Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeTable(buf, reply))));
     }
 
     /** Which loot tables have an override, for players who can edit them, so the browser can mark them. */
     public static void onRequestOverrides(ServerPlayer player) {
         Map<ResourceLocation, LootOverrides.Status> statuses = canEdit(player)
                 ? LootOverrides.statuses(player.getServer().getResourceManager()) : Map.of();
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(statuses.size());
         statuses.forEach((id, status) -> {
             buf.writeResourceLocation(id);
@@ -415,7 +424,7 @@ public final class JesServer {
             return;
         }
         PackToolsState state = PackToolsServer.state(player.getServer());
-        sendBlob(player, JesNetwork.KIND_TOOLS, 0, Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeTools(buf, state))));
+        sendBlob(player, JesNetwork.KIND_TOOLS, 0, Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeTools(buf, state))));
     }
 
     public static void onSaveRules(ServerPlayer player, int requestId, ServerConfig.Settings settings) {
@@ -456,12 +465,12 @@ public final class JesServer {
             if (done.kind() == JesNetwork.KIND_DRAFT_ROLL) {
                 Codecs.DraftRoll roll;
                 try {
-                    roll = Codecs.readDraftRoll(Blobs.fromBytes(Blobs.inflate(done.bytes())));
+                    roll = Codecs.readDraftRoll(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes())));
                 } catch (RuntimeException e) {
                     JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
                     return;
                 }
-                FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+                FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
                 buf.writeVarInt(done.requestId());
                 Codecs.writeItems(buf, draftRoll(player, roll));
                 JesNetwork.send(player, JesNetwork.LOOT, buf);
@@ -469,7 +478,7 @@ public final class JesServer {
             }
             Codecs.Draft draft;
             try {
-                draft = Codecs.readDraft(Blobs.fromBytes(Blobs.inflate(done.bytes())));
+                draft = Codecs.readDraft(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes())));
             } catch (RuntimeException e) {
                 JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
                 return;
@@ -484,11 +493,11 @@ public final class JesServer {
     }
 
     private static void sendEditReply(ServerPlayer player, int requestId, Component message, LootOdds odds) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         buf.writeBoolean(message != null);
         if (message != null) {
-            buf.writeComponent(message);
+            Codecs.writeComponent(buf, message);
         }
         buf.writeBoolean(odds != null);
         if (odds != null) {
@@ -509,7 +518,7 @@ public final class JesServer {
      */
     private static void sendSettings(ServerPlayer player, boolean reloaded, boolean structuresChanged) {
         ServerConfig.Settings settings = ServerConfig.get();
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(settings.locatePermission());
         buf.writeVarInt(settings.teleportPermission());
         buf.writeBoolean(reloaded);
@@ -543,7 +552,7 @@ public final class JesServer {
         if (ServerConfig.hides(structure)) {
             CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                    Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
+                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
             return;
         }
         String key = structure + "@" + seed;
@@ -563,7 +572,7 @@ public final class JesServer {
             queued.decrementAndGet();
             CaptureResult busy = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                    Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, busy))));
+                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
             return;
         }
 
@@ -574,7 +583,7 @@ public final class JesServer {
         CAPTURES.execute(new CaptureTask(preview, CAPTURE_ORDER.getAndIncrement(), () -> {
             if (preview && !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))) {
                 CaptureResult skipped = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
-                byte[] reply = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
+                byte[] reply = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
                 server.execute(() -> {
                     ServerPlayer target = server.getPlayerList().getPlayer(playerId);
                     if (target != null) {
@@ -587,10 +596,10 @@ public final class JesServer {
             try {
                 if (lowOnMemory()) {
                     CaptureResult refused = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
-                    payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, refused)));
+                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, refused)));
                 } else {
                     CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
-                    payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, result)));
+                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, result)));
                     if (result.succeeded()) {
                         cache(key, payload);
                     }
@@ -598,12 +607,12 @@ public final class JesServer {
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
-                payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
+                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } catch (OutOfMemoryError e) {
                 // Whatever the capture had is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
-                payload = Blobs.deflate(Blobs.toBytes(buf -> Codecs.writeCapture(buf, structure, seed, failed)));
+                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {
                 if (!preview) {
                     queued.decrementAndGet();
@@ -669,7 +678,7 @@ public final class JesServer {
 
     public static void onRequestLoot(ServerPlayer player, int requestId, ResourceLocation table, long seed, int size) {
         List<ItemStack> items = LootRolls.fill(player.serverLevel(), table, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeItems(buf, items);
         JesNetwork.send(player, JesNetwork.LOOT, buf);
@@ -681,7 +690,7 @@ public final class JesServer {
         LootOdds odds = LootOverrides.exists(player.getServer(), table)
                 ? ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(player.serverLevel(), t, ODDS_ROLLS, t.hashCode()))
                 : LootRolls.odds(player.serverLevel(), table, ODDS_ROLLS, table.hashCode());
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeOdds(buf, odds);
         JesNetwork.send(player, JesNetwork.ODDS, buf);
@@ -696,9 +705,9 @@ public final class JesServer {
     public static void queueLocate(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
         UUID uuid = player.getUUID();
         if (!LOCATING.add(uuid)) {
-            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
             buf.writeVarInt(requestId);
-            buf.writeComponent(Component.translatable("screen.justenoughstructures.locate_busy"));
+            Codecs.writeComponent(buf, Component.translatable("screen.justenoughstructures.locate_busy"));
             JesNetwork.send(player, JesNetwork.LOCATE, buf);
             return;
         }
@@ -714,9 +723,9 @@ public final class JesServer {
     /** Sets the player's compass searching for a structure, on the server thread, and answers like a locate. */
     public static void queueCompass(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id) {
         server.execute(() -> {
-            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
             buf.writeVarInt(requestId);
-            buf.writeComponent(compassFor(player, id));
+            Codecs.writeComponent(buf, compassFor(player, id));
             JesNetwork.send(player, JesNetwork.LOCATE, buf);
         });
     }
@@ -734,9 +743,9 @@ public final class JesServer {
 
     public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
         Component reply = locateFor(player, id, teleport);
-        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
-        buf.writeComponent(reply);
+        Codecs.writeComponent(buf, reply);
         JesNetwork.send(player, JesNetwork.LOCATE, buf);
     }
 
@@ -887,7 +896,7 @@ public final class JesServer {
         List<byte[]> parts = Blobs.split(compressed);
         int transferId = TRANSFER_IDS.incrementAndGet();
         for (int i = 0; i < parts.size(); i++) {
-            FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+            FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
             new Blobs.Part(transferId, kind, requestId, i, parts.size(), parts.get(i)).write(buf);
             JesNetwork.send(player, JesNetwork.TRANSFER, buf);
         }

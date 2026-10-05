@@ -26,14 +26,35 @@ stonecutter parameters {
             replace("ResourceLocation", "Identifier")
         }
 
-        // Explorer's Compass names a few things differently in its Forge build. Only the files that
-        // use it turn this on, with `//~ compass_names`.
-        string(loader == "forge", "compass_names") {
-            replace("EXPLORERS_COMPASS_ITEM", "explorersCompass")
-            replace("getAllowedStructureIDs", "getAllowedStructureKeys")
-            replace("allowedStructureIDs", "allowedStructureKeys")
-            replace("getStructureName", "getPrettyStructureName")
-            replace("getStructureID", "getStructureKey")
+        // Screens: 1.20.2 gave scrolling a sideways amount, and moving to the end of a text box whether to select.
+        string(current.parsed >= "1.21") {
+            replace("mouseScrolled(double mouseX, double mouseY, double delta)", "mouseScrolled(double mouseX, double mouseY, double scrollX, double delta)")
+            replace("super.mouseScrolled(mouseX, mouseY, delta)", "super.mouseScrolled(mouseX, mouseY, scrollX, delta)")
+            replace(".moveCursorToEnd()", ".moveCursorToEnd(false)")
+        }
+
+        // Classes that only moved package.
+        string(current.parsed >= "1.21") {
+            replace("net.minecraft.world.level.chunk.ChunkStatus;", "net.minecraft.world.level.chunk.status.ChunkStatus;")
+        }
+
+        // Explorer's Compass names a few things differently from its Fabric 1.20.1 build. Only the files
+        // that use it turn these on, with `//~ compass_names`. Each loader only gets its own: Stonecutter
+        // also matches a rule's other side, which would get in the way of another loader's rule.
+        if (loader == "forge") {
+            string(true, "compass_names") {
+                replace("EXPLORERS_COMPASS_ITEM", "explorersCompass")
+                replace("getAllowedStructureIDs", "getAllowedStructureKeys")
+                replace("allowedStructureIDs", "allowedStructureKeys")
+                replace("getStructureName", "getPrettyStructureName")
+                replace("getStructureID", "getStructureKey")
+            }
+        }
+        if (loader == "fabric") {
+            string(current.parsed >= "1.21", "compass_names") {
+                replace("getStructureID()", "getStructureId()")
+                replace("compass.getState(", "compass.getCompassState(")
+            }
         }
     }
 }

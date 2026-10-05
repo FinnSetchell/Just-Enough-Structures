@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.catalog;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.TextJson;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -68,7 +69,7 @@ public record StructureInfo(Component notes, String author, boolean hideLootLoca
         JsonObject object = json.getAsJsonObject();
         Component notes = null;
         if (object.has("notes")) {
-            notes = Component.Serializer.fromJson(object.get("notes"));
+            notes = TextJson.fromJson(object.get("notes"));
             if (notes == null) {
                 throw new JsonParseException("notes should be a string or a text component");
             }

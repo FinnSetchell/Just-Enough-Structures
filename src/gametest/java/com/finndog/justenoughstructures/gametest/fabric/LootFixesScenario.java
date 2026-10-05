@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
@@ -24,7 +25,7 @@ import org.lwjgl.glfw.GLFW;
  * header with its id.
  */
 final class LootFixesScenario {
-    private static final ResourceLocation TABLE = new ResourceLocation("chests/village/village_plains_house");
+    private static final ResourceLocation TABLE = Ids.parse("chests/village/village_plains_house");
     /** A table with its closing brackets missing, as a hand edit might leave it. */
     private static final String BROKEN = """
             {
@@ -37,7 +38,7 @@ final class LootFixesScenario {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("village_plains"));
+        JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         // The browser, to open the editors over and to come back to.
         JesScreen[] opened = new JesScreen[1];
@@ -65,14 +66,14 @@ final class LootFixesScenario {
                 .then(pause(20))
                 .then(shoot("f03_bad_item"))
                 .then(run(() -> mc.setScreen(new LootEditorScreen(opened[0],
-                        new ResourceLocation("justenoughstructures", "chests/test_vault"), "Test Vault"))))
+                        Ids.of("justenoughstructures", "chests/test_vault"), "Test Vault"))))
                 .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
                 .then(pause(20))
                 .then(shoot("f04_new_table"))
                 // A table id that doesn't exist, typed into a chest's picker: picked straight away,
                 // and the server's no stays in the picker to be fixed.
                 .then(run(() -> mc.setScreen(opened[0])))
-                .then(run(() -> browser(mc).select(new ResourceLocation("pillager_outpost"))))
+                .then(run(() -> browser(mc).select(Ids.parse("pillager_outpost"))))
                 .then(until(() -> browser(mc).idle() && browser(mc).result() != null, 600))
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> browser(mc).result().snapshot().containers().stream().filter(c -> c.source() != null).findFirst()

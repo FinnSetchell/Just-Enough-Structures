@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -101,7 +102,7 @@ public final class SpawnerPools {
                 if (object.has(field.getKey())) {
                     ResourceLocation named = ResourceLocation.tryParse(object.get(field.getKey()).getAsString());
                     return named == null ? null
-                            : new Pool(new ResourceLocation(named.getNamespace(), field.getValue() + "/" + named.getPath() + ".json"), List.of());
+                            : new Pool(Ids.of(named.getNamespace(), field.getValue() + "/" + named.getPath() + ".json"), List.of());
                 }
             }
             if (object.has("weighted_entities") && object.get("weighted_entities").isJsonArray()) {

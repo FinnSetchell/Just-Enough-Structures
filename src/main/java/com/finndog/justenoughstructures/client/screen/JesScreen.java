@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
@@ -64,7 +65,7 @@ import net.minecraft.world.level.block.state.properties.Property;
 import org.lwjgl.glfw.GLFW;
 
 /** The structure browser: a list on the left, the 3D preview in the middle and details on the right. */
-public class JesScreen extends Screen implements Nav.Page {
+public class JesScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     /** Where the panels start, below the Back and Forward bar. */
     private static final int TOP = NavBar.TOP;
@@ -79,7 +80,7 @@ public class JesScreen extends Screen implements Nav.Page {
     /** How long a locate that found nothing stays in the header. */
     private static final long LOCATE_FAILURE_MILLIS = 8000;
     // One frame of the recovery compass. The item itself spins forever when there's no death point.
-    private static final ResourceLocation LOCATE_ICON = new ResourceLocation("textures/item/recovery_compass_20.png");
+    private static final ResourceLocation LOCATE_ICON = Ids.parse("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
 
     private final Screen parent;
@@ -1724,7 +1725,7 @@ public class JesScreen extends Screen implements Nav.Page {
      */
     public void openNewTable() {
         String path = selected == null ? "custom" : selected.id().getPath();
-        ResourceLocation id = new ResourceLocation(JustEnoughStructures.MOD_ID, "chests/" + path.substring(path.lastIndexOf('/') + 1));
+        ResourceLocation id = Ids.of(JustEnoughStructures.MOD_ID, "chests/" + path.substring(path.lastIndexOf('/') + 1));
         Nav.remember();
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
     }
@@ -1999,7 +2000,11 @@ public class JesScreen extends Screen implements Nav.Page {
                     CompoundTag item = list.getCompound(i);
                     int slot = item.getByte("Slot") & 255;
                     if (slot < items.size()) {
+                        //? if >=1.21 {
+                        /*items.set(slot, ItemStack.parseOptional(minecraft.level.registryAccess(), item));
+                        *///?} else {
                         items.set(slot, ItemStack.of(item));
+                        //?}
                     }
                 }
             }
@@ -2021,7 +2026,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
 
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         if (sides) {
             Gui.panel(g, listX, TOP, listW, height - TOP - PAD);
             Gui.searchBox(g, listX + 6, searchY, listW - 12, 20);
@@ -2316,7 +2321,7 @@ public class JesScreen extends Screen implements Nav.Page {
         int cancelW = font.width(cancel) + 10;
         int cancelX = viewX + viewW - cancelW - 2;
         boolean over = mouseX >= cancelX && mouseX < cancelX + cancelW && mouseY >= top + 2 && mouseY < top + 16;
-        g.blitNineSliced(new ResourceLocation("textures/gui/widgets.png"), cancelX, top + 2, cancelW, 14, 20, 4, 200, 20, 0, over ? 86 : 66);
+        Gui.buttonBackground(g, cancelX, top + 2, cancelW, 14, over ? 2 : 1);
         g.drawString(font, cancel, cancelX + 5, top + 5, 0xFFFFFFFF, true);
         pickCancel = new int[]{cancelX, top + 2, cancelW, 14};
         String text = Component.translatable(picking == Picking.CHEST ? "screen.justenoughstructures.tools.picking"

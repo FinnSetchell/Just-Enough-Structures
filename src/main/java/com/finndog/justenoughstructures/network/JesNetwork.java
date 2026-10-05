@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.network;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import java.util.List;
 import java.util.function.BiPredicate;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -51,6 +52,10 @@ public final class JesNetwork {
     public static final ResourceLocation OPEN_BROWSER = channel("open_browser");
     /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
     public static final ResourceLocation TOOLS_ACTION = channel("tools_action");
+
+    /** Every channel the server sends on, for loaders that register each one up front, on both sides. */
+    public static final List<ResourceLocation> CLIENTBOUND = List.of(TRANSFER, LOOT, ODDS, INDEX_PROGRESS, LOCATE, SETTINGS, EDIT_REPLY,
+            OVERRIDES, OPEN_BROWSER);
 
     public static final int KIND_CATALOG = 0;
     public static final int KIND_CAPTURE = 1;

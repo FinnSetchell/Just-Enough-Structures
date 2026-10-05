@@ -247,7 +247,7 @@ public final class ServerConfig {
                 String entry = element.isJsonPrimitive() && element.getAsJsonPrimitive().isString() ? element.getAsString().trim() : "";
                 String mod = entry.endsWith(":*") ? entry.substring(0, entry.length() - 2) : null;
                 ResourceLocation id = entry.isEmpty() || mod != null ? null : ResourceLocation.tryParse(entry);
-                if (mod != null && !mod.isEmpty() && ResourceLocation.isValidResourceLocation(mod + ":any")) {
+                if (mod != null && !mod.isEmpty() && ResourceLocation.tryParse(mod + ":any") != null) {
                     mods.add(mod);
                 } else if (id != null) {
                     structures.add(id);

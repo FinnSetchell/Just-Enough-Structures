@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.loot;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -105,7 +106,7 @@ final class PoolScan {
                 next.addAll(template.pools());
             }
         }
-        next.remove(new ResourceLocation("empty"));
+        next.remove(Ids.parse("empty"));
         Pool result = new Pool(tables, next, locations);
         pools.put(id, result);
         return result;

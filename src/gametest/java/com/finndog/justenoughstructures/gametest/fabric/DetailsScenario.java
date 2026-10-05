@@ -8,9 +8,9 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -23,7 +23,7 @@ final class DetailsScenario {
 
     static Director build(Minecraft mc) {
         String requested = System.getProperty("jes.autoshot.structures", "");
-        JesScreen.startOn(new ResourceLocation(requested.isBlank() ? "betterdeserttemples:desert_temple" : requested.split(",")[0].trim()));
+        JesScreen.startOn(Ids.parse(requested.isBlank() ? "betterdeserttemples:desert_temple" : requested.split(",")[0].trim()));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))

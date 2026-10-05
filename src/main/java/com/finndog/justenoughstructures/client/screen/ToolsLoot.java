@@ -131,7 +131,9 @@ final class ToolsLoot extends ToolsSection {
     @Override
     void tick() {
         if (search != null) {
+            //? if <1.21 {
             search.tick();
+            //?}
         }
     }
 

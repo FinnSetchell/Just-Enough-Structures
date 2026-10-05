@@ -15,6 +15,11 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+//? if >=1.21 {
+/*import net.minecraft.core.SectionPos;
+import net.minecraft.util.StaticCache2D;
+import net.minecraft.world.level.chunk.status.ChunkPyramid;
+*///?}
 
 /**
  * A real {@link WorldGenRegion} over chunks that belong to no world, so structure code sees exactly
@@ -25,9 +30,54 @@ final class CaptureRegion extends WorldGenRegion {
     private final Map<Long, StructureTemplate> filledBy = new HashMap<>();
     private ChunkPos placing;
 
+    //? if >=1.21 {
+    /*// 1.21's regions find their chunks through the game's generation cache, so this one answers for
+    // its own chunks instead, the way 1.20's did: all of them at FEATURES, writable within writeRadius.
+    private final Map<Long, ChunkAccess> chunks = new HashMap<>();
+    private final int writeRadius;
+
+    CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
+        super(level, StaticCache2D.create(middle(chunks).getPos().x, middle(chunks).getPos().z, 0, (x, z) -> null),
+                ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES), middle(chunks));
+        for (ChunkAccess chunk : chunks) {
+            this.chunks.put(chunk.getPos().toLong(), chunk);
+        }
+        this.writeRadius = writeRadius;
+    }
+
+    private static ChunkAccess middle(List<ChunkAccess> chunks) {
+        return chunks.get(chunks.size() / 2);
+    }
+
+    @Override
+    public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
+        ChunkAccess chunk = chunks.get(ChunkPos.asLong(chunkX, chunkZ));
+        if (chunk != null && status.isOrBefore(ChunkStatus.FEATURES)) {
+            return chunk;
+        }
+        if (load) {
+            throw new IllegalStateException("Requested chunk unavailable during world generation: " + chunkX + ", " + chunkZ);
+        }
+        return null;
+    }
+
+    @Override
+    public boolean hasChunk(int chunkX, int chunkZ) {
+        return chunks.containsKey(ChunkPos.asLong(chunkX, chunkZ));
+    }
+
+    @Override
+    public boolean ensureCanWrite(BlockPos pos) {
+        int chunkX = SectionPos.blockToSectionCoord(pos.getX());
+        int chunkZ = SectionPos.blockToSectionCoord(pos.getZ());
+        ChunkPos centre = getCenter();
+        return hasChunk(chunkX, chunkZ) && Math.abs(centre.x - chunkX) <= writeRadius && Math.abs(centre.z - chunkZ) <= writeRadius;
+    }
+    *///?} else {
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
         super(level, chunks, ChunkStatus.FEATURES, writeRadius);
     }
+    //?}
 
     LongSet written() {
         return written;

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.catalog;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -24,20 +25,20 @@ final class StructureDisables {
     private static final String YUNG = "com.yungnickyoung.minecraft.";
     private static final List<Yung> YUNGS = List.of(
             new Yung(YUNG + "betterdeserttemples.BetterDesertTemplesCommon", new String[]{"general", "disableVanillaPyramids"},
-                    List.of(new ResourceLocation("desert_pyramid")), new ResourceLocation("betterdeserttemples", "desert_temple")),
+                    List.of(Ids.parse("desert_pyramid")), Ids.of("betterdeserttemples", "desert_temple")),
             new Yung(YUNG + "betterjungletemples.BetterJungleTemplesCommon", new String[]{"general", "disableVanillaJungleTemples"},
-                    List.of(new ResourceLocation("jungle_pyramid")), new ResourceLocation("betterjungletemples", "jungle_temple")),
+                    List.of(Ids.parse("jungle_pyramid")), Ids.of("betterjungletemples", "jungle_temple")),
             new Yung(YUNG + "betteroceanmonuments.BetterOceanMonumentsCommon", new String[]{"general", "disableVanillaMonuments"},
-                    List.of(new ResourceLocation("monument")), new ResourceLocation("betteroceanmonuments", "ocean_monument")),
+                    List.of(Ids.parse("monument")), Ids.of("betteroceanmonuments", "ocean_monument")),
             new Yung(YUNG + "betterfortresses.BetterFortressesCommon", new String[]{"general", "disableVanillaFortresses"},
-                    List.of(new ResourceLocation("fortress")), new ResourceLocation("betterfortresses", "fortress")),
+                    List.of(Ids.parse("fortress")), Ids.of("betterfortresses", "fortress")),
             new Yung(YUNG + "betterwitchhuts.BetterWitchHutsCommon", new String[]{"general", "disableVanillaWitchHuts"},
-                    List.of(new ResourceLocation("swamp_hut")), new ResourceLocation("betterwitchhuts", "witch_hut")),
+                    List.of(Ids.parse("swamp_hut")), Ids.of("betterwitchhuts", "witch_hut")),
             new Yung(YUNG + "bettermineshafts.BetterMineshaftsCommon", new String[]{"disableVanillaMineshafts"},
-                    List.of(new ResourceLocation("mineshaft"), new ResourceLocation("mineshaft_mesa")), new ResourceLocation("bettermineshafts", "mineshaft")),
+                    List.of(Ids.parse("mineshaft"), Ids.parse("mineshaft_mesa")), Ids.of("bettermineshafts", "mineshaft")),
             // Better Strongholds always replaces the vanilla one.
             new Yung(YUNG + "betterstrongholds.BetterStrongholdsCommon", null,
-                    List.of(new ResourceLocation("stronghold")), new ResourceLocation("betterstrongholds", "stronghold")));
+                    List.of(Ids.parse("stronghold")), Ids.of("betterstrongholds", "stronghold")));
 
     private StructureDisables() {
     }

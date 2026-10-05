@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -192,7 +193,12 @@ final class LootForm {
             }
             case "enchant_with_levels" -> {
                 y = row(g, x, y, w, "levels", (cx, cw) -> provider(g, cx, y(), cw, at(path, "levels"), 30));
+                //? if >=1.21 {
+                /*y = holderSet(g, x, y, w, "options", at(path, "options"), LootOptions.ENCHANTMENTS_OR_TAGS, LootOptions.ENCHANTMENTS,
+                        text("any_enchantment"));
+                *///?} else {
                 y = row(g, x, y, w, "treasure", (cx, cw) -> check(g, cx, y(), at(path, "treasure"), false));
+                //?}
             }
             case "set_damage" -> {
                 y = row(g, x, y, w, "damage", (cx, cw) -> provider(g, cx, y(), cw, at(path, "damage"), 1));
@@ -202,7 +208,15 @@ final class LootForm {
                 y = idMap(g, x, y, w, "enchantments", at(path, "enchantments"), LootOptions.ENCHANTMENTS, 1);
                 y = row(g, x, y, w, "add", (cx, cw) -> check(g, cx, y(), at(path, "add"), false));
             }
+            //? if >=1.21 {
+            /*case "enchant_randomly" -> {
+                y = holderSet(g, x, y, w, "enchantments", at(path, "options"), LootOptions.ENCHANTMENTS_OR_TAGS, LootOptions.ENCHANTMENTS,
+                        text("any_enchantment"));
+                y = row(g, x, y, w, "only_compatible", (cx, cw) -> check(g, cx, y(), at(path, "only_compatible"), true));
+            }
+            *///?} else {
             case "enchant_randomly" -> y = idList(g, x, y, w, "enchantments", at(path, "enchantments"), LootOptions.ENCHANTMENTS, text("any_enchantment"));
+            //?}
             case "set_potion" -> y = row(g, x, y, w, "potion", (cx, cw) -> pick(g, cx, y(), cw, at(path, "id"), LootOptions.POTIONS, false));
             case "set_stew_effect" -> y = objectList(g, x, y, w, "effects", at(path, "effects"), () -> object("type", "minecraft:speed", "duration", 5),
                     (ox, oy, ow, op) -> {
@@ -212,13 +226,21 @@ final class LootForm {
             case "set_name" -> {
                 y = row(g, x, y, w, "name", (cx, cw) -> textComponent(g, cx, y(), cw, at(path, "name")));
                 y = row(g, x, y, w, "entity", (cx, cw) -> choice(g, cx, y(), cw, at(path, "entity"), LootOptions.ENTITY_TARGETS, true));
+                //? if >=1.21 {
+                /*y = row(g, x, y, w, "name_target", (cx, cw) -> choice(g, cx, y(), cw, at(path, "target"), LootOptions.NAME_TARGETS, true));
+                *///?}
             }
             case "set_lore" -> {
                 y = textList(g, x, y, w, "lore", at(path, "lore"));
                 y = row(g, x, y, w, "entity", (cx, cw) -> choice(g, cx, y(), cw, at(path, "entity"), LootOptions.ENTITY_TARGETS, true));
+                //? if >=1.21 {
+                /*y = listMode(g, x, y, w, path);
+                *///?} else {
                 y = row(g, x, y, w, "replace", (cx, cw) -> check(g, cx, y(), at(path, "replace"), false));
+                //?}
             }
-            case "set_nbt" -> y = row(g, x, y, w, "nbt", (cx, cw) -> text(g, cx, y(), cw, at(path, "tag"), false));
+            // 1.20.5 renamed set_nbt, and copy_nbt below, for the custom data they set now.
+            case "set_nbt", "set_custom_data" -> y = row(g, x, y, w, "nbt", (cx, cw) -> text(g, cx, y(), cw, at(path, "tag"), false));
             case "set_instrument" -> y = row(g, x, y, w, "options", (cx, cw) -> pick(g, cx, y(), cw, at(path, "options"), LootOptions.INSTRUMENT_TAGS, false));
             case "exploration_map" -> {
                 y = row(g, x, y, w, "destination", (cx, cw) -> pick(g, cx, y(), cw, at(path, "destination"), LootOptions.STRUCTURE_TAGS, true));
@@ -231,7 +253,11 @@ final class LootForm {
                 y = row(g, x, y, w, "at_least", (cx, cw) -> number(g, cx, y(), 50, at(path, "limit.min"), Kind.NUMBER, ""));
                 y = row(g, x, y, w, "at_most", (cx, cw) -> number(g, cx, y(), 50, at(path, "limit.max"), Kind.NUMBER, ""));
             }
-            case "looting_enchant" -> {
+            // 1.21 made looting_enchant work for any enchantment.
+            case "looting_enchant", "enchanted_count_increase" -> {
+                if (fn.equals("enchanted_count_increase")) {
+                    y = row(g, x, y, w, "enchantment", (cx, cw) -> pick(g, cx, y(), cw, at(path, "enchantment"), LootOptions.ENCHANTMENTS, false));
+                }
                 y = row(g, x, y, w, "count", (cx, cw) -> provider(g, cx, y(), cw, at(path, "count"), 1));
                 y = row(g, x, y, w, "limit", (cx, cw) -> number(g, cx, y(), 50, at(path, "limit"), Kind.INT, "0"));
             }
@@ -247,7 +273,7 @@ final class LootForm {
                 }
             }
             case "copy_name" -> y = row(g, x, y, w, "source", (cx, cw) -> choice(g, cx, y(), cw, at(path, "source"), LootOptions.COPY_SOURCES, false));
-            case "copy_nbt" -> {
+            case "copy_nbt", "copy_custom_data" -> {
                 y = JsonPaths.get(draft(), at(path, "source")) instanceof JsonObject
                         ? row(g, x, y, w, "source", (cx, cw) -> raw(g, cx, y(), cw, at(path, "source")))
                         : row(g, x, y, w, "source", (cx, cw) -> choice(g, cx, y(), cw, at(path, "source"), LootOptions.NBT_SOURCES, false));
@@ -264,6 +290,23 @@ final class LootForm {
             }
             case "fill_player_head" -> y = row(g, x, y, w, "entity", (cx, cw) -> choice(g, cx, y(), cw, at(path, "entity"), LootOptions.ENTITY_TARGETS, false));
             case "reference" -> y = row(g, x, y, w, "modifier", (cx, cw) -> pick(g, cx, y(), cw, at(path, "name"), LootOptions.ITEM_MODIFIERS, false));
+            //? if >=1.21 {
+            /*// Since 1.21 a modifier is known by an id rather than a name and a UUID, and replaces the item's own by default.
+            case "set_attributes" -> {
+                y = objectList(g, x, y, w, "modifiers", at(path, "modifiers"),
+                        () -> object("id", "minecraft:modifier", "attribute", "minecraft:generic.max_health", "amount", 1, "operation", "add_value", "slot", "any"),
+                        (ox, oy, ow, op) -> {
+                            int ny = row(g, ox, oy, ow, "attribute", (cx, cw) -> pick(g, cx, y(), cw, at(op, "attribute"), LootOptions.ATTRIBUTES, false));
+                            ny = row(g, ox, ny, ow, "modifier_id", (cx, cw) -> text(g, cx, y(), cw, at(op, "id"), false));
+                            ny = row(g, ox, ny, ow, "amount", (cx, cw) -> provider(g, cx, y(), cw, at(op, "amount"), 1));
+                            ny = row(g, ox, ny, ow, "operation", (cx, cw) -> choice(g, cx, y(), cw, at(op, "operation"), LootOptions.OPERATIONS, false));
+                            return JsonPaths.get(draft(), at(op, "slot")) instanceof JsonArray
+                                    ? idList(g, ox, ny, ow, "slot", at(op, "slot"), LootOptions.SLOTS, null)
+                                    : row(g, ox, ny, ow, "slot", (cx, cw) -> choice(g, cx, y(), cw, at(op, "slot"), LootOptions.SLOTS, false));
+                        });
+                y = row(g, x, y, w, "replace", (cx, cw) -> check(g, cx, y(), at(path, "replace"), true));
+            }
+            *///?} else {
             case "set_attributes" -> y = objectList(g, x, y, w, "modifiers", at(path, "modifiers"),
                     () -> object("attribute", "minecraft:generic.max_health", "name", "Modifier", "amount", 1, "operation", "addition", "slot", "mainhand"),
                     (ox, oy, ow, op) -> {
@@ -276,6 +319,7 @@ final class LootForm {
                                 : row(g, ox, ny, ow, "slot", (cx, cw) -> choice(g, cx, y(), cw, at(op, "slot"), LootOptions.SLOTS, false));
                         return row(g, ox, ny, ow, "uuid", (cx, cw) -> text(g, cx, y(), cw, at(op, "id"), true));
                     });
+            //?}
             case "set_banner_pattern" -> {
                 y = objectList(g, x, y, w, "patterns", at(path, "patterns"), () -> object("pattern", "minecraft:stripe_bottom", "color", "white"),
                         (ox, oy, ow, op) -> {
@@ -285,7 +329,12 @@ final class LootForm {
                 y = row(g, x, y, w, "append", (cx, cw) -> check(g, cx, y(), at(path, "append"), false));
             }
             case "set_contents" -> {
+                //? if >=1.21 {
+                /*// Since 1.20.5 the contents go in a component, as a shulker box's or a bundle's.
+                y = row(g, x, y, w, "component", (cx, cw) -> choice(g, cx, y(), cw, at(path, "component"), LootOptions.CONTAINERS, false));
+                *///?} else {
                 y = row(g, x, y, w, "block_entity", (cx, cw) -> pick(g, cx, y(), cw, at(path, "type"), LootOptions.BLOCK_ENTITY_TYPES, false));
+                //?}
                 y = row(g, x, y, w, "entries", (cx, cw) -> raw(g, cx, y(), cw, at(path, "entries")));
             }
             case "set_loot_table" -> {
@@ -317,6 +366,11 @@ final class LootForm {
             case "random_chance_with_looting" -> {
                 y = row(g, x, y, w, "chance", (cx, cw) -> number(g, cx, y(), 60, at(path, "chance"), Kind.NUMBER, "0.1"));
                 y = row(g, x, y, w, "per_looting", (cx, cw) -> number(g, cx, y(), 60, at(path, "looting_multiplier"), Kind.NUMBER, "0"));
+            }
+            case "random_chance_with_enchanted_bonus" -> {
+                y = row(g, x, y, w, "enchantment", (cx, cw) -> pick(g, cx, y(), cw, at(path, "enchantment"), LootOptions.ENCHANTMENTS, false));
+                y = row(g, x, y, w, "unenchanted_chance", (cx, cw) -> number(g, cx, y(), 60, at(path, "unenchanted_chance"), Kind.NUMBER, "0"));
+                y = row(g, x, y, w, "enchanted_chance", (cx, cw) -> raw(g, cx, y(), cw, at(path, "enchanted_chance")));
             }
             // 1.20.1 reads nothing else for these: "inverse" on killed_by_player is from later versions.
             case "killed_by_player", "survives_explosion" -> {
@@ -398,21 +452,47 @@ final class LootForm {
 
     /** What an entity has to be: its type, with the rest of the predicate as JSON. */
     private int entityPredicate(GuiGraphics g, int x, int y, int w, String path) {
+        //? if >=1.21 {
+        /*y = holderSet(g, x, y, w, "entity_type", at(path, "type"), LootOptions.ENTITY_TYPES_OR_TAGS, LootOptions.ENTITY_TYPES, null);
+        *///?} else {
         y = row(g, x, y, w, "entity_type", (cx, cw) -> pick(g, cx, y(), cw, at(path, "type"), LootOptions.ENTITY_TYPES_OR_TAGS, true));
+        //?}
         return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of("type")));
     }
 
     /** Where it has to be: a biome, a structure, a dimension, with the rest of the predicate as JSON. */
     private int locationPredicate(GuiGraphics g, int x, int y, int w, String path) {
+        //? if >=1.21 {
+        /*// 1.20.5 made these sets, of biomes and of structures.
+        y = holderSet(g, x, y, w, "biomes", at(path, "biomes"), LootOptions.BIOMES_OR_TAGS, LootOptions.BIOMES, null);
+        y = holderSet(g, x, y, w, "structures", at(path, "structures"), LootOptions.STRUCTURES_OR_TAGS, LootOptions.STRUCTURES, null);
+        List<String> shown = List.of("biomes", "structures", "dimension", "smokey");
+        *///?} else {
         y = row(g, x, y, w, "biome", (cx, cw) -> pick(g, cx, y(), cw, at(path, "biome"), LootOptions.BIOMES, true));
         y = row(g, x, y, w, "structure", (cx, cw) -> pick(g, cx, y(), cw, at(path, "structure"), LootOptions.STRUCTURES, true));
+        List<String> shown = List.of("biome", "structure", "dimension", "smokey");
+        //?}
         y = row(g, x, y, w, "dimension", (cx, cw) -> pick(g, cx, y(), cw, at(path, "dimension"), LootOptions.DIMENSIONS, true));
         y = row(g, x, y, w, "smokey", (cx, cw) -> maybe(g, cx, y(), cw, at(path, "smokey")));
-        return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of("biome", "structure", "dimension", "smokey")));
+        return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, shown));
     }
 
     /** What the tool has to be: items, a tag, a potion, enchantments, with the rest of the predicate as JSON. */
     private int itemPredicate(GuiGraphics g, int x, int y, int w, String path) {
+        //? if >=1.21 {
+        /*// Since 1.20.5 a tag goes in items with its "#", and potions and enchantments are among the
+        // predicates, each by its id.
+        y = holderSet(g, x, y, w, "items", at(path, "items"), LootOptions.ITEMS_OR_TAGS, LootOptions.ITEMS, text("any_item"));
+        String predicates = at(path, "predicates");
+        y = holderSet(g, x, y, w, "potion", at(predicates, "minecraft:potion_contents"), LootOptions.POTIONS_OR_TAGS, LootOptions.POTIONS, null);
+        y = objectList(g, x, y, w, "enchantments", at(predicates, "minecraft:enchantments"), () -> object("enchantments", "minecraft:silk_touch"),
+                (ox, oy, ow, op) -> {
+                    int ny = holderSet(g, ox, oy, ow, "enchantment", at(op, "enchantments"), LootOptions.ENCHANTMENTS_OR_TAGS, LootOptions.ENCHANTMENTS, null);
+                    return row(g, ox, ny, ow, "levels", (cx, cw) -> range(g, cx, y(), cw, at(op, "levels")));
+                });
+        y = row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of("items", "predicates")));
+        return row(g, x, y, w, "more_predicates", (cx, cw) -> rest(g, cx, y(), cw, predicates, List.of("minecraft:potion_contents", "minecraft:enchantments")));
+        *///?} else {
         y = idList(g, x, y, w, "items", at(path, "items"), LootOptions.ITEMS, text("any_item"));
         y = row(g, x, y, w, "item_tag", (cx, cw) -> pick(g, cx, y(), cw, at(path, "tag"), LootOptions.ITEM_TAG_IDS, true));
         y = row(g, x, y, w, "potion", (cx, cw) -> pick(g, cx, y(), cw, at(path, "potion"), LootOptions.POTIONS, true));
@@ -421,6 +501,7 @@ final class LootForm {
             return row(g, ox, ny, ow, "levels", (cx, cw) -> range(g, cx, y(), cw, at(op, "levels")));
         });
         return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of("items", "tag", "potion", "enchantments")));
+        //?}
     }
 
     /**
@@ -914,6 +995,63 @@ final class LootForm {
         return y;
     }
 
+    //? if >=1.21 {
+    /*// A set of ids as 1.20.5 writes them: one id or a tag with its "#" in a single box, or a list of
+    // ids with a box each. Adding to a single id makes it a list; a tag can't be listed with others.
+    private int holderSet(GuiGraphics g, int x, int y, int w, String key, String path, LootOptions.Source one, LootOptions.Source each,
+                          Component empty) {
+        if (JsonPaths.get(draft(), path) instanceof JsonArray) {
+            return idList(g, x, y, w, key, path, each, empty);
+        }
+        String current = JsonPaths.string(draft(), path, "");
+        return row(g, x, y, w, key, (cx, cw) -> {
+            Component add = text("add");
+            boolean listable = !current.isBlank() && !current.startsWith("#");
+            int addW = listable ? Gui.fineWidth(font, add.getString()) + 6 : 0;
+            int boxW = cw - addW - (current.isBlank() ? 0 : 12);
+            pickBox(g, cx, y(), boxW, path, current, one, typed -> {
+                if (typed.isBlank()) {
+                    JsonPaths.remove(draft(), path);
+                    host.changed();
+                } else {
+                    commit(path, Kind.TEXT, typed);
+                }
+            });
+            if (current.isBlank() && empty != null && !path.equals(host.editing())) {
+                Gui.fine(g, font, empty.getString(), cx + 4, y() + 3, Gui.LABEL_SOFT);
+            }
+            if (!current.isBlank()) {
+                removeX(g, cx + boxW + 4, y(), () -> {
+                    JsonPaths.remove(draft(), path);
+                    host.changed();
+                });
+            }
+            if (listable) {
+                ui.link(g, add, cx + cw - addW + 6, y() + 3, true, () -> {
+                    JsonArray list = new JsonArray();
+                    list.add(current);
+                    list.add("");
+                    pendingEdit = at(path, 1);
+                    set(path, list);
+                });
+            }
+        });
+    }
+
+    // How a list is changed since 1.20.5: added to, put in at a line, or written over in part or whole.
+    private int listMode(GuiGraphics g, int x, int y, int w, String path) {
+        y = row(g, x, y, w, "mode", (cx, cw) -> choice(g, cx, y(), cw, at(path, "mode"), LootOptions.LIST_MODES, false));
+        String mode = JsonPaths.string(draft(), at(path, "mode"), "");
+        if (mode.equals("insert") || mode.equals("replace_section")) {
+            y = row(g, x, y, w, "offset", (cx, cw) -> number(g, cx, y(), 50, at(path, "offset"), Kind.INT, "0"));
+        }
+        if (mode.equals("replace_section")) {
+            y = row(g, x, y, w, "size", (cx, cw) -> number(g, cx, y(), 50, at(path, "size"), Kind.INT, ""));
+        }
+        return y;
+    }
+
+    *///?}
     /** Gives a key of an object another name, keeping its place and value. */
     private void renameKey(String path, String from, String to) {
         JsonObject map = JsonPaths.object(draft(), path);
@@ -1108,7 +1246,7 @@ final class LootForm {
         g.fill(x, y, x + FIELD + 2, y + FIELD, over ? 0xFFFFFFFF : 0xFF555555);
         g.fill(x + 1, y + 1, x + FIELD + 1, y + FIELD - 1, 0xFF8B8B8B);
         String id = JsonPaths.string(draft(), path, "");
-        ItemStack stack = itemExists(id) ? new ItemStack(BuiltInRegistries.ITEM.get(new ResourceLocation(id))) : ItemStack.EMPTY;
+        ItemStack stack = itemExists(id) ? new ItemStack(BuiltInRegistries.ITEM.get(Ids.parse(id))) : ItemStack.EMPTY;
         if (!stack.isEmpty()) {
             g.pose().pushPose();
             g.pose().translate(x + 2, y + 1, 0);
@@ -1127,7 +1265,7 @@ final class LootForm {
 
     static Component itemName(String id) {
         if (itemExists(id)) {
-            return BuiltInRegistries.ITEM.get(new ResourceLocation(id.trim())).getDescription();
+            return BuiltInRegistries.ITEM.get(Ids.parse(id.trim())).getDescription();
         }
         return Component.translatable("screen.justenoughstructures.editor.unknown_item");
     }

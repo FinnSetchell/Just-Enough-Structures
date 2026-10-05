@@ -11,6 +11,7 @@ import com.chaosthedude.explorerscompass.gui.TransparentButton;
 import com.chaosthedude.explorerscompass.items.ExplorersCompassItem;
 import com.chaosthedude.explorerscompass.util.ItemUtils;
 import com.chaosthedude.explorerscompass.util.StructureUtils;
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -38,7 +39,7 @@ import net.minecraft.world.item.ItemStack;
  * its costs and whatever it's set up to refuse. Client only, and only loaded with the mod installed.
  */
 public final class ExplorersCompassLink implements CompassLink {
-    private static final ResourceLocation ICON = new ResourceLocation(ExplorersCompass.MODID, "textures/item/explorerscompass_00.png");
+    private static final ResourceLocation ICON = Ids.of(ExplorersCompass.MODID, "textures/item/explorerscompass_00.png");
     /** How long to wait for the compass's list from the server before picking from what it has. */
     private static final int SYNC_TICKS = 40;
 

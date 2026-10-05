@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.catalog;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -66,7 +67,7 @@ public final class StructureCatalog {
     }
 
     private static final TagKey<Structure> INTEGRATED_API_DISABLED = TagKey.create(Registries.STRUCTURE,
-            new ResourceLocation("integrated_api", "disabled_structures"));
+            Ids.of("integrated_api", "disabled_structures"));
 
     /** Whether the structure turns up in new worlds on its own, and if not, why. */
     private static Availability availability(Registry<Structure> structures, ResourceKey<Structure> key, List<SetInfo> sets) {

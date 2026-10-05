@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -48,8 +50,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * test works in a folder of its own.
  */
 public final class SpawnerTests {
-    private static final ResourceLocation BASIN = new ResourceLocation("bastion/treasure/bases/lava_basin");
-    private static final ResourceLocation BASTION = new ResourceLocation("bastion_remnant");
+    private static final ResourceLocation BASIN = Ids.parse("bastion/treasure/bases/lava_basin");
+    private static final ResourceLocation BASTION = Ids.parse("bastion_remnant");
     private static final String MAGMA_CUBE = "minecraft:magma_cube";
     private static final String HUSK = "minecraft:husk";
     /** Bastion layouts to try for one with the treasure room, which about a quarter have. */
@@ -177,14 +179,14 @@ public final class SpawnerTests {
         } finally {
             leaveFolder();
         }
-        List<String> next = nextMobs(spawnerAt(patched, spawner.pos()).nbt());
+        List<String> next = nextMobs(spawnerAt(patched, spawner.pos()).nbt(), server.registryAccess());
         helper.assertTrue(!next.isEmpty() && next.stream().allMatch(HUSK::equals), "the patched spawner can go on to " + next);
 
         CompoundTag onlyMob = spawner.nbt().copy();
         CompoundTag husk = new CompoundTag();
         husk.putString("id", HUSK);
         onlyMob.getCompound("SpawnData").put("entity", husk);
-        helper.assertTrue(nextMobs(onlyMob).contains(MAGMA_CUBE), "keeping the list didn't bring the magma cube back, so this test proves nothing");
+        helper.assertTrue(nextMobs(onlyMob, server.registryAccess()).contains(MAGMA_CUBE), "keeping the list didn't bring the magma cube back, so this test proves nothing");
         helper.succeed();
     }
 
@@ -203,7 +205,7 @@ public final class SpawnerTests {
             expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK), "no_permission");
 
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
-            expect(helper, JesServer.patchSpawner(player, new ResourceLocation("justenoughstructures", "no/such/template"), pos, HUSK), "no_template");
+            expect(helper, JesServer.patchSpawner(player, Ids.of("justenoughstructures", "no/such/template"), pos, HUSK), "no_template");
             expect(helper, JesServer.patchSpawner(player, BASIN, pos.above(60), HUSK), "spawner.not_there");
             for (String notMob : List.of("minecraft:no_such_mob", "minecraft:armor_stand", "minecraft:item", "minecraft:player", "Not An Id!")) {
                 expect(helper, JesServer.patchSpawner(player, BASIN, pos, notMob), "spawner.not_a_mob");
@@ -234,10 +236,10 @@ public final class SpawnerTests {
     public static void spawnerPatchesSurviveTheWire(GameTestHelper helper) {
         BlockPos pos = new BlockPos(3, 1, 4);
         List<SpawnerPatches.Patch> patches = List.of(
-                new SpawnerPatches.Patch(BASIN, pos, new ResourceLocation("spawner"), MAGMA_CUBE, 0, HUSK),
-                new SpawnerPatches.Patch(new ResourceLocation("mod", "rooms/crypt"), pos.above(), new ResourceLocation("spawner"), "", 2, ""));
+                new SpawnerPatches.Patch(BASIN, pos, Ids.parse("spawner"), MAGMA_CUBE, 0, HUSK),
+                new SpawnerPatches.Patch(Ids.of("mod", "rooms/crypt"), pos.above(), Ids.parse("spawner"), "", 2, ""));
         PackToolsState state = new PackToolsState(ServerConfig.get(), Set.of(PackToolsState.spawnerKey(BASIN, pos)), Map.of(), List.of(), patches,
-                Map.of(), List.of(), List.of(), Map.of(PackToolsState.STRUCTURE_TAGS, List.of(new ResourceLocation("on_treasure_maps"))));
+                Map.of(), List.of(), List.of(), Map.of(PackToolsState.STRUCTURE_TAGS, List.of(Ids.parse("on_treasure_maps"))));
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         Codecs.writeTools(buf, state);
         PackToolsState read = Codecs.readTools(buf);
@@ -267,13 +269,13 @@ public final class SpawnerTests {
                     "the spawner at " + spawner.pos() + " doesn't match its spot in " + source.template());
             helper.assertTrue(source.patchedFrom() == null, "a spawner nobody changed says it was changed");
         }
-        List<StructureSnapshot.Spawner> stronghold = capture(server, new ResourceLocation("stronghold"), CaptureTests.SEED).spawners();
+        List<StructureSnapshot.Spawner> stronghold = capture(server, Ids.parse("stronghold"), CaptureTests.SEED).spawners();
         helper.assertFalse(stronghold.isEmpty(), "the stronghold had no spawner");
         helper.assertTrue(stronghold.stream().allMatch(s -> s.source() == null), "the stronghold's spawner, placed by structure code, claimed a template");
 
         // Moog's Structure Lib's processor picks these spawners' mobs as they generate, so the
         // template's mob isn't what players find. Only checked when that mod is installed.
-        ResourceLocation arena = new ResourceLocation("mns", "small_arena");
+        ResourceLocation arena = Ids.of("mns", "small_arena");
         if (server.registryAccess().registryOrThrow(Registries.STRUCTURE).containsKey(arena)) {
             int picked = 0;
             for (int i = 0; i < 4; i++) {
@@ -396,11 +398,16 @@ public final class SpawnerTests {
     }
 
     /** The mobs a spawner made from this data can go on to after it spawns. */
-    private static List<String> nextMobs(CompoundTag data) {
+    private static List<String> nextMobs(CompoundTag data, RegistryAccess registries) {
         CompoundTag tag = data.copy();
         SpawnerBlockEntity spawner = new SpawnerBlockEntity(BlockPos.ZERO, Blocks.SPAWNER.defaultBlockState());
+        //? if >=1.21 {
+        /*spawner.loadWithComponents(tag, registries);
+        ListTag potentials = spawner.saveWithoutMetadata(registries).getList("SpawnPotentials", Tag.TAG_COMPOUND);
+        *///?} else {
         spawner.load(tag);
         ListTag potentials = spawner.saveWithoutMetadata().getList("SpawnPotentials", Tag.TAG_COMPOUND);
+        //?}
         return potentials.stream().map(t -> ((CompoundTag) t).getCompound("data").getCompound("entity").getString("id")).toList();
     }
 

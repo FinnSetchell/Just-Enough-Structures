@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import java.util.List;
@@ -13,11 +14,15 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+//? if >=1.21 {
+/*import com.finndog.justenoughstructures.Ids;
+import net.minecraft.core.component.DataComponentType;
+*///?}
 
 /** Setting a held Explorer's Compass searching from the browser. Skipped without Explorer's Compass. */
 public final class CompassTests {
-    private static final ResourceLocation COMPASS = new ResourceLocation("explorerscompass", "explorerscompass");
-    private static final ResourceLocation PYRAMID = new ResourceLocation("desert_pyramid");
+    private static final ResourceLocation COMPASS = Ids.of("explorerscompass", "explorerscompass");
+    private static final ResourceLocation PYRAMID = Ids.parse("desert_pyramid");
 
     private CompassTests() {
     }
@@ -36,7 +41,7 @@ public final class CompassTests {
         player.giveExperienceLevels(30);
 
         // An end city can't generate here, and trying would cost levels and wipe the compass's target.
-        Component reply = JesServer.compassFor(player, new ResourceLocation("end_city"));
+        Component reply = JesServer.compassFor(player, Ids.parse("end_city"));
         helper.assertTrue(key(reply).endsWith("locate_wrong_dimension"), "searching for an end city in the overworld got " + reply.getString());
         helper.assertTrue(target(compass) == null, "a refused search still changed the compass");
 
@@ -49,7 +54,7 @@ public final class CompassTests {
         }
 
         // The test world is superflat, where only villages and strongholds can generate.
-        ResourceLocation village = new ResourceLocation("village_plains");
+        ResourceLocation village = Ids.parse("village_plains");
         reply = JesServer.compassFor(player, village);
         helper.assertTrue(key(reply).endsWith("compass_now_searching"), "the compass didn't start searching, got " + reply.getString());
         helper.assertTrue(village.toString().equals(target(compass)), "the compass is set to " + target(compass) + " instead of the plains village");
@@ -61,8 +66,14 @@ public final class CompassTests {
         helper.succeed();
     }
 
-    // Its Fabric build keeps what it's set to as StructureID, its Forge build as StructureKey.
     private static String target(ItemStack compass) {
+        //? if >=1.21 {
+        /*// Kept in a data component of its own since 1.20.5.
+        DataComponentType<?> type = BuiltInRegistries.DATA_COMPONENT_TYPE.get(Ids.of("explorerscompass", "structure_id"));
+        Object id = type == null ? null : compass.get(type);
+        return id == null ? null : id.toString();
+        *///?} else {
+        // Its Fabric build keeps what it's set to as StructureID, its Forge build as StructureKey.
         CompoundTag tag = compass.getTag();
         if (tag != null) {
             for (String key : List.of("StructureID", "StructureKey")) {
@@ -72,6 +83,7 @@ public final class CompassTests {
             }
         }
         return null;
+        //?}
     }
 
     private static String key(Component reply) {

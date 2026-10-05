@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.overrides;
 
+import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.JesLog;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,6 +18,12 @@ import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.repository.RepositorySource;
 import net.minecraft.server.packs.resources.IoSupplier;
+//? if >=1.21 {
+/*import java.util.Optional;
+import net.minecraft.server.packs.PackLocationInfo;
+import net.minecraft.server.packs.PackResources;
+import net.minecraft.server.packs.PackSelectionConfig;
+*///?}
 
 /**
  * Offers the loot override folder to every world as a datapack that's always on, above all others.
@@ -39,8 +46,24 @@ public final class OverridePack implements RepositorySource {
         }
         // The game opens the pack once to read its details and again to load it, so check once for both.
         Set<ResourceLocation> broken = CheckedResources.findBroken(root);
+        //? if >=1.21 {
+        /*PackLocationInfo info = new PackLocationInfo(LootOverrides.PACK_ID, Component.translatable("pack.justenoughstructures.loot_overrides"),
+                PackSource.BUILT_IN, Optional.empty());
+        Pack pack = Pack.readMetaAndCreate(info, new Pack.ResourcesSupplier() {
+            @Override
+            public PackResources openPrimary(PackLocationInfo location) {
+                return new CheckedResources(location, root, broken);
+            }
+
+            @Override
+            public PackResources openFull(PackLocationInfo location, Pack.Metadata metadata) {
+                return openPrimary(location);
+            }
+        }, PackType.SERVER_DATA, new PackSelectionConfig(true, Pack.Position.TOP, false));
+        *///?} else {
         Pack pack = Pack.readMetaAndCreate(LootOverrides.PACK_ID, Component.translatable("pack.justenoughstructures.loot_overrides"),
                 true, id -> new CheckedResources(id, root, broken), PackType.SERVER_DATA, Pack.Position.TOP, PackSource.BUILT_IN);
+        //?}
         if (pack != null) {
             out.accept(pack);
         }
@@ -50,10 +73,17 @@ public final class OverridePack implements RepositorySource {
     static final class CheckedResources extends PathPackResources {
         private final Set<ResourceLocation> broken;
 
+        //? if >=1.21 {
+        /*CheckedResources(PackLocationInfo location, Path root, Set<ResourceLocation> broken) {
+            super(location, root);
+            this.broken = broken;
+        }
+        *///?} else {
         CheckedResources(String id, Path root, Set<ResourceLocation> broken) {
             super(id, root, true);
             this.broken = broken;
         }
+        //?}
 
         @Override
         public IoSupplier<InputStream> getResource(PackType type, ResourceLocation location) {
@@ -78,13 +108,13 @@ public final class OverridePack implements RepositorySource {
             try (Stream<Path> files = Files.walk(data)) {
                 for (Path file : files.filter(p -> p.toString().endsWith(".json")).toList()) {
                     Path relative = data.relativize(file);
-                    if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals("loot_tables")) {
+                    if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals(Folders.LOOT_TABLES)) {
                         continue;
                     }
                     String namespace = relative.getName(0).toString();
                     String path = relative.subpath(1, relative.getNameCount()).toString().replace('\\', '/');
                     ResourceLocation location = ResourceLocation.tryBuild(namespace, path);
-                    String tablePath = path.substring("loot_tables/".length(), path.length() - ".json".length());
+                    String tablePath = path.substring(Folders.LOOT_TABLES.length() + 1, path.length() - ".json".length());
                     ResourceLocation table = ResourceLocation.tryBuild(namespace, tablePath);
                     Component problem;
                     try {

@@ -9,6 +9,7 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -27,13 +28,13 @@ import org.lwjgl.glfw.GLFW;
 
 /** The loot table editor: the Loot tab's Edit link, the editor with an entry picked, and the JSON view. */
 final class EditorScenario {
-    private static final ResourceLocation TABLE = new ResourceLocation("chests/desert_pyramid");
+    private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");
 
     private EditorScenario() {
     }
 
     static Director build(Minecraft mc) {
-        JesScreen.startOn(new ResourceLocation("desert_pyramid"));
+        JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         d.then(pressKey(GLFW.GLFW_KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
@@ -73,6 +74,10 @@ final class EditorScenario {
                 .then(pause(20))
                 .then(shoot("e03c_item_picker"))
                 .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                // The enchanted book, whose function's fields differ between versions.
+                .then(run(() -> editor(mc).pick(0, 11)))
+                .then(pause(20))
+                .then(shoot("e03h_book_enchantments"))
                 .then(run(() -> editor(mc).pick(-1, -1)))
                 .then(pause(20))
                 .then(shoot("e03d_table_card"))

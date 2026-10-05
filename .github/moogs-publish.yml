@@ -26,6 +26,8 @@ targets:
     jarDir: "versions/{mc}-fabric/build/libs"
     builds:
       - { mc: "1.20.1", java: 25 }
+      # 1.21 and 1.21.1 are the same game to a mod, so the one jar serves both.
+      - { mc: "1.21.1", from: "1.21", java: 25 }
     dependencies:
       - { modrinth: P7dR8mSH, curseforge: fabric-api, type: required }
   - branch: main

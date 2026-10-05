@@ -148,7 +148,7 @@ public final class JesConfigScreen {
         String value = entry.trim();
         String mod = value.endsWith(":*") ? value.substring(0, value.length() - 2) : null;
         boolean valid = mod != null
-                ? !mod.isEmpty() && ResourceLocation.isValidResourceLocation(mod + ":any")
+                ? !mod.isEmpty() && ResourceLocation.tryParse(mod + ":any") != null
                 : !value.isEmpty() && ResourceLocation.tryParse(value) != null;
         return valid ? Optional.empty() : Optional.of(text("hidden.invalid"));
     }

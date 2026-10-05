@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -24,8 +25,8 @@ import net.minecraft.world.item.Items;
 
 /** What Pack tools changes on the server besides loot tables: its rules, and what players are told about structures. */
 public final class PackToolsTests {
-    private static final ResourceLocation IGLOO = new ResourceLocation("igloo");
-    private static final ResourceLocation IGLOO_TABLE = new ResourceLocation("chests/igloo_chest");
+    private static final ResourceLocation IGLOO = Ids.parse("igloo");
+    private static final ResourceLocation IGLOO_TABLE = Ids.parse("chests/igloo_chest");
     private static final String DIAMONDS_ONLY = """
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
@@ -57,7 +58,7 @@ public final class PackToolsTests {
             helper.assertTrue(key(reply).endsWith("tools.rules_saved"), "saving the rules got " + reply.getString());
 
             ServerConfig.Settings now = ServerConfig.get();
-            helper.assertTrue(now.hides(IGLOO) && now.hides(new ResourceLocation("examplemod", "tower")), "the hidden structure and mod aren't hidden");
+            helper.assertTrue(now.hides(IGLOO) && now.hides(Ids.of("examplemod", "tower")), "the hidden structure and mod aren't hidden");
             helper.assertTrue(now.hiddenMods().equals(Set.of("examplemod")), "a mod name that can't be one was kept: " + now.hiddenMods());
             helper.assertTrue(now.locatePermission() == 0 && now.teleportPermission() == 4, "levels weren't kept from 0 to 4: "
                     + now.locatePermission() + ", " + now.teleportPermission());
@@ -103,7 +104,7 @@ public final class PackToolsTests {
             helper.assertTrue(written != null && written.fromPack(), "Pack tools doesn't see its own notes");
             helper.assertTrue(JesServer.hidesLootLocations(IGLOO), "the loot isn't kept a secret");
 
-            Component missing = PackToolsServer.saveStructure(server, new ResourceLocation("no_such_structure"), "x", false);
+            Component missing = PackToolsServer.saveStructure(server, Ids.parse("no_such_structure"), "x", false);
             helper.assertTrue(key(missing).endsWith("tools.no_structure"), "notes for a structure that isn't there got " + missing.getString());
 
             PackToolsServer.saveStructure(server, IGLOO, "", false);

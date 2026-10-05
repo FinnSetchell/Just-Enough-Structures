@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -17,6 +18,23 @@ import net.minecraft.util.FormattedCharSequence;
  * slots and buttons, with title rows of white text on a dark band.
  */
 public final class Gui {
+
+    //? if >=1.21 {
+    /*private static final ResourceLocation BUTTON = Ids.parse("widget/button");
+    private static final ResourceLocation BUTTON_DISABLED = Ids.parse("widget/button_disabled");
+    private static final ResourceLocation BUTTON_HIGHLIGHTED = Ids.parse("widget/button_highlighted");
+    *///?} else {
+    private static final ResourceLocation WIDGETS = Ids.parse("textures/gui/widgets.png");
+    //?}
+
+    /** A vanilla button's background stretched to size: {@code state} 0 for off, 1 normal, 2 under the mouse. */
+    public static void buttonBackground(GuiGraphics g, int x, int y, int w, int h, int state) {
+        //? if >=1.21 {
+        /*g.blitSprite(state == 0 ? BUTTON_DISABLED : state == 2 ? BUTTON_HIGHLIGHTED : BUTTON, x, y, w, h);
+        *///?} else {
+        g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + state * 20);
+        //?}
+    }
     static final int PANEL = 0xFFC6C6C6;
     static final int PANEL_LIGHT = 0xFFFFFFFF;
     static final int PANEL_DARK = 0xFF555555;

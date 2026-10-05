@@ -5,7 +5,6 @@ import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 
 /**
  * Pack tools' controls, drawn as they're laid out each frame: buttons, links, switches, check boxes
@@ -13,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
  * last drawn on top wins, so a button on a row is clicked rather than the row under it.
  */
 final class ToolsUi {
-    private static final ResourceLocation WIDGETS = new ResourceLocation("textures/gui/widgets.png");
     static final int BUTTON = 14;
     static final int TEXT = 0xFF404040;
     static final int GOOD = 0xFF2E5B1D;
@@ -122,7 +120,7 @@ final class ToolsUi {
     int button(GuiGraphics g, Component label, int x, int y, int w, int h, boolean active, Runnable action, Component... tip) {
         boolean over = hovered(x, y, w, h);
         int state = !active ? 0 : over ? 2 : 1;
-        g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + state * 20);
+        Gui.buttonBackground(g, x, y, w, h, state);
         String text = Gui.clip(font, label.getString(), w - 6);
         Gui.drawClipped(g, font, label.getString(), x + (w - font.width(text) + 1) / 2, y + (h - 8) / 2, w - 6, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
         if (active) {
@@ -140,7 +138,7 @@ final class ToolsUi {
     int backButton(GuiGraphics g, Component label, int x, int y, boolean active, Runnable action, Component... tip) {
         int w = backButtonWidth(label);
         boolean over = hovered(x, y, w, BUTTON);
-        g.blitNineSliced(WIDGETS, x, y, w, BUTTON, 20, 4, 200, 20, 0, 46 + (!active ? 0 : over ? 2 : 1) * 20);
+        Gui.buttonBackground(g, x, y, w, BUTTON, !active ? 0 : over ? 2 : 1);
         int colour = active ? 0xFFFFFFFF : 0xFFA0A0A0;
         NavBar.chevron(g, x + 5, y + 3, colour, true);
         g.drawString(font, label, x + 14, y + 3, colour, true);
@@ -161,7 +159,7 @@ final class ToolsUi {
             g.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, 0xFF2B3060);
         } else {
             boolean over = hovered(x, y, w, h);
-            g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + (over ? 2 : 1) * 20);
+            Gui.buttonBackground(g, x, y, w, h, over ? 2 : 1);
         }
         int countWidth = count.isEmpty() ? 0 : Gui.fineWidth(font, count) + 4;
         Gui.drawClipped(g, font, label.getString(), x + 5, y + (h - 8) / 2, w - 10 - countWidth, 0xFFFFFFFF, true);

@@ -170,10 +170,14 @@ final class ToolsStructures extends ToolsSection {
     @Override
     void tick() {
         if (search != null) {
+            //? if <1.21 {
             search.tick();
+            //?}
         }
         if (notesBox != null) {
+            //? if <1.21 {
             notesBox.tick();
+            //?}
         }
         ResourceLocation shown = shownStructure();
         if (shown != null && !shown.equals(notesFor) && screen.state() != null && notesBox != null) {

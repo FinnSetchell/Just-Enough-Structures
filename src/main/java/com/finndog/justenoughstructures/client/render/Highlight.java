@@ -2,6 +2,10 @@ package com.finndog.justenoughstructures.client.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+//? if >=1.21 {
+/*import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+*///?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -35,6 +39,11 @@ public final class Highlight implements AutoCloseable {
     /** Shared, as 1.20.1 never frees a buffer builder's memory. They grow to the biggest highlight drawn. */
     private static BufferBuilder fillBuilder;
     private static BufferBuilder edgeBuilder;
+    //? if >=1.21 {
+    /*// From 1.21 the memory is its own object, which a new builder is made over for each build.
+    private static ByteBufferBuilder fillBytes;
+    private static ByteBufferBuilder edgeBytes;
+    *///?}
 
     private final LongSet positions;
     /** False for mobs, which their markers light up instead: a block-sized box would hide them. */
@@ -111,12 +120,21 @@ public final class Highlight implements AutoCloseable {
      */
     private void build(int slice) {
         builtForSlice = slice;
+        //? if >=1.21 {
+        /*if (fillBytes == null) {
+            fillBytes = new ByteBufferBuilder(256 * 1024);
+            edgeBytes = new ByteBufferBuilder(256 * 1024);
+        }
+        fillBuilder = new BufferBuilder(fillBytes, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        edgeBuilder = new BufferBuilder(edgeBytes, VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+        *///?} else {
         if (fillBuilder == null) {
             fillBuilder = new BufferBuilder(256 * 1024);
             edgeBuilder = new BufferBuilder(256 * 1024);
         }
         fillBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         edgeBuilder.begin(VertexFormat.Mode.DEBUG_LINES, DefaultVertexFormat.POSITION_COLOR);
+        //?}
         float[] min = new float[3];
         float[] max = new float[3];
         int faces = 0;
@@ -152,12 +170,27 @@ public final class Highlight implements AutoCloseable {
                 }
             }
         }
+        //? if >=1.21 {
+        /*MeshData fillRendered = fillBuilder.build();
+        MeshData edgeRendered = edgeBuilder.build();
+        empty = faces == 0 || fillRendered == null || edgeRendered == null;
+        if (empty) {
+            if (fillRendered != null) {
+                fillRendered.close();
+            }
+            if (edgeRendered != null) {
+                edgeRendered.close();
+            }
+            return;
+        }
+        *///?} else {
         BufferBuilder.RenderedBuffer fillRendered = fillBuilder.endOrDiscardIfEmpty();
         BufferBuilder.RenderedBuffer edgeRendered = edgeBuilder.endOrDiscardIfEmpty();
         empty = faces == 0 || fillRendered == null || edgeRendered == null;
         if (empty) {
             return;
         }
+        //?}
         if (fill == null) {
             fill = new VertexBuffer(VertexBuffer.Usage.STATIC);
             edges = new VertexBuffer(VertexBuffer.Usage.STATIC);
@@ -187,7 +220,7 @@ public final class Highlight implements AutoCloseable {
             float[] c = corners[outwards ? i : 3 - i];
             p[a] = c[0];
             p[b] = c[1];
-            fillBuilder.vertex(p[0], p[1], p[2]).color(FILL[0], FILL[1], FILL[2], FILL[3]).endVertex();
+            vertex(fillBuilder, p, FILL);
         }
     }
 
@@ -200,9 +233,17 @@ public final class Highlight implements AutoCloseable {
         p[faceAxis] = face.getAxisDirection() == Direction.AxisDirection.POSITIVE ? max[faceAxis] : min[faceAxis];
         p[sideAxis] = side.getAxisDirection() == Direction.AxisDirection.POSITIVE ? max[sideAxis] : min[sideAxis];
         p[along] = min[along];
-        edgeBuilder.vertex(p[0], p[1], p[2]).color(EDGE[0], EDGE[1], EDGE[2], EDGE[3]).endVertex();
+        vertex(edgeBuilder, p, EDGE);
         p[along] = max[along];
-        edgeBuilder.vertex(p[0], p[1], p[2]).color(EDGE[0], EDGE[1], EDGE[2], EDGE[3]).endVertex();
+        vertex(edgeBuilder, p, EDGE);
+    }
+
+    private static void vertex(BufferBuilder builder, float[] p, float[] colour) {
+        //? if >=1.21 {
+        /*builder.addVertex(p[0], p[1], p[2]).setColor(colour[0], colour[1], colour[2], colour[3]);
+        *///?} else {
+        builder.vertex(p[0], p[1], p[2]).color(colour[0], colour[1], colour[2], colour[3]).endVertex();
+        //?}
     }
 
     @Override

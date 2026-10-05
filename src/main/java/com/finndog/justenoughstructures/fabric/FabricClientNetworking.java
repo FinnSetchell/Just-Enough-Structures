@@ -7,6 +7,9 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+//? if >=1.21 {
+/*import com.finndog.justenoughstructures.network.Blobs;
+*///?}
 
 final class FabricClientNetworking {
     private FabricClientNetworking() {
@@ -16,7 +19,11 @@ final class FabricClientNetworking {
         ClientRequests.setSender(new ClientRequests.ClientSender() {
             @Override
             public boolean canSend(ResourceLocation channel) {
+                //? if >=1.21 {
+                /*return ClientPlayNetworking.canSend(FabricPayload.type(channel));
+                *///?} else {
                 return ClientPlayNetworking.canSend(channel);
+                //?}
             }
 
             @Override
@@ -26,12 +33,21 @@ final class FabricClientNetworking {
 
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
+                //? if >=1.21 {
+                /*ClientPlayNetworking.send(new FabricPayload(FabricPayload.type(channel), Blobs.bytes(buf)));
+                *///?} else {
                 ClientPlayNetworking.send(channel, buf);
+                //?}
             }
         });
 
+        //? if >=1.21 {
+        /*ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(FabricPayload.type(channel),
+                (payload, context) -> handler.handle(context.client(), Blobs.fromBytes(context.player().level().registryAccess(), payload.data()))));
+        *///?} else {
         ClientPackets.handlers().forEach((channel, handler) -> ClientPlayNetworking.registerGlobalReceiver(channel,
                 (client, listener, buf, responder) -> handler.handle(client, buf)));
+        //?}
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
     }

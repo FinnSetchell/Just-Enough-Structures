@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootOdds;
@@ -21,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
  * container like it, switched by the two tabs by its name.
  */
 final class ChestPopup {
-    private static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/container/generic_54.png");
+    private static final ResourceLocation TEXTURE = Ids.parse("textures/gui/container/generic_54.png");
     static final int WIDTH = 176;
     /** How tall the list of chances is, so it's the same size whatever the container. */
     private static final int ODDS_HEIGHT = 108;

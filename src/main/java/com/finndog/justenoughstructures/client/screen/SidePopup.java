@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -13,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
  * name and which one it is along the top, and its buttons along the bottom.
  */
 abstract class SidePopup {
-    static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/container/generic_54.png");
+    static final ResourceLocation TEXTURE = Ids.parse("textures/gui/container/generic_54.png");
     static final int WIDTH = ChestPopup.WIDTH;
 
     final Component title;

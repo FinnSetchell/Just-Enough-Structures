@@ -24,7 +24,7 @@ import net.minecraft.world.entity.MobCategory;
  * Like the loot table picker, the change is saved on the server as a patch to the spawner's
  * template and applies from the next /reload.
  */
-public final class MobPickerScreen extends Screen implements Nav.Page {
+public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int ROW = 24;
@@ -197,7 +197,9 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
     @Override
     public void tick() {
         super.tick();
+        //? if <1.21 {
         search.tick();
+        //?}
     }
 
     @Override
@@ -251,7 +253,7 @@ public final class MobPickerScreen extends Screen implements Nav.Page {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();
-        renderBackground(g);
+        backdrop(g);
         Gui.panel(g, PAD, TOP, width - PAD * 2, height - TOP - PAD);
         int left = left();
         int right = right();

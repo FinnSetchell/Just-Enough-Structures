@@ -381,7 +381,11 @@ public final class StructureCapture {
         }
         ProtoChunk chunk = new ProtoChunk(pos, UpgradeData.EMPTY, sections, new ProtoChunkTicks<>(), new ProtoChunkTicks<>(), level, biomes, null);
         // FEATURES is the step structures are placed in. Anything later wants a light engine.
+        //? if >=1.21 {
+        /*chunk.setPersistedStatus(ChunkStatus.FEATURES);
+        *///?} else {
         chunk.setStatus(ChunkStatus.FEATURES);
+        //?}
         Heightmap.primeHeightmaps(chunk, EnumSet.allOf(Heightmap.Types.class));
         return chunk;
     }
@@ -506,7 +510,11 @@ public final class StructureCapture {
             if (state.hasBlockEntity()) {
                 BlockEntity blockEntity = region.getBlockEntity(pos);
                 if (blockEntity != null) {
+                    //? if >=1.21 {
+                    /*CompoundTag tag = blockEntity.saveWithFullMetadata(region.registryAccess());
+                    *///?} else {
                     CompoundTag tag = blockEntity.saveWithFullMetadata();
+                    //?}
                     tag.putInt("x", pos.getX() - minX);
                     tag.putInt("y", pos.getY() - minY);
                     tag.putInt("z", pos.getZ() - minZ);
