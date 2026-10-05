@@ -35,8 +35,6 @@ final class ChestPopup {
         ROLL,
         /** Show every item's chance. */
         ODDS,
-        /** Point the container at another table, while picking a chest for Pack tools. */
-        CHANGE,
         /** Open the container in Pack tools. */
         TOOLS_CONTAINER,
         /** Open its loot table in Pack tools. */
@@ -77,7 +75,10 @@ final class ChestPopup {
     List<Component> hoveredExtra = List.of();
     /** The tooltip of a link or icon under the mouse, or null. */
     List<Component> hoveredTip;
-    /** Set while the player is picking a chest for Pack tools to change: the popup offers Change. */
+    /**
+     * Set while the player is picking a chest for Pack tools to change: the button that opens the
+     * container in Pack tools is pointed out, so it's learnt as the way to change one.
+     */
     boolean picking;
     /** The block or entity it is, for the icon that opens it in Pack tools. */
     ItemStack icon = ItemStack.EMPTY;
@@ -146,7 +147,7 @@ final class ChestPopup {
 
     /** Whether Pack tools' icons sit beside the label, which then needs room for them. */
     private boolean showsIcons() {
-        return packTools && !picking;
+        return packTools;
     }
 
     private int labelRow(Font font) {
@@ -305,41 +306,17 @@ final class ChestPopup {
         int labelY = showsIcons() ? cy + (ICON - Gui.fineLine(font)) / 2 : cy;
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, labelY, Gui.LABEL_SOFT);
         int iconRight = x + WIDTH - 7;
-        if (picking && container != null) {
-            // Picking a chest to change: the way on to the table picker, or why it can't be.
-            boolean byCode = container.entity() || container.source() == null || table == null;
-            String key = byCode ? "container.edit_table" : "container.change";
-            String text = Component.translatable("screen.justenoughstructures." + key).getString();
-            int w = Gui.fineWidth(font, text);
-            int left = iconRight - w;
-            boolean over = mouseX >= left && mouseX < iconRight && mouseY >= cy - 1 && mouseY < cy + Gui.fineLine(font) + 1;
-            if (overview() && !byCode) {
-                Gui.fine(g, font, text, left, cy, Gui.LABEL_SOFT);
-                if (over) {
-                    hoveredTip = pickOne();
-                }
-            } else {
-                Gui.fine(g, font, text, left, cy, over ? 0xFF2040C0 : 0xFF3A55A0);
-                if (over) {
-                    g.fill(left, cy + Gui.fineLine(font), iconRight, cy + Gui.fineLine(font) + 1, 0xFF2040C0);
-                    hoveredTip = List.of(Component.translatable(byCode ? (table == null ? "screen.justenoughstructures.tools.cant_change_items"
-                            : "screen.justenoughstructures.container.edit_table_hint") : "screen.justenoughstructures.container.change_hint"));
-                }
-                if (!byCode || table != null) {
-                    links.put(Action.CHANGE, new int[]{left, cy - 1, w, Gui.fineLine(font) + 2});
-                }
-            }
-        } else if (showsIcons()) {
+        if (showsIcons()) {
             // Pack tools' shortcuts: the table, and the container itself, each with a wrench on it.
             if (table != null) {
-                iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY, true,
+                iconRight = toolsIcon(g, Action.TOOLS_TABLE, PAPER, iconRight, cy, mouseX, mouseY, true, false,
                         List.of(Component.translatable("screen.justenoughstructures.tools.open_table"),
                                 Component.translatable("screen.justenoughstructures.tools.open_table_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
             }
             if (container != null) {
                 // The table is the same for the whole group, but the container has to be a particular one.
                 toolsIcon(g, Action.TOOLS_CONTAINER, icon.isEmpty() ? new ItemStack(net.minecraft.world.item.Items.CHEST) : icon, iconRight - 2, cy,
-                        mouseX, mouseY, !overview(), overview() ? pickOne() : List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
+                        mouseX, mouseY, !overview(), picking, overview() ? pickOne() : List.of(Component.translatable("screen.justenoughstructures.tools.open_container"),
                                 Component.translatable("screen.justenoughstructures.tools.open_container_hint").withStyle(net.minecraft.ChatFormatting.GRAY)));
             }
         }
@@ -425,12 +402,15 @@ final class ChestPopup {
 
     /**
      * An item with a small wrench on it, that opens something in Pack tools, or greyed out when it
-     * can't yet. Returns its left edge.
+     * can't yet. {@code pointedOut} draws attention to it, as the one to use. Returns its left edge.
      */
     private int toolsIcon(GuiGraphics g, Action action, ItemStack stack, int right, int top, int mouseX, int mouseY, boolean enabled,
-                          List<Component> tip) {
+                          boolean pointedOut, List<Component> tip) {
         int left = right - ICON;
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
+        if (pointedOut && enabled) {
+            pointOut(g, left, top, ICON);
+        }
         if (over) {
             if (enabled) {
                 g.fill(left, top, right, top + ICON, 0xFF555555);
@@ -455,6 +435,17 @@ final class ChestPopup {
             links.put(action, new int[]{left, top, ICON, ICON});
         }
         return left;
+    }
+
+    /**
+     * A gently pulsing yellow frame round a button, pointing it out as the one that does what the
+     * player is in the middle of, like the one that changes a chest picked for Pack tools.
+     */
+    static void pointOut(GuiGraphics g, int left, int top, int size) {
+        float pulse = 0.5f + 0.5f * (float) Math.sin(net.minecraft.Util.getMillis() / 220.0);
+        int alpha = 0x70 + (int) (0x8F * pulse);
+        g.fill(left - 2, top - 2, left + size + 2, top + size + 2, alpha << 24 | 0xF5C400);
+        g.fill(left - 1, top - 1, left + size + 1, top + size + 1, 0xFFFFF2B0);
     }
 
     /** A tab by the popup's name, its right edge at {@code right}. Returns its left edge. */

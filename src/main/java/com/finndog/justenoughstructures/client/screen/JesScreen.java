@@ -53,6 +53,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -70,6 +71,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private static final int TABS = 21;
     private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
+    private static final ItemStack MOB_MARKERS_ICON = new ItemStack(Items.SPAWNER);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
     private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
@@ -145,7 +147,8 @@ public class JesScreen extends Screen implements Nav.Page {
     private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
-    private boolean markersSecret;
+    /** What the markers button last said it was about, to change what it says when that changes. */
+    private String markersFor;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
     private int lastViewW;
@@ -168,12 +171,59 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     /**
-     * A marker on screen, at an exact (not pixel-rounded) position so it keeps up with the preview
-     * as it turns. Containers close together share one marker, so {@code containers} can hold several.
+     * What markers mark, which follows what the player is doing: containers, or on the Mobs tab, and
+     * with a spawner's popup open or one being picked, mobs and spawners. Anything else worth marking
+     * later is another kind here.
      */
-    private record Marker(float x, float y, int size, List<StructureSnapshot.Container> containers) {
+    private enum MarkerKind { CONTAINERS, MOBS }
+
+    /** Something a marker stands for, and where: a container, a spawner, or a mob the structure places. */
+    private record Spot(BlockPos pos, Object what) {
+    }
+
+    /**
+     * A marker on screen, at an exact (not pixel-rounded) position so it keeps up with the preview
+     * as it turns. Things close together share one marker, so {@code spots} can hold several.
+     */
+    private record Marker(float x, float y, int size, List<Spot> spots) {
+        List<StructureSnapshot.Container> containers() {
+            List<StructureSnapshot.Container> out = new ArrayList<>();
+            spots.forEach(spot -> {
+                if (spot.what() instanceof StructureSnapshot.Container c) {
+                    out.add(c);
+                }
+            });
+            return out;
+        }
+
+        /** The first container it stands for, or null. */
         StructureSnapshot.Container container() {
-            return containers.get(0);
+            return first(StructureSnapshot.Container.class);
+        }
+
+        StructureSnapshot.Spawner spawner() {
+            return first(StructureSnapshot.Spawner.class);
+        }
+
+        Entity mob() {
+            return first(Entity.class);
+        }
+
+        private <T> T first(Class<T> type) {
+            for (Spot spot : spots) {
+                if (type.isInstance(spot.what())) {
+                    return type.cast(spot.what());
+                }
+            }
+            return null;
+        }
+
+        boolean marks(BlockPos pos) {
+            return spots.stream().anyMatch(spot -> spot.pos().equals(pos));
+        }
+
+        boolean contains(double mouseX, double mouseY) {
+            return mouseX >= x && mouseX < x + size && mouseY >= y && mouseY < y + size;
         }
     }
 
@@ -302,13 +352,14 @@ public class JesScreen extends Screen implements Nav.Page {
         addRenderableWidget(new IconButton(bx, buttonsY, RESET_ICON,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
         bx += 22;
-        markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> MARKERS_ICON, () -> ClientState.markers && !lootSecret(), markersLabel(), b -> {
+        markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> markerKind() == MarkerKind.MOBS ? MOB_MARKERS_ICON : MARKERS_ICON,
+                () -> ClientState.markers && !markersSecret(), markersLabel(), b -> {
             ClientState.markers = !ClientState.markers;
             ClientState.save();
             markersButton.setLabel(markersLabel());
         }));
-        markersSecret = lootSecret();
-        markersButton.active = !markersSecret;
+        markersFor = markersSecret() + "|" + markerKind();
+        markersButton.active = !markersSecret();
         bx += 22;
         groundButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> GROUND_ICON, () -> ClientState.ground, groundLabel(), b -> {
             ClientState.ground = !ClientState.ground;
@@ -380,9 +431,10 @@ public class JesScreen extends Screen implements Nav.Page {
         }
     }
 
-    /** Opens Pack tools on a section, and on something in it if given. */
+    /** Opens Pack tools on a section, and on something in it if given. Anything being picked for it has been. */
     void openTools(PackToolsScreen.Section section, Object selection) {
         Nav.remember();
+        picking = Picking.NONE;
         minecraft.setScreen(new PackToolsScreen(this, section, selection));
     }
 
@@ -927,28 +979,9 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     private void spawnerAction(SpawnerPopup open, SpawnerPopup.Action action) {
-        switch (action) {
-            case TOOLS -> openSpawner(open.spawner);
-            case CHANGE -> changeSpawner(open.spawner);
+        if (action == SpawnerPopup.Action.TOOLS) {
+            openSpawner(open.spawner);
         }
-    }
-
-    /**
-     * Change, on a spawner picked for Pack tools: the mob picker, which then goes to the spawner in
-     * Pack tools, as Change on a chest does.
-     */
-    private void changeSpawner(StructureSnapshot.Spawner spawner) {
-        if (spawner.source() == null || selected == null) {
-            return;
-        }
-        ToolsSpawners.SpawnerRef ref = ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner);
-        Nav.remember();
-        minecraft.setScreen(new MobPickerScreen(this, spawner.source().template(), spawner.source().pos(), spawner.mob(), (message, untilReload) -> {
-            picking = Picking.NONE;
-            PackToolsScreen tools = new PackToolsScreen(this, PackToolsScreen.Section.SPAWNERS, ref);
-            tools.say(message, true);
-            return tools;
-        }));
     }
 
     /** Shows the structures whose loot can give this item. */
@@ -1251,9 +1284,7 @@ public class JesScreen extends Screen implements Nav.Page {
             return;
         }
         Set<BlockPos> marked = new HashSet<>();
-        if (ClientState.markers && !lootSecret()) {
-            s.containers().forEach(c -> marked.add(c.pos()));
-        }
+        markerRects.forEach(m -> m.spots().forEach(spot -> marked.add(spot.pos())));
         int slice = view.sliceY();
         for (long packed : highlight.positions()) {
             BlockPos pos = BlockPos.of(packed);
@@ -1294,6 +1325,11 @@ public class JesScreen extends Screen implements Nav.Page {
         BlockPos pos;
         if (spawnerPopup != null && !spawnerPopup.overview()) {
             pos = spawnerPopup.spawner.pos();
+            for (Marker m : markerRects) {
+                if (m.spawner() != null && m.marks(pos)) {
+                    return;
+                }
+            }
         } else if (popup != null && popup.container != null && !popup.overview()) {
             for (Marker m : markerRects) {
                 if (m.containers().contains(popup.container)) {
@@ -1367,7 +1403,6 @@ public class JesScreen extends Screen implements Nav.Page {
                 placePopup();
                 layoutPopupButtons();
             }
-            case CHANGE -> changeContainer(open);
             case TOOLS_CONTAINER -> openTools(PackToolsScreen.Section.CHESTS, chestRef(open));
             case TOOLS_TABLE -> {
                 ResourceLocation table = ResourceLocation.tryParse(open.table);
@@ -1380,29 +1415,6 @@ public class JesScreen extends Screen implements Nav.Page {
 
     private ToolsChests.ChestRef chestRef(ChestPopup open) {
         return ToolsChests.ChestRef.of(selected.id(), seed, open.container, open.title, open.size);
-    }
-
-    /**
-     * Change, on a chest picked for Pack tools: the table picker, which then goes to the chest in
-     * Pack tools. One the structure's code places can only have its table edited.
-     */
-    private void changeContainer(ChestPopup open) {
-        StructureSnapshot.Container container = open.container;
-        if (container == null || open.table == null) {
-            return;
-        }
-        if (container.entity() || container.source() == null) {
-            openEditor(open.table);
-            return;
-        }
-        ToolsChests.ChestRef ref = chestRef(open);
-        Nav.remember();
-        minecraft.setScreen(new TablePickerScreen(this, container.source(), open.table, open.title, (message, untilReload) -> {
-            picking = Picking.NONE;
-            PackToolsScreen tools = new PackToolsScreen(this, PackToolsScreen.Section.CHESTS, ref);
-            tools.say(message, true);
-            return tools;
-        }));
     }
 
     /** Starts picking a chest or a spawner to change, from Pack tools. */
@@ -1606,7 +1618,7 @@ public class JesScreen extends Screen implements Nav.Page {
     /** Where the marker for the first container using {@code table} is drawn, if it's on screen. */
     public Optional<int[]> marker(String table) {
         for (Marker m : markerRects) {
-            if (table.equals(m.container().lootTable())) {
+            if (m.container() != null && table.equals(m.container().lootTable())) {
                 return Optional.of(new int[]{Math.round(m.x() + m.size() / 2f), Math.round(m.y() + m.size() / 2f)});
             }
         }
@@ -2010,28 +2022,28 @@ public class JesScreen extends Screen implements Nav.Page {
 
         StructureSnapshot s = result.snapshot();
         Gui.scissor(g, viewX, viewY, viewX + viewW, viewY + viewH);
-        if (ClientState.markers || picking == Picking.CHEST) {
+        if (markersShown()) {
             placeMarkers(s);
             for (Marker m : markerRects) {
-                // Lit up like one under the mouse while a row about its container is hovered, as it hides the block.
-                boolean over = mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()
-                        || highlight != null && m.containers().stream().anyMatch(c -> highlight.contains(c.pos()));
+                // Lit up like one under the mouse while a row about what it marks is hovered, as it hides the block.
+                boolean over = m.contains(mouseX, mouseY) || highlight != null && m.spots().stream().anyMatch(spot -> highlight.contains(spot.pos()));
                 int size = m.size();
                 g.pose().pushPose();
                 // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
                 // markers jitter against the smoothly turning preview.
                 g.pose().translate(m.x(), m.y(), 200);
-                boolean showing = popup != null && popup.container != null && !popup.overview() && m.containers().contains(popup.container);
+                boolean showing = popup != null && popup.container != null && !popup.overview() && m.containers().contains(popup.container)
+                        || spawnerPopup != null && !spawnerPopup.overview() && m.spawner() != null && m.marks(spawnerPopup.spawner.pos());
                 g.fill(-1, -1, size + 1, size + 1, showing ? 0xFFFFFFFF : over ? 0xFFFFFF55 : 0xFF000000);
                 g.fill(0, 0, size, size, 0xFF2B2B2B);
                 g.pose().pushPose();
                 g.pose().translate(0.5f, 0.5f, 0);
                 float scale = (size - 1) / 16f;
                 g.pose().scale(scale, scale, 1f);
-                g.renderItem(InfoPanel.containerIcon(s, m.container()), 0, 0);
+                g.renderItem(markerIcon(s, m), 0, 0);
                 g.pose().popPose();
-                if (m.containers().size() > 1) {
-                    String count = String.valueOf(m.containers().size());
+                if (m.spots().size() > 1) {
+                    String count = String.valueOf(m.spots().size());
                     g.pose().translate(0, 0, 200);
                     Gui.small(g, font, count, size - Gui.smallWidth(font, count) + 1, size - 5, 0xFFFFFFFF);
                 }
@@ -2072,7 +2084,8 @@ public class JesScreen extends Screen implements Nav.Page {
         } else if (picking != Picking.NONE) {
             pickingStrip(g, mouseX, mouseY);
         } else {
-            String controls = lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
+            String controls = markerKind() == MarkerKind.MOBS ? "screen.justenoughstructures.controls_mobs"
+                    : lootSecret() ? "screen.justenoughstructures.controls_no_loot" : "screen.justenoughstructures.controls";
             String hint = Component.translatable(controls).getString();
             if (Gui.fineWidth(font, hint) > viewW - 12) {
                 hint = Component.translatable(controls + "_short").getString();
@@ -2082,9 +2095,9 @@ public class JesScreen extends Screen implements Nav.Page {
         Gui.endScissor(g);
 
         for (Marker m : markerRects) {
-            if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
-                BlockPos pos = m.container().pos();
-                return new StructureViewport.Hit(pos, view.rawState(pos.getX(), pos.getY(), pos.getZ()), null);
+            if (m.contains(mouseX, mouseY)) {
+                BlockPos pos = m.spots().get(0).pos();
+                return new StructureViewport.Hit(pos, view.rawState(pos.getX(), pos.getY(), pos.getZ()), m.spawner() == null ? m.mob() : null);
             }
         }
         return hover;
@@ -2115,37 +2128,46 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     /**
-     * Works out where each loot marker goes. Markers are all one size, set by the zoom, and
-     * containers close enough in the structure for their markers to overlap share one marker with a
-     * count. Neither changes while the preview turns, only when you zoom, so markers don't grow,
-     * shrink or split apart as it spins. The nearest are drawn last, on top.
+     * Works out where each marker goes. Markers are all one size, set by the zoom, and things close
+     * enough in the structure for their markers to overlap share one marker with a count. Neither
+     * changes while the preview turns, only when you zoom, so markers don't grow, shrink or split
+     * apart as it spins. The nearest are drawn last, on top.
      */
     private void placeMarkers(StructureSnapshot s) {
         float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
         int chestSize = Math.round(Math.max(8f, Math.min(16f, perBlock * 0.8f)));
         int smallSize = Math.round(Math.max(6f, Math.min(10f, perBlock * 0.8f)));
         double reach = chestSize * 1.5 / perBlock;
-        List<List<StructureSnapshot.Container>> groups = markerGroups(s, reach);
+        List<List<Spot>> groups = markerGroups(s, markerKind(), reach);
 
         record Placed(Marker marker, float depth) {
         }
         List<Placed> placed = new ArrayList<>();
-        for (List<StructureSnapshot.Container> members : groups) {
+        for (List<Spot> members : groups) {
             double x = 0;
             double z = 0;
-            int top = Integer.MIN_VALUE;
-            boolean chest = false;
-            for (StructureSnapshot.Container c : members) {
-                x += c.pos().getX() + 0.5;
-                z += c.pos().getZ() + 0.5;
-                top = Math.max(top, c.pos().getY());
-                chest |= c.entity() || view.blockEntities().get(c.pos()) instanceof Container;
+            double top = -Double.MAX_VALUE;
+            boolean small = true;
+            for (Spot spot : members) {
+                if (spot.what() instanceof Entity mob) {
+                    // Over its head, rather than at its feet.
+                    x += mob.getX();
+                    z += mob.getZ();
+                    top = Math.max(top, mob.getY() + mob.getBbHeight() + 0.2);
+                    small = false;
+                } else {
+                    x += spot.pos().getX() + 0.5;
+                    z += spot.pos().getZ() + 0.5;
+                    top = Math.max(top, spot.pos().getY() + 1.1);
+                    // Suspicious sand and the like, which hold a single item, get the smaller marker.
+                    small &= spot.what() instanceof StructureSnapshot.Container c && !c.entity() && !(view.blockEntities().get(c.pos()) instanceof Container);
+                }
             }
-            Optional<float[]> at = viewport.project(x / members.size(), top + 1.1, z / members.size());
+            Optional<float[]> at = viewport.project(x / members.size(), top, z / members.size());
             if (at.isEmpty()) {
                 continue;
             }
-            int size = chest ? chestSize : smallSize;
+            int size = small ? smallSize : chestSize;
             placed.add(new Placed(new Marker(at.get()[0] - size / 2f, at.get()[1] - size, size, members), at.get()[2]));
         }
         placed.sort(Comparator.comparingDouble(pl -> -pl.depth()));
@@ -2161,28 +2183,45 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     private StructureSnapshot groupedFor;
+    private MarkerKind groupedKind;
     private int groupedSlice;
     private double groupedReach;
-    private List<List<StructureSnapshot.Container>> grouped = List.of();
+    private List<List<Spot>> grouped = List.of();
 
-    /**
-     * Containers close enough in the structure to share a marker. Only zooming or the layer slider
-     * changes the answer, so it's worked out again only then, not every frame.
-     */
-    private List<List<StructureSnapshot.Container>> markerGroups(StructureSnapshot s, double reach) {
-        if (s == groupedFor && view.sliceY() == groupedSlice && reach == groupedReach) {
-            return grouped;
-        }
-        List<StructureSnapshot.Container> shown = new ArrayList<>();
-        for (StructureSnapshot.Container c : s.containers()) {
-            if (c.pos().getY() < view.sliceY()) {
-                shown.add(c);
+    /** Everything a kind of marker marks in the layout on show. */
+    private List<Spot> spots(StructureSnapshot s, MarkerKind kind) {
+        List<Spot> out = new ArrayList<>();
+        if (kind == MarkerKind.CONTAINERS) {
+            s.containers().forEach(c -> out.add(new Spot(c.pos(), c)));
+        } else {
+            s.spawners().forEach(spawner -> out.add(new Spot(spawner.pos(), spawner)));
+            for (Entity entity : view.entities()) {
+                if (entity instanceof Mob) {
+                    out.add(new Spot(entity.blockPosition(), entity));
+                }
             }
         }
-        // Sorted so a group always has the same container first, whichever way it's facing.
-        shown.sort(Comparator.comparing((StructureSnapshot.Container c) -> c.pos()));
+        return out;
+    }
 
-        // Join containers closer than about a marker and a half, and anything joined to those, so
+    /**
+     * Things close enough in the structure to share a marker. Only zooming, the layer slider or
+     * another kind of marker changes the answer, so it's worked out again only then, not every frame.
+     */
+    private List<List<Spot>> markerGroups(StructureSnapshot s, MarkerKind kind, double reach) {
+        if (s == groupedFor && kind == groupedKind && view.sliceY() == groupedSlice && reach == groupedReach) {
+            return grouped;
+        }
+        List<Spot> shown = new ArrayList<>();
+        for (Spot spot : spots(s, kind)) {
+            if (spot.pos().getY() < view.sliceY()) {
+                shown.add(spot);
+            }
+        }
+        // Sorted so a group always has the same thing first, whichever way it's facing.
+        shown.sort(Comparator.comparing(Spot::pos));
+
+        // Join things closer than about a marker and a half, and anything joined to those, so
         // markers that would touch or overlap from some angle share one.
         int[] group = new int[shown.size()];
         for (int i = 0; i < group.length; i++) {
@@ -2197,12 +2236,13 @@ public class JesScreen extends Screen implements Nav.Page {
                 }
             }
         }
-        Map<Integer, List<StructureSnapshot.Container>> groups = new LinkedHashMap<>();
+        Map<Integer, List<Spot>> groups = new LinkedHashMap<>();
         for (int i = 0; i < shown.size(); i++) {
             groups.computeIfAbsent(root(group, i), k -> new ArrayList<>()).add(shown.get(i));
         }
         grouped = List.copyOf(groups.values());
         groupedFor = s;
+        groupedKind = kind;
         groupedSlice = view.sliceY();
         groupedReach = reach;
         return grouped;
@@ -2278,6 +2318,56 @@ public class JesScreen extends Screen implements Nav.Page {
                 : Component.translatable("screen.justenoughstructures.hover_spawns", mob);
     }
 
+    /** Opens what a marker stands for: its container, or its spawner. A mob's opens nothing. Returns whether one opened. */
+    private boolean openMarker(Marker m) {
+        if (m.container() != null) {
+            List<StructureSnapshot.Container> containers = m.containers();
+            openContainer(containers.get(0), containers.size() > 1);
+            return true;
+        }
+        if (m.spawner() != null) {
+            openSpawnerPopup(m.spawner(), false);
+            return true;
+        }
+        return false;
+    }
+
+    /** What a marker shows: its container's own item, a spawner, or the mob's egg or item. */
+    private ItemStack markerIcon(StructureSnapshot s, Marker m) {
+        Spot first = m.spots().get(0);
+        if (first.what() instanceof StructureSnapshot.Container c) {
+            return InfoPanel.containerIcon(s, c);
+        }
+        if (first.what() instanceof Entity mob) {
+            ItemStack icon = InfoPanel.entityIcon(mob.getType());
+            return icon.isEmpty() ? MOB_MARKERS_ICON : icon;
+        }
+        return MOB_MARKERS_ICON;
+    }
+
+    private MarkerKind markerKind() {
+        if (picking != Picking.NONE) {
+            return picking == Picking.SPAWNER ? MarkerKind.MOBS : MarkerKind.CONTAINERS;
+        }
+        if (spawnerPopup != null) {
+            return MarkerKind.MOBS;
+        }
+        if (popup != null && popup.container != null) {
+            return MarkerKind.CONTAINERS;
+        }
+        return info != null && info.tab() == InfoPanel.Tab.ENTITIES ? MarkerKind.MOBS : MarkerKind.CONTAINERS;
+    }
+
+    /** Markers show when they're on, or always while picking something for Pack tools, but not for loot kept secret. */
+    private boolean markersShown() {
+        return picking != Picking.NONE || ClientState.markers && !markersSecret();
+    }
+
+    /** Container markers mean nothing for a structure whose loot is kept secret. */
+    private boolean markersSecret() {
+        return lootSecret() && markerKind() == MarkerKind.CONTAINERS;
+    }
+
     /** How many containers the marker covering {@code pos} stands for, or 0. */
     private int markerAt(BlockPos pos) {
         for (Marker m : markerRects) {
@@ -2300,8 +2390,7 @@ public class JesScreen extends Screen implements Nav.Page {
             return false;
         }
         for (Marker m : markerRects) {
-            if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
-                openContainer(m.container(), m.containers().size() > 1);
+            if (m.contains(mouseX, mouseY) && openMarker(m)) {
                 return true;
             }
         }
@@ -2401,8 +2490,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (button == 0) {
             for (Marker m : markerRects) {
-                if (mouseX >= m.x() && mouseX < m.x() + m.size() && mouseY >= m.y() && mouseY < m.y() + m.size()) {
-                    openContainer(m.container(), m.containers().size() > 1);
+                if (m.contains(mouseX, mouseY) && openMarker(m)) {
                     return true;
                 }
             }
@@ -2563,10 +2651,12 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     private Component markersLabel() {
-        if (lootSecret()) {
+        if (markersSecret()) {
             return Component.translatable("screen.justenoughstructures.markers_secret");
         }
-        return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off");
+        return Component.translatable(ClientState.markers ? "screen.justenoughstructures.markers_on" : "screen.justenoughstructures.markers_off")
+                .append("\n").append(Component.translatable(markerKind() == MarkerKind.MOBS ? "screen.justenoughstructures.markers_mobs"
+                        : "screen.justenoughstructures.markers_containers").withStyle(ChatFormatting.GRAY));
     }
 
     /** Only there while the player holds a compass it can open. Ctrl-click is mentioned when the server can do it. */
@@ -2620,14 +2710,17 @@ public class JesScreen extends Screen implements Nav.Page {
         return selected != null && selected.info().hideLootLocations();
     }
 
-    /** Markers mean nothing for a structure whose loot is kept secret, so the button says so instead. */
+    /**
+     * The button says what markers mark now, which changes with the tab; container markers mean
+     * nothing for a structure whose loot is kept secret, so it says so instead.
+     */
     private void updateMarkersButton() {
-        boolean secret = lootSecret();
-        if (secret != markersSecret) {
-            markersSecret = secret;
+        String now = markersSecret() + "|" + markerKind();
+        if (!now.equals(markersFor)) {
+            markersFor = now;
             markersButton.setLabel(markersLabel());
         }
-        markersButton.active = !secret;
+        markersButton.active = !markersSecret();
     }
 
     private static int clamp(int value, int min, int max) {

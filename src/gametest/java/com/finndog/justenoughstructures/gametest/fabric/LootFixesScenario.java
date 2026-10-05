@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -77,7 +78,11 @@ final class LootFixesScenario {
                 .then(run(() -> browser(mc).result().snapshot().containers().stream().filter(c -> c.source() != null).findFirst()
                         .ifPresent(browser(mc)::openContainer)))
                 .then(pause(30))
-                .then(moveTo(() -> browser(mc).popupLink("change"), 8))
+                .then(moveTo(() -> browser(mc).popupLink("tools_container"), 8))
+                .then(click())
+                .then(until(() -> mc.screen instanceof PackToolsScreen tools && tools.loaded(), 400))
+                .then(pause(20))
+                .then(moveTo(() -> mc.screen instanceof PackToolsScreen tools && tools.buttonAt("Change") != null ? tools.buttonAt("Change") : new int[]{0, 0}, 8))
                 .then(click())
                 .then(until(() -> picker(mc) != null, 40))
                 .then(type("nosuchmod:chests/nothing_here", 1))

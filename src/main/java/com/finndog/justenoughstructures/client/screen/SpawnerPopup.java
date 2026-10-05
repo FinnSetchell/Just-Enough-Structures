@@ -34,8 +34,6 @@ final class SpawnerPopup {
 
     /** What the links on the popup do. */
     enum Action {
-        /** Give the spawner another mob, while picking a spawner for Pack tools. */
-        CHANGE,
         /** Open the spawner in Pack tools. */
         TOOLS
     }
@@ -55,7 +53,10 @@ final class SpawnerPopup {
     private final Component timing;
     /** Whether this player sees Pack tools: its shortcut, and what a changed spawner made before. */
     final boolean packTools = ClientRequests.showsPackTools();
-    /** Set while the player is picking a spawner for Pack tools to change: the popup offers Change. */
+    /**
+     * Set while the player is picking a spawner for Pack tools to change: the button that opens it in
+     * Pack tools is pointed out, so it's learnt as the way to change one.
+     */
     boolean picking;
     int x;
     int y;
@@ -211,9 +212,7 @@ final class SpawnerPopup {
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.spawner.spawns").getString(), x + 7,
                 cy + (ICON - Gui.fineLine(font)) / 2, Gui.LABEL_SOFT);
         int iconRight = x + WIDTH - 7;
-        if (picking) {
-            changeLink(g, font, iconRight, cy + (ICON - Gui.fineLine(font)) / 2, mouseX, mouseY);
-        } else if (packTools) {
+        if (packTools || picking) {
             toolsIcon(g, iconRight, cy, mouseX, mouseY);
         }
         cy += ICON + 2;
@@ -267,32 +266,17 @@ final class SpawnerPopup {
         Gui.endScissor(g);
     }
 
-    /** Change, while picking a spawner for Pack tools: on to the mob picker, or why it can't be. */
-    private void changeLink(GuiGraphics g, Font font, int right, int top, int mouseX, int mouseY) {
-        String text = Component.translatable("screen.justenoughstructures.container.change").getString();
-        int w = Gui.fineWidth(font, text);
-        int left = right - w;
-        boolean over = mouseX >= left && mouseX < right && mouseY >= top - 1 && mouseY < top + Gui.fineLine(font) + 1;
-        if (overview() || spawner.source() == null) {
-            Gui.fine(g, font, text, left, top, Gui.LABEL_SOFT);
-            if (over) {
-                hoveredTip = overview() ? pickOne() : List.of(Component.translatable("screen.justenoughstructures.tools.spawner_code_note"));
-            }
-            return;
-        }
-        Gui.fine(g, font, text, left, top, over ? 0xFF2040C0 : 0xFF3A55A0);
-        if (over) {
-            g.fill(left, top + Gui.fineLine(font), right, top + Gui.fineLine(font) + 1, 0xFF2040C0);
-            hoveredTip = List.of(Component.translatable("screen.justenoughstructures.spawner.change_hint"));
-        }
-        links.put(Action.CHANGE, new int[]{left, top - 1, w, Gui.fineLine(font) + 2});
-    }
-
-    /** The spawner with a small wrench on it, that opens it in Pack tools, or greyed out until one is picked. */
+    /**
+     * The spawner with a small wrench on it, that opens it in Pack tools, or greyed out until one is
+     * picked. While picking a spawner to change, it's pointed out as the one to use.
+     */
     private void toolsIcon(GuiGraphics g, int right, int top, int mouseX, int mouseY) {
         int left = right - ICON;
         boolean enabled = !overview();
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
+        if (picking && enabled) {
+            ChestPopup.pointOut(g, left, top, ICON);
+        }
         if (over) {
             if (enabled) {
                 g.fill(left, top, right, top + ICON, 0xFF555555);

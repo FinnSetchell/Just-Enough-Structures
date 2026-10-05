@@ -40,9 +40,13 @@ final class ContainerScenario {
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() != null)))
                 .then(pause(40))
-                .then(moveTo(() -> link(mc, "change"), 10))
+                .then(moveTo(() -> link(mc, "tools_container"), 10))
                 .then(pause(10))
                 .then(shoot("k01_change_link"))
+                .then(click())
+                .then(until(() -> tools(mc) != null && tools(mc).loaded(), 400))
+                .then(pause(20))
+                .then(moveTo(() -> button(mc, "Change"), 10))
                 .then(click())
                 .then(until(() -> picker(mc) != null, 40))
                 .then(until(() -> picker(mc).ready(), 3600))
@@ -75,7 +79,7 @@ final class ContainerScenario {
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() == null && c.lootTable() != null)))
                 .then(pause(40))
-                .then(moveTo(() -> link(mc, "change"), 10))
+                .then(moveTo(() -> link(mc, "tools_container"), 10))
                 .then(pause(10))
                 .then(shoot("k07_edit_table"));
         return d;
