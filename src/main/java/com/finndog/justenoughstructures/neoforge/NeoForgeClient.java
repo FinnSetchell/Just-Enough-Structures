@@ -3,7 +3,9 @@ package com.finndog.justenoughstructures.neoforge;
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.JesClient;
+//? if cloth_config {
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
+//?}
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.JesPayload;
@@ -73,12 +75,16 @@ final class NeoForgeClient {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> JesClient.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
 
+        //? if explorers_compass {
         if (ModList.get().isLoaded("explorerscompass")) {
             NeoForgeExplorersCompass.register();
         }
+        //?}
+        //? if cloth_config {
         // NeoForge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
         if (ModList.get().isLoaded("cloth_config")) {
             container.registerExtensionPoint(IConfigScreenFactory.class, (IConfigScreenFactory) (mod, parent) -> JesConfigScreen.create(parent));
         }
+        //?}
     }
 }

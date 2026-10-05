@@ -2,7 +2,9 @@ package com.finndog.justenoughstructures.neoforge;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+//? if explorers_compass {
 import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassSearch;
+//?}
 import com.finndog.justenoughstructures.server.JesCommands;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
@@ -39,9 +41,11 @@ public final class JustEnoughStructuresNeoForge {
                 .collect(Collectors.toMap(IModInfo::getModId, mod -> mod.getVersion().toString(), (a, b) -> a)));
         JustEnoughStructures.init();
         NeoForgeNetworking.register(modBus);
+        //? if explorers_compass {
         if (ModList.get().isLoaded("explorerscompass")) {
             ExplorersCompassSearch.install();
         }
+        //?}
         NeoForgePermissions.install();
 
         NeoForge.EVENT_BUS.addListener((RegisterCommandsEvent event) -> JesCommands.register(event.getDispatcher()));

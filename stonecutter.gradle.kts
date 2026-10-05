@@ -14,8 +14,14 @@ stonecutter parameters {
     }
 
     // `//? if fabric {` and friends, for the few places loader code shares a file with common code.
+    // Likewise `//? if cloth_config {` and the rest for each mod JES links up with: a node only builds
+    // the pages and links for those that have a build for its version and loader, by their version
+    // being set in stonecutter.properties.toml.
     constants {
         match(loader, "fabric", "forge", "neoforge")
+        for (mod in listOf("jei", "emi", "rei", "cloth_config", "explorers_compass", "modmenu")) {
+            put(mod, !properties.getOrNull<String>("deps.$mod").isNullOrEmpty())
+        }
     }
 
     replacements {

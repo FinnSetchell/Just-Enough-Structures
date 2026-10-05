@@ -108,3 +108,27 @@ deps.emi = "5sIPA1To"
 deps.rei = "b8gfS9Je"
 deps.architectury = "1IiqEQGl"
 deps.explorers_compass = "hIJ2Ev1Q"
+
+# ------------------------------------------------------------------ 26.1.2 (Java 25, unobfuscated)
+["26.1.2"]
+mod.java = "25"
+
+[fabric."26.1.2"]
+mod.mc_build = "26.1.2"
+# 26.1, 26.1.1 and 26.1.2 are the same game to a mod.
+mod.mc_compat = "~26.1"
+mod.fabric_loader_dep = ">=0.15.0"
+deps.fabric_loader = "0.19.5"
+deps.fabric_api = "0.155.3+26.1.2"
+deps.modmenu = "18.0.2"
+deps.cloth_config = "26.1.154"
+deps.jei = "29.34.0.90"
+# Modrinth version ids: JEI 29.34.0.90 and the config library it needs, REI 26.1.819, Architectury
+# 20.1.16 and Explorer's Compass 2.5.1. EMI has no build for 26.1.
+deps.jei_runtime = "jZ7OgHsw"
+deps.jei_config = "H7JmEX05"
+deps.emi = ""
+deps.rei = "EAlqUmgQ"
+deps.architectury = "Y7kRthh0"
+deps.explorers_compass = "FN4lCamU"
+

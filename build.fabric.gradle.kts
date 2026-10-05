@@ -16,9 +16,23 @@ val mcBuild: String = prop("mod.mc_build")
 version = property("mod_version").toString()
 base.archivesName = "${property("archives_base_name")}-fabric-$mcBuild"
 
+// The mods JES links up with that have no build for this version and loader are left out: their
+// version is blank in stonecutter.properties.toml, this keeps their code out of the build, and
+// `//? if <name>` leaves out what refers to it.
+fun has(mod: String) = !sc.properties.getOrNull<String>("deps.$mod").isNullOrEmpty()
+val withoutIntegrations = buildList {
+    if (!has("jei")) add("**/compat/jei/**")
+    if (!has("emi")) add("**/compat/emi/**")
+    if (!has("rei")) addAll(listOf("**/compat/rei/**", "**/*ReiForgePlugin.java", "**/*ReiNeoForgePlugin.java"))
+    if (!has("cloth_config")) add("**/compat/cloth/**")
+    if (!has("explorers_compass")) addAll(listOf("**/compat/explorerscompass/**", "**/*ExplorersCompass.java"))
+    if (!has("modmenu") || !has("cloth_config")) add("**/fabric/JesModMenu.java")
+}
+
 sourceSets.main {
     // Loader code sits in fabric/forge/neoforge packages; each loader compiles only its own.
     java.exclude("**/forge/**", "**/neoforge/**")
+    java.exclude(withoutIntegrations)
     resources.srcDir(rootProject.file("src/fabric/resources"))
 }
 
@@ -84,6 +98,25 @@ val devMods = mapOf(
         "moogs-structure-lib:wwRK5XgA", "yungs-api:9rzwORd6", "cristel-lib:K1dyr5gj", "cloth-config:HpMb5wGb",
         "resourceful-config:dQh99ERC", "midnightlib:as2ZKoB1",
     ),
+    "26.1.2" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // YUNG's
+        "yungs-better-dungeons:ZAy29qXU", "yungs-better-mineshafts:PCdPUNQs", "yungs-better-strongholds:aYR5vkpj",
+        "yungs-better-ocean-monuments:8ZhDJBgB", "yungs-better-desert-temples:8MkDZkJA", "yungs-better-jungle-temples:h8i7nZ2w",
+        "yungs-better-witch-huts:HEnkLCGz", "yungs-better-nether-fortresses:itXNeE2A", "yungs-better-end-island:382LcHvk",
+        "yungs-bridges:Emt3LgQS", "yungs-extras:LxlVkvKv",
+        // Other big structure mods. Repurposed Structures and When Dungeons Arise have no 26.1 build.
+        "towns-and-towers:eN3WLQ3P", "structory:TUbwu7eG", "structory-towers:ziO4YIv1", "dungeons-and-taverns:Su1qplQ7",
+        "explorify:CuBdAr31",
+        // Structure compass
+        "explorers-compass:FN4lCamU",
+        // Libraries the above need
+        "moogs-structure-lib:SbVBqJiu", "yungs-api:lmLenYfY", "cristel-lib:JDTs3eQM", "cloth-config:GFM8zh9J",
+        "resourceful-config:GMW14IUd", "midnightlib:jcj4Ev6D",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
@@ -97,33 +130,35 @@ dependencies {
     modImplementation("net.fabricmc:fabric-loader:${prop("deps.fabric_loader")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${prop("deps.fabric_api")}")
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
-    modCompileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
+    if (has("jei")) modCompileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
     // The settings screen: Mod Menu opens it and Cloth Config draws it. Both optional.
-    modCompileOnly("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
-    modCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${prop("deps.cloth_config")}") {
+    if (has("modmenu")) modCompileOnly("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
+    if (has("cloth_config")) modCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${prop("deps.cloth_config")}") {
         exclude(group = "net.fabricmc.fabric-api")
     }
     // Likewise Explorer's Compass, which has no API: the link calls its own search.
-    modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
+    if (has("explorers_compass")) modCompileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
     // And the EMI and REI pages.
-    modCompileOnly("maven.modrinth:emi:${prop("deps.emi")}")
-    modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
-    modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+    if (has("emi")) modCompileOnly("maven.modrinth:emi:${prop("deps.emi")}")
+    if (has("rei")) {
+        modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
+        modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+    }
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
-        when (viewer) {
-            "emi" -> modLocalRuntime("maven.modrinth:emi:${prop("deps.emi")}")
-            "rei" -> {
+        when {
+            viewer == "emi" && has("emi") -> modLocalRuntime("maven.modrinth:emi:${prop("deps.emi")}")
+            viewer == "rei" && has("rei") -> {
                 modLocalRuntime("maven.modrinth:rei:${prop("deps.rei")}")
                 modLocalRuntime("maven.modrinth:architectury-api:${prop("deps.architectury")}")
             }
-            else -> {
+            has("jei") -> {
                 modLocalRuntime("maven.modrinth:jei:${prop("deps.jei_runtime")}")
                 prop("deps.jei_config").takeIf { it.isNotEmpty() }?.let { modLocalRuntime("maven.modrinth:mezzconfig:$it") }
             }
         }
-        modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
+        if (has("modmenu")) modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
         // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:
         // YUNG's (Reflections), Cristel Lib (Jankson) and Cloth Config (basic-math).
         localRuntime("org.reflections:reflections:0.10.2")
@@ -213,6 +248,25 @@ tasks {
         )
         props.forEach { (k, v) -> inputs.property(k, v) }
         filesMatching(listOf("fabric.mod.json", "*.mixins.json")) { expand(props) }
+        // Entrypoints and suggestions for the mods this node leaves out, by entrypoint and mod id.
+        val dropped = buildMap {
+            if (!has("jei")) put("jei_mod_plugin", "jei")
+            if (!has("emi")) put("emi", "emi")
+            if (!has("rei")) put("rei_client", "roughlyenoughitems")
+            if (!has("modmenu") || !has("cloth_config")) put("modmenu", "modmenu")
+        }
+        val unsuggested = dropped.values + listOfNotNull("explorerscompass".takeIf { !has("explorers_compass") },
+            "cloth-config".takeIf { !has("cloth_config") })
+        inputs.property("dropped", dropped.keys.joinToString() + "|" + unsuggested.joinToString())
+        doLast {
+            if (dropped.isEmpty() && unsuggested.isEmpty()) return@doLast
+            val file = destinationDir.resolve("fabric.mod.json")
+            @Suppress("UNCHECKED_CAST")
+            val json = groovy.json.JsonSlurper().parse(file) as MutableMap<String, Any?>
+            (json["entrypoints"] as MutableMap<*, *>).keys.removeAll(dropped.keys)
+            (json["suggests"] as MutableMap<*, *>).keys.removeAll(unsuggested.toSet())
+            file.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)))
+        }
     }
 
     jar {

@@ -23,15 +23,23 @@ val nodeName: String = project.name
 version = property("mod_version").toString()
 base.archivesName = "${property("archives_base_name")}-forge-$mcBuild"
 
-// Recipe viewers with no Forge build for this version are left out, pages and all.
-val withEmi = prop("deps.emi").isNotEmpty()
-val withRei = prop("deps.rei").isNotEmpty()
+// The mods JES links up with that have no build for this version and loader are left out: their
+// version is blank in stonecutter.properties.toml, this keeps their code out of the build, and
+// `//? if <name>` leaves out what refers to it.
+fun has(mod: String) = !sc.properties.getOrNull<String>("deps.$mod").isNullOrEmpty()
+val withoutIntegrations = buildList {
+    if (!has("jei")) add("**/compat/jei/**")
+    if (!has("emi")) add("**/compat/emi/**")
+    if (!has("rei")) addAll(listOf("**/compat/rei/**", "**/*ReiForgePlugin.java", "**/*ReiNeoForgePlugin.java"))
+    if (!has("cloth_config")) add("**/compat/cloth/**")
+    if (!has("explorers_compass")) addAll(listOf("**/compat/explorerscompass/**", "**/*ExplorersCompass.java"))
+    if (!has("modmenu") || !has("cloth_config")) add("**/fabric/JesModMenu.java")
+}
 
 sourceSets.main {
     // Loader code sits in fabric/forge/neoforge packages; each loader compiles only its own.
     java.exclude("**/fabric/**", "**/neoforge/**")
-    if (!withEmi) java.exclude("**/compat/emi/**")
-    if (!withRei) java.exclude("**/compat/rei/**", "**/forge/JesReiForgePlugin.java")
+    java.exclude(withoutIntegrations)
     resources.srcDir(rootProject.file("src/forge/resources"))
 }
 
@@ -151,16 +159,16 @@ dependencies {
     "jarJar"("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
 
     // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
-    compileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
+    if (has("jei")) compileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
     // The settings screen, drawn by Cloth Config when it's installed.
-    compileOnly("me.shedaniel.cloth:cloth-config-forge:${prop("deps.cloth_config")}") { isTransitive = false }
+    if (has("cloth_config")) compileOnly("me.shedaniel.cloth:cloth-config-forge:${prop("deps.cloth_config")}") { isTransitive = false }
     // Explorer's Compass has no API: the link calls its own search.
-    compileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
+    if (has("explorers_compass")) compileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { runtimeOnly("maven.modrinth:$it") }
         // Just the one jar, which holds all of JEI: the parts it also lists would be the same packages twice.
-        runtimeOnly("mezz.jei:jei-$mcBuild-forge:${prop("deps.jei")}") { isTransitive = false }
+        if (has("jei")) runtimeOnly("mezz.jei:jei-$mcBuild-forge:${prop("deps.jei")}") { isTransitive = false }
     }
 }
 

@@ -12,8 +12,10 @@ public final class JustEnoughStructuresFabricClient implements ClientModInitiali
         FabricClientNetworking.registerClient();
         KeyBindingHelper.registerKeyBinding(JesClient.OPEN);
         ClientTickEvents.END_CLIENT_TICK.register(JesClient::tick);
+        //? if explorers_compass {
         if (FabricLoader.getInstance().isModLoaded("explorerscompass")) {
             FabricExplorersCompass.register();
         }
+        //?}
     }
 }

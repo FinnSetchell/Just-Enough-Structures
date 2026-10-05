@@ -2,7 +2,9 @@ package com.finndog.justenoughstructures.forge;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+//? if explorers_compass {
 import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassSearch;
+//?}
 import com.finndog.justenoughstructures.server.JesCommands;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
@@ -38,9 +40,11 @@ public final class JustEnoughStructuresForge {
                 .collect(Collectors.toMap(IModInfo::getModId, mod -> mod.getVersion().toString(), (a, b) -> a)));
         JustEnoughStructures.init();
         ForgeNetworking.register();
+        //? if explorers_compass {
         if (ModList.get().isLoaded("explorerscompass")) {
             ExplorersCompassSearch.install();
         }
+        //?}
         ForgePermissions.install();
 
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent event) -> JesCommands.register(event.getDispatcher()));

@@ -3,7 +3,9 @@ package com.finndog.justenoughstructures.forge;
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.JesClient;
+//? if cloth_config {
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
+//?}
 import com.finndog.justenoughstructures.network.Blobs;
 import java.util.Collection;
 import java.util.List;
@@ -75,14 +77,18 @@ final class ForgeClient {
         });
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
 
+        //? if explorers_compass {
         if (ModList.get().isLoaded("explorerscompass")) {
             ForgeExplorersCompass.register();
         }
+        //?}
+        //? if cloth_config {
         // Forge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
         if (ModList.get().isLoaded("cloth_config")) {
             ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
                     () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, parent) -> JesConfigScreen.create(parent)));
         }
+        //?}
     }
 
     private static Connection connection() {

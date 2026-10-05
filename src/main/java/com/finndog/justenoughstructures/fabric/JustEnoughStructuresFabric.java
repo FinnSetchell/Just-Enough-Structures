@@ -1,7 +1,9 @@
 package com.finndog.justenoughstructures.fabric;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+//? if explorers_compass {
 import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassSearch;
+//?}
 import com.finndog.justenoughstructures.server.JesCommands;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
 import net.fabricmc.api.ModInitializer;
@@ -22,9 +24,11 @@ public final class JustEnoughStructuresFabric implements ModInitializer {
                 .collect(Collectors.toMap(mod -> mod.getMetadata().getId(), mod -> mod.getMetadata().getVersion().getFriendlyString(), (a, b) -> a)));
         JustEnoughStructures.init();
         FabricNetworking.registerServer();
+        //? if explorers_compass {
         if (FabricLoader.getInstance().isModLoaded("explorerscompass")) {
             ExplorersCompassSearch.install();
         }
+        //?}
         FabricPermissions.install();
         CommandRegistrationCallback.EVENT.register((dispatcher, registries, environment) -> JesCommands.register(dispatcher));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> PackToolsAccess.joined(handler.getPlayer()));
