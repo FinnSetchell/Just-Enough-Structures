@@ -1472,14 +1472,23 @@ public class JesScreen extends Screen implements Nav.Page {
         restorePlace(new BrowserLayer(ref.structure(), ref.seed(), InfoPanel.Tab.LOOT, ref.table(), null, open, Component.empty(), Picking.NONE), true);
     }
 
-    /** Where a tab on the open chest popup is ("roll" or "odds"), for the screenshot harness, or null. */
+    /**
+     * Where a tab or link on the open popup is, for the screenshot harness, or null: "roll", "odds",
+     * "tools_container" or "tools_table" on a chest's, "tools" on a spawner's.
+     */
     public int[] popupLink(String name) {
-        if (popup == null) {
-            return null;
+        if (popup != null) {
+            for (ChestPopup.Action action : ChestPopup.Action.values()) {
+                if (action.name().equalsIgnoreCase(name)) {
+                    return popup.linkCentre(action);
+                }
+            }
         }
-        for (ChestPopup.Action action : ChestPopup.Action.values()) {
-            if (action.name().equalsIgnoreCase(name)) {
-                return popup.linkCentre(action);
+        if (spawnerPopup != null) {
+            for (SpawnerPopup.Action action : SpawnerPopup.Action.values()) {
+                if (action.name().equalsIgnoreCase(name)) {
+                    return spawnerPopup.linkCentre(action);
+                }
             }
         }
         return null;
