@@ -100,6 +100,8 @@ final class InfoPanel {
     /** Opens a spawner, and whether it was picked from a row standing for several. */
     private BiConsumer<StructureSnapshot.Spawner, Boolean> onOpenSpawner = (spawner, group) -> {
     };
+    private Consumer<String> onOpenMobs = type -> {
+    };
     private Runnable beforeMove = () -> {
     };
 
@@ -194,6 +196,11 @@ final class InfoPanel {
     /** What clicking a row of spawners on the Mobs tab does: opens them in a popup, one at a time. */
     void onOpenSpawner(BiConsumer<StructureSnapshot.Spawner, Boolean> action) {
         onOpenSpawner = action;
+    }
+
+    /** Told the entity id of a row of placed mobs clicked on the Mobs tab, to open all of that kind. */
+    void onOpenMobs(Consumer<String> action) {
+        onOpenMobs = action;
     }
 
     /** Told just before the panel moves somewhere else, like another tab, so Back can return. */
@@ -1215,7 +1222,7 @@ final class InfoPanel {
         if (placed.isEmpty() && byKind.isEmpty() && overTime.isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
-        cy = mobSection(g, cy, "placed", placed, true);
+        cy = placedSection(g, cy, placed, mouseX, mouseY, clipTop, clipHeight);
         // For Pack tools: what the spawners of a row made before a dev gave them this mob.
         Map<String, String> changedFrom = new HashMap<>();
         if (ClientRequests.showsPackTools()) {
@@ -1292,6 +1299,44 @@ final class InfoPanel {
         }
         StructureSnapshot.Spawner first = spawners.get(0);
         hotspots.add(new Hotspot(x, top, contentRight - x, bottom - top, () -> onOpenSpawner.accept(first, spawners.size() > 1)));
+    }
+
+    /**
+     * What the structure places, a row for each kind: it shows them in the preview while it's
+     * hovered, and opens them when clicked, to step through one at a time.
+     */
+    private int placedSection(GuiGraphics g, int cy, Map<String, Integer> placed, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        if (placed.isEmpty()) {
+            return cy;
+        }
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_placed").getString(), x, cy, contentRight - x, 13);
+        cy += 16;
+        for (Map.Entry<String, Integer> e : placed.entrySet()) {
+            String type = e.getKey();
+            String key = "placed:" + type;
+            int top = cy;
+            boolean over = inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
+            cy = mobRow(g, cy, type, Component.translatable("screen.justenoughstructures.times", e.getValue()).getString(), over, true);
+            highlightRows.put(key, new int[]{x + (contentRight - x) / 2, cy - 12});
+            if (over) {
+                hoveredBlocks = new Hovered(key, s -> mobPositions(s, type));
+            }
+            hotspots.add(new Hotspot(x, top, contentRight - x, cy - top, () -> onOpenMobs.accept(type)));
+        }
+        return cy + 4;
+    }
+
+    /** Where each mob of a kind is, as the block its middle is in, the way the preview marks them. */
+    private static LongSet mobPositions(StructureSnapshot s, String type) {
+        float height = EntityType.byString(type).map(t -> t.getDimensions().height).orElse(1f);
+        LongSet out = new LongOpenHashSet();
+        for (CompoundTag tag : s.entities()) {
+            if (tag.getString("id").equals(type)) {
+                ListTag pos = tag.getList("Pos", Tag.TAG_DOUBLE);
+                out.add(BlockPos.containing(pos.getDouble(0), pos.getDouble(1) + height / 2, pos.getDouble(2)).asLong());
+            }
+        }
+        return out;
     }
 
     private int mobSection(GuiGraphics g, int cy, String key, Map<String, Integer> mobs, boolean counts) {

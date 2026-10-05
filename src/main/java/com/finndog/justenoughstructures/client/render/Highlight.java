@@ -37,6 +37,8 @@ public final class Highlight implements AutoCloseable {
     private static BufferBuilder edgeBuilder;
 
     private final LongSet positions;
+    /** False for mobs, which their markers light up instead: a block-sized box would hide them. */
+    private final boolean tinted;
     private VertexBuffer fill;
     private VertexBuffer edges;
     private int builtForSlice = -1;
@@ -44,7 +46,13 @@ public final class Highlight implements AutoCloseable {
 
     /** {@code positions} are {@link BlockPos#asLong} of positions in the structure. */
     public Highlight(LongSet positions) {
+        this(positions, true);
+    }
+
+    /** With {@code tinted} false, nothing is drawn: the positions only light up markers. */
+    public Highlight(LongSet positions, boolean tinted) {
         this.positions = positions;
+        this.tinted = tinted;
     }
 
     public boolean contains(BlockPos pos) {
@@ -57,6 +65,9 @@ public final class Highlight implements AutoCloseable {
     }
 
     void draw(Matrix4f viewMatrix, Matrix4f projection, int slice) {
+        if (!tinted) {
+            return;
+        }
         if (builtForSlice != slice) {
             build(slice);
         }

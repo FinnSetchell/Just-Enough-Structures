@@ -123,6 +123,33 @@ public final class StructureViewport implements AutoCloseable {
         return new Camera(yaw, pitch, distance, focus.x, focus.y, focus.z);
     }
 
+    /**
+     * Whether a solid block below {@code slice} stands between where {@code camera} sees from and the
+     * point it looks at, leaving out the block at {@code target}, which is what's being looked at: a
+     * shulker in an End City room, seen from outside, is behind the roof.
+     */
+    public boolean blocked(Camera camera, BlockPos target, int slice) {
+        if (view == null) {
+            return false;
+        }
+        Vector3f eye = new Matrix4f()
+                .translate(0, 0, -camera.distance())
+                .rotateX((float) Math.toRadians(camera.pitch()))
+                .rotateY((float) Math.toRadians(camera.yaw()))
+                .translate(-camera.focusX(), -camera.focusY(), -camera.focusZ())
+                .invert().transformPosition(new Vector3f());
+        Vec3 from = new Vec3(eye.x(), eye.y(), eye.z());
+        Vec3 to = new Vec3(camera.focusX(), camera.focusY(), camera.focusZ());
+        Boolean hit = BlockGetter.traverseBlocks(from, to, (Object) null, (ctx, pos) -> {
+            if (pos.getY() >= slice || pos.equals(target)) {
+                return null;
+            }
+            BlockState state = view.rawState(pos.getX(), pos.getY(), pos.getZ());
+            return state.isSolidRender(view, pos) ? Boolean.TRUE : null;
+        }, ctx -> null);
+        return hit != null;
+    }
+
     /** Moves the camera smoothly, over a fraction of a second, to where {@code to} has it. */
     public void glideTo(Camera to) {
         glide = to;

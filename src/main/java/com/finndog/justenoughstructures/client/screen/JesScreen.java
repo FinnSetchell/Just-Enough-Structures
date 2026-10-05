@@ -53,6 +53,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -110,6 +111,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private ChestPopup popup;
     /** A spawner's popup. Only one popup is open at a time, this or {@link #popup}. */
     private SpawnerPopup spawnerPopup;
+    private MobPopup mobPopup;
     private FoundInPopup foundIn;
     private String pendingTable;
     /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
@@ -140,6 +142,8 @@ public class JesScreen extends Screen implements Nav.Page {
     private CompletableFuture<Codecs.CaptureReply> capturing;
     /** The camera before the popup's arrows turned it to a container, to go back to when the popup closes. */
     private StructureViewport.Camera tourFrom;
+    /** The layers showing when the popup's arrows first turned the camera, to put back when it closes, or -1. */
+    private int tourSlice = -1;
     /** Set when the preview changed size while a popup had the camera, so closing it fits the structure to the new size. */
     private boolean refitAfterTour;
     /** How far from a container the arrows bring the camera, the same for every one. */
@@ -222,6 +226,21 @@ public class JesScreen extends Screen implements Nav.Page {
             return spots.stream().anyMatch(spot -> spot.pos().equals(pos));
         }
 
+        boolean marks(Entity mob) {
+            return spots.stream().anyMatch(spot -> spot.what() == mob);
+        }
+
+        /** The mobs it stands for. */
+        List<Entity> mobs() {
+            List<Entity> out = new ArrayList<>();
+            spots.forEach(spot -> {
+                if (spot.what() instanceof Entity mob) {
+                    out.add(mob);
+                }
+            });
+            return out;
+        }
+
         boolean contains(double mouseX, double mouseY) {
             return mouseX >= x && mouseX < x + size && mouseY >= y && mouseY < y + size;
         }
@@ -251,6 +270,7 @@ public class JesScreen extends Screen implements Nav.Page {
             info = new InfoPanel(font, this::selectTable, this::openContainer, this::openFoundIn);
             info.onOpenTable(this::openTable);
             info.onOpenSpawner(this::openSpawnerPopup);
+            info.onOpenMobs(this::openMobs);
             info.onMove(Nav::remember);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
@@ -396,8 +416,8 @@ public class JesScreen extends Screen implements Nav.Page {
         if (foundIn != null) {
             foundIn.place(width, height);
         }
-        if (spawnerPopup != null) {
-            spawnerPopup.placeAt(besideX(SpawnerPopup.WIDTH), height, font);
+        if (side() != null) {
+            side().placeAt(besideX(SidePopup.WIDTH), height, font);
         }
         layoutPopupButtons();
 
@@ -786,6 +806,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private void showContainer(StructureSnapshot.Container container, boolean all) {
         List<StructureSnapshot.Container> same = sameTable(container);
         spawnerPopup = null;
+        mobPopup = null;
         ChestPopup previous = popup;
         ChestPopup.View keep = previous != null && previous.container != null ? previous.view : ChestPopup.View.ROLL;
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container),
@@ -841,19 +862,42 @@ public class JesScreen extends Screen implements Nav.Page {
      * time, so it's clear which one it is and dragging the preview turns around it.
      */
     private void lookAt(BlockPos pos) {
+        lookAt(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, pos, pos.getY() + 1);
+    }
+
+    /** The same for a mob, turning to its middle. */
+    private void lookAt(Entity mob) {
+        lookAt(mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ(), null, (int) Math.ceil(mob.getY() + mob.getBbHeight()));
+    }
+
+    /**
+     * Turns the camera to x, y, z, where {@code target} is when it's a block. {@code top} is the layer
+     * just above it, which the layers are cut down to when, from where the camera ends up, something
+     * solid is in the way: a shulker in an End City room is behind the roof. Otherwise the layers stay
+     * as the player left them, or all show if they hid it.
+     */
+    private void lookAt(double x, double y, double z, BlockPos target, int top) {
         if (view == null) {
             return;
-        }
-        if (pos.getY() >= view.sliceY()) {
-            // Hidden by the layer slider: show everything again.
-            view.setSliceY(view.size().getY());
-            updateSlider();
         }
         StructureViewport.Camera now = viewport.camera();
         if (tourFrom == null) {
             tourFrom = now;
+            tourSlice = view.sliceY();
         }
-        viewport.glideTo(new StructureViewport.Camera(now.yaw(), now.pitch(), TOUR_DISTANCE, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f));
+        StructureViewport.Camera to = new StructureViewport.Camera(now.yaw(), now.pitch(), TOUR_DISTANCE, (float) x, (float) y, (float) z);
+        int keep = top > tourSlice ? view.size().getY() : tourSlice;
+        int slice = viewport.blocked(to, target, keep) ? top : keep;
+        if (slice != view.sliceY()) {
+            view.setSliceY(slice);
+            updateSlider();
+        }
+        viewport.glideTo(to);
+    }
+
+    /** The block a mob's middle is in, which stands for where it is, as a block does for a container. */
+    private static BlockPos mobBlock(Entity mob) {
+        return BlockPos.containing(mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ());
     }
 
     /** Opens a loot table this layout doesn't have in a popup on its own: its chances, and a roll of it. */
@@ -909,6 +953,10 @@ public class JesScreen extends Screen implements Nav.Page {
             stepSpawner(direction);
             return;
         }
+        if (mobPopup != null) {
+            stepMob(direction);
+            return;
+        }
         if (popup == null || popup.container == null) {
             return;
         }
@@ -956,6 +1004,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private void showSpawner(StructureSnapshot.Spawner spawner, boolean all) {
         List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawner);
         popup = null;
+        mobPopup = null;
         BlockPos pos = spawner.pos();
         Component title = view != null ? view.rawState(pos.getX(), pos.getY(), pos.getZ()).getBlock().getName()
                 : Component.translatable("block.minecraft.spawner");
@@ -981,6 +1030,80 @@ public class JesScreen extends Screen implements Nav.Page {
         if (action == SpawnerPopup.Action.TOOLS) {
             openSpawner(open.spawner);
         }
+    }
+
+    /**
+     * Opens a mob the structure places, from the preview or the Mobs tab. With {@code group}, it was
+     * picked from something standing for every one of its kind, so it shows all of them until one is
+     * picked.
+     */
+    private void openMobPopup(Entity mob, boolean group) {
+        if (result == null || !result.succeeded() || view == null) {
+            return;
+        }
+        Nav.remember();
+        showMob(mob, group);
+        if (!mobPopup.overview()) {
+            lookAt(mob);
+        }
+    }
+
+    /** Opens a mob's popup, as clicking it in the preview does. For the screenshot harness. */
+    public void openMobPopup(Entity mob) {
+        openMobPopup(mob, false);
+    }
+
+    /** Opens every mob of a kind, as clicking its row on the Mobs tab does. */
+    private void openMobs(String type) {
+        if (view == null) {
+            return;
+        }
+        for (Entity mob : view.entities()) {
+            if (BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString().equals(type)) {
+                openMobPopup(mob, true);
+                return;
+            }
+        }
+    }
+
+    /** Shows a mob, or with {@code all}, every one of its kind, {@code mob} standing for them. */
+    private void showMob(Entity mob, boolean all) {
+        List<Entity> same = sameMobs(mob);
+        popup = null;
+        spawnerPopup = null;
+        mobPopup = new MobPopup(mob, all && same.size() > 1 ? -1 : same.indexOf(mob), same.size());
+        mobPopup.placeAt(besideX(SidePopup.WIDTH), height, font);
+        layoutPopupButtons();
+    }
+
+    private void stepMob(int direction) {
+        if (view == null) {
+            return;
+        }
+        List<Entity> same = sameMobs(mobPopup.mob);
+        if (same.size() > 1) {
+            // From all of them, the first step goes to the first or the last.
+            int at = mobPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(mobPopup.mob);
+            Entity next = same.get(Math.floorMod(at + direction, same.size()));
+            showMob(next, false);
+            lookAt(next);
+        }
+    }
+
+    /** The mobs in the layout of the same kind as {@code mob}, it among them. */
+    private List<Entity> sameMobs(Entity mob) {
+        List<Entity> out = new ArrayList<>();
+        for (Entity other : view.entities()) {
+            if (other.getType() == mob.getType()) {
+                out.add(other);
+            }
+        }
+        return out;
+    }
+
+    /** The spawner's or mob's popup that's open, or null. */
+    private SidePopup side() {
+        return spawnerPopup != null ? spawnerPopup : mobPopup;
     }
 
     /** Shows the structures whose loot can give this item. */
@@ -1035,6 +1158,14 @@ public class JesScreen extends Screen implements Nav.Page {
         }
     }
 
+    /** A mob's popup, found again by its kind and where it is. */
+    private record MobPlace(EntityType<?> type, BlockPos pos, Component title, boolean all) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("mob", BuiltInRegistries.ENTITY_TYPE.getKey(type), pos);
+        }
+    }
+
     private record TablePopup(String table) implements Popup {
         @Override
         public Object key() {
@@ -1077,6 +1208,8 @@ public class JesScreen extends Screen implements Nav.Page {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, container.title());
         } else if (open instanceof SpawnerPlace spawner) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, spawner.title());
+        } else if (open instanceof MobPlace mob) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, mob.title());
         } else if (open instanceof TablePopup table) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, StructureNames.lootTable(table.table()));
         } else if (info.tab() != InfoPanel.Tab.OVERVIEW) {
@@ -1104,6 +1237,9 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (spawnerPopup != null) {
             return new SpawnerPlace(spawnerPopup.spawner.pos(), spawnerPopup.title, spawnerPopup.overview());
+        }
+        if (mobPopup != null) {
+            return new MobPlace(mobPopup.mob.getType(), mobBlock(mobPopup.mob), mobPopup.title, mobPopup.overview());
         }
         if (popup != null) {
             return popup.container != null
@@ -1202,6 +1338,13 @@ public class JesScreen extends Screen implements Nav.Page {
                     return;
                 }
             }
+        } else if (open instanceof MobPlace wanted && result.succeeded() && view != null) {
+            for (Entity mob : view.entities()) {
+                if (mob.getType() == wanted.type() && mobBlock(mob).equals(wanted.pos())) {
+                    showMob(mob, wanted.all());
+                    return;
+                }
+            }
         }
     }
 
@@ -1241,14 +1384,28 @@ public class JesScreen extends Screen implements Nav.Page {
                 }
                 return out;
             };
-        } else if (sides && popup == null && spawnerPopup == null && foundIn == null) {
+        } else if (mobPopup != null && mobPopup.count > 1 && foundIn == null && view != null) {
+            // And for a mob's: every one of its kind but the one on show.
+            Entity anchor = mobPopup.mob;
+            BlockPos showing = mobPopup.overview() ? null : mobBlock(anchor);
+            key = "mob_popup:" + BuiltInRegistries.ENTITY_TYPE.getKey(anchor.getType()) + "|" + showing;
+            List<Entity> same = sameMobs(anchor);
+            wanted = s -> {
+                LongSet out = new LongOpenHashSet();
+                same.forEach(mob -> out.add(mobBlock(mob).asLong()));
+                if (showing != null) {
+                    out.remove(showing.asLong());
+                }
+                return out;
+            };
+        } else if (sides && popup == null && side() == null && foundIn == null) {
             InfoPanel.Hovered hovered = info.hoveredBlocks();
             if (hovered != null) {
                 key = hovered.key();
                 wanted = hovered.positions();
             }
         }
-        if (key == null && picking == Picking.SPAWNER && popup == null && spawnerPopup == null && foundIn == null) {
+        if (key == null && picking == Picking.SPAWNER && popup == null && side() == null && foundIn == null) {
             key = "picking:spawners";
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
@@ -1265,45 +1422,46 @@ public class JesScreen extends Screen implements Nav.Page {
             highlightKey = key;
             highlightFor = shown;
             LongSet positions = wanted.apply(shown);
-            highlight = positions == null || positions.isEmpty() || positions.size() > Highlight.MAX_BLOCKS ? null : new Highlight(positions);
+            // Mobs are found by their markers alone: a block-sized box over one hides it.
+            boolean mobs = key.startsWith("mob_popup:") || key.startsWith("placed:");
+            highlight = positions == null || positions.isEmpty() || positions.size() > Highlight.MAX_BLOCKS ? null : new Highlight(positions, !mobs);
         }
         return highlight;
     }
 
-    /** Up to this many highlighted blocks each get a ring, as they can be a few pixels across from far out. */
-    private static final int RINGED = 64;
+    /** Up to this many highlighted things each get a marker of their own, as from far out they can be a few pixels across. */
+    private static final int MARKED_HIGHLIGHTS = 64;
+    /** The edge of a marker lit up by the mouse or by a row about what it marks. */
+    private static final int LIT = 0xFFFFFF55;
+    /** The edge of the marker for what a popup is showing. */
+    private static final int SHOWING = 0xFFFFFFFF;
 
     /**
-     * A small ring over each of a handful of highlighted blocks, so a lone spawner deep inside a big
-     * structure can still be found. Containers with a marker showing don't need one, as the marker
-     * lights up instead.
+     * A lit marker over each of a handful of highlighted things that have no marker showing, like
+     * every bell while the Blocks tab's row for them is hovered, or spawners while markers are off,
+     * so a lone one deep inside a big structure can still be found.
      */
-    private void ringHighlighted(GuiGraphics g, StructureSnapshot s) {
-        if (highlight == null || highlight.positions().size() > RINGED) {
+    private void markHighlighted(GuiGraphics g) {
+        if (highlight == null || highlight.positions().size() > MARKED_HIGHLIGHTS) {
             return;
         }
         Set<BlockPos> marked = new HashSet<>();
         markerRects.forEach(m -> m.spots().forEach(spot -> marked.add(spot.pos())));
+        Map<BlockPos, Entity> mobs = new HashMap<>();
+        view.entities().forEach(mob -> mobs.putIfAbsent(mobBlock(mob), mob));
+        BlockPos shown = shownPos();
         int slice = view.sliceY();
+        int size = markerSize();
         for (long packed : highlight.positions()) {
             BlockPos pos = BlockPos.of(packed);
-            if (pos.getY() >= slice || marked.contains(pos) || popup != null && popup.container != null && pos.equals(popup.container.pos())
-                    || spawnerPopup != null && pos.equals(spawnerPopup.spawner.pos())) {
+            if (pos.getY() >= slice || marked.contains(pos) || pos.equals(shown)) {
                 continue;
             }
-            Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-            if (at.isEmpty()) {
-                continue;
-            }
-            int cx = Math.round(at.get()[0]);
-            int cy = Math.round(at.get()[1]);
-            for (int[] ring : new int[][]{{5, 0xFF000000}, {4, 0xFFFFE066}, {3, 0xFF000000}}) {
-                int r = ring[0];
-                g.fill(cx - r, cy - r, cx + r, cy - r + 1, ring[1]);
-                g.fill(cx - r, cy + r - 1, cx + r, cy + r, ring[1]);
-                g.fill(cx - r, cy - r, cx - r + 1, cy + r, ring[1]);
-                g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
-            }
+            Entity mob = mobs.get(pos);
+            ItemStack icon = mob != null ? mobIcon(mob) : new ItemStack(view.rawState(pos.getX(), pos.getY(), pos.getZ()).getBlock());
+            Optional<float[]> at = mob != null ? viewport.project(mob.getX(), mob.getY() + mob.getBbHeight() + 0.2, mob.getZ())
+                    : viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
+            at.ifPresent(p -> drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, LIT, 1));
         }
     }
 
@@ -1316,45 +1474,82 @@ public class JesScreen extends Screen implements Nav.Page {
         g.fill(x + w, y, width, y + h, shade);
     }
 
-    /**
-     * The spawner a popup is showing, or the container when it has no marker to light up white: the
-     * same small ring the others get, in white.
-     */
-    private void ringPopupContainer(GuiGraphics g) {
-        BlockPos pos;
+    /** Where the container, spawner or mob a popup is showing is, or null. */
+    private BlockPos shownPos() {
         if (spawnerPopup != null && !spawnerPopup.overview()) {
-            pos = spawnerPopup.spawner.pos();
-            for (Marker m : markerRects) {
-                if (m.spawner() != null && m.marks(pos)) {
-                    return;
-                }
+            return spawnerPopup.spawner.pos();
+        }
+        if (mobPopup != null && !mobPopup.overview()) {
+            return mobBlock(mobPopup.mob);
+        }
+        if (popup != null && popup.container != null && !popup.overview()) {
+            return popup.container.pos();
+        }
+        return null;
+    }
+
+    /**
+     * The container, spawner or mob a popup is showing gets a marker edged in white, when markers are
+     * off or it has none, so it's clear which one it is.
+     */
+    private void markShown(GuiGraphics g, StructureSnapshot s) {
+        BlockPos pos = shownPos();
+        if (pos == null || pos.getY() >= view.sliceY()) {
+            return;
+        }
+        int size = markerSize();
+        ItemStack icon;
+        Optional<float[]> at;
+        if (spawnerPopup != null) {
+            if (markerRects.stream().anyMatch(m -> m.spawner() != null && m.marks(pos))) {
+                return;
             }
-        } else if (popup != null && popup.container != null && !popup.overview()) {
-            for (Marker m : markerRects) {
-                if (m.containers().contains(popup.container)) {
-                    return;
-                }
+            icon = MOB_MARKERS_ICON;
+            at = viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
+        } else if (mobPopup != null) {
+            Entity mob = mobPopup.mob;
+            if (markerRects.stream().anyMatch(m -> m.marks(mob))) {
+                return;
             }
-            pos = popup.container.pos();
+            icon = mobIcon(mob);
+            at = viewport.project(mob.getX(), mob.getY() + mob.getBbHeight() + 0.2, mob.getZ());
         } else {
-            return;
+            StructureSnapshot.Container container = popup.container;
+            if (markerRects.stream().anyMatch(m -> m.containers().contains(container))) {
+                return;
+            }
+            icon = InfoPanel.containerIcon(s, container);
+            at = viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
         }
-        if (pos.getY() >= view.sliceY()) {
-            return;
+        at.ifPresent(p -> drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, SHOWING, 1));
+    }
+
+    /** A marker: {@code icon} in a dark box with its top left at left, top, edged in {@code edge}, and how many it stands for when that's more than one. */
+    private void drawMarker(GuiGraphics g, float left, float top, int size, ItemStack icon, int edge, int count) {
+        g.pose().pushPose();
+        // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
+        // markers jitter against the smoothly turning preview.
+        g.pose().translate(left, top, 200);
+        g.fill(-1, -1, size + 1, size + 1, edge);
+        g.fill(0, 0, size, size, 0xFF2B2B2B);
+        g.pose().pushPose();
+        g.pose().translate(0.5f, 0.5f, 0);
+        float scale = (size - 1) / 16f;
+        g.pose().scale(scale, scale, 1f);
+        g.renderItem(icon, 0, 0);
+        g.pose().popPose();
+        if (count > 1) {
+            String text = String.valueOf(count);
+            g.pose().translate(0, 0, 200);
+            Gui.small(g, font, text, size - Gui.smallWidth(font, text) + 1, size - 5, 0xFFFFFFFF);
         }
-        Optional<float[]> at = viewport.project(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-        if (at.isEmpty()) {
-            return;
-        }
-        int cx = Math.round(at.get()[0]);
-        int cy = Math.round(at.get()[1]);
-        for (int[] ring : new int[][]{{5, 0xFF000000}, {4, 0xFFFFFFFF}, {3, 0xFF000000}}) {
-            int r = ring[0];
-            g.fill(cx - r, cy - r, cx + r, cy - r + 1, ring[1]);
-            g.fill(cx - r, cy + r - 1, cx + r, cy + r, ring[1]);
-            g.fill(cx - r, cy - r, cx - r + 1, cy + r, ring[1]);
-            g.fill(cx + r - 1, cy - r, cx + r, cy + r, ring[1]);
-        }
+        g.pose().popPose();
+    }
+
+    /** How big markers are, which follows the zoom between limits. */
+    private int markerSize() {
+        float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
+        return Math.round(Math.max(8f, Math.min(16f, perBlock * 0.8f)));
     }
 
     private void clearHighlight() {
@@ -1623,6 +1818,16 @@ public class JesScreen extends Screen implements Nav.Page {
         return info.tabCentre(InfoPanel.Tab.valueOf(name.toUpperCase(Locale.ROOT)));
     }
 
+    /** Where the marker for a mob is drawn, if it's on screen. For the screenshot harness. */
+    public Optional<int[]> marker(Entity mob) {
+        for (Marker m : markerRects) {
+            if (m.marks(mob)) {
+                return Optional.of(new int[]{Math.round(m.x() + m.size() / 2f), Math.round(m.y() + m.size() / 2f)});
+            }
+        }
+        return Optional.empty();
+    }
+
     /** Where the marker for the first container using {@code table} is drawn, if it's on screen. */
     public Optional<int[]> marker(String table) {
         for (Marker m : markerRects) {
@@ -1661,6 +1866,15 @@ public class JesScreen extends Screen implements Nav.Page {
         return spawnerPopup != null;
     }
 
+    public boolean mobPopupOpen() {
+        return mobPopup != null;
+    }
+
+    /** The mobs the layout on show places, for the screenshot harness. */
+    public List<Entity> placedMobs() {
+        return view == null ? List.of() : List.copyOf(view.entities());
+    }
+
     /** Shows only the bottom {@code shown} layers, as dragging the slider there would. */
     public void setLayers(int shown) {
         if (view != null) {
@@ -1676,6 +1890,7 @@ public class JesScreen extends Screen implements Nav.Page {
     private void closePopup() {
         popup = null;
         spawnerPopup = null;
+        mobPopup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
             // Back to the zoom and centre from before, but keeping whatever angle the player turned to.
@@ -1691,11 +1906,18 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             tourFrom = null;
         }
+        // The layers back as they were too, when the tour cut it open to show something inside.
+        if (tourSlice >= 0 && view != null && view.sliceY() != tourSlice) {
+            view.setSliceY(tourSlice);
+            updateSlider();
+        }
+        tourSlice = -1;
         refitAfterTour = false;
     }
 
     private void layoutPopupButtons() {
-        boolean show = popup != null || spawnerPopup != null;
+        SidePopup side = side();
+        boolean show = popup != null || side != null;
         for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
             if (b != null) {
                 b.visible = show;
@@ -1704,16 +1926,16 @@ public class JesScreen extends Screen implements Nav.Page {
         if (!show || chestReroll == null) {
             return;
         }
-        if (spawnerPopup != null) {
+        if (side != null) {
             // Nothing to roll: the arrows take Roll again's place.
-            int rowY = spawnerPopup.buttonRowY(font);
+            int rowY = side.buttonRowY(font);
             chestReroll.visible = false;
-            chestPrev.setX(spawnerPopup.x + 6);
+            chestPrev.setX(side.x + 6);
             chestPrev.setY(rowY);
-            chestNext.setX(spawnerPopup.x + 28);
+            chestNext.setX(side.x + 28);
             chestNext.setY(rowY);
-            chestPrev.active = chestNext.active = spawnerPopup.count > 1;
-            chestClose.setX(spawnerPopup.x + SpawnerPopup.WIDTH - 50);
+            chestPrev.active = chestNext.active = side.count > 1;
+            chestClose.setX(side.x + SidePopup.WIDTH - 50);
             chestClose.setY(rowY);
             return;
         }
@@ -1807,7 +2029,8 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         Gui.panel(g, centreX, TOP, centreW, height - TOP - PAD);
 
-        boolean popupOpen = popup != null || spawnerPopup != null;
+        SidePopup side = side();
+        boolean popupOpen = popup != null || side != null;
         boolean anyPopup = popupOpen || foundIn != null;
         int mx = anyPopup ? -1 : mouseX;
         int my = anyPopup ? -1 : mouseY;
@@ -1821,7 +2044,7 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         renderHeader(g);
         // The preview still answers the mouse beside a container's popup, so another container can be picked.
-        boolean beside = foundIn == null && (spawnerPopup != null ? !spawnerPopup.contains(mouseX, mouseY, font)
+        boolean beside = foundIn == null && (side != null ? !side.contains(mouseX, mouseY, font)
                 : popup != null && popup.container != null && !popup.contains(mouseX, mouseY, font));
         StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
         if (sides) {
@@ -1839,17 +2062,13 @@ public class JesScreen extends Screen implements Nav.Page {
             Gui.beginClipped();
             g.pose().pushPose();
             g.pose().translate(0, 0, 400);
-            if ((spawnerPopup != null || popup.container != null) && view != null) {
-                // The preview stays clear beside a container's or spawner's popup: it's where they're shown.
+            if ((side != null || popup.container != null) && view != null) {
+                // The preview stays clear beside a container's, spawner's or mob's popup: it's where they're shown.
                 dimAround(g, viewX, viewY, viewW, viewH);
             } else {
                 g.fill(0, 0, width, height, 0x88000000);
             }
-            if (spawnerPopup != null) {
-                spawnerPopup.render(g, font, mouseX, mouseY);
-            } else {
-                popupHover = popup.render(g, font, mouseX, mouseY);
-            }
+            popupHover = side != null ? side.render(g, font, mouseX, mouseY) : popup.render(g, font, mouseX, mouseY);
             layoutPopupButtons();
             for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
                 if (b.visible) {
@@ -1885,9 +2104,9 @@ public class JesScreen extends Screen implements Nav.Page {
 
     private void renderTooltips(GuiGraphics g, int mouseX, int mouseY, boolean popupOpen, ItemStack popupHover, StructureViewport.Hit hover) {
         if (popupOpen) {
-            List<Component> tip = spawnerPopup != null ? spawnerPopup.hoveredTip : popup.hoveredTip;
+            List<Component> tip = side() != null ? side().hoveredTip : popup.hoveredTip;
             if (!popupHover.isEmpty()) {
-                g.renderComponentTooltip(font, itemTooltip(popupHover, popup.hoveredExtra), mouseX, mouseY);
+                g.renderComponentTooltip(font, itemTooltip(popupHover, popup != null ? popup.hoveredExtra : List.of()), mouseX, mouseY);
             } else if (tip != null) {
                 List<FormattedCharSequence> lines = new ArrayList<>();
                 tip.forEach(line -> lines.addAll(font.split(line, 220)));
@@ -2035,32 +2254,15 @@ public class JesScreen extends Screen implements Nav.Page {
             for (Marker m : markerRects) {
                 // Lit up like one under the mouse while a row about what it marks is hovered, as it hides the block.
                 boolean over = m.contains(mouseX, mouseY) || highlight != null && m.spots().stream().anyMatch(spot -> highlight.contains(spot.pos()));
-                int size = m.size();
-                g.pose().pushPose();
-                // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
-                // markers jitter against the smoothly turning preview.
-                g.pose().translate(m.x(), m.y(), 200);
                 boolean showing = popup != null && popup.container != null && !popup.overview() && m.containers().contains(popup.container)
-                        || spawnerPopup != null && !spawnerPopup.overview() && m.spawner() != null && m.marks(spawnerPopup.spawner.pos());
-                g.fill(-1, -1, size + 1, size + 1, showing ? 0xFFFFFFFF : over ? 0xFFFFFF55 : 0xFF000000);
-                g.fill(0, 0, size, size, 0xFF2B2B2B);
-                g.pose().pushPose();
-                g.pose().translate(0.5f, 0.5f, 0);
-                float scale = (size - 1) / 16f;
-                g.pose().scale(scale, scale, 1f);
-                g.renderItem(markerIcon(s, m), 0, 0);
-                g.pose().popPose();
-                if (m.spots().size() > 1) {
-                    String count = String.valueOf(m.spots().size());
-                    g.pose().translate(0, 0, 200);
-                    Gui.small(g, font, count, size - Gui.smallWidth(font, count) + 1, size - 5, 0xFFFFFFFF);
-                }
-                g.pose().popPose();
+                        || spawnerPopup != null && !spawnerPopup.overview() && m.spawner() != null && m.marks(spawnerPopup.spawner.pos())
+                        || mobPopup != null && !mobPopup.overview() && m.marks(mobPopup.mob);
+                drawMarker(g, m.x(), m.y(), m.size(), markerIcon(s, m), showing ? SHOWING : over ? LIT : 0xFF000000, m.spots().size());
             }
         }
 
-        ringHighlighted(g, s);
-        ringPopupContainer(g);
+        markHighlighted(g);
+        markShown(g, s);
 
         // What locate found, or why it couldn't. Failures fade after a while. It shares the top of
         // the preview with the corner buttons, so it stops short of them.
@@ -2138,7 +2340,7 @@ public class JesScreen extends Screen implements Nav.Page {
      */
     private void placeMarkers(StructureSnapshot s) {
         float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
-        int chestSize = Math.round(Math.max(8f, Math.min(16f, perBlock * 0.8f)));
+        int chestSize = markerSize();
         int smallSize = Math.round(Math.max(6f, Math.min(10f, perBlock * 0.8f)));
         double reach = chestSize * 1.5 / perBlock;
         List<List<Spot>> groups = markerGroups(s, markerKind(), reach);
@@ -2200,7 +2402,7 @@ public class JesScreen extends Screen implements Nav.Page {
             s.spawners().forEach(spawner -> out.add(new Spot(spawner.pos(), spawner)));
             for (Entity entity : view.entities()) {
                 if (entity instanceof Mob) {
-                    out.add(new Spot(entity.blockPosition(), entity));
+                    out.add(new Spot(mobBlock(entity), entity));
                 }
             }
         }
@@ -2319,7 +2521,10 @@ public class JesScreen extends Screen implements Nav.Page {
                 : Component.translatable("screen.justenoughstructures.hover_spawns", mob);
     }
 
-    /** Opens what a marker stands for: its container, or its spawner. A mob's opens nothing. Returns whether one opened. */
+    /**
+     * Opens what a marker stands for: its container, its spawner or its mob. One standing for several
+     * opens all of their kind. Returns whether one opened.
+     */
     private boolean openMarker(Marker m) {
         if (m.container() != null) {
             List<StructureSnapshot.Container> containers = m.containers();
@@ -2328,6 +2533,11 @@ public class JesScreen extends Screen implements Nav.Page {
         }
         if (m.spawner() != null) {
             openSpawnerPopup(m.spawner(), false);
+            return true;
+        }
+        if (m.mob() != null) {
+            List<Entity> mobs = m.mobs();
+            openMobPopup(mobs.get(0), mobs.size() > 1);
             return true;
         }
         return false;
@@ -2340,17 +2550,22 @@ public class JesScreen extends Screen implements Nav.Page {
             return InfoPanel.containerIcon(s, c);
         }
         if (first.what() instanceof Entity mob) {
-            ItemStack icon = InfoPanel.entityIcon(mob.getType());
-            return icon.isEmpty() ? MOB_MARKERS_ICON : icon;
+            return mobIcon(mob);
         }
         return MOB_MARKERS_ICON;
+    }
+
+    /** A mob's spawn egg, or the item that stands for it. */
+    private static ItemStack mobIcon(Entity mob) {
+        ItemStack icon = InfoPanel.entityIcon(mob.getType());
+        return icon.isEmpty() ? MOB_MARKERS_ICON : icon;
     }
 
     private MarkerKind markerKind() {
         if (picking != Picking.NONE) {
             return picking == Picking.SPAWNER ? MarkerKind.MOBS : MarkerKind.CONTAINERS;
         }
-        if (spawnerPopup != null) {
+        if (side() != null) {
             return MarkerKind.MOBS;
         }
         if (popup != null && popup.container != null) {
@@ -2382,11 +2597,11 @@ public class JesScreen extends Screen implements Nav.Page {
     }
 
     /**
-     * Beside a container's or spawner's popup, opens the container or spawner under the mouse in the
-     * preview instead, by its marker or its block. False if there's none.
+     * Beside a container's, spawner's or mob's popup, opens the container, spawner or mob under the
+     * mouse in the preview instead, by its marker or by itself. False if there's none.
      */
     private boolean openClicked(double mouseX, double mouseY) {
-        boolean beside = spawnerPopup != null || popup != null && popup.container != null;
+        boolean beside = side() != null || popup != null && popup.container != null;
         if (!beside || view == null || !viewport.contains(mouseX, mouseY)) {
             return false;
         }
@@ -2395,7 +2610,11 @@ public class JesScreen extends Screen implements Nav.Page {
                 return true;
             }
         }
-        Optional<StructureViewport.Hit> hit = viewport.pick(mouseX, mouseY);
+        return openPicked(viewport.pick(mouseX, mouseY));
+    }
+
+    /** Opens the container, spawner or mob the mouse is on in the preview. False if it's on none of them. */
+    private boolean openPicked(Optional<StructureViewport.Hit> hit) {
         StructureSnapshot.Container clicked = hit.map(this::containerAt).orElse(null);
         if (clicked != null) {
             openContainer(clicked);
@@ -2404,6 +2623,11 @@ public class JesScreen extends Screen implements Nav.Page {
         StructureSnapshot.Spawner spawner = hit.map(this::spawnerAt).orElse(null);
         if (spawner != null) {
             openSpawnerPopup(spawner, false);
+            return true;
+        }
+        Entity mob = hit.map(StructureViewport.Hit::entity).orElse(null);
+        if (mob != null) {
+            openMobPopup(mob, false);
             return true;
         }
         return false;
@@ -2436,31 +2660,34 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return true;
         }
-        if (picking != Picking.NONE && popup == null && spawnerPopup == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+        SidePopup side = side();
+        if (picking != Picking.NONE && popup == null && side == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
                 && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
             cancelPicking();
             return true;
         }
-        if (spawnerPopup != null) {
+        if (side != null) {
             for (Button b : new Button[]{chestPrev, chestNext, chestClose}) {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
                     return b.mouseClicked(mouseX, mouseY, button);
                 }
             }
-            SpawnerPopup.Action action = spawnerPopup.actionAt(mouseX, mouseY);
+            SpawnerPopup.Action action = spawnerPopup == null ? null : spawnerPopup.actionAt(mouseX, mouseY);
             if (action != null) {
                 spawnerAction(spawnerPopup, action);
                 return true;
             }
-            if (!spawnerPopup.contains(mouseX, mouseY, font)) {
+            if (!side.contains(mouseX, mouseY, font)) {
                 if (view != null && viewport.contains(mouseX, mouseY)) {
-                    // As beside a container's popup: a drag turns around the spawner, a click opens
-                    // what's under it or closes the popup.
+                    // As beside a container's popup: a drag turns around the spawner or mob, a click
+                    // opens what's under it or closes the popup.
                     pressedInViewport = true;
                     dragged = false;
                 } else {
                     closePopup();
                 }
+            } else if (!popupHovered.isEmpty()) {
+                openFoundIn(popupHovered);
             }
             return true;
         }
@@ -2528,7 +2755,7 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
         if (pressedInViewport) {
             dragged |= Math.abs(dx) + Math.abs(dy) > 0.5;
-            if (popup != null || spawnerPopup != null) {
+            if (popup != null || side() != null) {
                 // Only turning: moving would take the container out of the middle.
                 viewport.rotate(dx, dy);
             } else if (button == 1 || button == 2 || hasShiftDown()) {
@@ -2545,18 +2772,12 @@ public class JesScreen extends Screen implements Nav.Page {
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (pressedInViewport) {
             pressedInViewport = false;
-            if (popup != null || spawnerPopup != null) {
+            if (popup != null || side() != null) {
                 if (!dragged && (button != 0 || !openClicked(mouseX, mouseY))) {
                     closePopup();
                 }
             } else if (!dragged && button == 0) {
-                Optional<StructureViewport.Hit> hit = viewport.pick(mouseX, mouseY);
-                StructureSnapshot.Container container = hit.map(this::containerAt).orElse(null);
-                if (container != null) {
-                    openContainer(container);
-                } else {
-                    hit.map(this::spawnerAt).ifPresent(spawner -> openSpawnerPopup(spawner, false));
-                }
+                openPicked(viewport.pick(mouseX, mouseY));
             }
             return true;
         }
@@ -2569,8 +2790,8 @@ public class JesScreen extends Screen implements Nav.Page {
             foundIn.scroll(delta);
             return true;
         }
-        if (spawnerPopup != null) {
-            spawnerPopup.scroll(mouseX, mouseY, delta);
+        if (side() != null) {
+            side().scroll(mouseX, mouseY, delta);
             return true;
         }
         if (popup != null) {
@@ -2590,7 +2811,7 @@ public class JesScreen extends Screen implements Nav.Page {
             foundIn = null;
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && (popup != null || spawnerPopup != null)) {
+        if (key == GLFW.GLFW_KEY_ESCAPE && (popup != null || side() != null)) {
             closePopup();
             return true;
         }
@@ -2599,7 +2820,7 @@ public class JesScreen extends Screen implements Nav.Page {
             return true;
         }
         if (key == GLFW.GLFW_KEY_U && !search.isFocused()) {
-            ItemStack hovered = popup != null ? popupHovered : info.hoveredStack();
+            ItemStack hovered = popup != null || side() != null ? popupHovered : info.hoveredStack();
             if (!hovered.isEmpty()) {
                 openFoundIn(hovered);
                 return true;
@@ -2615,7 +2836,7 @@ public class JesScreen extends Screen implements Nav.Page {
             }
             return super.keyPressed(key, scanCode, modifiers);
         }
-        if (key == GLFW.GLFW_KEY_R && popup == null && spawnerPopup == null) {
+        if (key == GLFW.GLFW_KEY_R && popup == null && side() == null) {
             reroll();
             return true;
         }

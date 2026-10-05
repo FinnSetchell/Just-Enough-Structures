@@ -639,6 +639,8 @@
   "screen.justenoughstructures.spawner.mix": "A mix of these",
   "screen.justenoughstructures.spawner.pool_chance": "%s chance",
   "screen.justenoughstructures.spawner.mix_chance": "%s of its spawns",
+  "screen.justenoughstructures.mob.named": "Named %s",
+  "screen.justenoughstructures.mob.baby": "Baby",
   "screen.justenoughstructures.spawner.timing": "Up to %1$s every %2$s-%3$ss, within %4$s blocks of a player",
   "screen.justenoughstructures.spawner.timing_exact": "Up to %1$s every %2$ss, within %3$s blocks of a player",
   "screen.justenoughstructures.spawner.undo_hint": "From the next /reload",

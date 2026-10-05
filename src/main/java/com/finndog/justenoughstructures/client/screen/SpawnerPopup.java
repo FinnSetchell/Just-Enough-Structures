@@ -24,9 +24,7 @@ import net.minecraft.world.item.Items;
  * and how often it spawns them. It's drawn like the chest popup and sits beside the preview the same
  * way, with arrows to the other spawners that make the same.
  */
-final class SpawnerPopup {
-    private static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/container/generic_54.png");
-    static final int WIDTH = ChestPopup.WIDTH;
+final class SpawnerPopup extends SidePopup {
     /** The list of mobs scrolls once it's taller than this. */
     private static final int MOST_LIST = 108;
     private static final int ICON = 14;
@@ -44,10 +42,6 @@ final class SpawnerPopup {
 
     final StructureSnapshot.Spawner spawner;
     final SpawnerKind kind;
-    final Component title;
-    /** Which of the {@code count} spawners like it this is, or -1 while it stands for all of them. */
-    final int index;
-    final int count;
     private final List<Mob> mobs = new ArrayList<>();
     /** How many it spawns and how often, or null when its block entity doesn't say. */
     private final Component timing;
@@ -58,19 +52,13 @@ final class SpawnerPopup {
      * Pack tools is pointed out, so it's learnt as the way to change one.
      */
     boolean picking;
-    int x;
-    int y;
     private int scroll;
-    /** The tooltip of whatever's under the mouse, set as it's drawn, or null. */
-    List<Component> hoveredTip;
     private final Map<Action, int[]> links = new EnumMap<>(Action.class);
 
     SpawnerPopup(StructureSnapshot.Spawner spawner, CompoundTag tag, Component title, int index, int count) {
+        super(title, index, count);
         this.spawner = spawner;
         this.kind = tag == null ? new SpawnerKind(SpawnerKind.Type.MOB, spawner.mob().isEmpty() ? Map.of() : Map.of(spawner.mob(), 1)) : SpawnerKind.of(tag);
-        this.title = title;
-        this.index = index;
-        this.count = count;
         int total = kind.mobs().values().stream().mapToInt(Integer::intValue).sum();
         kind.mobs().forEach((mob, weight) -> mobs.add(new Mob(mob, (float) weight / Math.max(1, total))));
         mobs.sort((a, b) -> Float.compare(b.chance(), a.chance()));
@@ -95,20 +83,6 @@ final class SpawnerPopup {
 
     private static String seconds(int ticks) {
         return ticks % 20 == 0 ? String.valueOf(ticks / 20) : String.format("%.1f", ticks / 20f);
-    }
-
-    /** Showing all the spawners like it rather than a particular one of them. */
-    boolean overview() {
-        return index < 0;
-    }
-
-    /** "3 / 17", or "all 17" before one is picked, or null for a spawner that's the only one like it. */
-    private String indexText() {
-        if (count <= 1) {
-            return null;
-        }
-        return overview() ? Component.translatable("screen.justenoughstructures.container_all", count).getString()
-                : Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString();
     }
 
     /** What it makes, in a line: the mob, the one this spawner got from its list, or a mix. */
@@ -152,26 +126,13 @@ final class SpawnerPopup {
         return height;
     }
 
+    @Override
     int height(Font font) {
         return 17 + listHeight() + 7 + infoHeight(font);
     }
 
-    /** Sits beside the preview at {@code x}, so the spawners it's about can be seen. */
-    void placeAt(int x, int screenHeight, Font font) {
-        this.x = x;
-        y = Math.max(4, (screenHeight - height(font)) / 2);
-    }
-
-    boolean contains(double mouseX, double mouseY, Font font) {
-        return mouseX >= x && mouseX < x + WIDTH && mouseY >= y && mouseY < y + height(font);
-    }
-
-    /** Where the buttons go, one row along the bottom. */
-    int buttonRowY(Font font) {
-        return y + height(font) - 26;
-    }
-
     /** Scrolls the list of mobs, when the mouse is over the popup. */
+    @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
         if (mouseX < x || mouseX >= x + WIDTH) {
             return false;
@@ -181,7 +142,8 @@ final class SpawnerPopup {
         return true;
     }
 
-    void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
+    @Override
+    ItemStack render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         links.clear();
         hoveredTip = null;
         int body = listHeight();
@@ -192,17 +154,7 @@ final class SpawnerPopup {
             g.blit(TEXTURE, x, y + 17 + filled, 0, 127, WIDTH, Math.min(12, body - filled));
         }
         g.blit(TEXTURE, x, y + 17 + body, 0, 215, WIDTH, 7);
-
-        int right = x + WIDTH - 8;
-        String of = indexText();
-        if (of != null) {
-            // Room for the widest it can say, so the title doesn't move as the arrows step.
-            int all = font.width(Component.translatable("screen.justenoughstructures.container_all", count).getString());
-            int last = font.width(Component.translatable("screen.justenoughstructures.container_index", count, count).getString());
-            g.drawString(font, of, right - font.width(of), y + 6, Gui.LABEL_SOFT, false);
-            right -= Math.max(all, last) + 4;
-        }
-        Gui.drawClipped(g, font, title.getString(), x + 8, y + 6, right - x - 8, Gui.LABEL, false);
+        renderTitle(g, font);
 
         renderList(g, font, mouseX, mouseY, y + 17, body);
 
@@ -226,6 +178,7 @@ final class SpawnerPopup {
             Gui.scaled(g, font, line.text(), x + 7, cy, line.colour(), Gui.fineScale());
             cy += Gui.fineLine(font) + 1;
         }
+        return ItemStack.EMPTY;
     }
 
     private void renderList(GuiGraphics g, Font font, int mouseX, int mouseY, int bodyTop, int body) {
