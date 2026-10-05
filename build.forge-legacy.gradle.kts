@@ -200,6 +200,7 @@ tasks {
             "license" to modLicense,
             "mc_compat" to prop("mod.mc_compat"),
             "forge_min" to prop("deps.forge_min"),
+            "pack_format" to prop("mod.pack_format"),
         )
         props.forEach { (k, v) -> inputs.property(k, v) }
         filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
@@ -211,6 +212,9 @@ tasks {
     }
 
     named<ProcessResources>("processGametestResources") {
+        val props = mapOf("forge_min" to prop("deps.forge_min"), "pack_format" to prop("mod.pack_format"))
+        props.forEach { (k, v) -> inputs.property(k, v) }
+        filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
         exclude("fabric.mod.json")
     }
 

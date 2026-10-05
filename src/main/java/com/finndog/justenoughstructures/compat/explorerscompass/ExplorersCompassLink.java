@@ -17,6 +17,9 @@ import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.List;
 import java.util.Map;
+//? if forge && >=1.21 {
+/*import java.lang.reflect.Field;
+*///?}
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
@@ -136,7 +139,12 @@ public final class ExplorersCompassLink implements CompassLink {
         if (pending != null) {
             // The screen rebuilds its list when the server's arrives, which would undo the pick,
             // so it waits for that.
+            //? if forge && >=1.21 {
+            /*// Its Forge build for 1.21 just swaps in the new list.
+            boolean synced = ExplorersCompass.allowedStructureIDs != listWhenOpened;
+            *///?} else {
             boolean synced = ExplorersCompass.allowedStructureIDs != listWhenOpened && !ExplorersCompass.synced;
+            //?}
             if (synced || ++waited > SYNC_TICKS) {
                 pick(compass, pending);
                 pending = null;
@@ -147,12 +155,13 @@ public final class ExplorersCompassLink implements CompassLink {
     private void preview(ExplorersCompassScreen compass) {
         StructureSearchList list = find(compass, StructureSearchList.class);
         StructureSearchEntry entry = list == null ? null : list.getSelected();
-        if (entry == null) {
+        ResourceLocation structure = entry == null ? null : structure(entry);
+        if (structure == null) {
             return;
         }
         EditBox search = find(compass, EditBox.class);
-        returning.put(compass, new Pick(entry.getStructureID(), search == null ? "" : search.getValue()));
-        JesScreen.startOn(entry.getStructureID());
+        returning.put(compass, new Pick(structure, search == null ? "" : search.getValue()));
+        JesScreen.startOn(structure);
         Minecraft.getInstance().setScreen(new JesScreen(compass));
     }
 
@@ -168,11 +177,27 @@ public final class ExplorersCompassLink implements CompassLink {
             return;
         }
         for (StructureSearchEntry entry : list.children()) {
-            if (entry.getStructureID().equals(pick.structure())) {
+            if (pick.structure().equals(structure(entry))) {
                 list.setSelected(entry);
                 return;
             }
         }
+    }
+
+    /** The structure a row of its list stands for, or null if it can't be told. */
+    private static ResourceLocation structure(StructureSearchEntry entry) {
+        //? if forge && >=1.21 {
+        /*// Its Forge build for 1.21 keeps it to itself.
+        try {
+            Field field = StructureSearchEntry.class.getDeclaredField("structureKey");
+            field.setAccessible(true);
+            return (ResourceLocation) field.get(entry);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+        *///?} else {
+        return entry.getStructureID();
+        //?}
     }
 
     private static <T> T find(Screen screen, Class<T> type) {

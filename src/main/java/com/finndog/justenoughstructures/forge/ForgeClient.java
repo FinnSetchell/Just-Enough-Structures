@@ -4,10 +4,12 @@ import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.JesClient;
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
+import com.finndog.justenoughstructures.network.Blobs;
 import java.util.Collection;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -19,8 +21,12 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
+//? if >=1.21 {
+/*import net.minecraftforge.network.NetworkContext;
+*///?} else {
 import net.minecraftforge.network.ConnectionData;
 import net.minecraftforge.network.NetworkHooks;
+//?}
 
 /** The client's side of the Forge setup. Only ever loaded on a client. */
 final class ForgeClient {
@@ -28,10 +34,11 @@ final class ForgeClient {
     }
 
     static void init(IEventBus modBus) {
-        ForgeNetworking.clientHandler = (channel, buf) -> {
+        ForgeNetworking.clientHandler = (channel, data) -> {
             ClientPackets.Handler handler = ClientPackets.handlers().get(channel);
             if (handler != null) {
-                handler.handle(Minecraft.getInstance(), buf);
+                ClientPacketListener listener = Minecraft.getInstance().getConnection();
+                handler.handle(Minecraft.getInstance(), Blobs.fromBytes(listener == null ? RegistryAccess.EMPTY : listener.registryAccess(), data));
             }
         };
         ClientRequests.setSender(new ClientRequests.ClientSender() {
@@ -46,13 +53,17 @@ final class ForgeClient {
             @Override
             public Collection<ResourceLocation> sendable() {
                 Connection connection = connection();
+                //? if >=1.21 {
+                /*return connection == null ? List.of() : NetworkContext.get(connection).getRemoteChannels();
+                *///?} else {
                 ConnectionData data = connection == null ? null : NetworkHooks.getConnectionData(connection);
                 return data == null ? List.of() : data.getChannels().keySet();
+                //?}
             }
 
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
-                ForgeNetworking.CHANNEL.sendToServer(new ForgeNetworking.Packet(channel, buf));
+                ForgeNetworking.sendToServer(channel, buf);
             }
         });
 

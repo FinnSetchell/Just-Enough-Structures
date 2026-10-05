@@ -1,0 +1,291 @@
+plugins {
+    // From 1.20.5 Forge runs on the official names the source is written in, so its jar needs no
+    // reobfuscation, and ForgeGradle 7 builds it.
+    id("net.minecraftforge.gradle") version "[7.0.29,8.0)"
+    // Forge 1.21.1 doesn't ship MixinExtras, which the mixins use, so the jar carries it.
+    id("net.minecraftforge.jarjar") version "0.2.3"
+    id("minecraft-mutex")
+}
+
+fun prop(key: String): String = sc.properties.get<String>(key)
+
+val modId = property("mod_id").toString()
+val modName = property("mod_name").toString()
+val modAuthor = property("mod_author").toString()
+// Read here: inside a task, property() looks at the task, and a task has its own description.
+val modDescription = property("description").toString()
+val modLicense = property("license").toString()
+val requiredJava: JavaVersion = JavaVersion.toVersion(prop("mod.java"))
+val mcBuild: String = prop("mod.mc_build")
+// Read here: inside a run, project means the run's own.
+val nodeName: String = project.name
+
+version = property("mod_version").toString()
+base.archivesName = "${property("archives_base_name")}-forge-$mcBuild"
+
+// Recipe viewers with no Forge build for this version are left out, pages and all.
+val withEmi = prop("deps.emi").isNotEmpty()
+val withRei = prop("deps.rei").isNotEmpty()
+
+sourceSets.main {
+    // Loader code sits in fabric/forge/neoforge packages; each loader compiles only its own.
+    java.exclude("**/fabric/**", "**/neoforge/**")
+    if (!withEmi) java.exclude("**/compat/emi/**")
+    if (!withRei) java.exclude("**/compat/rei/**", "**/forge/JesReiForgePlugin.java")
+    resources.srcDir(rootProject.file("src/forge/resources"))
+}
+
+// Game tests build as a second mod that never ships, as on the other loaders. Its Fabric wiring and
+// the screenshot scripts stay out: Forge runs the same tests through its own class.
+val gametest: SourceSet = sourceSets.create("gametest") {
+    java.exclude("**/fabric/**", "**/neoforge/**")
+    resources.exclude("fabric.mod.json")
+    resources.srcDir(rootProject.file("src/forge/gametest-resources"))
+    compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
+}
+// ForgeGradle gives a source set its own run tasks when Forge is among its dependencies.
+configurations.named(gametest.implementationConfigurationName) { extendsFrom(configurations.implementation.get()) }
+
+// The same structure mods as the other dev runtimes, in their Forge builds, so the browser can be
+// tried against a modpack's worth of structures. Off on CI, and -Pdev_mods=false turns them off.
+val devMods = mapOf(
+    "1.21.1" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // YUNG's
+        "yungs-better-dungeons:pzPJomj9",
+        // Other big structure mods
+        "structory:TUbwu7eG", "dungeons-and-taverns:wH004B85", "explorify:CuBdAr31",
+        // Structure compass
+        "explorers-compass:${prop("deps.explorers_compass")}",
+        // Libraries the above need
+        "moogs-structure-lib:Fm0UjMHR", "yungs-api:GKQLlzpD", "cloth-config:XMYFN6Zc",
+    ),
+)
+val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
+
+minecraft {
+    mappings("official", mcBuild)
+
+    runs {
+        // Per-node game directory, so worlds are never opened by a different Minecraft version.
+        configureEach {
+            workingDir.set(rootProject.file("run/$nodeName"))
+            // A dev run has no jar for Forge to read the mixin configs from.
+            args("--mixin.config", "$modId.mixins.json")
+        }
+        register("client")
+        register("server") { args("--nogui") }
+        // Every run also gets a task for the test source set, runGametest<run>, which loads the test
+        // mod too. runGameTest and runAutoshot below run those.
+        register("gameTestServer") {
+            this.with(gametest) {
+                workingDir.set(layout.buildDirectory.dir("gametest"))
+                // Forge 1.21 runs the tests whose batch is named here. The generated capture tests have their own.
+                systemProperty("forge.enabledGameTestNamespaces", "$modId,${modId}_gametest,capture")
+                systemProperty("forge.enableGameTest", "true")
+                systemProperty("forge.gameTestServer", "true")
+                // -Pperf also captures every installed structure and times it, into build/gametest/perf.csv.
+                systemProperty("jes.perf", hasProperty("perf").toString())
+                // The mod's own debug log, in build/gametest/logs.
+                systemProperty("justenoughstructures.debug", "true")
+                args("--mixin.config", "${modId}_gametest.mixins.json")
+                mods {
+                    register(modId) { source(sourceSets.main.get()) }
+                    register("${modId}_gametest") { source(gametest) }
+                }
+            }
+        }
+        // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
+        // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
+        // the structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
+        named("client") {
+            this.with(gametest) {
+                workingDir.set(layout.buildDirectory.dir("autoshot"))
+                systemProperty("jes.autoshot", "screenshots")
+                systemProperty("jes.autoshot.structures", findProperty("structures")?.toString() ?: "")
+                systemProperty("jes.autoshot.hidden", (!hasProperty("show")).toString())
+                systemProperty("jes.autoshot.gui", findProperty("gui")?.toString() ?: "2")
+                systemProperty("justenoughstructures.debug", "true")
+                args("--mixin.config", "${modId}_gametest.mixins.json")
+                args("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
+                mods {
+                    register(modId) { source(sourceSets.main.get()) }
+                    register("${modId}_gametest") { source(gametest) }
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(this)
+    maven(fg.forgeMaven)
+    maven(fg.minecraftLibsMaven)
+    mavenCentral()
+    maven("https://maven.shedaniel.me/") { name = "Shedaniel" }
+    maven("https://maven.blamejared.com/") {
+        name = "BlameJared"
+        // JEI, and the config library its later builds need.
+        content {
+            includeGroup("mezz.jei")
+            includeGroup("net.mezzdev.config")
+        }
+    }
+    maven("https://api.modrinth.com/maven") {
+        name = "Modrinth"
+        content { includeGroup("maven.modrinth") }
+    }
+}
+
+jarJar.register()
+
+dependencies {
+    implementation(minecraft.dependency("net.minecraftforge:forge:$mcBuild-${prop("deps.forge_version")}"))
+
+    compileOnly("io.github.llamalad7:mixinextras-common:${prop("deps.mixinextras")}")
+    implementation("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
+    "jarJar"("io.github.llamalad7:mixinextras-forge:${prop("deps.mixinextras")}")
+
+    // The JEI plugin only loads when JEI is installed, so its API is only needed to compile.
+    compileOnly("mezz.jei:jei-$mcBuild-common-api:${prop("deps.jei")}")
+    // The settings screen, drawn by Cloth Config when it's installed.
+    compileOnly("me.shedaniel.cloth:cloth-config-forge:${prop("deps.cloth_config")}") { isTransitive = false }
+    // Explorer's Compass has no API: the link calls its own search.
+    compileOnly("maven.modrinth:explorers-compass:${prop("deps.explorers_compass")}")
+
+    if (useDevMods) {
+        devMods[mcBuild].orEmpty().forEach { runtimeOnly("maven.modrinth:$it") }
+        // Just the one jar, which holds all of JEI: the parts it also lists would be the same packages twice.
+        runtimeOnly("mezz.jei:jei-$mcBuild-forge:${prop("deps.jei")}") { isTransitive = false }
+    }
+}
+
+java {
+    withSourcesJar()
+    targetCompatibility = requiredJava
+    sourceCompatibility = requiredJava
+    toolchain { languageVersion = JavaLanguageVersion.of(requiredJava.majorVersion) }
+}
+
+tasks {
+    processResources {
+        val props = mapOf(
+            "version" to version.toString(),
+            "mod_id" to modId,
+            "mod_name" to modName,
+            "description" to modDescription,
+            "mod_author" to modAuthor,
+            "license" to modLicense,
+            "mc_compat" to prop("mod.mc_compat"),
+            "forge_min" to prop("deps.forge_min"),
+            "pack_format" to prop("mod.pack_format"),
+        )
+        props.forEach { (k, v) -> inputs.property(k, v) }
+        filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
+        exclude("fabric.mod.json")
+    }
+
+    named<ProcessResources>("processGametestResources") {
+        val props = mapOf("forge_min" to prop("deps.forge_min"), "pack_format" to prop("mod.pack_format"))
+        props.forEach { (k, v) -> inputs.property(k, v) }
+        filesMatching(listOf("META-INF/mods.toml", "pack.mcmeta")) { expand(props) }
+        exclude("fabric.mod.json")
+    }
+
+    jar {
+        // Without MixinExtras inside, so never the one shipped.
+        archiveClassifier = "slim"
+        from(rootProject.file("LICENSE")) { rename { "${it}_$modName" } }
+        manifest {
+            attributes(
+                "Specification-Title" to modName,
+                "Specification-Vendor" to modAuthor,
+                "Specification-Version" to version,
+                "Implementation-Title" to "forge",
+                "Implementation-Version" to version,
+                "Implementation-Vendor" to modAuthor,
+                "Built-On-Minecraft" to mcBuild,
+                "MixinConfigs" to "$modId.mixins.json",
+            )
+        }
+    }
+
+    // The shipped jar, with MixinExtras inside it.
+    named<Jar>("jarJar") {
+        archiveClassifier = null as String?
+    }
+    assemble { dependsOn("jarJar") }
+
+    // Minecraft must not be set up before Stonecutter has written this node's sources.
+    withType<JavaCompile>().configureEach {
+        dependsOn("stonecutterGenerate")
+    }
+
+    // The runs that load the test mod, under the names the other loaders' nodes use.
+    register("runGameTest") {
+        group = "forgegradle runs"
+        description = "Runs every game test on a headless server and fails unless they all pass."
+        dependsOn("runGametestGameTestServer")
+    }
+    register("runAutoshot") {
+        group = "forgegradle runs"
+        description = "Saves a screenshot of each structure in a throwaway world, then quits."
+        dependsOn("runGametestClient")
+    }
+
+    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
+    // ForgeGradle registers its run tasks late, so these are found by name once they are.
+    matching { it.name == "runGametestGameTestServer" }.configureEach {
+        val world = layout.buildDirectory.dir("gametest/world")
+        val properties = layout.buildDirectory.file("gametest/server.properties")
+        val log = layout.buildDirectory.file("gametest/logs/latest.log")
+        doFirst {
+            delete(world)
+            // A superflat world with seed 0 and no structures, as the tests run in on every loader.
+            properties.get().asFile.apply { parentFile.mkdirs() }
+                .writeText("level-type=minecraft:flat\nlevel-seed=0\ngenerate-structures=false\n")
+        }
+        // A test server that fails to start still exits cleanly, so this goes by what it logged.
+        doLast {
+            val text = log.get().asFile.takeIf { it.exists() }?.readText().orEmpty()
+            if (!Regex("All \\d+ required tests passed").containsMatchIn(text)) {
+                throw GradleException("Not every game test passed, see ${log.get().asFile}")
+            }
+        }
+    }
+
+    matching { it.name == "runGametestClient" }.configureEach {
+        val dir = layout.buildDirectory.dir("autoshot")
+        doFirst {
+            val root = dir.get().asFile
+            // The browser remembers its toggles in config, which would carry over from the last run.
+            delete(File(root, "saves"), File(root, "screenshots"), File(root, "config/$modId"))
+            root.mkdirs()
+            // Skip first-launch screens and keep the game running when the window isn't focused. No
+            // clouds, so the world behind the screen doesn't change from frame to frame.
+            File(root, "options.txt").writeText(
+                "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
+                    "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n"
+            )
+        }
+    }
+
+    // The test mod as a jar for a real Forge game, so the screenshot gallery can run against a release
+    // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
+    register<Jar>("gametestJar") {
+        from(gametest.output)
+        archiveClassifier = "gametest"
+        destinationDirectory = layout.buildDirectory.dir("testlibs")
+    }
+
+    register<Copy>("buildAndCollect") {
+        group = "build"
+        description = "Builds the mod jar and copies it to build/libs/{mod version}/"
+        from(named<Jar>("jarJar").flatMap { it.archiveFile })
+        into(rootProject.layout.buildDirectory.dir("libs/$version"))
+    }
+}

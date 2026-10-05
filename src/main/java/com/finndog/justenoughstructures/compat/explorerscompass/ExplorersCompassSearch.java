@@ -19,7 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.Structure;
-//? if neoforge {
+//? if neoforge || forge && >=1.21 {
 /*import java.util.List;
 *///?}
 
@@ -44,9 +44,12 @@ public final class ExplorersCompassSearch implements CompassSearch {
         if (stack.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.compass_not_held");
         }
+        // Its Forge build for 1.21 never breaks, and its searches cost nothing, so it has no checks for either.
+        //? if !forge || <1.21 {
         if (compass.isBroken(stack)) {
             return Component.translatable("screen.justenoughstructures.compass_broken");
         }
+        //?}
         ServerLevel level = player.serverLevel();
         // What it's set up to refuse, like its blacklist, only ever keeps things out of its screen.
         if (!StructureUtils.getAllowedStructureIDs(level).contains(structure)) {
@@ -58,13 +61,18 @@ public final class ExplorersCompassSearch implements CompassSearch {
         if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
             return Component.translatable("screen.justenoughstructures.locate_wrong_dimension");
         }
+        //? if !forge || <1.21 {
         int levels = StructureUtils.getXpLevelsForStructure(level, structure);
         if (!player.getAbilities().instabuild && player.experienceLevel < levels) {
             return Component.translatable("screen.justenoughstructures.compass_needs_levels", levels);
         }
+        //?}
         //? if neoforge {
         /*// Its NeoForge build searches for a group of structures, here a group of one, as its screen does.
         compass.searchForStructure(level, player, structure, List.of(structure), player.blockPosition(), stack, false);
+        *///?} else if forge && >=1.21 {
+        /*// Its Forge build for 1.21 does too, but without saying whether it's a group.
+        compass.searchForStructure(level, player, structure, List.of(structure), player.blockPosition(), stack);
         *///?} else {
         compass.searchForStructure(level, player, player.blockPosition(), structure, false, stack);
         //?}

@@ -33,7 +33,8 @@ stonecutter {
         // Forge 1.20.1 runs on SRG names, so its jar has to be reobfuscated, which only ModDevGradle's
         // legacy Forge plugin does. The node keeps the -forge name, so `//? if forge` covers it too.
         version("1.20.1-forge", "1.20.1").buildscript("build.forge-legacy.gradle.kts")
-        match("1.21.1", "fabric", "neoforge")
+        // From 1.20.5 Forge runs on official names, so later Forge nodes build with ForgeGradle 7.
+        match("1.21.1", "fabric", "neoforge", "forge")
 
         vcsVersion = "1.20.1-fabric"
     }

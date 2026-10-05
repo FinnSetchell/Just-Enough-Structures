@@ -2,7 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
-//? if forge {
+//? if forge && <1.21 {
 /*import com.mojang.authlib.GameProfile;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.UUID;
@@ -18,9 +18,9 @@ final class TestPlayers {
 
     /** A creative player in the test's level, like {@link GameTestHelper#makeMockServerPlayerInLevel()} makes. */
     static ServerPlayer mock(GameTestHelper helper) {
-        //? if forge {
+        //? if forge && <1.21 {
         /*// Forge's joining code reaches for the connection's netty channel, which the game's own mock
-        // player doesn't have, so this one gets a stand-in.
+        // player doesn't have before 1.20.2, so this one gets a stand-in.
         ServerLevel level = helper.getLevel();
         ServerPlayer player = new ServerPlayer(level.getServer(), level, new GameProfile(UUID.randomUUID(), "test-mock-player")) {
             @Override
