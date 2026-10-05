@@ -17,7 +17,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 final class LootTypes {
     static final List<String> TABLE_TYPES = List.of("minecraft:chest", "minecraft:archaeology", "minecraft:generic", "minecraft:entity",
-            "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:empty");
+            "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
+            "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location", "minecraft:empty");
 
     /** The ones people use most, first, in this order; then the rest by name. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
@@ -43,6 +44,21 @@ final class LootTypes {
             Map.entry("function:apply_bonus", "{\"enchantment\": \"minecraft:fortune\", \"formula\": \"minecraft:ore_drops\"}"),
             Map.entry("function:set_loot_table", "{\"name\": \"minecraft:chests/simple_dungeon\", \"type\": \"minecraft:chest\"}"),
             Map.entry("function:set_stew_effect", "{\"effects\": []}"),
+            Map.entry("function:copy_name", "{\"source\": \"block_entity\"}"),
+            Map.entry("function:copy_nbt", "{\"source\": \"block_entity\", \"ops\": []}"),
+            Map.entry("function:copy_state", "{\"block\": \"minecraft:stone\", \"properties\": []}"),
+            Map.entry("function:fill_player_head", "{\"entity\": \"this\"}"),
+            Map.entry("function:set_attributes", "{\"modifiers\": []}"),
+            Map.entry("function:set_banner_pattern", "{\"patterns\": [], \"append\": false}"),
+            Map.entry("function:set_contents", "{\"type\": \"minecraft:chest\", \"entries\": []}"),
+            Map.entry("function:set_enchantments", "{\"enchantments\": {}}"),
+            Map.entry("condition:block_state_property", "{\"block\": \"minecraft:stone\"}"),
+            Map.entry("condition:entity_properties", "{\"entity\": \"this\", \"predicate\": {}}"),
+            Map.entry("condition:entity_scores", "{\"entity\": \"this\", \"scores\": {}}"),
+            Map.entry("condition:location_check", "{\"predicate\": {}}"),
+            Map.entry("condition:match_tool", "{\"predicate\": {}}"),
+            Map.entry("condition:damage_source_properties", "{\"predicate\": {}}"),
+            Map.entry("condition:value_check", "{\"value\": 1, \"range\": {\"min\": 0, \"max\": 1}}"),
             Map.entry("condition:random_chance", "{\"chance\": 0.5}"),
             Map.entry("condition:random_chance_with_looting", "{\"chance\": 0.1, \"looting_multiplier\": 0.01}"),
             Map.entry("condition:inverted", "{\"term\": {\"condition\": \"minecraft:random_chance\", \"chance\": 0.5}}"),

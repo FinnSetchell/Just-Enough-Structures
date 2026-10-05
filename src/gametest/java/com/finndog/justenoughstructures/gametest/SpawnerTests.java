@@ -237,12 +237,13 @@ public final class SpawnerTests {
                 new SpawnerPatches.Patch(BASIN, pos, new ResourceLocation("spawner"), MAGMA_CUBE, 0, HUSK),
                 new SpawnerPatches.Patch(new ResourceLocation("mod", "rooms/crypt"), pos.above(), new ResourceLocation("spawner"), "", 2, ""));
         PackToolsState state = new PackToolsState(ServerConfig.get(), Set.of(PackToolsState.spawnerKey(BASIN, pos)), Map.of(), List.of(), patches,
-                Map.of(), List.of(), List.of());
+                Map.of(), List.of(), List.of(), Map.of(PackToolsState.STRUCTURE_TAGS, List.of(new ResourceLocation("on_treasure_maps"))));
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
         Codecs.writeTools(buf, state);
         PackToolsState read = Codecs.readTools(buf);
         helper.assertTrue(read.spawners().equals(patches), "the spawners came back as " + read.spawners());
         helper.assertTrue(read.pending().equals(state.pending()), "what's waiting came back as " + read.pending());
+        helper.assertTrue(read.names().equals(state.names()), "the server's names came back as " + read.names());
         helper.succeed();
     }
 

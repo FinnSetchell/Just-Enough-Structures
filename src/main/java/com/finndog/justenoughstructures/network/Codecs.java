@@ -165,6 +165,7 @@ public final class Codecs {
         });
         writeCatalog(buf, state.hidden());
         buf.writeCollection(state.tables(), FriendlyByteBuf::writeResourceLocation);
+        buf.writeMap(state.names(), FriendlyByteBuf::writeUtf, (b, ids) -> b.writeCollection(ids, FriendlyByteBuf::writeResourceLocation));
     }
 
     public static PackToolsState readTools(FriendlyByteBuf buf) {
@@ -196,7 +197,8 @@ public final class Codecs {
         }
         List<StructureCatalog.Entry> hidden = readCatalog(buf);
         List<ResourceLocation> tables = buf.readList(FriendlyByteBuf::readResourceLocation);
-        return new PackToolsState(settings, pending, overrides, patches, spawners, structures, hidden, tables);
+        Map<String, List<ResourceLocation>> names = buf.readMap(FriendlyByteBuf::readUtf, b -> b.readList(FriendlyByteBuf::readResourceLocation));
+        return new PackToolsState(settings, pending, overrides, patches, spawners, structures, hidden, tables, names);
     }
 
     // ------------------------------------------------------------------ captures

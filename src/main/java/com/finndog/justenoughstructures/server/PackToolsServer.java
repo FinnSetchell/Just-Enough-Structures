@@ -16,10 +16,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.loot.LootDataType;
 
 /**
@@ -53,8 +56,14 @@ public final class PackToolsServer {
             }
         }
         List<ResourceLocation> tables = new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.TABLE)));
+        Map<String, List<ResourceLocation>> names = new HashMap<>();
+        Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        names.put(PackToolsState.STRUCTURES, new ArrayList<>(new TreeSet<>(registry.keySet())));
+        names.put(PackToolsState.STRUCTURE_TAGS, new ArrayList<>(new TreeSet<>(registry.getTagNames().map(TagKey::location).toList())));
+        names.put(PackToolsState.PREDICATES, new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.PREDICATE))));
+        names.put(PackToolsState.ITEM_MODIFIERS, new ArrayList<>(new TreeSet<>(server.getLootData().getKeys(LootDataType.MODIFIER))));
         return new PackToolsState(ServerConfig.get(), Set.copyOf(PENDING), LootOverrides.statuses(server.getResourceManager()),
-                ContainerPatches.all(), SpawnerPatches.all(), structures, hidden, tables);
+                ContainerPatches.all(), SpawnerPatches.all(), structures, hidden, tables, names);
     }
 
     /**

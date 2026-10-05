@@ -118,6 +118,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     /** Where each field was drawn this frame, so the text box can follow its field as the form scrolls. */
     private final Map<String, int[]> fieldRects = new HashMap<>();
     private Choice choice;
+    /** What the field being typed in can be set to, listed under it, for fields that have such a list. */
+    private Suggestions suggestions;
     private Picker picker;
     private EditBox pickerSearch;
 
@@ -264,6 +266,22 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     }
 
     @Override
+    public void edit(String id, int[] rect, String text, Consumer<String> commit, LootOptions.Source options) {
+        edit(id, rect, text, commit);
+        if (editingId != null && options != null) {
+            suggestions = new Suggestions(rect, options, text);
+        }
+    }
+
+    /** Puts a listed option in the field being typed in, as if it had been typed. */
+    private void pickSuggestion(LootOptions.Option option) {
+        if (inline != null) {
+            inline.setValue(option.id());
+        }
+        commitEditing();
+    }
+
+    @Override
     public String editing() {
         return editingId;
     }
@@ -295,6 +313,7 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
     private void stopEditing() {
         editingId = null;
         editingCommit = null;
+        suggestions = null;
         if (inline != null) {
             inline.visible = false;
             inline.setFocused(false);
@@ -329,6 +348,8 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         commitEditing();
         // A list of choices hangs under its box where that was, which moves when the screen changes size.
         choice = null;
+        // Tags and the server's lists may have changed since the editor was last open.
+        LootOptions.forget();
         int left = PAD + 6;
         int right = width - PAD - 6;
         // On a very big screen the columns are kept together in the middle, rather than a form
@@ -661,6 +682,17 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
                 return true;
             }
         }
+        if (editingId != null && suggestions != null) {
+            if (key == GLFW.GLFW_KEY_DOWN || key == GLFW.GLFW_KEY_UP) {
+                suggestions.move(key == GLFW.GLFW_KEY_DOWN ? 1 : -1);
+                return true;
+            }
+            LootOptions.Option highlighted = suggestions.highlighted();
+            if (highlighted != null && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_TAB)) {
+                pickSuggestion(highlighted);
+                return true;
+            }
+        }
         if (editingId != null && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_TAB)) {
             commitEditing();
             return true;
@@ -692,6 +724,13 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             choice = null;
             return true;
         }
+        if (editingId != null && suggestions != null && suggestions.contains(mouseX, mouseY)) {
+            LootOptions.Option clicked = suggestions.at(mouseX, mouseY);
+            if (clicked != null) {
+                pickSuggestion(clicked);
+            }
+            return true;
+        }
         if (editingId != null && !(inline != null && inline.isMouseOver(mouseX, mouseY))) {
             commitEditing();
         }
@@ -709,6 +748,10 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
         }
         if (choice != null) {
             choice.scroll(delta);
+            return true;
+        }
+        if (editingId != null && suggestions != null && suggestions.contains(mouseX, mouseY)) {
+            suggestions.scroll(delta);
             return true;
         }
         if (treeScroll.scroll(mouseX, mouseY, delta) || oddsScroll.scroll(mouseX, mouseY, delta)) {
@@ -829,6 +872,12 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
                 pickerSearch.render(g, mouseX, mouseY, partialTick);
                 g.pose().popPose();
             }
+        }
+        if (suggestions != null && editingId != null) {
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 400);
+            suggestions.render(g, mouseX, mouseY);
+            g.pose().popPose();
         }
         navBar.render(g, font, mouseX, mouseY, partialTick);
 
@@ -1280,6 +1329,153 @@ public final class LootEditorScreen extends Screen implements Nav.Page, LootForm
             }
             scroll = Math.max(0, Math.min(index * LINE, Math.max(0, options.size() * LINE + 2 - h)));
             return new int[]{x + w / 2, y + 1 + index * LINE - (int) scroll + LINE / 2};
+        }
+    }
+
+    // ------------------------------------------------------------------ options while typing
+
+    /**
+     * What the field being typed in can be set to, listed under it as misode's generator does: all of
+     * them until something's typed, then the ones whose name or id has it in, those starting with it
+     * first. Up and down move through them, and Enter, Tab or a click puts one in. Something typed
+     * that isn't listed, like a mod's id this game doesn't have, can still be put in with Enter.
+     */
+    private final class Suggestions {
+        private static final int LINE = 12;
+        private static final int ROWS = 10;
+        private final int[] rect;
+        private final LootOptions.Source source;
+        /** The text when it opened: until that changes, every option shows, with the one it is picked. */
+        private final String opened;
+        private String query;
+        private List<LootOptions.Option> shown = List.of();
+        private int highlight = -1;
+        private int scroll;
+        private int x, y, w, h;
+
+        Suggestions(int[] rect, LootOptions.Source source, String opened) {
+            this.rect = rect;
+            this.source = source;
+            this.opened = opened;
+        }
+
+        private void update() {
+            String text = inline == null ? "" : inline.getValue();
+            String q = text.equals(opened) ? "" : text.trim().toLowerCase(Locale.ROOT);
+            if (q.equals(query)) {
+                return;
+            }
+            query = q;
+            List<LootOptions.Option> all = source.list();
+            highlight = -1;
+            if (q.isEmpty()) {
+                shown = all;
+                for (int i = 0; i < all.size(); i++) {
+                    if (all.get(i).id().equals(opened.trim()) || source.name(opened.trim()) != null && all.get(i).name().equals(source.name(opened.trim()))) {
+                        highlight = i;
+                        break;
+                    }
+                }
+            } else {
+                List<LootOptions.Option> starting = new ArrayList<>();
+                List<LootOptions.Option> containing = new ArrayList<>();
+                for (LootOptions.Option option : all) {
+                    String id = option.id().toLowerCase(Locale.ROOT);
+                    String path = id.substring(id.indexOf(':') + 1);
+                    String name = option.name().toLowerCase(Locale.ROOT);
+                    if (id.startsWith(q) || path.startsWith(q) || name.startsWith(q)) {
+                        starting.add(option);
+                    } else if (id.contains(q) || name.contains(q)) {
+                        containing.add(option);
+                    }
+                }
+                shown = new ArrayList<>(starting);
+                shown.addAll(containing);
+                // Only a close match is picked for Enter; otherwise Enter keeps what was typed.
+                highlight = starting.isEmpty() ? -1 : 0;
+            }
+            scroll = highlight < 0 ? 0 : Math.max(0, Math.min(highlight - ROWS / 2, shown.size() - ROWS));
+            layout();
+        }
+
+        private void layout() {
+            int widest = rect[2];
+            for (int i = 0; i < Math.min(shown.size(), 300); i++) {
+                LootOptions.Option option = shown.get(i);
+                widest = Math.max(widest, font.width(option.name()) + (sameAsId(option) ? 0 : Gui.fineWidth(font, option.id()) + 8) + 12);
+            }
+            w = Math.min(widest, Math.min(Math.max(rect[2], 320), width - 8));
+            h = Math.min(shown.size(), ROWS) * LINE + 2;
+            x = Math.max(4, Math.min(rect[0], width - w - 4));
+            int below = rect[1] + rect[3] + 1;
+            y = below + h <= height - 4 ? below : Math.max(4, rect[1] - h - 1);
+        }
+
+        private boolean sameAsId(LootOptions.Option option) {
+            return option.name().equalsIgnoreCase(option.id());
+        }
+
+        void render(GuiGraphics g, int mouseX, int mouseY) {
+            update();
+            if (shown.isEmpty()) {
+                return;
+            }
+            g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFFFFFFFF);
+            g.fill(x, y, x + w, y + h, 0xFF202020);
+            int rows = Math.min(shown.size() - scroll, ROWS);
+            for (int i = 0; i < rows; i++) {
+                int index = scroll + i;
+                LootOptions.Option option = shown.get(index);
+                int cy = y + 1 + i * LINE;
+                boolean over = mouseX >= x && mouseX < x + w && mouseY >= cy && mouseY < cy + LINE;
+                if (index == highlight || over) {
+                    g.fill(x, cy, x + w, cy + LINE, index == highlight ? 0xFF4B5280 : 0xFF3A3A3A);
+                }
+                int right = x + w - (shown.size() > ROWS ? 6 : 3);
+                int idRoom = sameAsId(option) ? 0 : Math.min(Gui.fineWidth(font, option.id()), (right - x) / 2);
+                Gui.drawClipped(g, font, option.name(), x + 4, cy + 2, right - x - 6 - (idRoom > 0 ? idRoom + 6 : 0), 0xFFE0E0E0, false);
+                if (idRoom > 0) {
+                    Gui.fineClipped(g, font, option.id(), right - idRoom, cy + 3, idRoom, 0xFF8C8C8C);
+                }
+            }
+            if (shown.size() > ROWS) {
+                int track = h - 2;
+                int thumb = Math.max(6, track * ROWS / shown.size());
+                int top = y + 1 + (track - thumb) * scroll / Math.max(1, shown.size() - ROWS);
+                g.fill(x + w - 3, top, x + w - 1, top + thumb, 0xFF9A9A9A);
+            }
+        }
+
+        boolean contains(double mouseX, double mouseY) {
+            update();
+            return !shown.isEmpty() && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+        }
+
+        LootOptions.Option at(double mouseX, double mouseY) {
+            int index = (int) ((mouseY - y - 1) / LINE) + scroll;
+            return index >= 0 && index < shown.size() ? shown.get(index) : null;
+        }
+
+        void move(int direction) {
+            update();
+            if (shown.isEmpty()) {
+                return;
+            }
+            highlight = Math.max(0, Math.min(shown.size() - 1, highlight + direction));
+            if (highlight < scroll) {
+                scroll = highlight;
+            } else if (highlight >= scroll + ROWS) {
+                scroll = highlight - ROWS + 1;
+            }
+        }
+
+        LootOptions.Option highlighted() {
+            update();
+            return highlight >= 0 && highlight < shown.size() ? shown.get(highlight) : null;
+        }
+
+        void scroll(double delta) {
+            scroll = Math.max(0, Math.min(scroll - (int) Math.signum(delta) * 3, Math.max(0, shown.size() - ROWS)));
         }
     }
 
