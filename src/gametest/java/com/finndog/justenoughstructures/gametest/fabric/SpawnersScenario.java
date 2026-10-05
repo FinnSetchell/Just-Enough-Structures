@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -15,7 +16,6 @@ import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.Tag;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The Mobs tab for a structure whose spawners pick their mob from a list. New layouts are made
@@ -34,7 +34,7 @@ final class SpawnersScenario {
         int[] tries = {0};
         CaptureResult[] checked = new CaptureResult[1];
         long[] deadline = {0};
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> {
                     JesScreen browser = browser(mc);

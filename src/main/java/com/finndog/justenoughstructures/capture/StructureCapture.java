@@ -206,7 +206,12 @@ public final class StructureCapture {
         FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
 
-        //? if >=26.1 {
+        //? if >=26.3 {
+        /*// From 26.3 a structure reads the climate through a sampler of its own, made as the place command makes it.
+        StructureStart start = structure.generate(holder, level.dimension(), server.registryAccess(), generator, biomeSource,
+                level.getChunkSource().randomState().createClimateSampler(net.minecraft.world.level.levelgen.densityfunction.SamplerContext.EMPTY_UNCACHED),
+                level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+        *///?} else if >=26.1 {
         /*StructureStart start = structure.generate(holder, level.dimension(), server.registryAccess(), generator, biomeSource,
                 level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
         *///?} else {

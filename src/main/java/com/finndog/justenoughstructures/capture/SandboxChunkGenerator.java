@@ -25,6 +25,12 @@ import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.blending.Blender;
+//? if >=26.3 {
+/*import java.util.Set;
+import net.minecraft.core.Holder;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.levelgen.densityfunction.SamplerContext;
+*///?}
 
 /**
  * Answers the terrain questions structures ask while they pick a spot (surface height, sea level,
@@ -62,21 +68,24 @@ final class SandboxChunkGenerator extends ChunkGenerator {
     }
     //?}
 
-    //? if >=1.21.2 {
+    // From 26.3 carving, the surface and the noise are one step, buildTerrain below.
+    //? if >=1.21.2 && <26.3 {
     /*@Override
     public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomeManager,
                              StructureManager structureManager, ChunkAccess chunk) {
     }
-    *///?} else {
+    *///?} else if <1.21.2 {
     @Override
     public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomeManager,
                              StructureManager structureManager, ChunkAccess chunk, GenerationStep.Carving step) {
     }
     //?}
 
+    //? if <26.3 {
     @Override
     public void buildSurface(WorldGenRegion region, StructureManager structureManager, RandomState randomState, ChunkAccess chunk) {
     }
+    //?}
 
     @Override
     public void spawnOriginalMobs(WorldGenRegion region) {
@@ -87,7 +96,13 @@ final class SandboxChunkGenerator extends ChunkGenerator {
         return column.length;
     }
 
-    //? if >=1.21 {
+    //? if >=26.3 {
+    /*@Override
+    public CompletableFuture<ChunkAccess> buildTerrain(ChunkAccess chunk, Blender blender, RandomState randomState, StructureManager structureManager,
+                                                       BiomeManager biomeManager, WorldGenRegion carverBiomeRegion, Set<Holder<Biome>> possibleBiomes) {
+        return CompletableFuture.completedFuture(chunk);
+    }
+    *///?} else if >=1.21 {
     /*@Override
     public CompletableFuture<ChunkAccess> fillFromNoise(Blender blender, RandomState randomState, StructureManager structureManager, ChunkAccess chunk) {
         return CompletableFuture.completedFuture(chunk);
@@ -125,7 +140,13 @@ final class SandboxChunkGenerator extends ChunkGenerator {
         return new NoiseColumn(minY, column.clone());
     }
 
+    //? if >=26.3 {
+    /*@Override
+    public void addDebugScreenInfo(List<String> lines, RandomState randomState, BlockPos pos, SamplerContext samplerContext) {
+    }
+    *///?} else {
     @Override
     public void addDebugScreenInfo(List<String> lines, RandomState randomState, BlockPos pos) {
     }
+    //?}
 }

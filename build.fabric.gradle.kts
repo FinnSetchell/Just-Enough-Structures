@@ -132,6 +132,19 @@ val devMods = mapOf(
         "moogs-structure-lib:KOfVwVft", "cristel-lib:6cKPC8Up", "cloth-config:Nv3xnWXd",
         "resourceful-config:RqoPv70U", "midnightlib:3uBvRFE9",
     ),
+    "26.3" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // Other big structure mods. YUNG's and Explorify have no 26.3 build.
+        "towns-and-towers:yajFnGZS", "structory:GjOkOVW4", "structory-towers:5ntmnN83", "dungeons-and-taverns:WilF7nqU",
+        // Structure compass
+        "explorers-compass:69AbLioc",
+        // Libraries the above need
+        "moogs-structure-lib:SkD4H9XM", "cristel-lib:rWxmPrGC", "cloth-config:fg2uyxOW",
+        "resourceful-config:IFB0XCI9", "midnightlib:wJeXgIoa",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.

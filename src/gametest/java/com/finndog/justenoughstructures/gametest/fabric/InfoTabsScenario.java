@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -14,7 +15,6 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Each of the Info panel's tabs: the Loot tab with a table picked, at the top and scrolled to its
@@ -29,7 +29,7 @@ final class InfoTabsScenario {
         String requested = System.getProperty("jes.autoshot.structures", "");
         JesScreen.startOn(Ids.parse(requested.isBlank() ? "minecraft:pillager_outpost" : requested.split(",")[0].trim()));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).showLoot(firstTable(mc))))

@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.PackToolsState;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -409,13 +410,13 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        if (button == 0 && current().clickFirst(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && current().clickFirst(mouseX, mouseY)) {
             return true;
         }
         if (super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        if (button == 0 && ui.click(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && ui.click(mouseX, mouseY)) {
             setFocused(null);
             return true;
         }

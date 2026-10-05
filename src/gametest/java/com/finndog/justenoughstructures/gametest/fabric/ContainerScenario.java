@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -18,7 +19,6 @@ import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Pointing one container at another loot table, from Pack tools: picking the chest in the browser,
@@ -34,7 +34,7 @@ final class ContainerScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> captured(mc), 400))
                 .then(run(() -> browser(mc).pickForTools()))
@@ -71,7 +71,7 @@ final class ContainerScenario {
                 .then(shoot("k06_undone"))
                 .then(run(() -> reload(mc)))
                 .then(until(() -> ClientRequests.reloads() > reloadsBefore[0], 1200))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> browser(mc) != null, 40))
                 // The test datapack hides the jungle pyramid's loot, so the desert pyramid shows a chest placed by code.
                 .then(run(() -> browser(mc).select(Ids.parse("desert_pyramid"))))

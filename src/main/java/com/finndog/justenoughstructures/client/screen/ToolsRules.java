@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -15,7 +16,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The server's rules, as in server.json5: who can find and teleport to structures and who can use
@@ -59,7 +59,7 @@ final class ToolsRules extends ToolsSection {
 
     @Override
     boolean keyPressed(int key, int modifiers) {
-        if ((key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) && nameBox != null && nameBox.isFocused()) {
+        if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) && nameBox != null && nameBox.isFocused()) {
             addPlayer();
             return true;
         }

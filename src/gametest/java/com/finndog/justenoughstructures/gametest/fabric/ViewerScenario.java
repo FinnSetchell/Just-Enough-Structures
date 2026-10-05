@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -20,7 +21,6 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The "Found in structures" page in EMI or REI, whichever the dev runtime has (-Pviewer=emi or rei):
@@ -46,7 +46,7 @@ final class ViewerScenario {
         String name = emi ? "emi" : "rei";
         Director d = new Director(mc, null);
         d.then(pause(40))
-                .then(pressKey(GLFW.GLFW_KEY_E))
+                .then(pressKey(InputConstants.KEY_E))
                 .then(until(() -> mc.screen != null, 40))
                 .then(until(ready, 12000))
                 .then(pause(40))

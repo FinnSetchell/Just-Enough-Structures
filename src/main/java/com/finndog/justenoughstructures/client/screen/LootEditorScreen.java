@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
@@ -14,6 +15,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,7 +42,6 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Edits a loot table in game, as a form like misode's generator. On the left are the table, its
@@ -201,7 +202,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         try {
             JsonElement parsed = JsonParser.parseString(json);
-            return parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+            return parsed.isJsonObject() ? LootFormat.forEditing(parsed.getAsJsonObject()) : null;
         } catch (JsonParseException e) {
             return null;
         }
@@ -212,7 +213,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (raw) {
             return rawBox != null ? rawBox.getValue() : rawText == null ? "" : rawText;
         }
-        return draft == null ? "" : PRETTY.toJson(draft);
+        return draft == null ? "" : PRETTY.toJson(LootFormat.forGame(draft));
     }
 
     @Override
@@ -675,7 +676,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     @Override
     public boolean keyPressed(int key, int scan, int modifiers) {
-        if (key == GLFW.GLFW_KEY_ESCAPE) {
+        if (key == InputConstants.KEY_ESCAPE) {
             if (picker != null) {
                 closePicker();
                 return true;
@@ -690,21 +691,21 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             }
         }
         if (editingId != null && suggestions != null) {
-            if (key == GLFW.GLFW_KEY_DOWN || key == GLFW.GLFW_KEY_UP) {
-                suggestions.move(key == GLFW.GLFW_KEY_DOWN ? 1 : -1);
+            if (key == InputConstants.KEY_DOWN || key == InputConstants.KEY_UP) {
+                suggestions.move(key == InputConstants.KEY_DOWN ? 1 : -1);
                 return true;
             }
             LootOptions.Option highlighted = suggestions.highlighted();
-            if (highlighted != null && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_TAB)) {
+            if (highlighted != null && (key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER || key == InputConstants.KEY_TAB)) {
                 pickSuggestion(highlighted);
                 return true;
             }
         }
-        if (editingId != null && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER || key == GLFW.GLFW_KEY_TAB)) {
+        if (editingId != null && (key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER || key == InputConstants.KEY_TAB)) {
             commitEditing();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_S && hasControlDown() && view != null) {
+        if (key == InputConstants.KEY_S && hasControlDown() && view != null) {
             save(false);
             return true;
         }
@@ -741,7 +742,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (editingId != null && !(inline != null && inline.isMouseOver(mouseX, mouseY))) {
             commitEditing();
         }
-        if (button == 0 && ui.click(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && ui.click(mouseX, mouseY)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);

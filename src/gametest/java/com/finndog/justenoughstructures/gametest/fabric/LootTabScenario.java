@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -12,7 +13,6 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.Items;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The Loot tab as players see it: the containers in the layout, every item's chance across the
@@ -26,7 +26,7 @@ final class LootTabScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).setSpin(false)))
@@ -47,7 +47,7 @@ final class LootTabScenario {
                 .then(click())
                 .then(pause(20))
                 .then(shoot("l04_popup_odds"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(run(() -> browser(mc).openTable("minecraft:chests/igloo_chest")))
                 .then(pause(30))
                 .then(shoot("l05_table_popup"))

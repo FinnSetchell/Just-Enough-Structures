@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -18,7 +19,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Explorer's Compass and the browser, both ways: the browser opens the compass on a structure,
@@ -35,7 +35,7 @@ final class CompassScenario {
         Director d = new Director(mc, null);
         d.then(run(() -> giveCompass(mc)))
                 .then(pause(20))
-                .then(pressKey(GLFW.GLFW_KEY_K))
+                .then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(moveTo(() -> browser(mc).button("compass"), 10))
@@ -52,16 +52,16 @@ final class CompassScenario {
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(shoot("c03_preview_from_compass"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> onCompassScreen(mc), 40))
                 .then(pause(10))
                 .then(shoot("c04_back_in_compass"))
                 // Ctrl-click: the compass starts searching straight away. Only villages and
                 // strongholds can generate in the superflat world.
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> mc.screen == null, 40))
                 .then(run(() -> JesScreen.startOn(Ids.parse("village_plains"))))
-                .then(pressKey(GLFW.GLFW_KEY_K))
+                .then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(run(() -> browser(mc).pointCompassNow()))

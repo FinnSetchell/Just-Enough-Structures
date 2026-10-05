@@ -20,11 +20,15 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -160,23 +164,23 @@ public final class Codecs {
     // ------------------------------------------------------------------ Pack tools
 
     public static void writeSettings(FriendlyByteBuf buf, ServerConfig.Settings s) {
-        buf.writeCollection(s.hiddenStructures().stream().sorted().toList(), FriendlyByteBuf::writeResourceLocation);
-        buf.writeCollection(s.hiddenMods().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
+        writeList(buf, s.hiddenStructures().stream().sorted().toList(), FriendlyByteBuf::writeResourceLocation);
+        writeList(buf, s.hiddenMods().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
         buf.writeVarInt(s.locatePermission());
         buf.writeVarInt(s.teleportPermission());
         buf.writeBoolean(s.showLootLocations());
-        buf.writeCollection(s.packTools().players(), FriendlyByteBuf::writeUtf);
+        writeList(buf, s.packTools().players(), FriendlyByteBuf::writeUtf);
         buf.writeVarInt(s.packTools().permissionLevel() + 1);
         buf.writeBoolean(s.containerChanges());
     }
 
     public static ServerConfig.Settings readSettings(FriendlyByteBuf buf) {
-        Set<ResourceLocation> structures = Set.copyOf(buf.readList(FriendlyByteBuf::readResourceLocation));
-        Set<String> mods = Set.copyOf(buf.readList(b -> b.readUtf(256)));
+        Set<ResourceLocation> structures = Set.copyOf(readList(buf, FriendlyByteBuf::readResourceLocation));
+        Set<String> mods = Set.copyOf(readList(buf, b -> b.readUtf(256)));
         int locate = buf.readVarInt();
         int teleport = buf.readVarInt();
         boolean showLoot = buf.readBoolean();
-        List<String> players = List.copyOf(buf.readList(b -> b.readUtf(64)));
+        List<String> players = List.copyOf(readList(buf, b -> b.readUtf(64)));
         int level = buf.readVarInt() - 1;
         boolean containers = buf.readBoolean();
         return new ServerConfig.Settings(structures, mods, locate, teleport, showLoot, new ServerConfig.PackTools(players, level), containers);
@@ -184,7 +188,7 @@ public final class Codecs {
 
     public static void writeTools(FriendlyByteBuf buf, PackToolsState state) {
         writeSettings(buf, state.settings());
-        buf.writeCollection(state.pending().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
+        writeList(buf, state.pending().stream().sorted().toList(), FriendlyByteBuf::writeUtf);
         buf.writeVarInt(state.overrides().size());
         state.overrides().forEach((id, status) -> {
             buf.writeResourceLocation(id);
@@ -214,13 +218,13 @@ public final class Codecs {
             buf.writeBoolean(written.fromPack());
         });
         writeCatalog(buf, state.hidden());
-        buf.writeCollection(state.tables(), FriendlyByteBuf::writeResourceLocation);
-        buf.writeMap(state.names(), FriendlyByteBuf::writeUtf, (b, ids) -> b.writeCollection(ids, FriendlyByteBuf::writeResourceLocation));
+        writeList(buf, state.tables(), FriendlyByteBuf::writeResourceLocation);
+        writeMap(buf, state.names(), FriendlyByteBuf::writeUtf, (b, ids) -> writeList(b, ids, FriendlyByteBuf::writeResourceLocation));
     }
 
     public static PackToolsState readTools(FriendlyByteBuf buf) {
         ServerConfig.Settings settings = readSettings(buf);
-        Set<String> pending = Set.copyOf(buf.readList(FriendlyByteBuf::readUtf));
+        Set<String> pending = Set.copyOf(readList(buf, FriendlyByteBuf::readUtf));
         Map<ResourceLocation, LootOverrides.Status> overrides = new TreeMap<>();
         int count = buf.readVarInt();
         for (int i = 0; i < count; i++) {
@@ -246,8 +250,8 @@ public final class Codecs {
             structures.put(id, new PackToolsState.Written(info, buf.readBoolean()));
         }
         List<StructureCatalog.Entry> hidden = readCatalog(buf);
-        List<ResourceLocation> tables = buf.readList(FriendlyByteBuf::readResourceLocation);
-        Map<String, List<ResourceLocation>> names = buf.readMap(FriendlyByteBuf::readUtf, b -> b.readList(FriendlyByteBuf::readResourceLocation));
+        List<ResourceLocation> tables = readList(buf, FriendlyByteBuf::readResourceLocation);
+        Map<String, List<ResourceLocation>> names = readMap(buf, FriendlyByteBuf::readUtf, b -> readList(b, FriendlyByteBuf::readResourceLocation));
         return new PackToolsState(settings, pending, overrides, patches, spawners, structures, hidden, tables, names);
     }
 
@@ -371,7 +375,7 @@ public final class Codecs {
             buf.writeVarInt(row.total());
             buf.writeVarInt(row.min());
             buf.writeVarInt(row.max());
-            buf.writeMap(row.variants(), FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeVarInt);
+            writeMap(buf, row.variants(), FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeVarInt);
         }
     }
 
@@ -383,7 +387,7 @@ public final class Codecs {
         List<LootOdds.Row> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             rows.add(new LootOdds.Row(readItem(buf), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
-                    new TreeMap<>(buf.readMap(b -> b.readUtf(), b -> b.readVarInt()))));
+                    new TreeMap<>(readMap(buf, b -> b.readUtf(), b -> b.readVarInt()))));
         }
         return new LootOdds(table, rolls, empty, rows);
     }
@@ -514,6 +518,42 @@ public final class Codecs {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    // The buffer's own list and map helpers are gone from 26.3. These write the same: a count, then
+    // each entry.
+    private static <T> void writeList(FriendlyByteBuf buf, Collection<T> list, BiConsumer<FriendlyByteBuf, T> writer) {
+        buf.writeVarInt(list.size());
+        for (T entry : list) {
+            writer.accept(buf, entry);
+        }
+    }
+
+    private static <T> List<T> readList(FriendlyByteBuf buf, Function<FriendlyByteBuf, T> reader) {
+        int count = buf.readVarInt();
+        List<T> out = new ArrayList<>(Math.min(count, 1024));
+        for (int i = 0; i < count; i++) {
+            out.add(reader.apply(buf));
+        }
+        return out;
+    }
+
+    private static <K, V> void writeMap(FriendlyByteBuf buf, Map<K, V> map, BiConsumer<FriendlyByteBuf, K> keys, BiConsumer<FriendlyByteBuf, V> values) {
+        buf.writeVarInt(map.size());
+        map.forEach((key, value) -> {
+            keys.accept(buf, key);
+            values.accept(buf, value);
+        });
+    }
+
+    private static <K, V> Map<K, V> readMap(FriendlyByteBuf buf, Function<FriendlyByteBuf, K> keys, Function<FriendlyByteBuf, V> values) {
+        int count = buf.readVarInt();
+        Map<K, V> out = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            K key = keys.apply(buf);
+            out.put(key, values.apply(buf));
+        }
+        return out;
+    }
 
     private static void writeNullableId(FriendlyByteBuf buf, ResourceLocation id) {
         buf.writeBoolean(id != null);

@@ -19,6 +19,7 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.InputConstants;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayList;
@@ -64,7 +65,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
-import org.lwjgl.glfw.GLFW;
 //? if >=26.1 {
 /*import net.minecraft.nbt.NbtOps;
 *///?}
@@ -2675,7 +2675,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             return true;
         }
         SidePopup side = side();
-        if (picking != Picking.NONE && popup == null && side == null && pickCancel != null && button == 0 && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+        if (picking != Picking.NONE && popup == null && side == null && pickCancel != null && button == InputConstants.MOUSE_BUTTON_LEFT && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
                 && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
             cancelPicking();
             return true;
@@ -2730,7 +2730,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
             return true;
         }
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             for (Marker m : markerRects) {
                 if (m.contains(mouseX, mouseY) && openMarker(m)) {
                     return true;
@@ -2740,7 +2740,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             Optional<StructureList.Pick> clicked = sides ? list.click(mouseX, mouseY) : Optional.empty();
             if (clicked.isPresent()) {
                 StructureList.Pick pick = clicked.get();
@@ -2772,7 +2772,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             if (popup != null || side() != null) {
                 // Only turning: moving would take the container out of the middle.
                 viewport.rotate(dx, dy);
-            } else if (button == 1 || button == 2 || hasShiftDown()) {
+            } else if (button == InputConstants.MOUSE_BUTTON_RIGHT || button == InputConstants.MOUSE_BUTTON_MIDDLE || hasShiftDown()) {
                 viewport.pan(dx, dy);
             } else {
                 viewport.rotate(dx, dy);
@@ -2787,10 +2787,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (pressedInViewport) {
             pressedInViewport = false;
             if (popup != null || side() != null) {
-                if (!dragged && (button != 0 || !openClicked(mouseX, mouseY))) {
+                if (!dragged && (button != InputConstants.MOUSE_BUTTON_LEFT || !openClicked(mouseX, mouseY))) {
                     closePopup();
                 }
-            } else if (!dragged && button == 0) {
+            } else if (!dragged && button == InputConstants.MOUSE_BUTTON_LEFT) {
                 openPicked(viewport.pick(mouseX, mouseY));
             }
             return true;
@@ -2821,19 +2821,19 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
-        if (key == GLFW.GLFW_KEY_ESCAPE && foundIn != null) {
+        if (key == InputConstants.KEY_ESCAPE && foundIn != null) {
             foundIn = null;
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && (popup != null || side() != null)) {
+        if (key == InputConstants.KEY_ESCAPE && (popup != null || side() != null)) {
             closePopup();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE && picking != Picking.NONE) {
+        if (key == InputConstants.KEY_ESCAPE && picking != Picking.NONE) {
             picking = Picking.NONE;
             return true;
         }
-        if (key == GLFW.GLFW_KEY_U && !search.isFocused()) {
+        if (key == InputConstants.KEY_U && !search.isFocused()) {
             ItemStack hovered = popup != null || side() != null ? popupHovered : info.hoveredStack();
             if (!hovered.isEmpty()) {
                 openFoundIn(hovered);
@@ -2841,7 +2841,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
         }
         if (search.isFocused()) {
-            if (key == GLFW.GLFW_KEY_ENTER) {
+            if (key == InputConstants.KEY_RETURN) {
                 list.firstShown().filter(e -> e != selected).ifPresent(e -> {
                     Nav.remember();
                     select(e, defaultSeed(e.id()));
@@ -2850,7 +2850,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
             return super.keyPressed(key, scanCode, modifiers);
         }
-        if (key == GLFW.GLFW_KEY_R && popup == null && side() == null) {
+        if (key == InputConstants.KEY_R && popup == null && side() == null) {
             reroll();
             return true;
         }

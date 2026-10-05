@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -12,7 +13,6 @@ import net.minecraft.client.MouseHandler;
 import net.minecraft.client.Screenshot;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import net.minecraft.client.gui.GuiGraphics;
-import org.lwjgl.glfw.GLFW;
 //? if >=26.1 {
 /*import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -170,12 +170,12 @@ final class Director {
         clickX = (int) Math.round(cursorX);
         clickY = (int) Math.round(cursorY);
         clickAge = 0;
-        button(button, GLFW.GLFW_PRESS);
+        button(button, InputConstants.PRESS);
     }
 
     void release(int button) {
         pressed = false;
-        button(button, GLFW.GLFW_RELEASE);
+        button(button, InputConstants.RELEASE);
     }
 
     private void button(int button, int action) {
@@ -192,11 +192,11 @@ final class Director {
 
     void key(int key) {
         //? if >=26.1 {
-        /*call("keyPress", mc.keyboardHandler, window(), GLFW.GLFW_PRESS, new KeyEvent(key, 0, 0));
-        call("keyPress", mc.keyboardHandler, window(), GLFW.GLFW_RELEASE, new KeyEvent(key, 0, 0));
+        /*call("keyPress", mc.keyboardHandler, window(), InputConstants.PRESS, new KeyEvent(key, 0, 0));
+        call("keyPress", mc.keyboardHandler, window(), InputConstants.RELEASE, new KeyEvent(key, 0, 0));
         *///?} else {
-        mc.keyboardHandler.keyPress(window(), key, 0, GLFW.GLFW_PRESS, 0);
-        mc.keyboardHandler.keyPress(window(), key, 0, GLFW.GLFW_RELEASE, 0);
+        mc.keyboardHandler.keyPress(window(), key, 0, InputConstants.PRESS, 0);
+        mc.keyboardHandler.keyPress(window(), key, 0, InputConstants.RELEASE, 0);
         //?}
     }
 
@@ -323,7 +323,7 @@ final class Director {
             public boolean step(Director d, int frame) {
                 if (inner == null) {
                     int[] to = {(int) Math.round(d.cursorX) + dx, (int) Math.round(d.cursorY) + dy};
-                    inner = dragTo(() -> to, frames, 0);
+                    inner = dragTo(() -> to, frames, InputConstants.MOUSE_BUTTON_LEFT);
                 }
                 return inner.step(d, frame);
             }
@@ -333,9 +333,9 @@ final class Director {
     static Action click() {
         return (d, frame) -> {
             if (frame == 0) {
-                d.press(0);
+                d.press(InputConstants.MOUSE_BUTTON_LEFT);
             } else if (frame == 2) {
-                d.release(0);
+                d.release(InputConstants.MOUSE_BUTTON_LEFT);
             }
             return frame >= 3;
         };

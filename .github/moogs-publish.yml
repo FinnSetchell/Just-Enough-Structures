@@ -31,6 +31,7 @@ targets:
       # Likewise 26.1, 26.1.1 and 26.1.2.
       - { mc: "26.1.2", from: "26.1", java: 25 }
       - { mc: "26.2", java: 25 }
+      - { mc: "26.3", java: 25 }
     dependencies:
       - { modrinth: P7dR8mSH, curseforge: fabric-api, type: required }
   - branch: main

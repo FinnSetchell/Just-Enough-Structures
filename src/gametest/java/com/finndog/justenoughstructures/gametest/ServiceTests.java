@@ -204,7 +204,13 @@ public final class ServiceTests {
         helper.assertTrue(pyramidItems.contains(Ids.parse("diamond")), "diamonds are missing from the desert pyramid table");
         helper.assertTrue(pyramidItems.contains(Ids.parse("enchanted_book")), "books enchanted by the table should count as enchanted books");
         Set<ResourceLocation> mapItems = index.itemsByTable().getOrDefault(Ids.parse("chests/shipwreck_map"), Set.of());
-        helper.assertTrue(mapItems.contains(Ids.parse("filled_map")), "the shipwreck map table should list a filled map, found " + mapItems);
+        //? if >=26.3 {
+        /*// From 26.3 a treasure map is an item of its own, which the map is drawn straight onto.
+        ResourceLocation map = Ids.parse("buried_treasure_map");
+        *///?} else {
+        ResourceLocation map = Ids.parse("filled_map");
+        //?}
+        helper.assertTrue(mapItems.contains(map), "the shipwreck map table should list " + map + ", found " + mapItems);
         helper.succeed();
     }
 
@@ -308,8 +314,15 @@ public final class ServiceTests {
     public static void locateLooksInOtherDimensions(GameTestHelper helper) {
         ServerLevel overworld = helper.getLevel();
         ServerLevel endCity = JesServer.searchedIn(overworld, Ids.parse("end_city"));
+        //? if >=26.3 {
+        /*// From 26.3 every dimension of the test world is a desert superflat, with only villages and
+        // strongholds, so no end city can generate anywhere.
+        helper.assertTrue(endCity == null, "an end city is looked for in " + (endCity == null ? "nowhere" : endCity.dimension()) + ", where none can generate");
+        ServerLevel village = JesServer.searchedIn(overworld, Ids.parse("village_desert"));
+        *///?} else {
         helper.assertTrue(endCity != null && endCity.dimension() == Level.END, "an end city is looked for in " + (endCity == null ? "nowhere" : endCity.dimension()));
         ServerLevel village = JesServer.searchedIn(overworld, Ids.parse("village_plains"));
+        //?}
         helper.assertTrue(village == overworld, "a village is looked for in " + (village == null ? "nowhere" : village.dimension()) + ", not here");
         helper.succeed();
     }

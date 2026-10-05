@@ -56,11 +56,16 @@ public final class CompassTests {
             ServerConfig.set(before);
         }
 
-        // The test world is superflat, where only villages and strongholds can generate.
+        // The test world is superflat, where only villages and strongholds can generate. From 26.3 its
+        // biome is desert.
+        //? if >=26.3 {
+        /*ResourceLocation village = Ids.parse("village_desert");
+        *///?} else {
         ResourceLocation village = Ids.parse("village_plains");
+        //?}
         reply = JesServer.compassFor(player, village);
         helper.assertTrue(key(reply).endsWith("compass_now_searching"), "the compass didn't start searching, got " + reply.getString());
-        helper.assertTrue(village.toString().equals(target(compass)), "the compass is set to " + target(compass) + " instead of the plains village");
+        helper.assertTrue(village.toString().equals(target(compass)), "the compass is set to " + target(compass) + " instead of the village");
 
         // Stops the search the way a player would, by using the compass while sneaking, so it doesn't
         // keep generating chunks for the rest of the tests.

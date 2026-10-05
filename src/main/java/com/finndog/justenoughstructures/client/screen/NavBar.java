@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -114,7 +115,7 @@ final class NavBar {
 
     /** Backspace goes back and Shift+Backspace forward, unless a text box has the keyboard. */
     boolean keyPressed(int key, int modifiers) {
-        if (key != GLFW.GLFW_KEY_BACKSPACE || typing(screen)) {
+        if (key != InputConstants.KEY_BACKSPACE || typing(screen)) {
             return false;
         }
         if ((modifiers & GLFW.GLFW_MOD_SHIFT) != 0) {

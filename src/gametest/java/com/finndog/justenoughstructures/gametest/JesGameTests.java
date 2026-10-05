@@ -203,6 +203,11 @@ public final class JesGameTests {
         OverrideTests.draftsRollBeforeSaving(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void editorShapeRoundTrips(GameTestHelper helper) {
+        OverrideTests.editorShapeRoundTrips(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_override_reload", timeoutTicks = 1200)
     public void editsApplyOnReload(GameTestHelper helper) {

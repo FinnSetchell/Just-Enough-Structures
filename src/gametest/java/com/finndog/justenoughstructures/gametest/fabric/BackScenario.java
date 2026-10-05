@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.dragBy;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
@@ -33,7 +34,7 @@ final class BackScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).setSpin(false)))
@@ -62,11 +63,11 @@ final class BackScenario {
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(pause(10))
                 .then(shoot("b04_jumped"))
-                .then(pressKey(GLFW.GLFW_KEY_BACKSPACE))
+                .then(pressKey(InputConstants.KEY_BACKSPACE))
                 .then(until(() -> browser(mc).idle() && browser(mc).foundInOpen(), 600))
                 .then(pause(20))
                 .then(shoot("b05_back_to_the_list"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(run(() -> shiftBackspace(mc)))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(pause(20))
@@ -91,9 +92,9 @@ final class BackScenario {
     // Shift+Backspace goes Forward.
     private static void shiftBackspace(Minecraft mc) {
         //? if >=26.1 {
-        /*mc.screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT));
+        /*mc.screen.keyPressed(new KeyEvent(InputConstants.KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT));
         *///?} else {
-        mc.screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT);
+        mc.screen.keyPressed(InputConstants.KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT);
         //?}
     }
 

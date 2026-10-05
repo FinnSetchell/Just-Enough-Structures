@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -24,7 +25,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 /** The loot table editor: the Loot tab's Edit link, the editor with an entry picked, and the JSON view. */
 final class EditorScenario {
@@ -36,7 +36,7 @@ final class EditorScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(run(() -> browser(mc).showLoot(TABLE.toString())))
@@ -56,12 +56,12 @@ final class EditorScenario {
                 // Typing a weight into its field, and making the new function's count a range.
                 .then(moveTo(() -> field(mc, "pools.0.entries.1.weight"), 8))
                 .then(click())
-                .then(pressKey(GLFW.GLFW_KEY_BACKSPACE))
-                .then(pressKey(GLFW.GLFW_KEY_BACKSPACE))
+                .then(pressKey(InputConstants.KEY_BACKSPACE))
+                .then(pressKey(InputConstants.KEY_BACKSPACE))
                 .then(type("40", 2))
                 .then(pause(10))
                 .then(shoot("e03e_typing_weight"))
-                .then(pressKey(GLFW.GLFW_KEY_ENTER))
+                .then(pressKey(InputConstants.KEY_RETURN))
                 .then(moveTo(() -> field(mc, "pools.0.entries.1.functions.1.count#kind"), 8))
                 .then(click())
                 .then(pause(10))
@@ -73,7 +73,7 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).openItemPicker()))
                 .then(pause(20))
                 .then(shoot("e03c_item_picker"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 // The enchanted book, whose function's fields differ between versions.
                 .then(run(() -> editor(mc).pick(0, 11)))
                 .then(pause(20))
@@ -96,7 +96,7 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).showChanges()))
                 .then(pause(10))
                 .then(shoot("e06_changes"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> editor(mc) != null, 40))
                 .then(run(() -> editor(mc).mergeNow()))
                 .then(pause(40))

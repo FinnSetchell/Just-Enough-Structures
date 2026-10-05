@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.LootTypes;
+import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
@@ -33,6 +34,12 @@ import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.item.Items;
+//? if >=1.21 {
+/*import com.google.gson.JsonElement;
+import com.mojang.serialization.JsonOps;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.world.level.storage.loot.LootTable;
+*///?}
 
 /** Loot tables edited in the browser, saved as overrides. Every test works in a folder of its own. */
 public final class OverrideTests {
@@ -41,7 +48,35 @@ public final class OverrideTests {
             {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
             """;
 
+    // Vanilla tables that between them write modifiers and conditions every way 26.3 does: one or a
+    // list, conditions on modifiers, predicates by id, and entries inside entries.
+    private static final List<String> SHAPES = List.of("chests/simple_dungeon", "chests/shipwreck_map", "chests/end_city_treasure",
+            "chests/bastion_treasure", "blocks/acacia_slab", "blocks/oak_leaves", "blocks/gravel", "entities/zombie");
+
     private OverrideTests() {
+    }
+
+    /** A table goes into the editor's shape and comes back out as the same table. */
+    public static void editorShapeRoundTrips(GameTestHelper helper) {
+        //? if >=1.21 {
+        /*MinecraftServer server = helper.getLevel().getServer();
+        RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
+        for (String name : SHAPES) {
+            JsonObject game = LootTable.DIRECT_CODEC.encodeStart(ops, LootRolls.table(server, Ids.parse(name))).getOrThrow().getAsJsonObject();
+            JsonObject editable = LootFormat.forEditing(game);
+            JsonObject back = LootFormat.forGame(editable);
+            JsonElement again = LootTable.DIRECT_CODEC.encodeStart(ops, LootTable.DIRECT_CODEC.parse(ops, back).getOrThrow(AssertionError::new)).getOrThrow();
+            helper.assertTrue(again.equals(game), name + " came back from the editor as " + back);
+            if (name.equals("chests/simple_dungeon")) {
+                // The editor's simple form finds an item's count in the shape it's given.
+                JsonObject iron = TableDraft.poolList(editable).stream().flatMap(pool -> TableDraft.entryList(pool).stream())
+                        .filter(entry -> TableDraft.name(entry).equals("minecraft:iron_ingot")).findFirst().orElse(null);
+                helper.assertTrue(iron != null && new TableDraft.Range(1, 4).equals(TableDraft.count(iron)),
+                        "the editor reads the dungeon's iron as " + (iron == null ? "missing" : TableDraft.count(iron)));
+            }
+        }
+        *///?}
+        helper.succeed();
     }
 
     private static Path freshFolder() {

@@ -18,6 +18,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 //? if >=1.21 {
 /*import com.finndog.justenoughstructures.Levels;
 import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.GenerationChunkHolder;
 import net.minecraft.util.StaticCache2D;
 import net.minecraft.world.level.chunk.status.ChunkPyramid;
 *///?}
@@ -45,8 +46,7 @@ final class CaptureRegion extends WorldGenRegion {
     private final int writeRadius;
 
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
-        super(level, StaticCache2D.create(Levels.chunkX(middle(chunks).getPos()), Levels.chunkZ(middle(chunks).getPos()), 0, (x, z) -> null),
-                ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES), middle(chunks));
+        super(level, holders(middle(chunks)), ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES), middle(chunks));
         for (ChunkAccess chunk : chunks) {
             this.chunks.put(Levels.pack(chunk.getPos()), chunk);
         }
@@ -87,6 +87,38 @@ final class CaptureRegion extends WorldGenRegion {
         super(level, chunks, ChunkStatus.FEATURES, writeRadius);
     }
     //?}
+
+    //? if >=26.3 {
+    /*// 26.3's regions ask each chunk's holder for its chunk as they're made. These chunks belong to no
+    // world, and this region answers for them itself, so their holders have none to give.
+    private static StaticCache2D<GenerationChunkHolder> holders(ChunkAccess middle) {
+        return StaticCache2D.create(Levels.chunkX(middle.getPos()), Levels.chunkZ(middle.getPos()), 0, (x, z) -> new NoChunkHolder(new ChunkPos(x, z)));
+    }
+
+    private static final class NoChunkHolder extends GenerationChunkHolder {
+        NoChunkHolder(ChunkPos pos) {
+            super(pos);
+        }
+
+        @Override
+        protected void addSaveDependency(java.util.concurrent.CompletableFuture<?> sync) {
+        }
+
+        @Override
+        public int getTicketLevel() {
+            return 0;
+        }
+
+        @Override
+        public int getQueueLevel() {
+            return 0;
+        }
+    }
+    *///?} else if >=1.21 {
+    /*private static StaticCache2D<GenerationChunkHolder> holders(ChunkAccess middle) {
+        return StaticCache2D.create(Levels.chunkX(middle.getPos()), Levels.chunkZ(middle.getPos()), 0, (x, z) -> null);
+    }
+    *///?}
 
     //? if >=26.2 {
     /*// 26.2 reports every read outside the write zone around the region's middle chunk, as reading

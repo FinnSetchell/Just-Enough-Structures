@@ -24,6 +24,9 @@ import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackSelectionConfig;
 *///?}
+//? if >=26.3 {
+/*import net.minecraft.server.packs.PackMetadataResources;
+*///?}
 
 /**
  * Offers the loot override folder to every world as a datapack that's always on, above all others.
@@ -46,7 +49,21 @@ public final class OverridePack implements RepositorySource {
         }
         // The game opens the pack once to read its details and again to load it, so check once for both.
         Set<ResourceLocation> broken = CheckedResources.findBroken(root);
-        //? if >=1.21 {
+        //? if >=26.3 {
+        /*PackLocationInfo info = new PackLocationInfo(LootOverrides.PACK_ID, Component.translatable("pack.justenoughstructures.loot_overrides"),
+                PackSource.BUILT_IN, Optional.empty());
+        Pack pack = Pack.readMetaAndCreate(info, new Pack.ResourcesSupplier() {
+            @Override
+            public PackMetadataResources openMetadata(PackLocationInfo location) {
+                return new CheckedResources(location, root, broken);
+            }
+
+            @Override
+            public Stream<PackResources> openResources(PackLocationInfo location, Pack.Metadata metadata) {
+                return Stream.of(new CheckedResources(location, root, broken));
+            }
+        }, PackType.SERVER_DATA, new PackSelectionConfig(true, Pack.Position.TOP, false));
+        *///?} else if >=1.21 {
         /*PackLocationInfo info = new PackLocationInfo(LootOverrides.PACK_ID, Component.translatable("pack.justenoughstructures.loot_overrides"),
                 PackSource.BUILT_IN, Optional.empty());
         Pack pack = Pack.readMetaAndCreate(info, new Pack.ResourcesSupplier() {

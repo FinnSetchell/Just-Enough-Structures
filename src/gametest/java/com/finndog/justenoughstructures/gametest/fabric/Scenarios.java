@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.dragBy;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.dragTo;
@@ -24,7 +25,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import org.lwjgl.glfw.GLFW;
 
 /** Scripts for the review screenshots and the showcase recordings. */
 final class Scenarios {
@@ -84,7 +84,7 @@ final class Scenarios {
 
     private static void erase(Director d, int count) {
         for (int i = 0; i < count; i++) {
-            d.key(GLFW.GLFW_KEY_BACKSPACE);
+            d.key(InputConstants.KEY_BACKSPACE);
         }
     }
 
@@ -93,7 +93,7 @@ final class Scenarios {
         JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
@@ -140,7 +140,7 @@ final class Scenarios {
                 .then(click())
                 .then(pause(6))
                 .then(shoot("r09_found_in"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(moveTo(at(mc, s -> s.tab("loot")), 10))
                 .then(click())
                 .then(until(() -> screen(mc).oddsRow(Items.DIAMOND).isPresent(), 100))
@@ -159,10 +159,10 @@ final class Scenarios {
                 .then(pause(4))
                 .then(shoot("r13_info_tab"))
                 .then(moveTo(at(mc, s -> s.sliderAt(1f)), 10))
-                .then(dragTo(at(mc, s -> s.sliderAt(0.3f)), 12, 0))
+                .then(dragTo(at(mc, s -> s.sliderAt(0.3f)), 12, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(8))
                 .then(shoot("r14_layers"))
-                .then(dragTo(at(mc, s -> s.sliderAt(1f)), 6, 0))
+                .then(dragTo(at(mc, s -> s.sliderAt(1f)), 6, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(moveTo(viewport, 8))
                 .then(wheel(3))
                 .then(dragBy(-60, 20, 12))
@@ -195,16 +195,16 @@ final class Scenarios {
         JesScreen.startOn(Ids.parse("igloo"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> screen(mc) == null, 40))
                 .then(run(() -> JesScreen.startOn(Ids.parse("mansion"))))
                 .then(pause(20))
                 .then(record("open"))
                 .then(pause(12))
-                .then(pressKey(GLFW.GLFW_KEY_K))
+                .then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(moveTo(offset(viewport, 120, -120), 24))
@@ -223,7 +223,7 @@ final class Scenarios {
     private static Director teleport(Minecraft mc) {
         JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(run(() -> JustEnoughStructures.LOGGER.info("Autoshot teleport from {}", mc.player.blockPosition())))
@@ -246,7 +246,7 @@ final class Scenarios {
     private static Director jei(Minecraft mc) {
         Director d = new Director(mc, null);
         d.then(pause(40))
-                .then(pressKey(GLFW.GLFW_KEY_E))
+                .then(pressKey(InputConstants.KEY_E))
                 .then(until(() -> mc.screen != null, 40))
                 .then(pause(40))
                 .then(shoot("j01_inventory"))
@@ -262,7 +262,7 @@ final class Scenarios {
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(shoot("j04_opened_in_browser"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(pause(20))
                 .then(shoot("j05_back_in_jei"));
         return d;
@@ -273,7 +273,7 @@ final class Scenarios {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 130), 2))
@@ -288,7 +288,7 @@ final class Scenarios {
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         // Get everything loaded before recording, so it opens on a finished preview.
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
@@ -300,7 +300,7 @@ final class Scenarios {
                 .then(moveTo(viewport, 14))
                 .then(dragBy(110, -10, 24))
                 .then(moveTo(at(mc, s -> s.sliderAt(1f)), 14))
-                .then(dragTo(at(mc, s -> s.sliderAt(0.5f)), 18, 0))
+                .then(dragTo(at(mc, s -> s.sliderAt(0.5f)), 18, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(6))
                 .then(moveTo(() -> screen(mc).marker(CHEST).orElse(screen(mc).viewportCentre()), 14))
                 .then(pause(4))
@@ -309,7 +309,7 @@ final class Scenarios {
                 .then(moveTo(at(mc, s -> s.button("reroll_loot")), 12))
                 .then(click())
                 .then(pause(12))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(moveTo(at(mc, s -> s.tab("loot")), 14))
                 .then(click())
                 .then(pause(6))

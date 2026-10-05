@@ -165,4 +165,11 @@ final class OffsetConsumer implements VertexConsumer {
         delegate.unsetDefaultColor();
     }
     //?}
+    //? if >=26.3 {
+    /*@Override
+    public VertexConsumer setUv3(float u, float v) {
+        delegate.setUv3(u, v);
+        return this;
+    }
+    *///?}
 }

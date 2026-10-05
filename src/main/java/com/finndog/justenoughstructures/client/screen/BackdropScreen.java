@@ -101,12 +101,12 @@ abstract class BackdropScreen extends Screen {
 
     // Whether shift or control (command on a Mac) is held, which 26.1 only tells screens with each event.
     static boolean hasShiftDown() {
-        return down(GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_KEY_RIGHT_SHIFT);
+        return down(InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT);
     }
 
     static boolean hasControlDown() {
         return InputQuirks.REPLACE_CTRL_KEY_WITH_CMD_KEY ? down(GLFW.GLFW_KEY_LEFT_SUPER, GLFW.GLFW_KEY_RIGHT_SUPER)
-                : down(GLFW.GLFW_KEY_LEFT_CONTROL, GLFW.GLFW_KEY_RIGHT_CONTROL);
+                : down(InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL);
     }
 
     private static boolean down(int left, int right) {

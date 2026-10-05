@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.network.chat.Component;
@@ -35,7 +36,7 @@ final class JsonEditBox extends MultiLineEditBox {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         boolean handled = super.mouseClicked(mouseX, mouseY, button);
-        if (button == 0 && withinContentAreaPoint(mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && withinContentAreaPoint(mouseX, mouseY)) {
             try {
                 MultiLineEditBoxAccessor box = (MultiLineEditBoxAccessor) (Object) this;
                 box.justenoughstructures$textField().setSelecting(Screen.hasShiftDown());

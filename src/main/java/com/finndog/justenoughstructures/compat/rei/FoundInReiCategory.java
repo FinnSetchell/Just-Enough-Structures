@@ -6,6 +6,7 @@ package com.finndog.justenoughstructures.compat.rei;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import me.shedaniel.math.Point;
 import me.shedaniel.math.Rectangle;
@@ -111,7 +112,7 @@ final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
         //?}
-            if (button != 0 || !containsMouse(mouseX, mouseY)) {
+            if (button != InputConstants.MOUSE_BUTTON_LEFT || !containsMouse(mouseX, mouseY)) {
                 return false;
             }
             FoundInRow.open(recipe);

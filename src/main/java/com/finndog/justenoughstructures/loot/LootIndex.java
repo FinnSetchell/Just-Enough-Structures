@@ -224,7 +224,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             switch (type) {
                 case "minecraft:item", "item" -> {
                     out.add(name);
-                    String functions = object.has("functions") ? object.get("functions").toString() : "";
+                    // From 26.3 an entry's functions are its modifier.
+                    String functions = (object.has("functions") ? object.get("functions").toString() : "")
+                            + (object.has("modifier") ? object.get("modifier").toString() : "");
                     if (name.getPath().equals("book") && functions.contains("enchant")) {
                         out.add(Ids.parse("enchanted_book"));
                     }

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
@@ -14,7 +15,6 @@ import com.finndog.justenoughstructures.overrides.LootOverrides;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Edited loot tables marked in the browser: the Loot tab's row and the chest popup, the New loot
@@ -34,7 +34,7 @@ final class MarkersScenario {
         JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
         JesScreen[] opened = new JesScreen[1];
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> opened[0] = browser(mc)))

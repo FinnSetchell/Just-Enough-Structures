@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -12,7 +13,6 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Saving from Pack tools: notes for players on the igloo, its loot kept a secret, then the igloo
@@ -25,7 +25,7 @@ final class PackToolsEditsScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("igloo"));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).setSpin(false)))
@@ -44,7 +44,7 @@ final class PackToolsEditsScenario {
                 .then(click())
                 .then(pause(30))
                 .then(shoot("e02_saved"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> browser(mc) != null && browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).showInfoTab()))
                 .then(pause(30))
@@ -58,7 +58,7 @@ final class PackToolsEditsScenario {
                 .then(click())
                 .then(pause(30))
                 .then(shoot("e04_hidden"))
-                .then(pressKey(GLFW.GLFW_KEY_ESCAPE))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> browser(mc) != null && browser(mc).idle(), 600))
                 .then(pause(30))
                 .then(shoot("e05_browser_without_igloo"))

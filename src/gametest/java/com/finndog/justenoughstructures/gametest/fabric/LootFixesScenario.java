@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest.fabric;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
@@ -17,7 +18,6 @@ import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The loot editing rough edges a hands-on test turned up: tables from other layouts on the Loot
@@ -42,7 +42,7 @@ final class LootFixesScenario {
         Director d = new Director(mc, null);
         // The browser, to open the editors over and to come back to.
         JesScreen[] opened = new JesScreen[1];
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> opened[0] = browser(mc)))

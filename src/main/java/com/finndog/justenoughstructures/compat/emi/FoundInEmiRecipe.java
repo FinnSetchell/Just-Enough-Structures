@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.emi;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.stack.EmiIngredient;
@@ -105,7 +106,7 @@ final class FoundInEmiRecipe implements EmiRecipe {
 
         @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
-            if (button != 0) {
+            if (button != InputConstants.MOUSE_BUTTON_LEFT) {
                 return false;
             }
             FoundInRow.open(recipe);

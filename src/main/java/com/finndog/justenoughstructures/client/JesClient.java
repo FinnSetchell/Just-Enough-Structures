@@ -5,7 +5,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
-import org.lwjgl.glfw.GLFW;
 //? if >=26.1 {
 /*import com.finndog.justenoughstructures.JustEnoughStructures;
 *///?}
@@ -16,14 +15,14 @@ public final class JesClient {
     // registered along with the keys.
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(JustEnoughStructures.id("main"));
     public static final KeyMapping OPEN = new KeyMapping("key.justenoughstructures.open", InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K, CATEGORY);
+            InputConstants.KEY_K, CATEGORY);
     *///?} else if >=26.1 {
     /*// 26.1 lists each mod's keys under a category it registers, named by key.category.<id>.
     public static final KeyMapping OPEN = new KeyMapping("key.justenoughstructures.open", InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K, KeyMapping.Category.register(JustEnoughStructures.id("main")));
+            InputConstants.KEY_K, KeyMapping.Category.register(JustEnoughStructures.id("main")));
     *///?} else {
     public static final KeyMapping OPEN = new KeyMapping("key.justenoughstructures.open", InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K, "key.categories.justenoughstructures");
+            InputConstants.KEY_K, "key.categories.justenoughstructures");
     //?}
 
     private JesClient() {

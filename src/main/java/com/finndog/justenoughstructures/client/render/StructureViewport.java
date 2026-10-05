@@ -72,6 +72,10 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 *///?} else if >=26.1 {
 /*import net.minecraft.client.renderer.ShapeRenderer;
 *///?}
+//? if >=26.3 {
+/*import com.mojang.renderpearl.api.commands.RenderPass;
+import java.util.OptionalDouble;
+*///?}
 
 /**
  * Draws a {@link SnapshotView} with an orbit camera into its own render target, then blits that
@@ -376,7 +380,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     private static TextureTarget newTarget(int width, int height) {
-        //? if >=26.2 {
+        //? if >=26.3 {
+        /*return new TextureTarget("Just Enough Structures preview", width, height, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
+        *///?} else if >=26.2 {
         /*return new TextureTarget("Just Enough Structures preview", width, height, true, GpuFormat.RGBA8_UNORM);
         *///?} else if >=26.1 {
         /*return new TextureTarget("Just Enough Structures preview", width, height, true);
@@ -400,21 +406,14 @@ public final class StructureViewport implements AutoCloseable {
         modelView.set(viewMatrix);
         GpuBufferSlice keepFog = RenderSystem.getShaderFog();
         GpuBufferSlice keepLights = RenderSystem.getShaderLights();
-        GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
-        GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
         RenderSystem.setShaderFog(noFog());
-        // What the game draws itself, like chests and mobs, goes into the preview too.
-        RenderSystem.outputColorTextureOverride = color;
-        RenderSystem.outputDepthTextureOverride = depth;
         try {
             mesh.draw(color, depth, viewMatrix, eye);
-            drawDynamic(partialTick, outlines, everything);
+            drawDynamic(color, depth, partialTick, outlines, everything);
             if (highlight != null) {
                 highlight.draw(color, depth, viewMatrix, view.sliceY());
             }
         } finally {
-            RenderSystem.outputColorTextureOverride = keepColor;
-            RenderSystem.outputDepthTextureOverride = keepDepth;
             RenderSystem.setShaderFog(keepFog);
             RenderSystem.setShaderLights(keepLights);
             modelView.popMatrix();
@@ -590,7 +589,7 @@ public final class StructureViewport implements AutoCloseable {
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), new Vector4f(0f, 0f, 0f, 0f), into.getDepthTexture(), 0.0);
     }
 
-    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
+    private void drawDynamic(GpuTextureView color, GpuTextureView depth, float partialTick, Collection<BlockPos> outlines, boolean everything) {
         // The camera is in the model-view matrix, so these are drawn where they are in the structure.
         PoseStack pose = new PoseStack();
         minecraft.gameRenderer.lighting().setupFor(Lighting.Entry.LEVEL);
@@ -652,7 +651,7 @@ public final class StructureViewport implements AutoCloseable {
             pose.popPose();
         }
         try {
-            features.renderAllFeatures(nodes);
+            renderFeatures(features, color, depth);
         } catch (RuntimeException e) {
             // One of them couldn't be drawn after all. What it left behind goes with the old queue.
             nodes = new SubmitNodeStorage();
@@ -678,7 +677,7 @@ public final class StructureViewport implements AutoCloseable {
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), 0, into.getDepthTexture(), 1.0);
     }
 
-    private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
+    private void drawDynamic(GpuTextureView color, GpuTextureView depth, float partialTick, Collection<BlockPos> outlines, boolean everything) {
         // The camera is in the model-view matrix, so these are drawn where they are in the structure.
         PoseStack pose = new PoseStack();
         minecraft.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
@@ -719,35 +718,71 @@ public final class StructureViewport implements AutoCloseable {
                 firstDrawn++;
             }
         }
+        // What the game draws itself, like chests and mobs, goes into the preview too.
+        GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
+        GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
+        RenderSystem.outputColorTextureOverride = color;
+        RenderSystem.outputDepthTextureOverride = depth;
         try {
-            features.renderAllFeatures();
-        } catch (RuntimeException e) {
-            // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
-            features.clearSubmitNodes();
-            JesLog.debug("Drawing the preview's block entities and mobs failed", e);
-        }
-
-        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        if (groundY >= 0 && groundY < slice) {
-            float sx = view.size().getX(), sz = view.size().getZ();
-            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
-            float gy = groundY + 0.002f;
-            Matrix4f m = pose.last().pose();
-            VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
-            quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-        }
-
-        if (!outlines.isEmpty()) {
-            VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
-            float width = minecraft.getWindow().getAppropriateLineWidth();
-            for (BlockPos pos : outlines) {
-                ShapeRenderer.renderShape(pose, lines, OUTLINE, pos.getX(), pos.getY(), pos.getZ(), 0xFFFFFFFF, width);
+            try {
+                features.renderAllFeatures();
+            } catch (RuntimeException e) {
+                // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
+                features.clearSubmitNodes();
+                JesLog.debug("Drawing the preview's block entities and mobs failed", e);
             }
+
+            MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+            if (groundY >= 0 && groundY < slice) {
+                float sx = view.size().getX(), sz = view.size().getZ();
+                float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
+                float gy = groundY + 0.002f;
+                Matrix4f m = pose.last().pose();
+                VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
+                quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            }
+
+            if (!outlines.isEmpty()) {
+                VertexConsumer lines = buffers.getBuffer(RenderTypes.lines());
+                float width = minecraft.getWindow().getAppropriateLineWidth();
+                for (BlockPos pos : outlines) {
+                    ShapeRenderer.renderShape(pose, lines, OUTLINE, pos.getX(), pos.getY(), pos.getZ(), 0xFFFFFFFF, width);
+                }
+            }
+            buffers.endBatch();
+        } finally {
+            RenderSystem.outputColorTextureOverride = keepColor;
+            RenderSystem.outputDepthTextureOverride = keepDepth;
         }
-        buffers.endBatch();
+    }
+    *///?}
+
+    //? if >=26.3 {
+    /*// From 26.3 the game draws them into a pass it's handed.
+    private void renderFeatures(FeatureRenderDispatcher features, GpuTextureView color, GpuTextureView depth) {
+        try (FeatureRenderDispatcher.PreparedFrame frame = features.prepareFrame(nodes);
+             RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
+                     .createRenderPass(() -> "Just Enough Structures preview", color, Optional.empty(), depth, OptionalDouble.empty())) {
+            RenderSystem.bindDefaultUniforms(pass);
+            FeatureRenderDispatcher.renderAllFeatures(pass, frame);
+        }
+    }
+    *///?} else if >=26.2 {
+    /*// What the game draws itself goes where it's told to, so into the preview too.
+    private void renderFeatures(FeatureRenderDispatcher features, GpuTextureView color, GpuTextureView depth) {
+        GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
+        GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
+        RenderSystem.outputColorTextureOverride = color;
+        RenderSystem.outputDepthTextureOverride = depth;
+        try {
+            features.renderAllFeatures(nodes);
+        } finally {
+            RenderSystem.outputColorTextureOverride = keepColor;
+            RenderSystem.outputDepthTextureOverride = keepDepth;
+        }
     }
     *///?}
 

@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
 import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
@@ -11,7 +12,6 @@ import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The Info tab with its details open, at the top and scrolled down, for checking the layout at
@@ -25,7 +25,7 @@ final class DetailsScenario {
         String requested = System.getProperty("jes.autoshot.structures", "");
         JesScreen.startOn(Ids.parse(requested.isBlank() ? "betterdeserttemples:desert_temple" : requested.split(",")[0].trim()));
         Director d = new Director(mc, null);
-        d.then(pressKey(GLFW.GLFW_KEY_K))
+        d.then(pressKey(InputConstants.KEY_K))
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 // The details are for datapack authors, so they only show with advanced tooltips (F3+H).
