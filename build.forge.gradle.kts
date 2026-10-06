@@ -103,6 +103,16 @@ val devMods = mapOf(
         // Libraries the above need
         "moogs-structure-lib:gkOcGRxT",
     ),
+    "26.3" to listOf(
+        // Moog's
+        "mes-moogs-end-structures:S7bUhX4n", "moogs-voyager-structures:PiFoSPXI", "mns-moogs-nether-structures:OLTqXnsN",
+        "mss-moogs-soaring-structures:O20bIWkj", "mmv-moogs-missing-villages:fjpmujqZ", "mtr-moogs-temples-reimagined:RvfqP9Zb",
+        "mmr-moogs-mineshafts-reimagined:JJc7pNHb", "mos-moogs-ocean-structures:QfMITqh9",
+        // Other big structure mods. Explorify has no 26.3 build.
+        "structory:GjOkOVW4", "structory-towers:5ntmnN83", "dungeons-and-taverns:GgiqvM0c",
+        // Libraries the above need
+        "moogs-structure-lib:wXDXV82i",
+    ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 

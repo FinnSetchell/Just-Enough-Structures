@@ -36,7 +36,7 @@ jobs:
           :1.21.1-fabric:runGameTest :1.21.1-neoforge:runGameTest :1.21.1-forge:runGameTest
           :26.1.2-fabric:runGameTest :26.1.2-neoforge:runGameTest :26.1.2-forge:runGameTest
           :26.2-fabric:runGameTest :26.2-neoforge:runGameTest :26.2-forge:runGameTest
-          :26.3-fabric:runGameTest :26.3-neoforge:runGameTest
+          :26.3-fabric:runGameTest :26.3-neoforge:runGameTest :26.3-forge:runGameTest
 
       - name: Upload jars
         uses: actions/upload-artifact@v4

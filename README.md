@@ -7,8 +7,8 @@ Structures are built by the code that owns them. Just Enough Structures asks eac
 generate itself in a sandbox, the same way `/place structure` does, and only draws the result. That
 is why it works with structures from any mod or datapack without knowing anything about them.
 
-This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, 1.21.1, 26.1 and
-26.2 on Fabric, NeoForge and Forge, and 26.3 on Fabric and NeoForge, with more versions to follow.
+This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, and 1.21.1, 26.1,
+26.2 and 26.3 on Fabric, NeoForge and Forge, with more versions to follow.
 
 ## Using it
 
