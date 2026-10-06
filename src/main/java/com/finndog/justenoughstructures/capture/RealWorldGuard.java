@@ -34,9 +34,9 @@ import net.minecraft.world.ticks.ScheduledTick;
  * <p>While a thread is capturing, the real levels answer that thread from the sandbox instead. In
  * the area being captured, blocks, block entities, heights, ticks and new entities come from and go
  * to the sandbox, just as if the code had used it. Anywhere else, and in other dimensions, there's
- * only air, nothing is kept, and no chunk is loaded. Entity searches find nothing, and sounds,
- * particles and block events go nowhere. Other threads, the server's own included, never see any
- * of this.
+ * only air, nothing is kept, and no chunk is loaded. Entity searches find nothing, sounds,
+ * particles and block events go nowhere, and work handed to the server to do later never runs,
+ * unless the code can wait for it. Other threads, the server's own included, never see any of this.
  */
 public final class RealWorldGuard {
     private static final AtomicInteger CAPTURING = new AtomicInteger();
@@ -167,6 +167,11 @@ public final class RealWorldGuard {
         /** Sounds, particles, block events and game events on a real level go nowhere. */
         public void effect() {
             note("play sounds or effects");
+        }
+
+        /** Work handed to the server to do would act on the real world, so it never runs. */
+        public void serverWork() {
+            note("hand the server work");
         }
 
         /** A tick scheduled on a real level goes to the sandbox, where it's kept with the chunk like any other. */

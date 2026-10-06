@@ -353,7 +353,7 @@ public final class JesGameTests {
         GridTests.gridMatchesACapturedVillage(helper);
     }
 
-    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 200)
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);
     }

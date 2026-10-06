@@ -4,6 +4,7 @@
   "package": "com.finndog.justenoughstructures.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "BlockableEventLoopGuardMixin",
     "EntityTypeMixin",
     "LegacyRandomSourceMixin",
     "LevelTicksMixin",

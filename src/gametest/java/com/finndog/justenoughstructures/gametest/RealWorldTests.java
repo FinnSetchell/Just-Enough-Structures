@@ -4,6 +4,10 @@ import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -29,8 +33,9 @@ public final class RealWorldTests {
     /**
      * Structure code that reaches past the sandbox to the real level gets the sandbox: what it reads
      * and places, the mob it adds, the tick it schedules and the entities it looks for all stay out of
-     * the world, and no real chunk is loaded for it. Run on another thread, as captures are, so a
-     * chunk the guard let through would be loaded by the server while this waits.
+     * the world, no real chunk is loaded for it, and work it hands the server never runs, though work
+     * it waits for still comes back. Run on another thread, as captures are, so a chunk the guard let
+     * through would be loaded by the server while this waits.
      */
     public static void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -55,8 +60,15 @@ public final class RealWorldTests {
         // A long way out, where nothing has ever been loaded.
         ChunkPos far = new ChunkPos(Levels.chunkX(centre) + 4000, Levels.chunkZ(centre) + 4000);
         BlockPos farPos = far.getMiddleBlockPosition(64);
-        // On the server's own thread too, where a chunk would otherwise be loaded straight away.
+        // Work handed to the server, as Integrated API's trainer processor summons trainers with.
+        AtomicBoolean handedOver = new AtomicBoolean();
+        // On the server's own thread too, where a chunk would otherwise be loaded straight away, and
+        // work handed to the server done straight away.
         String onServerThread = StructureCapture.inSandbox(level, centre, () -> {
+            level.getServer().execute(() -> handedOver.set(true));
+            if (handedOver.get()) {
+                return "work handed to the server ran on the server thread";
+            }
             try {
                 level.getChunk(Levels.chunkX(far), Levels.chunkZ(far));
                 return "got a chunk outside the sandbox on the server thread";
@@ -77,6 +89,11 @@ public final class RealWorldTests {
             }
             if (!level.addFreshEntity(pig)) {
                 return "the sandbox didn't take the pig";
+            }
+            level.getServer().execute(() -> handedOver.set(true));
+            // Dropping work the code waits for would leave the capture waiting forever.
+            if (!cameBack(level.getServer().submit(() -> true))) {
+                return "work the sandbox waited for never ran";
             }
             if (!level.getEntities((Entity) null, new AABB(real).inflate(8), e -> true).isEmpty()) {
                 return "found the real world's entities";
@@ -105,6 +122,20 @@ public final class RealWorldTests {
             helper.assertFalse(level.getBlockTicks().hasScheduledTick(above, Blocks.DIAMOND_BLOCK), "the tick was scheduled in the real world");
             helper.assertFalse(level.getChunkSource().hasChunk(Levels.chunkX(far), Levels.chunkZ(far)), "a real chunk was loaded for the sandbox");
             helper.assertTrue(RealWorldGuard.current() == null, "the server thread thinks it's capturing");
+            helper.assertFalse(handedOver.get(), "work handed to the server from the sandbox ran");
         });
+    }
+
+    /** Whether work handed to the server comes back, giving up after a while. */
+    private static boolean cameBack(CompletableFuture<Boolean> work) {
+        try {
+            // Long enough for a server held up by other tests' captures.
+            return Boolean.TRUE.equals(work.get(30, TimeUnit.SECONDS));
+        } catch (ExecutionException | TimeoutException e) {
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 }
