@@ -91,6 +91,9 @@ public final class Gallery {
         stepTicks++;
         switch (step) {
             case START -> {
+                if (hide && stepTicks == 1) {
+                    hideWindow(mc);
+                }
                 if (ready(mc)) {
                     startWorld(mc, hide, false);
                     go(Step.WAIT_WORLD);
@@ -265,6 +268,19 @@ public final class Gallery {
         }
     }
     *///?}
+
+    /**
+     * Hides the game's window. Done on the first tick, as well as when the world's made, so a run in a
+     * launcher instance barely shows while the game loads, and doesn't get in the way of whoever's at
+     * the computer.
+     */
+    public static void hideWindow(Minecraft mc) {
+        //? if >=26.1 {
+        /*GLFW.glfwHideWindow(mc.getWindow().handle());
+        *///?} else {
+        GLFW.glfwHideWindow(mc.getWindow().getWindow());
+        //?}
+    }
 
     /** Sets the window up and makes a superflat world; with {@code structures} it gets villages, for trying locate and teleport. */
     public static void startWorld(Minecraft mc, boolean hide, boolean structures) {

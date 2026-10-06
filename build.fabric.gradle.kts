@@ -255,6 +255,32 @@ loom {
     }
 }
 
+// The test mod as a jar for a real Fabric game, so the screenshot gallery and scripted runs can play
+// against a release build in a launcher instance. Never shipped, and kept out of build/libs, where a
+// release looks. Where Minecraft is obfuscated it's remapped as the mod is, and leaves out its mixin,
+// which only the game tests need and which a real game would need a refmap for.
+if (loomx.isUnobfuscated) {
+    tasks.register<Jar>("gametestJar") {
+        from(gametest.output)
+        archiveClassifier = "gametest"
+        destinationDirectory = layout.buildDirectory.dir("testlibs")
+    }
+} else {
+    val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
+        from(gametest.output)
+        filesMatching("justenoughstructures_gametest.mixins.json") { filter { it.replace("\"LegacyRandomSourceMixin\"", "") } }
+        archiveClassifier = "gametest-dev"
+        destinationDirectory = layout.buildDirectory.dir("devlibs")
+    }
+    tasks.register<net.fabricmc.loom.task.RemapJarTask>("gametestJar") {
+        inputFile = gametestDevJar.flatMap { it.archiveFile }
+        // The test mod reaches the game through the mod's own classes, which remapping has to see.
+        classpath.from(sourceSets.main.get().output)
+        archiveClassifier = "gametest"
+        destinationDirectory = layout.buildDirectory.dir("testlibs")
+    }
+}
+
 java {
     withSourcesJar()
     targetCompatibility = requiredJava

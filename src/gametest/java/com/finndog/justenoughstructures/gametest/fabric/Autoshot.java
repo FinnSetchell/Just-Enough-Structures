@@ -82,6 +82,9 @@ public final class Autoshot implements ClientModInitializer {
         stepTicks++;
         switch (step) {
             case START -> {
+                if (hide && stepTicks == 1) {
+                    Gallery.hideWindow(mc);
+                }
                 if (Gallery.ready(mc)) {
                     Gallery.startWorld(mc, hide, "teleport".equals(mode));
                     go(Step.WAIT_WORLD);

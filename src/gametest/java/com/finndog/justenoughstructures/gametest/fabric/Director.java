@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -160,9 +161,18 @@ final class Director {
     // ------------------------------------------------------------------ raw input
 
     void moveMouse(double x, double y) {
+        //? if >=26.3 {
+        /*// From 26.3 the game's told how far the mouse moved as well, which turns the player.
+        double dx = (x - cursorX) * scaleX();
+        double dy = (y - cursorY) * scaleY();
+        cursorX = x;
+        cursorY = y;
+        call("onMove", mc.mouseHandler, window(), x * scaleX(), y * scaleY(), dx, dy);
+        *///?} else {
         cursorX = x;
         cursorY = y;
         call("onMove", mc.mouseHandler, window(), x * scaleX(), y * scaleY());
+        //?}
     }
 
     void press(int button) {
@@ -242,16 +252,24 @@ final class Director {
     private static void call(String name, Object target, Object... args) {
         try {
             if (onMove == null) {
-                onMove = MouseHandler.class.getDeclaredMethod("onMove", long.class, double.class, double.class);
-                onScroll = MouseHandler.class.getDeclaredMethod("onScroll", long.class, double.class, double.class);
+                //? if >=26.3 {
+                /*onMove = MouseHandler.class.getDeclaredMethod("onMove", long.class, double.class, double.class, double.class, double.class);
+                *///?} else if >=26.1 {
+                /*onMove = MouseHandler.class.getDeclaredMethod("onMove", long.class, double.class, double.class);
+                *///?} else {
+                // A real game's names are obfuscated, so the ones it has are looked up from their intermediary names.
+                onMove = gameMethod(MouseHandler.class, "net.minecraft.class_312", "method_1600", "(JDD)V", long.class, double.class, double.class);
+                //?}
                 //? if >=26.1 {
                 /*// 26.1 hands the game each button and key as an event, and keeps the key handler to itself.
+                onScroll = MouseHandler.class.getDeclaredMethod("onScroll", long.class, double.class, double.class);
                 onPress = MouseHandler.class.getDeclaredMethod("onButton", long.class, MouseButtonInfo.class, int.class);
                 charTyped = KeyboardHandler.class.getDeclaredMethod("charTyped", long.class, CharacterEvent.class);
                 keyPress = KeyboardHandler.class.getDeclaredMethod("keyPress", long.class, int.class, KeyEvent.class);
                 *///?} else {
-                onPress = MouseHandler.class.getDeclaredMethod("onPress", long.class, int.class, int.class, int.class);
-                charTyped = KeyboardHandler.class.getDeclaredMethod("charTyped", long.class, int.class, int.class);
+                onScroll = gameMethod(MouseHandler.class, "net.minecraft.class_312", "method_1598", "(JDD)V", long.class, double.class, double.class);
+                onPress = gameMethod(MouseHandler.class, "net.minecraft.class_312", "method_1601", "(JIII)V", long.class, int.class, int.class, int.class);
+                charTyped = gameMethod(KeyboardHandler.class, "net.minecraft.class_309", "method_1457", "(JII)V", long.class, int.class, int.class);
                 keyPress = onPress;
                 //?}
                 for (Method m : new Method[]{onMove, onPress, onScroll, charTyped, keyPress}) {
@@ -271,6 +289,18 @@ final class Director {
             throw new IllegalStateException("Couldn't fake input", e);
         }
     }
+
+    //? if <26.1 {
+    /**
+     * One of the game's own methods, by its intermediary name: in a dev game that's turned into the
+     * name it has there, and a real game uses intermediary names already.
+     */
+    private static Method gameMethod(Class<?> owner, String intermediaryOwner, String intermediary, String descriptor, Class<?>... params)
+            throws NoSuchMethodException {
+        String name = FabricLoader.getInstance().getMappingResolver().mapMethodName("intermediary", intermediaryOwner, intermediary, descriptor);
+        return owner.getDeclaredMethod(name, params);
+    }
+    //?}
 
     // ------------------------------------------------------------------ actions
 
