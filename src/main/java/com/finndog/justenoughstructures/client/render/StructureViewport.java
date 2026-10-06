@@ -123,7 +123,9 @@ public final class StructureViewport implements AutoCloseable {
     private static final VoxelShape OUTLINE = Shapes.create(-0.002, -0.002, -0.002, 1.002, 1.002, 1.002);
     // Fog that never starts, so a big structure seen from afar isn't lost in it.
     private static GpuBuffer noFog;
-    private final ProjectionMatrixBuffer projectionBuffer = new ProjectionMatrixBuffer("Just Enough Structures preview");
+    // Made when first drawn, and again after close(): the browser closes its preview whenever another
+    // screen opens over it, and draws it again on coming back.
+    private ProjectionMatrixBuffer projectionBuffer;
     *///?}
     //? if >=26.2 {
     /*// What the preview's chests, mobs, ground and outlines queue up to be drawn.
@@ -397,6 +399,9 @@ public final class StructureViewport implements AutoCloseable {
         GpuTextureView color = into.getColorTextureView();
         GpuTextureView depth = into.getDepthTextureView();
         clear(into);
+        if (projectionBuffer == null) {
+            projectionBuffer = new ProjectionMatrixBuffer("Just Enough Structures preview");
+        }
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(projectionBuffer.getBuffer(projection), ProjectionType.PERSPECTIVE);
         // The camera turns the world in the model-view matrix, as when the game draws the world, so
@@ -1038,7 +1043,10 @@ public final class StructureViewport implements AutoCloseable {
             target = null;
         }
         //? if >=26.1 {
-        /*projectionBuffer.close();
+        /*if (projectionBuffer != null) {
+            projectionBuffer.close();
+            projectionBuffer = null;
+        }
         *///?}
         view = null;
     }
