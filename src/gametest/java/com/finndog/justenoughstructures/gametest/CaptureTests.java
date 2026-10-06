@@ -20,6 +20,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -94,6 +95,21 @@ public final class CaptureTests {
             helper.assertTrue(found.stream().anyMatch(expected::contains),
                     name + " should have a container using one of " + expected + " but had " + found);
         }
+    }
+
+    /**
+     * A capture places all of a structure, however far it reaches past the chunks round its middle,
+     * with the tests' {@code NearMiddleRegionMixin} doing what BCLib and Better End do to the game's
+     * regions. Before captures kept their own rule for that, every one in a pack with either of them
+     * stopped at three chunks across.
+     */
+    public static void capturesReachPastTheMiddleChunks(GameTestHelper helper) {
+        CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), Ids.parse("ancient_city"), SEED);
+        helper.assertTrue(result.succeeded(), "ancient_city did not capture: " + result.error());
+        Vec3i size = result.snapshot().size();
+        helper.assertTrue(Math.max(size.getX(), size.getZ()) > 64,
+                "ancient_city stopped at " + size.getX() + "x" + size.getZ() + " blocks across, cut off round its middle chunks");
+        helper.succeed();
     }
 
     /** Shipwreck NBT has no loot tables. They're set by vanilla code from data markers during placement. */

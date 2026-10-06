@@ -69,6 +69,11 @@ public final class JesGameTests {
     //?}
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void capturesReachPastTheMiddleChunks(GameTestHelper helper) {
+        CaptureTests.capturesReachPastTheMiddleChunks(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void lootSetByStructureCodeIsCaptured(GameTestHelper helper) {
         CaptureTests.lootSetByStructureCodeIsCaptured(helper);
     }

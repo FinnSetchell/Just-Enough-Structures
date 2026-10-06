@@ -5,7 +5,8 @@
   "plugin": "com.finndog.justenoughstructures.gametest.GameTestMixinPlugin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
-    "LegacyRandomSourceMixin"
+    "LegacyRandomSourceMixin",
+    "NearMiddleRegionMixin"
   ],
   "injectors": {
     "defaultRequire": 1

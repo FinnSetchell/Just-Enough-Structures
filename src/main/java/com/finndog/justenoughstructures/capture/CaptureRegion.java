@@ -1,11 +1,13 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Levels;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
@@ -16,9 +18,7 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 //? if >=1.21 {
-/*import com.finndog.justenoughstructures.Levels;
-import net.minecraft.core.SectionPos;
-import net.minecraft.server.level.GenerationChunkHolder;
+/*import net.minecraft.server.level.GenerationChunkHolder;
 import net.minecraft.util.StaticCache2D;
 import net.minecraft.world.level.chunk.status.ChunkPyramid;
 *///?}
@@ -38,12 +38,12 @@ final class CaptureRegion extends WorldGenRegion {
     private final LongSet written = new LongOpenHashSet();
     private final Map<Long, StructureTemplate> filledBy = new HashMap<>();
     private ChunkPos placing;
+    private final int writeRadius;
 
     //? if >=1.21 {
     /*// 1.21's regions find their chunks through the game's generation cache, so this one answers for
-    // its own chunks instead, the way 1.20's did: all of them at FEATURES, writable within writeRadius.
+    // its own chunks instead, the way 1.20's did: all of them at FEATURES.
     private final Map<Long, ChunkAccess> chunks = new HashMap<>();
-    private final int writeRadius;
 
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
         super(level, holders(middle(chunks)), ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES), middle(chunks));
@@ -73,7 +73,18 @@ final class CaptureRegion extends WorldGenRegion {
     public boolean hasChunk(int chunkX, int chunkZ) {
         return chunks.containsKey(Levels.pack(chunkX, chunkZ));
     }
+    *///?} else {
+    CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
+        super(level, chunks, ChunkStatus.FEATURES, writeRadius);
+        this.writeRadius = writeRadius;
+    }
+    //?}
 
+    /**
+     * Writable within writeRadius of the chunk being placed, whatever mods do to the game's own
+     * regions. BCLib and Better End let one write only next to its middle chunk, which cut every
+     * capture in a pack with either of them down to the three chunks across round the middle.
+     */
     @Override
     public boolean ensureCanWrite(BlockPos pos) {
         int chunkX = SectionPos.blockToSectionCoord(pos.getX());
@@ -82,11 +93,6 @@ final class CaptureRegion extends WorldGenRegion {
         return hasChunk(chunkX, chunkZ) && Math.abs(Levels.chunkX(centre) - chunkX) <= writeRadius
                 && Math.abs(Levels.chunkZ(centre) - chunkZ) <= writeRadius;
     }
-    *///?} else {
-    CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
-        super(level, chunks, ChunkStatus.FEATURES, writeRadius);
-    }
-    //?}
 
     //? if >=26.3 {
     /*// 26.3's regions ask each chunk's holder for its chunk as they're made. These chunks belong to no

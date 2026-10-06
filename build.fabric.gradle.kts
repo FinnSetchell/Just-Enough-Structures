@@ -257,7 +257,7 @@ loom {
 
 // The test mod as a jar for a real Fabric game, so the screenshot gallery and scripted runs can play
 // against a release build in a launcher instance. Never shipped, and kept out of build/libs, where a
-// release looks. Where Minecraft is obfuscated it's remapped as the mod is, and leaves out its mixin,
+// release looks. Where Minecraft is obfuscated it's remapped as the mod is, and leaves out its mixins,
 // which only the game tests need and which a real game would need a refmap for.
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
@@ -268,7 +268,9 @@ if (loomx.isUnobfuscated) {
 } else {
     val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
         from(gametest.output)
-        filesMatching("justenoughstructures_gametest.mixins.json") { filter { it.replace("\"LegacyRandomSourceMixin\"", "") } }
+        filesMatching("justenoughstructures_gametest.mixins.json") {
+            filter { line -> if (line.trim().removeSuffix(",").removeSurrounding("\"").endsWith("Mixin")) "" else line }
+        }
         archiveClassifier = "gametest-dev"
         destinationDirectory = layout.buildDirectory.dir("devlibs")
     }
