@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -83,6 +84,14 @@ import java.util.OptionalDouble;
  */
 public final class StructureViewport implements AutoCloseable {
     private static final float FOV = 50f;
+    /**
+     * How far out from the middle of the view a structure may reach when it's fitted, and from how
+     * many angles round it that's checked: every 15 degrees, so it stays in view as it spins.
+     */
+    private static final float FIT_EDGE = 0.9f;
+    private static final int FIT_ANGLES = 24;
+    /** How see-through the ground is under the structure. Round it, it fades out to nothing. */
+    private static final float GROUND_ALPHA = 0.35f;
     /** The least and most time a frame spends building the mesh, while there's some to build. */
     private static final long MIN_BUILD_NANOS = 6_000_000L;
     private static final long MAX_BUILD_NANOS = 25_000_000L;
@@ -146,6 +155,34 @@ public final class StructureViewport implements AutoCloseable {
     /** Draws a see-through plane where the ground was, or nothing when {@code localY} is negative. */
     public void setGround(int localY) {
         groundY = localY;
+    }
+
+    /** Takes the ground's corners in turn, four to a quad, each with how see-through it is there. */
+    @FunctionalInterface
+    private interface GroundCorner {
+        void at(float x, float z, float alpha);
+    }
+
+    /**
+     * The ground as quads: solid under the structure, then fading out to nothing across a margin
+     * round it, so where the edge of the preview cuts it off doesn't show. Only the solid part is
+     * kept in view when the camera fits the structure.
+     */
+    private void groundQuads(GroundCorner corner) {
+        float sx = view.size().getX(), sz = view.size().getZ();
+        float m = Math.max(2f, Math.min(sx, sz) * 0.15f);
+        float a = GROUND_ALPHA;
+        float[][] quads = {
+                {0, 0, a, 0, sz, a, sx, sz, a, sx, 0, a},
+                {-m, -m, 0, -m, sz + m, 0, 0, sz, a, 0, 0, a},
+                {sx, 0, a, sx, sz, a, sx + m, sz + m, 0, sx + m, -m, 0},
+                {-m, -m, 0, 0, 0, a, sx, 0, a, sx + m, -m, 0},
+                {0, sz, a, -m, sz + m, 0, sx + m, sz + m, 0, sx, sz, a}};
+        for (float[] quad : quads) {
+            for (int i = 0; i < quad.length; i += 3) {
+                corner.at(quad[i], quad[i + 1], quad[i + 2]);
+            }
+        }
     }
 
     public SnapshotView view() {
@@ -249,28 +286,21 @@ public final class StructureViewport implements AutoCloseable {
     /**
      * Pulls the camera in as close as it can while the structure stays in view from every side it
      * spins through, so flat structures like villages fill the view instead of floating in it. It
-     * goes by the blocks themselves rather than the bounding box, whose corners are often empty.
+     * goes by the blocks themselves rather than the bounding box, whose corners are often empty, and
+     * keeps the solid part of the ground in view too.
      */
     private void fitToView() {
-        float[] points = view.fitPoints();
-        Vector4f v = new Vector4f();
+        float[] points = fitPointsWithGround();
         float keepYaw = yaw;
         float low = 2f;
         float high = homeDistance;
+        // The bounding sphere only just fits at the home distance, so it may need to go further.
+        for (int i = 0; i < 8 && !fitsAt(points, keepYaw, high); i++) {
+            high *= 1.25f;
+        }
         for (int i = 0; i < 24; i++) {
             float mid = (low + high) / 2f;
-            distance = mid;
-            boolean fits = true;
-            for (int step = 0; step < 8 && fits; step++) {
-                yaw = keepYaw + step * 45f;
-                updateMatrices();
-                Matrix4f combined = new Matrix4f(projection).mul(viewMatrix);
-                for (int p = 0; p < points.length && fits; p += 3) {
-                    combined.transform(v.set(points[p], points[p + 1], points[p + 2], 1f));
-                    fits = v.w() > 0 && Math.abs(v.x() / v.w()) <= 0.9f && Math.abs(v.y() / v.w()) <= 0.9f;
-                }
-            }
-            if (fits) {
+            if (fitsAt(points, keepYaw, mid)) {
                 high = mid;
             } else {
                 low = mid;
@@ -280,6 +310,37 @@ public final class StructureViewport implements AutoCloseable {
         distance = high;
         homeDistance = Math.max(homeDistance, high);
         updateMatrices();
+    }
+
+    /** Whether every point stays inside the middle of the view from {@code at}, all the way round. */
+    private boolean fitsAt(float[] points, float startYaw, float at) {
+        Vector4f v = new Vector4f();
+        distance = at;
+        for (int step = 0; step < FIT_ANGLES; step++) {
+            yaw = startYaw + step * 360f / FIT_ANGLES;
+            updateMatrices();
+            Matrix4f combined = new Matrix4f(projection).mul(viewMatrix);
+            for (int p = 0; p < points.length; p += 3) {
+                combined.transform(v.set(points[p], points[p + 1], points[p + 2], 1f));
+                if (v.w() <= 0 || Math.abs(v.x() / v.w()) > FIT_EDGE || Math.abs(v.y() / v.w()) > FIT_EDGE) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** The structure's fit points, plus the corners of the solid part of the ground when it shows. */
+    private float[] fitPointsWithGround() {
+        float[] points = view.fitPoints();
+        if (groundY < 0 || groundY >= view.sliceY()) {
+            return points;
+        }
+        float sx = view.size().getX(), sz = view.size().getZ();
+        float[] ground = {0, groundY, 0, sx, groundY, 0, 0, groundY, sz, sx, groundY, sz};
+        float[] all = Arrays.copyOf(points, points.length + ground.length);
+        System.arraycopy(ground, 0, all, points.length, ground.length);
+        return all;
     }
 
     public void rotate(double dx, double dy) {
@@ -636,16 +697,9 @@ public final class StructureViewport implements AutoCloseable {
         }
 
         if (groundY >= 0 && groundY < slice) {
-            float sx = view.size().getX(), sz = view.size().getZ();
-            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
             float gy = groundY + 0.002f;
-            nodes.submitCustomGeometry(pose, RenderTypes.debugQuads(), (at, quads) -> {
-                Matrix4f m = at.pose();
-                quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            });
+            nodes.submitCustomGeometry(pose, RenderTypes.debugQuads(), (at, quads) -> groundQuads((gx, gz, alpha) ->
+                    quads.addVertex(at.pose(), gx, gy, gz).setColor(0.55f, 0.68f, 0.42f, alpha)));
         }
 
         float width = minecraft.getWindow().getAppropriateLineWidth();
@@ -739,15 +793,10 @@ public final class StructureViewport implements AutoCloseable {
 
             MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
             if (groundY >= 0 && groundY < slice) {
-                float sx = view.size().getX(), sz = view.size().getZ();
-                float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
                 float gy = groundY + 0.002f;
                 Matrix4f m = pose.last().pose();
                 VertexConsumer quads = buffers.getBuffer(RenderTypes.debugQuads());
-                quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-                quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+                groundQuads((gx, gz, alpha) -> quads.addVertex(m, gx, gy, gz).setColor(0.55f, 0.68f, 0.42f, alpha));
             }
 
             if (!outlines.isEmpty()) {
@@ -873,21 +922,13 @@ public final class StructureViewport implements AutoCloseable {
         entities.setRenderShadow(true);
 
         if (groundY >= 0 && groundY < slice) {
-            float sx = view.size().getX(), sz = view.size().getZ();
-            float margin = Math.max(2f, Math.min(sx, sz) * 0.15f);
             float gy = groundY + 0.002f;
             Matrix4f m = pose.last().pose();
             VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
             //? if >=1.21 {
-            /*quads.addVertex(m, -margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, -margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, sz + margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
-            quads.addVertex(m, sx + margin, gy, -margin).setColor(0.55f, 0.68f, 0.42f, 0.35f);
+            /*groundQuads((gx, gz, alpha) -> quads.addVertex(m, gx, gy, gz).setColor(0.55f, 0.68f, 0.42f, alpha));
             *///?} else {
-            quads.vertex(m, -margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
-            quads.vertex(m, -margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
-            quads.vertex(m, sx + margin, gy, sz + margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
-            quads.vertex(m, sx + margin, gy, -margin).color(0.55f, 0.68f, 0.42f, 0.35f).endVertex();
+            groundQuads((gx, gz, alpha) -> quads.vertex(m, gx, gy, gz).color(0.55f, 0.68f, 0.42f, alpha).endVertex());
             //?}
         }
 

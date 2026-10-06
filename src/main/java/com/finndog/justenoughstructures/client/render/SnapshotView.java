@@ -8,8 +8,10 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -78,7 +80,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         this.blocks = new BlockGrid(snapshot);
         JesLog.debug("Preview of {}: {} blocks in a {}x{}x{} box take {} KB (a grid of the whole box would take {} KB)", snapshot.structureId(),
                 snapshot.blockCount(), size.getX(), size.getY(), size.getZ(), blocks.bytes() / 1024, (long) size.getX() * size.getY() * size.getZ() * 2 / 1024);
-        this.fitPoints = findFitPoints(snapshot);
+        this.fitPoints = findFitPoints(snapshot, size);
     }
 
     /**
@@ -154,56 +156,85 @@ public final class SnapshotView implements BlockAndTintGetter {
         return entities;
     }
 
-    /** Block centres, x y z after each other, to fit the camera around. */
+    /** Corners of the structure's outline, x y z after each other, to fit the camera around. */
     public float[] fitPoints() {
         return fitPoints;
     }
 
+    /** Directions spread evenly over a sphere, for {@link #findFitPoints}. */
+    private static final float[][] FIT_DIRECTIONS = sphere(256);
+
+    private static float[][] sphere(int count) {
+        float[][] out = new float[count][];
+        double turn = Math.PI * (3 - Math.sqrt(5));
+        for (int i = 0; i < count; i++) {
+            double y = 1 - (2 * i + 1) / (double) count;
+            double r = Math.sqrt(1 - y * y);
+            out[i] = new float[]{(float) (Math.cos(turn * i) * r), (float) y, (float) (Math.sin(turn * i) * r)};
+        }
+        return out;
+    }
+
     /**
-     * Block centres to fit the camera around: an even sample of a few thousand, plus the blocks
-     * furthest out in each of 26 directions so spires and far corners are never cut off.
+     * The block corners furthest out in each of {@link #FIT_DIRECTIONS}. Together they outline the
+     * structure from any side, however thin a part of it is, like a mast or a spire, which a sample of
+     * its blocks could miss. A block can only be furthest along a direction that tilts up if it's the
+     * top of its column, or down if it's the bottom, so only those are looked at.
      */
-    private static float[] findFitPoints(StructureSnapshot s) {
+    private static float[] findFitPoints(StructureSnapshot s, Vec3i size) {
         int count = s.blockCount();
-        int stride = Math.max(1, count / 3000);
-        int[] extreme = new int[26];
-        float[] best = new float[26];
-        Arrays.fill(best, Float.NEGATIVE_INFINITY);
-        List<Integer> chosen = new ArrayList<>();
+        int sx = size.getX(), sz = size.getZ();
+        if (count == 0 || sx <= 0 || sz <= 0) {
+            return new float[0];
+        }
+        int[] top = new int[sx * sz];
+        int[] bottom = new int[sx * sz];
+        Arrays.fill(top, -1);
+        Arrays.fill(bottom, Integer.MAX_VALUE);
         for (int i = 0; i < count; i++) {
             int packed = s.packedPosition(i);
-            int bx = StructureSnapshot.unpackX(packed), by = StructureSnapshot.unpackY(packed), bz = StructureSnapshot.unpackZ(packed);
-            int d = 0;
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) {
-                            continue;
-                        }
-                        float reach = dx * bx + dy * by + dz * bz;
-                        if (reach > best[d]) {
-                            best[d] = reach;
-                            extreme[d] = packed;
-                        }
-                        d++;
-                    }
+            int column = StructureSnapshot.unpackX(packed) * sz + StructureSnapshot.unpackZ(packed);
+            int y = StructureSnapshot.unpackY(packed);
+            top[column] = Math.max(top[column], y);
+            bottom[column] = Math.min(bottom[column], y);
+        }
+        int columns = 0;
+        for (int t : top) {
+            if (t >= 0) {
+                columns++;
+            }
+        }
+        int[] xs = new int[columns], zs = new int[columns], tops = new int[columns], bottoms = new int[columns];
+        for (int c = 0, n = 0; c < top.length; c++) {
+            if (top[c] >= 0) {
+                xs[n] = c / sz;
+                zs[n] = c % sz;
+                tops[n] = top[c];
+                bottoms[n++] = bottom[c];
+            }
+        }
+        Set<List<Integer>> corners = new LinkedHashSet<>();
+        for (float[] d : FIT_DIRECTIONS) {
+            // The corner of a block furthest along d.
+            int ox = d[0] > 0 ? 1 : 0, oy = d[1] > 0 ? 1 : 0, oz = d[2] > 0 ? 1 : 0;
+            int[] ys = d[1] > 0 ? tops : bottoms;
+            float best = Float.NEGATIVE_INFINITY;
+            int at = 0;
+            for (int n = 0; n < columns; n++) {
+                float reach = d[0] * (xs[n] + ox) + d[1] * (ys[n] + oy) + d[2] * (zs[n] + oz);
+                if (reach > best) {
+                    best = reach;
+                    at = n;
                 }
             }
-            if (i % stride == 0) {
-                chosen.add(packed);
-            }
+            corners.add(List.of(xs[at] + ox, ys[at] + oy, zs[at] + oz));
         }
-        if (count > 0) {
-            for (int packed : extreme) {
-                chosen.add(packed);
-            }
-        }
-        float[] points = new float[chosen.size() * 3];
-        for (int i = 0; i < chosen.size(); i++) {
-            int packed = chosen.get(i);
-            points[i * 3] = StructureSnapshot.unpackX(packed) + 0.5f;
-            points[i * 3 + 1] = StructureSnapshot.unpackY(packed) + 0.5f;
-            points[i * 3 + 2] = StructureSnapshot.unpackZ(packed) + 0.5f;
+        float[] points = new float[corners.size() * 3];
+        int i = 0;
+        for (List<Integer> corner : corners) {
+            points[i++] = corner.get(0);
+            points[i++] = corner.get(1);
+            points[i++] = corner.get(2);
         }
         return points;
     }
