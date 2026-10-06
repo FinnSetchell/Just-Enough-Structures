@@ -38,7 +38,7 @@ stonecutter {
         // From 26.1 Minecraft ships unobfuscated, and needs Gradle itself on Java 25.
         match("26.1.2", "fabric", "neoforge", "forge")
         match("26.2", "fabric", "neoforge", "forge")
-        match("26.3", "fabric")
+        match("26.3", "fabric", "neoforge")
 
         vcsVersion = "1.20.1-fabric"
     }

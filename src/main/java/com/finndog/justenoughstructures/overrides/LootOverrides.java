@@ -224,7 +224,7 @@ public final class LootOverrides {
         // enough to tell a table that loads from one that doesn't.
         MinecraftServer server = JesServer.running();
         HolderLookup.Provider registries = server != null ? server.registryAccess() : vanillaRegistries();
-        return LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, registries), json).getOrThrow(JsonParseException::new);
+        return named(LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, registries), json).getOrThrow(JsonParseException::new), id);
         *///?} else if forge {
         /*// Forge names each pool as a table is read, which only works inside its own loading.
         return net.minecraftforge.common.ForgeHooks.loadLootTable(LootDataType.TABLE.parser(), id, json, true);
@@ -232,6 +232,18 @@ public final class LootOverrides {
         return LootDataType.TABLE.parser().fromJson(json, LootTable.class);
         //?}
     }
+
+    //? if neoforge {
+    /*// NeoForge looks a table's id up as it rolls it, for its loot modifiers, and from 26.3 fails without one.
+    private static LootTable named(LootTable table, ResourceLocation id) {
+        table.setLootTableId(id);
+        return table;
+    }
+    *///?} else if >=1.21 {
+    /*private static LootTable named(LootTable table, ResourceLocation id) {
+        return table;
+    }
+    *///?}
 
     /** Saves an edit, remembering the table it was made from. It applies after /reload. */
     public static Component save(ResourceManager resources, ResourceLocation id, String json) {

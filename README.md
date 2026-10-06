@@ -8,7 +8,7 @@ generate itself in a sandbox, the same way `/place structure` does, and only dra
 is why it works with structures from any mod or datapack without knowing anything about them.
 
 This is early work. The first release targets Minecraft 1.20.1 on Fabric and Forge, 1.21.1, 26.1 and
-26.2 on Fabric, NeoForge and Forge, and 26.3 on Fabric, with more versions to follow.
+26.2 on Fabric, NeoForge and Forge, and 26.3 on Fabric and NeoForge, with more versions to follow.
 
 ## Using it
 
@@ -124,7 +124,7 @@ Explorer's Compass uses.
 ## Requirements
 
 - Minecraft 1.20.1, 1.21.1, 26.1 (26.1.2 on NeoForge and Forge), 26.2 or 26.3
-- Fabric Loader and Fabric API, Forge, or NeoForge on 1.21.1, 26.1.2 and 26.2
+- Fabric Loader and Fabric API, Forge, or NeoForge on 1.21.1, 26.1.2, 26.2 and 26.3
 - Installed on both the client and the server. In singleplayer that's just your game.
 
 ## Building

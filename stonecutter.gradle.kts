@@ -157,6 +157,8 @@ stonecutter parameters {
             replace("event.scancode()", "event.keycode()")
             replace("InputConstants.isKeyDown(window, ", "InputConstants.isKeyDown(")
             replace("packs.get(0).open()", "packs.get(0).open().findFirst().orElseThrow()")
+            // A test names the dimension it runs in.
+            replace("new TestData<>(holder, Ids.parse(test.structure())", "new TestData<>(holder, net.minecraft.world.level.Level.OVERWORLD, Ids.parse(test.structure())")
         }
 
         // Fabric API for 26.1 took the game's own names for these.
