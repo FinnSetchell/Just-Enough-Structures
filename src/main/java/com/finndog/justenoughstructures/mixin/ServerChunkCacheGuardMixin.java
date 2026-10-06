@@ -22,10 +22,14 @@ import org.spongepowered.asm.mixin.injection.At;
  * waiting, so that hand-off is answered from the sandbox instead: its own chunk in the area being
  * captured, and none anywhere else. Code that then insists on a chunk fails, which fails the
  * preview rather than touching the world. The server's own thread never takes this path, so it
- * costs it nothing. Lithium replaces {@code getChunk}, which leaves that one unguarded here, but code
- * asking a level for a chunk is still guarded by {@link ServerLevelGuardMixin}.
+ * costs it nothing.
+ *
+ * <p>Lithium replaces {@code getChunk} with its own, which hands chunks over somewhere else, so that
+ * one goes unguarded here, though code asking a level for a chunk is still guarded by
+ * {@link ServerLevelGuardMixin}. A mixin can't touch a method another has replaced unless it comes
+ * after it, and Mixin stops the game rather than skip it, so this one goes after the usual priority.
  */
-@Mixin(ServerChunkCache.class)
+@Mixin(value = ServerChunkCache.class, priority = 1100)
 public abstract class ServerChunkCacheGuardMixin {
     @Shadow
     @Final
