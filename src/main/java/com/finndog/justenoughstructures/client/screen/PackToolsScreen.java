@@ -55,6 +55,8 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     private boolean messageGood;
     private long messageUntil;
     private int seenReloads = ClientRequests.reloads();
+    /** Whether another screen has been over this one since it was last shown. */
+    private boolean covered;
     private int seenStructures = ClientRequests.structureChanges();
     private int contentX, contentY, contentW, contentH;
 
@@ -289,6 +291,11 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     protected void init() {
+        // Back from the editor or a picker, where something may have changed, so it's asked again.
+        if (covered) {
+            covered = false;
+            refresh();
+        }
         // On a small screen the menu is only as wide as its names need, leaving the rest to the section.
         int menuW = Math.max(Math.min(110, width / 6), Math.min(84, menuNeeds()));
         int menuX = PAD + 5;
@@ -443,6 +450,13 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     public void onClose() {
         current().leaving();
         minecraft.setScreen(parent);
+    }
+
+    @Override
+    public void removed() {
+        // Another screen's opened over this one.
+        covered = true;
+        super.removed();
     }
 
     @Override

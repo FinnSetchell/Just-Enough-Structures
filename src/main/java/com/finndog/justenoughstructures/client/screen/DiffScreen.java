@@ -1,7 +1,9 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.loot.LootFormat;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
@@ -78,13 +80,21 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
         return parent;
     }
 
-    /** The JSON laid out the same way on both sides, so only real differences show. */
+    /**
+     * The JSON laid out the same way on both sides, so only real differences show. A table is put in
+     * the shape this version of the game writes, as a mod's own file may still be in an older one
+     * that means the same.
+     */
     private static List<String> lines(String json) {
         if (json == null) {
             return List.of();
         }
         try {
-            return Arrays.asList(PRETTY.toJson(JsonParser.parseString(json)).split("\n"));
+            JsonElement parsed = JsonParser.parseString(json);
+            if (parsed.isJsonObject()) {
+                parsed = LootFormat.forGame(LootFormat.forEditing(parsed.getAsJsonObject()));
+            }
+            return Arrays.asList(PRETTY.toJson(parsed).split("\n"));
         } catch (JsonParseException e) {
             return Arrays.asList(json.split("\n"));
         }

@@ -85,6 +85,8 @@ final class ToolsLoot extends ToolsSection {
     @Override
     void stateChanged() {
         shownFor = null;
+        // Fetched again, so after a /reload the chances are the ones in use now.
+        oddsFor = null;
     }
 
     @Override
@@ -279,7 +281,9 @@ final class ToolsLoot extends ToolsSection {
         boolean waiting = screen.waiting(PackToolsState.tableKey(table));
         Component text = Component.translatable("screen.justenoughstructures.editor.status." + status.name().toLowerCase(Locale.ROOT));
         if (waiting) {
-            text = text.copy().append(" ").append(Component.translatable("screen.justenoughstructures.tools.waiting_this"));
+            // Some statuses end a sentence and some don't.
+            text = text.copy().append(text.getString().endsWith(".") ? " " : ". ")
+                    .append(Component.translatable("screen.justenoughstructures.tools.waiting_this"));
         }
         int kind = switch (status) {
             case NONE -> 0;
@@ -291,10 +295,13 @@ final class ToolsLoot extends ToolsSection {
         if (status == LootOverrides.Status.ORIGINAL_CHANGED) {
             // Side by side, each on a line of its own once they don't fit.
             Component[] labels = {Component.translatable("screen.justenoughstructures.editor.see_changes"),
-                    Component.translatable("screen.justenoughstructures.editor.merge"), Component.translatable("screen.justenoughstructures.editor.keep")};
-            Runnable[] actions = {() -> screen.showChanges(table), () -> screen.openEditor(table, true), () -> screen.keep(table)};
+                    Component.translatable("screen.justenoughstructures.editor.merge"), Component.translatable("screen.justenoughstructures.editor.keep"),
+                    Component.translatable("screen.justenoughstructures.editor.use_mods")};
+            Runnable[] actions = {() -> screen.showChanges(table), () -> screen.openEditor(table, true), () -> screen.keep(table),
+                    () -> screen.removeEdit(table)};
             Component[] tips = {null, Component.translatable("screen.justenoughstructures.editor.merge_hint"),
-                    Component.translatable("screen.justenoughstructures.editor.keep_hint")};
+                    Component.translatable("screen.justenoughstructures.editor.keep_hint"),
+                    Component.translatable("screen.justenoughstructures.editor.use_mods_hint")};
             int lx = x + 2;
             for (int i = 0; i < labels.length; i++) {
                 if (lx > x + 2 && lx + font.width(labels[i]) > x + w) {

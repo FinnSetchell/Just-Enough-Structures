@@ -498,8 +498,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         raw = false;
         rawText = null;
         changed();
-        note(result.conflicts() == 0 ? Component.translatable("screen.justenoughstructures.editor.merged")
-                : Component.translatable("screen.justenoughstructures.editor.merged_conflicts", result.conflicts()), result.conflicts() == 0 ? GOOD : WARN);
+        Component merged = switch (result.conflicts()) {
+            case 0 -> Component.translatable("screen.justenoughstructures.editor.merged");
+            case 1 -> Component.translatable("screen.justenoughstructures.editor.merged_conflict");
+            default -> Component.translatable("screen.justenoughstructures.editor.merged_conflicts", result.conflicts());
+        };
+        note(merged, result.conflicts() == 0 ? GOOD : WARN);
         rebuildWidgets();
     }
 
@@ -949,10 +953,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         g.fill(PAD + 6 + inset, barY, width - PAD - 6 - inset, barY + 13, fill[0]);
         int actionsLeft = right;
         if (view.status() == LootOverrides.Status.ORIGINAL_CHANGED && message == null) {
-            for (String key : List.of("keep", "merge", "see_changes")) {
+            for (String key : List.of("use_mods", "keep", "merge", "see_changes")) {
                 Component label = Component.translatable("screen.justenoughstructures.editor." + key);
                 actionsLeft -= ui.buttonWidth(label);
                 Runnable action = switch (key) {
+                    // The same as Remove: the edit's put aside, and the mod's table used.
+                    case "use_mods" -> () -> tableAction(JesNetwork.ACTION_REMOVE);
                     case "keep" -> () -> tableAction(JesNetwork.ACTION_KEEP);
                     case "merge" -> this::merge;
                     default -> this::showChanges;

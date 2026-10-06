@@ -576,6 +576,9 @@ public final class ClientRequests {
         teleportPermission = teleport;
         compassSearch = compass;
         packTools = canUsePackTools;
+        // The browser asks which tables are edited as it opens, which the first time is before the
+        // server has said this player may see them, and a /reload can change them, so ask now.
+        requestOverrides();
         if (structuresChanged) {
             structureChanges++;
             if (catalog != null && catalog.isDone()) {

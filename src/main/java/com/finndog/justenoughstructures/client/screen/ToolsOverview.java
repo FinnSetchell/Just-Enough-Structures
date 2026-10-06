@@ -57,7 +57,9 @@ final class ToolsOverview extends ToolsSection {
                         ? List.of(RowButton.of("tools.edit", () -> screen.openEditor(table, false)))
                         : List.of(RowButton.of("editor.see_changes", () -> screen.showChanges(table)),
                         RowButton.of("editor.merge", () -> screen.openEditor(table, true)),
-                        RowButton.of("editor.keep", () -> screen.keep(table)));
+                        RowButton.of("editor.keep", () -> screen.keep(table)),
+                        new RowButton(Component.translatable("screen.justenoughstructures.editor.use_mods"), () -> screen.removeEdit(table),
+                                Component.translatable("screen.justenoughstructures.editor.use_mods_hint")));
                 cy += row(g, ui, x, cy, cw, Icon.item(CHEST), StructureNames.lootTable(table.toString()), null, 0,
                         Component.translatable("screen.justenoughstructures.editor.status." + e.getValue().name().toLowerCase(java.util.Locale.ROOT)).getString(),
                         buttons, null, 0xFFF1DCAE, false);
