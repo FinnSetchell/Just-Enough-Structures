@@ -1,15 +1,17 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.UUID;
@@ -31,11 +33,14 @@ final class CompassScenario {
     }
 
     static Director build(Minecraft mc) {
+        if (!JustEnoughStructures.modVersions().containsKey("explorerscompass")) {
+            throw new UnsupportedOperationException("needs Explorer's Compass");
+        }
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         d.then(run(() -> giveCompass(mc)))
                 .then(pause(20))
-                .then(pressKey(InputConstants.KEY_K))
+                .then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(moveTo(() -> browser(mc).button("compass"), 10))
@@ -61,7 +66,7 @@ final class CompassScenario {
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> mc.screen == null, 40))
                 .then(run(() -> JesScreen.startOn(Ids.parse("village_plains"))))
-                .then(pressKey(InputConstants.KEY_K))
+                .then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
                 .then(run(() -> browser(mc).pointCompassNow()))

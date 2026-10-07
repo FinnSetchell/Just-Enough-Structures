@@ -1,12 +1,13 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 
 import com.finndog.justenoughstructures.fabric.JesModMenu;
+import com.finndog.justenoughstructures.gametest.scripted.Director;
 import net.minecraft.client.Minecraft;
 
 /** The settings screen, opened the way Mod Menu's Config button opens it, with both of its tabs. */

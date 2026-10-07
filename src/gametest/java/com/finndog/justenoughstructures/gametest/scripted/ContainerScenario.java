@@ -1,14 +1,15 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -34,7 +35,7 @@ final class ContainerScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("pillager_outpost"));
         Director d = new Director(mc, null);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> captured(mc), 400))
                 .then(run(() -> browser(mc).pickForTools()))

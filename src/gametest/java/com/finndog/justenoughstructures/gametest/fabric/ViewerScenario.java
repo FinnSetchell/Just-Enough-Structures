@@ -1,13 +1,13 @@
 package com.finndog.justenoughstructures.gametest.fabric;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 //? if emi {
@@ -18,6 +18,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.fabricmc.loader.api.FabricLoader;
+import com.finndog.justenoughstructures.gametest.scripted.Director;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;

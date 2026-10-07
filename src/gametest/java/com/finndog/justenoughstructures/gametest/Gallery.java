@@ -1,26 +1,40 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
+import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
@@ -56,7 +70,7 @@ public final class Gallery {
     private static final Set<String> OPEN_SPAWNER = Set.of("minecraft:fortress", "minecraft:stronghold");
     private static final int TIMEOUT_TICKS = 20 * 90;
 
-    private enum Step { START, WAIT_WORLD, WAIT_CATALOG, WAIT_IDLE, SETTLE, SHOTS, DONE }
+    private enum Step { START, WAIT_WORLD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, DONE }
 
     /** One more screenshot of a structure: what to open first, how long to let it settle, and what to close after. */
     private record Shot(String suffix, Runnable open, int settle, Runnable close) {
@@ -64,21 +78,115 @@ public final class Gallery {
 
     private Step step = Step.START;
     private int stepTicks;
+    /** How long another screen has kept the browser from opening once in the world, for {@link #closeJoinScreen}. */
+    private int blockedTicks;
     private int index;
     private JesScreen screen;
     private final Deque<Shot> shots = new ArrayDeque<>();
     private Shot shot;
-    private final List<ResourceLocation> structures;
+    private List<ResourceLocation> structures;
     private final Path out;
     private final boolean hide;
     private final JsonArray summary = new JsonArray();
+    /** "*" asks for every structure the browser lists, which is only known once the server sends them. */
+    private final boolean everything;
+    private CompletableFuture<List<StructureCatalog.Entry>> catalog;
+    /** How many structures, spread through the list, also get a chest and the Loot tab, and a turning reel. */
+    private final int closeups;
+    private final int reelCount;
+    private final int reelTicks;
+    /** Degrees the reel turns each tick. */
+    private final float reelTurn;
+    /** With "*", how many structures from each mod to shoot, or every one when 0. */
+    private final int perMod;
+    private Set<Integer> closeupAt = Set.of();
+    private Set<Integer> reelAt = Set.of();
+    private int reelFrames;
+    private StructureViewport.Camera reelFrom;
+    private final Set<ResourceLocation> retried = new HashSet<>();
 
     private Gallery(Path out) {
         String list = System.getProperty("jes.autoshot.structures", "");
-        structures = (list.isBlank() ? DEFAULT_STRUCTURES : Arrays.asList(list.split(","))).stream()
-                .map(String::trim).filter(s -> !s.isEmpty()).map(Ids::parse).toList();
+        everything = list.trim().equals("*");
+        structures = everything ? new ArrayList<>() : new ArrayList<>((list.isBlank() ? DEFAULT_STRUCTURES : Arrays.asList(list.split(","))).stream()
+                .map(String::trim).filter(s -> !s.isEmpty()).map(Ids::parse).toList());
         hide = Boolean.parseBoolean(System.getProperty("jes.autoshot.hidden", "true"));
+        closeups = Integer.getInteger("jes.autoshot.closeups", 0);
+        reelCount = Integer.getInteger("jes.autoshot.reel.count", 0);
+        reelTicks = Integer.getInteger("jes.autoshot.reel", 60);
+        reelTurn = Float.parseFloat(System.getProperty("jes.autoshot.reel.turn", "1.5"));
+        perMod = Integer.getInteger("jes.autoshot.per.mod", 0);
         this.out = out;
+        spread();
+    }
+
+    private static boolean lowOnMemory(CaptureResult result) {
+        return result.reason() != null && result.reason().getContents() instanceof TranslatableContents t && t.getKey().endsWith("error.low_memory");
+    }
+
+    /** Picks which structures get close-ups and a reel, spread evenly through the list. */
+    private void spread() {
+        closeupAt = spread(structures.size(), closeups);
+        reelAt = spread(structures.size(), reelCount);
+    }
+
+    private static Set<Integer> spread(int size, int wanted) {
+        Set<Integer> at = new HashSet<>();
+        for (int k = 0; k < Math.min(size, wanted); k++) {
+            at.add((int) ((k + 0.5) * size / Math.min(size, wanted)));
+        }
+        return at;
+    }
+
+    /** With "*", whether the server's said which structures there are yet. */
+    private boolean listed() {
+        if (!everything || !structures.isEmpty()) {
+            return true;
+        }
+        if (catalog == null) {
+            catalog = ClientRequests.catalog();
+        }
+        if (!catalog.isDone()) {
+            return false;
+        }
+        List<ResourceLocation> all = catalog.isCompletedExceptionally() ? List.of()
+                : catalog.join().stream().map(StructureCatalog.Entry::id).toList();
+        structures = new ArrayList<>(perMod > 0 ? perMod(all, perMod) : all);
+        JustEnoughStructures.LOGGER.info("Gallery: {} structures, of {} listed", structures.size(), all.size());
+        spread();
+        return true;
+    }
+
+    /** Up to {@code each} structures from every mod, spread through that mod's part of the list. */
+    private static List<ResourceLocation> perMod(List<ResourceLocation> all, int each) {
+        Map<String, List<ResourceLocation>> byMod = new LinkedHashMap<>();
+        for (ResourceLocation id : all) {
+            byMod.computeIfAbsent(id.getNamespace(), k -> new ArrayList<>()).add(id);
+        }
+        List<ResourceLocation> out = new ArrayList<>();
+        for (List<ResourceLocation> ids : byMod.values()) {
+            for (int i : new TreeSet<>(spread(ids.size(), each))) {
+                out.add(ids.get(i));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Closes a screen a pack opens on joining, like a welcome page or a quest book, once it has kept a
+     * run waiting ten seconds in the world, as nothing is going to click it. Takes and returns how
+     * long it has been open.
+     */
+    public static int closeJoinScreen(Minecraft mc, int blockedTicks) {
+        if (mc.player == null || mc.level == null || mc.screen == null) {
+            return 0;
+        }
+        if (blockedTicks + 1 > 200) {
+            JustEnoughStructures.LOGGER.info("Autoshot closed {} to carry on", mc.screen.getClass().getName());
+            mc.setScreen(null);
+            return 0;
+        }
+        return blockedTicks + 1;
     }
 
     /** The gallery the run's settings ask for, or null when this isn't a screenshot run. */
@@ -94,12 +202,15 @@ public final class Gallery {
                 if (hide && stepTicks == 1) {
                     hideWindow(mc);
                 }
-                if (ready(mc)) {
+                blockedTicks = menuWait(mc, blockedTicks);
+                if (canStart(mc, blockedTicks)) {
+                    blockedTicks = 0;
                     startWorld(mc, hide, false);
                     go(Step.WAIT_WORLD);
                 }
             }
             case WAIT_WORLD -> {
+                blockedTicks = closeJoinScreen(mc, blockedTicks);
                 if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
                     //? if >=26.1 {
                     /*stopTheSun(mc);
@@ -111,6 +222,9 @@ public final class Gallery {
             }
             case WAIT_CATALOG -> {
                 keepScreen(mc);
+                if (!listed()) {
+                    return;
+                }
                 if (index >= structures.size()) {
                     finish(mc);
                 } else if (screen.select(structures.get(index))) {
@@ -136,9 +250,25 @@ public final class Gallery {
                     shoot(mc, name(id));
                     CaptureResult result = screen.result();
                     record(id, result, null);
+                    if (result != null && lowOnMemory(result) && retried.add(id)) {
+                        // The server turned it away while short on memory, so it's tried again at the end, once.
+                        structures.add(id);
+                    }
                     if (result != null && result.succeeded()) {
                         planShots(id, result.snapshot());
+                        if (reelAt.contains(index)) {
+                            startReel(mc);
+                            return;
+                        }
                     }
+                    nextShot();
+                }
+            }
+            case REEL -> {
+                keepScreen(mc);
+                reelFrame(mc);
+                if (stepTicks >= reelTicks) {
+                    ClientState.spin = true;
                     nextShot();
                 }
             }
@@ -155,9 +285,37 @@ public final class Gallery {
         }
     }
 
+    /**
+     * A few seconds of the structure turning, a frame a tick, into screenshots/reel, numbered on from
+     * the last structure's so they make one video. The camera's turned here rather than left to the
+     * preview's own spin, which stops whenever the window says the cursor is over it.
+     */
+    private void startReel(Minecraft mc) {
+        new File(mc.gameDirectory, "screenshots/reel").mkdirs();
+        ClientState.spin = false;
+        reelFrom = viewport().camera();
+        go(Step.REEL);
+    }
+
+    private void reelFrame(Minecraft mc) {
+        StructureViewport.Camera c = reelFrom;
+        viewport().setCamera(new StructureViewport.Camera(c.yaw() + stepTicks * reelTurn, c.pitch(), c.distance(), c.focusX(), c.focusY(), c.focusZ()));
+        shoot(mc, String.format("reel/f_%05d", reelFrames++));
+    }
+
+    private StructureViewport viewport() {
+        try {
+            Field field = JesScreen.class.getDeclaredField("viewport");
+            field.setAccessible(true);
+            return (StructureViewport) field.get(screen);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("No preview to turn", e);
+        }
+    }
+
     /** The closer looks at a structure, after its first screenshot. */
     private void planShots(ResourceLocation id, StructureSnapshot snapshot) {
-        if (OPEN_CHEST.contains(id.toString())) {
+        if (OPEN_CHEST.contains(id.toString()) || closeupAt.contains(index)) {
             snapshot.containers().stream().filter(c -> c.lootTable() != null).findFirst().ifPresent(chest -> {
                 shots.add(new Shot("chest", () -> screen.openContainer(chest), 30, () -> screen.closeContainer()));
                 shots.add(new Shot("loot", () -> screen.showLootTab(), 30, () -> screen.showInfoTab()));
@@ -236,19 +394,29 @@ public final class Gallery {
                 row.addProperty("terrain", s.terrain().name());
             } else {
                 row.addProperty("error", result.error());
+                // What each terrain said, which explains a structure that wouldn't generate anywhere.
+                JsonArray attempts = new JsonArray();
+                result.attempts().forEach(a -> attempts.add(a.getString()));
+                row.add("attempts", attempts);
             }
         }
         summary.add(row);
+        // Written as it goes, so a long run that dies part way still says how far it got.
+        writeSummary();
     }
 
-    private void finish(Minecraft mc) {
-        go(Step.DONE);
+    private void writeSummary() {
         try {
             Files.createDirectories(out);
             Files.writeString(out.resolve("summary.json"), new GsonBuilder().setPrettyPrinting().create().toJson(summary), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("Couldn't write the autoshot summary", e);
         }
+    }
+
+    private void finish(Minecraft mc) {
+        go(Step.DONE);
+        writeSummary();
         mc.stop();
     }
 
@@ -256,6 +424,25 @@ public final class Gallery {
     public static boolean ready(Minecraft mc) {
         // Wait for the loading overlay too: creating the world mid-reload renders chunks before shaders exist.
         return mc.getOverlay() == null && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen);
+    }
+
+    /**
+     * Whether a run can start its world: from the title screen, or after ten seconds of a pack's own
+     * screen in front of it, like a welcome page, which nothing is going to click. Takes and returns
+     * how long that screen has been there.
+     */
+    public static int menuWait(Minecraft mc, int ticks) {
+        if (ready(mc) || mc.getOverlay() != null || mc.level != null || mc.screen == null) {
+            return 0;
+        }
+        if (ticks == 200) {
+            JustEnoughStructures.LOGGER.info("Autoshot starting the world from behind {}", mc.screen.getClass().getName());
+        }
+        return ticks + 1;
+    }
+
+    public static boolean canStart(Minecraft mc, int menuTicks) {
+        return ready(mc) || menuTicks > 200;
     }
 
     //? if >=26.1 {

@@ -1,18 +1,20 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
+import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -27,7 +29,7 @@ final class PackToolsScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).setSpin(false)))
@@ -74,10 +76,13 @@ final class PackToolsScenario {
                 .then(until(() -> mc.screen instanceof TablePickerScreen p && p.ready(), 400))
                 .then(pause(20))
                 .then(shoot("p09_picker"))
+                // Back out to the browser one screen at a time, the picker, then Pack tools, then the
+                // chest that opened them, waiting for each: a busy pack can be a frame or two behind.
                 .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(until(() -> tools(mc) != null || browser(mc) != null, 40))
+                .then(escapeIf(() -> browser(mc) == null))
                 .then(until(() -> browser(mc) != null, 40))
-                .then(pressKey(InputConstants.KEY_ESCAPE))
-                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(escapeIf(() -> browser(mc) != null && browser(mc).containerOpen()))
                 .then(pause(10))
                 .then(run(() -> browser(mc).showLootTab()))
                 .then(pause(10))
@@ -92,6 +97,18 @@ final class PackToolsScenario {
                 .then(pause(40))
                 .then(shoot("p11_chest_from_popup"));
         return d;
+    }
+
+    /** Escape, if {@code when} holds as it comes up. */
+    private static Director.Action escapeIf(BooleanSupplier when) {
+        Director.Action escape = pressKey(InputConstants.KEY_ESCAPE);
+        boolean[] skip = new boolean[1];
+        return (d, frame) -> {
+            if (frame == 0) {
+                skip[0] = !when.getAsBoolean();
+            }
+            return skip[0] || escape.step(d, frame);
+        };
     }
 
     private static int[] orZero(int[] at) {

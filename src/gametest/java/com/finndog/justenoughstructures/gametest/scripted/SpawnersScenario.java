@@ -1,13 +1,14 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Nbt;
@@ -34,7 +35,7 @@ final class SpawnersScenario {
         int[] tries = {0};
         CaptureResult[] checked = new CaptureResult[1];
         long[] deadline = {0};
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> {
                     JesScreen browser = browser(mc);

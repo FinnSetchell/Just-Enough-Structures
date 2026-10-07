@@ -1,24 +1,26 @@
-package com.finndog.justenoughstructures.gametest.fabric;
+package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.click;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.dragBy;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.dragTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pressKey;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.moveTo;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.pause;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.record;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.run;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.wheel;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.shoot;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.type;
-import static com.finndog.justenoughstructures.gametest.fabric.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.dragBy;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.dragTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.record;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
-import com.finndog.justenoughstructures.compat.jei.JesJeiPlugin;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
@@ -27,25 +29,29 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /** Scripts for the review screenshots and the showcase recordings. */
-final class Scenarios {
+public final class Scenarios {
     private static final String CHEST = "minecraft:chests/desert_pyramid";
 
     private Scenarios() {
     }
 
-    static Director build(String mode, Minecraft mc) {
+    /** Scenarios only some loaders can build, which their test mod adds with {@link #add}. */
+    private static final Map<String, Function<Minecraft, Director>> EXTRA = new HashMap<>();
+
+    public static void add(String mode, Function<Minecraft, Director> build) {
+        EXTRA.put(mode, build);
+    }
+
+    public static Director build(String mode, Minecraft mc) {
         return switch (mode) {
             case "review" -> review(mc);
             case "open" -> open(mc);
             case "showcase" -> showcase(mc);
             case "spin" -> spin(mc);
             case "teleport" -> teleport(mc);
-            case "jei" -> jei(mc);
             case "compass" -> CompassScenario.build(mc);
-            case "settings" -> ConfigScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
-            case "viewer" -> ViewerScenario.build(mc);
             case "details" -> DetailsScenario.build(mc);
             case "tabs" -> InfoTabsScenario.build(mc);
             case "lootfixes" -> LootFixesScenario.build(mc);
@@ -58,8 +64,35 @@ final class Scenarios {
             case "loot_tab" -> LootTabScenario.build(mc);
             case "pack_tools" -> PackToolsScenario.build(mc);
             case "pack_tools_edits" -> PackToolsEditsScenario.build(mc);
-            default -> throw new IllegalArgumentException("Unknown autoshot mode " + mode);
+            case "update_before" -> UpdateFlowScenario.before(mc);
+            case "update_after" -> UpdateFlowScenario.after(mc);
+            case "update_after_mods" -> UpdateFlowScenario.afterUseMods(mc);
+            case "pack_tour" -> PackTourScenario.build(mc);
+            case "suite" -> suite(mc, System.getProperty("jes.autoshot.suite", "pack_tour,pack_tools"));
+            default -> {
+                Function<Minecraft, Director> extra = EXTRA.get(mode);
+                if (extra == null) {
+                    throw new IllegalArgumentException("Unknown autoshot mode " + mode);
+                }
+                yield extra.apply(mc);
+            }
         };
+    }
+
+    /**
+     * Several scenarios one after another in one game, so a big modpack only has to start once. Each
+     * starts with nothing open, and one that fails is logged and left for the next.
+     */
+    private static Director suite(Minecraft mc, String modes) {
+        Director d = new Director(mc, null);
+        d.showCursor = false;
+        for (String mode : modes.split(",")) {
+            String name = mode.trim();
+            d.then(Director.run(() -> mc.setScreen(null)))
+                    .then(Director.pause(40))
+                    .then(Director.play(name, () -> build(name, mc)));
+        }
+        return d;
     }
 
     private static JesScreen screen(Minecraft mc) {
@@ -93,7 +126,7 @@ final class Scenarios {
         JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
@@ -195,7 +228,7 @@ final class Scenarios {
         JesScreen.startOn(Ids.parse("igloo"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
@@ -204,7 +237,7 @@ final class Scenarios {
                 .then(pause(20))
                 .then(record("open"))
                 .then(pause(12))
-                .then(pressKey(InputConstants.KEY_K))
+                .then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(moveTo(offset(viewport, 120, -120), 24))
@@ -223,7 +256,7 @@ final class Scenarios {
     private static Director teleport(Minecraft mc) {
         JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(run(() -> JustEnoughStructures.LOGGER.info("Autoshot teleport from {}", mc.player.blockPosition())))
@@ -243,37 +276,12 @@ final class Scenarios {
      * JEI with the plugin: the inventory with JEI's item list, then the structures diamonds are found
      * in, once the loot index has arrived. With every dev mod installed the index takes a few minutes.
      */
-    private static Director jei(Minecraft mc) {
-        Director d = new Director(mc, null);
-        d.then(pause(40))
-                .then(pressKey(InputConstants.KEY_E))
-                .then(until(() -> mc.screen != null, 40))
-                .then(pause(40))
-                .then(shoot("j01_inventory"))
-                .then(until(FoundIn::ready, 12000))
-                .then(run(() -> JesJeiPlugin.showFoundIn(new ItemStack(Items.DIAMOND))))
-                .then(pause(60))
-                .then(shoot("j02_found_in_diamond"))
-                // The first row's name, where JEI puts it in a 1600 x 900 window at GUI scale 2.
-                .then(moveTo(() -> new int[]{mc.getWindow().getGuiScaledWidth() / 2 - 20, 121}, 6))
-                .then(pause(10))
-                .then(shoot("j03_row_tooltip"))
-                .then(click())
-                .then(until(() -> screen(mc) != null, 40))
-                .then(until(() -> idle(mc), 400))
-                .then(shoot("j04_opened_in_browser"))
-                .then(pressKey(InputConstants.KEY_ESCAPE))
-                .then(pause(20))
-                .then(shoot("j05_back_in_jei"));
-        return d;
-    }
-
     /** A few seconds of a desert pyramid turning on its own, to check the loot markers keep up with it. */
     private static Director spin(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 130), 2))
@@ -288,7 +296,7 @@ final class Scenarios {
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         // Get everything loaded before recording, so it opens on a finished preview.
-        d.then(pressKey(InputConstants.KEY_K))
+        d.then(pressBrowserKey())
                 .then(until(() -> screen(mc) != null, 40))
                 .then(run(() -> screen(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
