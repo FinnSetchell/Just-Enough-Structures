@@ -134,7 +134,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             PoolScan.Reach fromPools = null;
             try {
                 fromPools = structure == null ? null : scan.scan(structure);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 JesLog.debug("Reading {}'s pools failed", id, e);
             }
             if (fromPools != null) {
@@ -168,7 +168,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     if (i > 0 && found.size() == before) {
                         break;
                     }
-                } catch (RuntimeException e) {
+                } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                    // A broken structure from some mod is left out rather than ending the whole index.
                     JesLog.debug("Indexing {} failed", id, e);
                     break;
                 }

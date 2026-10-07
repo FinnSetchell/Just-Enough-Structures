@@ -145,7 +145,7 @@ public final class StructureCapture {
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
-            } catch (RuntimeException | LinkageError e) {
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 JesLog.debug("Capturing {} on {} terrain failed", structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
                 lastError = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));

@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
+import com.google.common.hash.HashCode;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,9 +82,13 @@ public final class LootIndexStore {
     private static String fingerprint;
     private static boolean checking;
     private static boolean building;
+    // Building failed, and won't be tried again until the next /reload.
+    private static boolean broken;
     private static boolean wanted;
     private static volatile int done;
     private static volatile int total;
+    // For the debug log: what each source file hashed to last time, to say which ones changed.
+    private static volatile Map<String, HashCode> lastFiles = Map.of();
 
     private LootIndexStore() {
     }
@@ -92,10 +98,11 @@ public final class LootIndexStore {
         int generation = GENERATION.incrementAndGet();
         checking = true;
         building = false;
+        broken = false;
         String known = scan == null ? null : fingerprint;
         StructureScan knownScan = scan;
         Path dir = folder();
-        WORKER.execute(() -> {
+        inBackground(server, generation, () -> {
             long started = System.nanoTime();
             String current = fingerprintOf(server);
             if (generation != GENERATION.get()) {
@@ -116,7 +123,7 @@ public final class LootIndexStore {
                     if (updated != base && current != null) {
                         write(dir, current, updated);
                     }
-                } catch (RuntimeException e) {
+                } catch (RuntimeException | LinkageError | StackOverflowError e) {
                     JesLog.debug("Couldn't bring the saved loot index up to date, so it's built again", e);
                     updated = null;
                     updatedIndex = null;
@@ -160,6 +167,7 @@ public final class LootIndexStore {
         fingerprint = null;
         checking = false;
         building = false;
+        broken = false;
         wanted = false;
         WAITING.clear();
     }
@@ -172,7 +180,7 @@ public final class LootIndexStore {
             return;
         }
         wanted = true;
-        if (!checking && !building) {
+        if (!checking && !building && !broken) {
             build(Players.server(player), GENERATION.get());
         }
         JesServer.sendIndexProgress(player, done, total);
@@ -185,11 +193,13 @@ public final class LootIndexStore {
         total = ids.size();
         String key = fingerprint;
         Path dir = folder();
-        WORKER.execute(() -> {
+        inBackground(server, generation, () -> {
             long started = System.nanoTime();
             AtomicInteger failed = new AtomicInteger();
             StructureScan scanned = LootIndex.scan(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed);
             if (scanned == null) {
+                JesLog.debug("Stopped building the loot index after {} of {} structures, as {}", done, ids.size(),
+                        server.isRunning() ? "the server's data was reloaded" : "the server is stopping");
                 return;
             }
             LootIndex built = LootIndex.of(server, scanned);
@@ -206,6 +216,29 @@ public final class LootIndexStore {
                     publish(server);
                 }
             });
+        });
+    }
+
+    /**
+     * Runs {@code task} on the index's thread. Anything it throws is logged, and the index isn't
+     * tried again until the next /reload, as it would only fail the same way. Left alone, the
+     * thread would end and players would wait for the index for ever, with nothing in the log
+     * when a pack's crash reporter takes over uncaught errors.
+     */
+    private static void inBackground(MinecraftServer server, int generation, Runnable task) {
+        WORKER.execute(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                JustEnoughStructures.LOGGER.error("Couldn't build the loot index, so finding structures by item won't work until the next /reload", t);
+                server.execute(() -> {
+                    if (generation == GENERATION.get()) {
+                        checking = false;
+                        building = false;
+                        broken = true;
+                    }
+                });
+            }
         });
     }
 
@@ -260,18 +293,45 @@ public final class LootIndexStore {
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) ->
                     hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
             ResourceManager resources = server.getResourceManager();
+            Map<String, HashCode> files = JesLog.enabled() ? new HashMap<>() : null;
             for (String source : SOURCES) {
                 for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(resources.listResources(source, path -> true)).entrySet()) {
                     hasher.putString(file.getKey().toString(), StandardCharsets.UTF_8);
                     try (InputStream in = file.getValue().open()) {
-                        hasher.putBytes(in.readAllBytes());
+                        byte[] bytes = in.readAllBytes();
+                        hasher.putBytes(bytes);
+                        if (files != null) {
+                            files.put(file.getKey().toString(), Hashing.murmur3_128().hashBytes(bytes));
+                        }
                     }
                 }
+            }
+            if (files != null) {
+                logChanges(files);
             }
             return hasher.hash().toString();
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't fingerprint the loot index's sources, so it won't be saved", e);
             return null;
+        }
+    }
+
+    /**
+     * For the debug log: which source files changed since the last fingerprint. A pack whose files
+     * come out different on every reload has its whole index built again each time.
+     */
+    private static void logChanges(Map<String, HashCode> files) {
+        Map<String, HashCode> before = lastFiles;
+        lastFiles = files;
+        if (before.isEmpty()) {
+            return;
+        }
+        List<String> changed = files.entrySet().stream().filter(e -> !e.getValue().equals(before.get(e.getKey())))
+                .map(Map.Entry::getKey).sorted().toList();
+        List<String> gone = before.keySet().stream().filter(file -> !files.containsKey(file)).sorted().toList();
+        if (!changed.isEmpty() || !gone.isEmpty()) {
+            JesLog.debug("Since the last check of the loot index, {} of its source files changed or are new {} and {} are gone {}",
+                    changed.size(), changed.subList(0, Math.min(10, changed.size())), gone.size(), gone.subList(0, Math.min(10, gone.size())));
         }
     }
 
