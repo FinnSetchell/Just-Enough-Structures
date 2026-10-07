@@ -76,7 +76,8 @@ final class ContainerScenario {
                 .then(until(() -> browser(mc) != null, 40))
                 // The test datapack hides the jungle pyramid's loot, so the desert pyramid shows a chest placed by code.
                 .then(run(() -> browser(mc).select(Ids.parse("desert_pyramid"))))
-                .then(until(() -> captured(mc), 600))
+                // The one picked before can still show for a moment, until the new one is asked for.
+                .then(until(() -> captured(mc) && browser(mc).result().snapshot().structureId().equals(Ids.parse("desert_pyramid")), 600))
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() == null && c.lootTable() != null)))
                 .then(pause(40))
