@@ -157,6 +157,8 @@ public final class StructureCapture {
     /**
      * Terrains to try, most likely first, judged by where the structure is allowed to spawn. The
      * other depths of sea and the lava sea only come into it when the usual ground gets nothing.
+     * One with only some of its biomes in the Nether or the End, like a Nether fossil that Biomes
+     * O' Plenty also lets into one of its Overworld biomes, gets that terrain too, after the rest.
      */
     static List<SandboxTerrain> terrainsFor(Structure structure) {
         int nether = 0;
@@ -173,16 +175,24 @@ public final class StructureCapture {
                 ocean++;
             }
         }
+        List<SandboxTerrain> order;
         if (total > 0 && nether * 2 > total) {
-            return List.of(SandboxTerrain.NETHER, SandboxTerrain.LAVA_SEA, SandboxTerrain.VOID, SandboxTerrain.LAND);
+            order = List.of(SandboxTerrain.NETHER, SandboxTerrain.LAVA_SEA, SandboxTerrain.VOID, SandboxTerrain.LAND);
+        } else if (total > 0 && end * 2 > total) {
+            order = List.of(SandboxTerrain.END, SandboxTerrain.VOID, SandboxTerrain.LAND);
+        } else if (total > 0 && ocean * 2 > total) {
+            order = List.of(SandboxTerrain.OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.LAND, SandboxTerrain.VOID);
+        } else {
+            order = List.of(SandboxTerrain.LAND, SandboxTerrain.OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.VOID);
         }
-        if (total > 0 && end * 2 > total) {
-            return List.of(SandboxTerrain.END, SandboxTerrain.VOID, SandboxTerrain.LAND);
+        List<SandboxTerrain> out = new ArrayList<>(order);
+        if (nether > 0 && !out.contains(SandboxTerrain.NETHER)) {
+            out.add(SandboxTerrain.NETHER);
         }
-        if (total > 0 && ocean * 2 > total) {
-            return List.of(SandboxTerrain.OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.LAND, SandboxTerrain.VOID);
+        if (end > 0 && !out.contains(SandboxTerrain.END)) {
+            out.add(SandboxTerrain.END);
         }
-        return List.of(SandboxTerrain.LAND, SandboxTerrain.OCEAN, SandboxTerrain.SHALLOW_OCEAN, SandboxTerrain.DEEP_OCEAN, SandboxTerrain.VOID);
+        return out;
     }
 
     private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
