@@ -25,7 +25,7 @@ First release.
   - Loot tables the structure uses in its other layouts open in a popup of their own
   - Enchantments and potions an item can come with are listed too
 - Search for an item to find the structures whose loot can give it, with the best chance first
-  - Searching for an item now finds loot in every piece a structure can have
+  - Item search finds loot in every piece a structure can have
 - The Blocks tab is a material list you can copy
 - Ids and the Info tab's details only show with advanced tooltips (F3+H), as with items
 - Hovering a kind of block, a group of chests or a spawner in the details lights up where they are in the preview, even through walls
@@ -62,7 +62,7 @@ First release.
   - Its button can be hidden in the settings
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
-- Just Enough Structures no longer fills the game log with warnings about other mods' structures
+- Other mods' warnings about their structures stay out of the game log
 - Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
