@@ -25,8 +25,11 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
 import java.lang.management.MemoryUsage;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -34,6 +37,7 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -64,6 +68,10 @@ import net.minecraft.world.level.levelgen.Heightmap;
 public final class JesServer {
     private static final int MAX_CONTAINER_SLOTS = 54;
     private static final int ODDS_ROLLS = 2000;
+    /** How long odds roll in one go on the server thread, before the next tick gets its turn. */
+    private static final long ODDS_SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
+    /** How long one table's odds roll in all. A table some mod makes slow to roll gets fewer rolls. */
+    private static final long ODDS_BUDGET_NANOS = TimeUnit.SECONDS.toNanos(3);
     private static final int CACHED_CAPTURES = 32;
     private static final int MAX_QUEUED_PER_PLAYER = 3;
 
@@ -106,6 +114,8 @@ public final class JesServer {
     private static byte[] catalog;
 
     private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
+    /** Odds still being rolled, with everyone waiting for each. Only touched on the server thread. */
+    private static final Map<ResourceLocation, List<Consumer<LootOdds>>> ROLLING = new HashMap<>();
     private static final Set<UUID> LOCATING = ConcurrentHashMap.newKeySet();
     // Players who've opened the browser this session, so they have the mod and hear about a /reload.
     private static final Set<UUID> BROWSING = ConcurrentHashMap.newKeySet();
@@ -189,6 +199,7 @@ public final class JesServer {
         }
         catalog = null;
         ODDS_CACHE.clear();
+        ROLLING.clear();
     }
 
     /** When the server stops: drops what belonged to that world and stops the loot index. */
@@ -286,15 +297,18 @@ public final class JesServer {
     }
 
     /** Rolls an edit that isn't saved yet, so the editor can show what it would give. */
-    public static DraftOdds draftOdds(ServerPlayer player, ResourceLocation id, String json) {
+    public static void draftOdds(ServerPlayer player, ResourceLocation id, String json, Consumer<DraftOdds> reply) {
         if (!canEdit(player)) {
-            return new DraftOdds(Component.translatable("screen.justenoughstructures.override.no_permission"), null);
+            reply.accept(new DraftOdds(Component.translatable("screen.justenoughstructures.override.no_permission"), null));
+            return;
         }
         Component problem = LootOverrides.check(id, json);
         if (problem != null) {
-            return new DraftOdds(problem, null);
+            reply.accept(new DraftOdds(problem, null));
+            return;
         }
-        return new DraftOdds(null, LootRolls.odds(Players.level(player), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode()));
+        LootRolls.Roller roller = new LootRolls.Roller(Players.level(player), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode());
+        rollInSlices(Players.server(player), roller, ODDS_BUDGET_NANOS, odds -> reply.accept(new DraftOdds(null, odds)));
     }
 
     /** One roll of an edit that isn't saved yet, or nothing if it can't be rolled. */
@@ -489,8 +503,7 @@ public final class JesServer {
                 return;
             }
             if (done.kind() == JesNetwork.KIND_DRAFT) {
-                DraftOdds result = draftOdds(player, draft.id(), draft.json());
-                sendEditReply(player, done.requestId(), result.problem(), result.odds());
+                draftOdds(player, draft.id(), draft.json(), result -> sendEditReply(player, done.requestId(), result.problem(), result.odds()));
             } else if (done.kind() == JesNetwork.KIND_SAVE) {
                 sendEditReply(player, done.requestId(), saveTable(player, draft.id(), draft.json()), null);
             }
@@ -690,15 +703,76 @@ public final class JesServer {
     }
 
     public static void onRequestOdds(ServerPlayer player, int requestId, ResourceLocation table) {
+        Consumer<LootOdds> reply = odds -> {
+            FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
+            buf.writeVarInt(requestId);
+            Codecs.writeOdds(buf, odds);
+            JesNetwork.send(player, JesNetwork.ODDS, buf);
+        };
+        MinecraftServer server = Players.server(player);
+        // Only tables that exist are kept, so made-up names from a client can't fill the cache. One
+        // that doesn't exist rolls nothing, which takes no time.
+        if (!LootOverrides.exists(server, table)) {
+            reply.accept(LootRolls.odds(Players.level(player), table, ODDS_ROLLS, table.hashCode()));
+            return;
+        }
         // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
-        // Only tables that exist are kept, so made-up names from a client can't fill the cache.
-        LootOdds odds = LootOverrides.exists(Players.server(player), table)
-                ? ODDS_CACHE.computeIfAbsent(table, t -> LootRolls.odds(Players.level(player), t, ODDS_ROLLS, t.hashCode()))
-                : LootRolls.odds(Players.level(player), table, ODDS_ROLLS, table.hashCode());
-        FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(requestId);
-        Codecs.writeOdds(buf, odds);
-        JesNetwork.send(player, JesNetwork.ODDS, buf);
+        LootOdds known = ODDS_CACHE.get(table);
+        if (known != null) {
+            reply.accept(known);
+            return;
+        }
+        List<Consumer<LootOdds>> waiting = ROLLING.get(table);
+        if (waiting != null) {
+            waiting.add(reply);
+            return;
+        }
+        List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
+        ROLLING.put(table, these);
+        LootRolls.Roller roller = new LootRolls.Roller(Players.level(player), table, ODDS_ROLLS, table.hashCode());
+        rollInSlices(server, roller, ODDS_BUDGET_NANOS, odds -> {
+            // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
+            if (ROLLING.get(table) == these) {
+                ROLLING.remove(table);
+                ODDS_CACHE.put(table, odds);
+            }
+            these.forEach(waiter -> waiter.accept(odds));
+        });
+    }
+
+    /**
+     * Rolls for a moment now and the rest in the server's spare time between ticks, so a table
+     * that's slow to roll can't hold the server up. With {@code budget} used up, or a roll that
+     * throws, it stops at the odds so far.
+     */
+    private static void rollInSlices(MinecraftServer server, LootRolls.Roller roller, long budget, Consumer<LootOdds> done) {
+        long started = System.nanoTime();
+        boolean finished;
+        try {
+            finished = roller.rollFor(Math.min(ODDS_SLICE_NANOS, budget));
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            JesLog.debug("Rolling {} failed after {} rolls", roller.odds().tableId(), roller.odds().rolls(), e);
+            finished = true;
+        }
+        long left = budget - (System.nanoTime() - started);
+        if (finished || left <= 0) {
+            LootOdds odds = roller.odds();
+            if (!finished) {
+                JesLog.debug("{} is slow to roll, so its odds are from {} rolls", odds.tableId(), odds.rolls());
+            }
+            done.accept(odds);
+        } else {
+            later(server, () -> rollInSlices(server, roller, left, done));
+        }
+    }
+
+    /** Runs {@code task} on the server thread in its spare time, or a few ticks on at the latest. */
+    private static void later(MinecraftServer server, Runnable task) {
+        //? if >=26.1 {
+        /*server.schedule(new TickTask(server.getTickCount(), task));
+        *///?} else {
+        server.tell(new TickTask(server.getTickCount(), task));
+        //?}
     }
 
     private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};

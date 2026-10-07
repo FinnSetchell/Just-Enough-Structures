@@ -77,18 +77,72 @@ public final class LootRolls {
 
     /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
     public static LootOdds odds(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
-        // Thousands of rolls of another mod's table can mean thousands of the same warning.
-        return JesLog.quietly(() -> roll(level, tableId, table, rolls, seed));
+        Roller roller = new Roller(level, tableId, table, rolls, seed);
+        roller.rollFor(Long.MAX_VALUE);
+        return roller.odds();
     }
 
-    private static LootOdds roll(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
-        LootParams params = chestParams(level);
-        Map<Item, LootOdds.Row> rows = new HashMap<>();
-        int empty = 0;
-        for (int i = 0; i < rolls; i++) {
+    /**
+     * Odds worked out a few rolls at a time. Some mods' loot changes make every roll slow, and
+     * thousands in one go would hold the server up.
+     */
+    public static final class Roller {
+        private final ResourceLocation tableId;
+        private final LootTable table;
+        private final LootParams params;
+        private final int rolls;
+        private final long seed;
+        private final Map<Item, LootOdds.Row> rows = new HashMap<>();
+        private int done;
+        private int empty;
+
+        public Roller(ServerLevel level, ResourceLocation tableId, int rolls, long seed) {
+            this(level, tableId, table(level.getServer(), tableId), rolls, seed);
+        }
+
+        public Roller(ServerLevel level, ResourceLocation tableId, LootTable table, int rolls, long seed) {
+            this.tableId = tableId;
+            this.table = table;
+            this.params = chestParams(level);
+            this.rolls = rolls;
+            this.seed = seed;
+        }
+
+        /** Rolls for about {@code nanos}, at least once if any are left. True once every roll is done. */
+        public boolean rollFor(long nanos) {
+            long started = System.nanoTime();
+            // Thousands of rolls of another mod's table can mean thousands of the same warning.
+            JesLog.quietly(() -> {
+                while (done < rolls) {
+                    rollOnce();
+                    if (System.nanoTime() - started >= nanos) {
+                        break;
+                    }
+                }
+            });
+            return done >= rolls;
+        }
+
+        /** The odds from the rolls so far. */
+        public LootOdds odds() {
+            List<LootOdds.Row> sorted = new ArrayList<>(rows.values());
+            sorted.sort((a, b) -> b.hits() != a.hits() ? Integer.compare(b.hits(), a.hits())
+                    : a.example().getItem().getDescriptionId().compareTo(b.example().getItem().getDescriptionId()));
+            return new LootOdds(tableId, done, empty, sorted);
+        }
+
+        private void rollOnce() {
+            int i = done++;
+            List<ItemStack> rolled;
+            try {
+                rolled = table.getRandomItems(params, seed + i);
+            } catch (RuntimeException | LinkageError e) {
+                // Still one of the rolls, as one that gave nothing, so the odds so far add up.
+                empty++;
+                throw e;
+            }
             Map<Item, Integer> counts = new HashMap<>();
             Map<Item, ItemStack> examples = new HashMap<>();
-            List<ItemStack> rolled = table.getRandomItems(params, seed + i);
             for (ItemStack stack : rolled) {
                 if (stack.isEmpty()) {
                     continue;
@@ -126,10 +180,6 @@ public final class LootRolls {
                 //?}
             }
         }
-        List<LootOdds.Row> sorted = new ArrayList<>(rows.values());
-        sorted.sort((a, b) -> b.hits() != a.hits() ? Integer.compare(b.hits(), a.hits())
-                : a.example().getItem().getDescriptionId().compareTo(b.example().getItem().getDescriptionId()));
-        return new LootOdds(tableId, rolls, empty, sorted);
     }
 
     // Deliberately no origin. With one, exploration_map searches the real world for the nearest

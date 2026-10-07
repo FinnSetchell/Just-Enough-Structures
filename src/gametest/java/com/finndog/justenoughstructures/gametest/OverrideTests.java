@@ -313,22 +313,29 @@ public final class OverrideTests {
     public static void draftsRollBeforeSaving(GameTestHelper helper) {
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
+        AtomicReference<JesServer.DraftOdds> refused = new AtomicReference<>();
+        AtomicReference<JesServer.DraftOdds> rolled = new AtomicReference<>();
+        AtomicReference<JesServer.DraftOdds> broken = new AtomicReference<>();
+        // Who may edit is checked as the draft comes in. The rolling can finish a few ticks later.
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
-            JesServer.DraftOdds refused = JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY);
-            helper.assertTrue(refused.odds() == null && key(refused.problem()).endsWith("no_permission"), "a player who can't edit got odds");
-
+            JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY, refused::set);
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
-            JesServer.DraftOdds rolled = JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY);
-            LootOdds odds = rolled.odds();
-            helper.assertTrue(odds != null && odds.rows().size() == 1 && odds.rows().get(0).example().is(Items.DIAMOND)
-                    && odds.rows().get(0).hits() == odds.rolls(), "the draft didn't roll a diamond every time: " + rolled.problem());
-            JesServer.DraftOdds broken = JesServer.draftOdds(player, IGLOO, "{ not json");
-            helper.assertTrue(broken.odds() == null && key(broken.problem()).contains("invalid_json"), "a broken draft was rolled");
+            JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY, rolled::set);
+            JesServer.draftOdds(player, IGLOO, "{ not json", broken::set);
         } finally {
             ServerConfig.set(before);
         }
-        helper.succeed();
+        helper.assertTrue(refused.get() != null && refused.get().odds() == null && key(refused.get().problem()).endsWith("no_permission"),
+                "a player who can't edit got odds");
+        helper.assertTrue(broken.get() != null && broken.get().odds() == null && key(broken.get().problem()).contains("invalid_json"),
+                "a broken draft was rolled");
+        helper.succeedWhen(() -> {
+            helper.assertTrue(rolled.get() != null, "the draft hasn't finished rolling");
+            LootOdds odds = rolled.get().odds();
+            helper.assertTrue(odds != null && odds.rolls() > 0 && odds.rows().size() == 1 && odds.rows().get(0).example().is(Items.DIAMOND)
+                    && odds.rows().get(0).hits() == odds.rolls(), "the draft didn't roll a diamond every time: " + rolled.get().problem());
+        });
     }
 
     /** After /reload the game really uses the edit, and after removing it and another /reload, the original again. */

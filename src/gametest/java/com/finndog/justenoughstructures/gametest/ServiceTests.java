@@ -179,6 +179,23 @@ public final class ServiceTests {
         helper.assertTrue(odds.rolls() == 500, "wrong roll count");
         helper.assertTrue(odds.rows().stream().anyMatch(r -> r.example().is(Items.BONE)), "bones never turned up in 500 desert pyramid rolls");
         helper.assertTrue(odds.rows().stream().allMatch(r -> r.hits() <= odds.rolls() && r.min() <= r.max()), "odds rows don't add up");
+
+        // A few rolls at a time, as the server works them out, comes to the same odds as all at once.
+        LootRolls.Roller roller = new LootRolls.Roller(level, DESERT_PYRAMID_LOOT, 500, 7L);
+        helper.assertFalse(roller.rollFor(0), "rolling for no time at all did every roll");
+        helper.assertTrue(roller.odds().rolls() == 1, "rolling for no time at all should still roll once");
+        while (!roller.rollFor(1_000_000L)) {
+            // A millisecond at a time.
+        }
+        LootOdds sliced = roller.odds();
+        helper.assertTrue(sliced.rolls() == 500 && sliced.emptyRolls() == odds.emptyRolls() && sliced.rows().size() == odds.rows().size(),
+                "rolling a few at a time changed the odds");
+        for (int i = 0; i < odds.rows().size(); i++) {
+            LootOdds.Row a = odds.rows().get(i);
+            LootOdds.Row b = sliced.rows().get(i);
+            helper.assertTrue(a.example().getItem() == b.example().getItem() && a.hits() == b.hits() && a.total() == b.total(),
+                    "rolling a few at a time changed the odds of " + a.example());
+        }
         helper.succeed();
     }
 
