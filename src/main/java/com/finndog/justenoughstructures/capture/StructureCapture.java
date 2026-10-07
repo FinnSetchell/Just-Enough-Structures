@@ -548,7 +548,7 @@ public final class StructureCapture {
                     tag.putInt("y", pos.getY() - minY);
                     tag.putInt("z", pos.getZ() - minZ);
                     CompoundTag source = sources.containers().get(pos.asLong());
-                    if (source != null && ContainerSources.matches(source, state, tag)) {
+                    if (source != null && ContainerSources.matches(source, tag)) {
                         tag.put(ContainerSources.TAG, source.copy());
                     }
                     ListTag pool = spawnerPools.get(pos.asLong());

@@ -65,16 +65,18 @@ final class ContainerSources {
     }
 
     /**
-     * Whether the container placed in the world is still the one from the template. Processors and
-     * structure code can swap the block or set another table after the template places it, and then
-     * patching the template wouldn't change what players find, so the container isn't offered.
+     * Whether the container placed in the world still has the loot table the template gave it.
+     * Processors can set another table as the template places it, and then patching the template
+     * wouldn't change what players find, so the container isn't offered. One whose block was swapped
+     * as it was placed, like Quark's wooden chests, still takes its table from the template, so it
+     * is. Structure code that places its own container afterwards is left out before this, as the
+     * template didn't fill it.
      */
-    static boolean matches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
-        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(Nbt.string(source, "block"))
-                && Nbt.string(blockEntity, "LootTable").equals(Nbt.string(source, "table"));
+    static boolean matches(CompoundTag source, CompoundTag blockEntity) {
+        return Nbt.string(blockEntity, "LootTable").equals(Nbt.string(source, "table"));
     }
 
-    /** The same for a spawner: still the block, and still the mob, the template gave it. */
+    /** Whether a spawner is still the block, with the mob, that the template gave it. */
     static boolean spawnerMatches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
         return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(Nbt.string(source, "block"))
                 && SpawnerPatches.mobOf(blockEntity).equals(Nbt.string(source, "mob"));
