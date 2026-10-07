@@ -14,6 +14,7 @@ First release.
 - Arrows above the preview step through structures and jump between mods
 - Back and Forward along the top of every screen go between the structures, tabs, popups and screens you've looked at, with Backspace, Shift+Backspace or your mouse's side buttons
 - Star a structure to keep it in a Favourites section at the top of the list
+- Markers in the preview show where the containers are, or the mobs and spawners while on the Mobs tab, and can be hidden
 - Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again, or every item's chance in it
   - When several share a loot table, the preview rings every one of them, and the arrows go from one to the next, turning the view to each
   - The view turns to the chest you open, you can drag to look around it, and closing it takes you back out
@@ -29,13 +30,16 @@ First release.
 - Ids and the Info tab's details only show with advanced tooltips (F3+H), as with items
 - Hovering a kind of block, a group of chests or a spawner in the details lights up where they are in the preview, even through walls
 - Hovering a spawner in the preview says what it spawns
+- Click a spawner to see every mob it can spawn, each one's chance and how often it spawns, with arrows to the other spawners like it
 - The Mobs tab shows what a structure places, its spawners and what keeps spawning there
   - Spawners that get a random mob list every mob they could have, with each one's chance
   - Things that aren't mobs, like item frames, armor stands and minecarts, show their item, modded ones included
-- With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, and Ctrl-clicking it takes you there
+- With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, even in another dimension, and Ctrl-clicking it takes you there
 - The list fills in with small pictures of each structure as you scroll
 - Type /jes open to open the browser, or follow it with a structure to go straight to that one
 - The browser remembers how you left it, like whether the preview fills the screen
+- Text cut short to fit shows in full when you hover over it
+- Every screen fits small and very large windows at any GUI scale
 - With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
 - Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
 - With JEI, EMI or REI installed, looking up how to get an item also lists the structures it's found in, and clicking one opens it in the browser
@@ -47,9 +51,9 @@ First release.
 - Item search and the Found in structures pages are ready straight away after the first time, as the loot scan is saved and only redone when mods or datapacks change
 - The structure list keeps its pictures between sessions
 - Pack tools, from a button beside the details' tabs, keeps everything a modpack maker or server owner changes in one place
-  - Edit any loot table in a form for every pool, entry, function and condition, pick items from every item in the game, and see one possible roll and every item's chance as you go
+  - Edit any loot table in a form for every pool, entry, function and condition, with every box listing what it can be set to as you type, and see one possible roll and every item's chance as you go
   - Edits are saved to the config folder and used from the next /reload, so they ship with a modpack, and Reload now puts everything waiting in use
-  - When a mod updates a table you've edited, you can see what changed, merge it in, or keep yours
+  - When a mod updates a table you've edited, you can see what changed, merge it in, keep yours, or switch to the mod's
   - Pick a chest in the browser to switch it to a different loot table, or a brand new one, and undo it later
   - Pick a spawner in the browser to give it a different mob, including modded ones, or leave it empty, and undo it later
   - Hide structures or whole mods, keep where a structure's loot is a secret, and write notes for players on its Info tab
@@ -59,5 +63,6 @@ First release.
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
 - Just Enough Structures no longer fills the game log with warnings about other mods' structures
+- Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
