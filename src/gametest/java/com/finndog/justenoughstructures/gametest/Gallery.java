@@ -44,9 +44,10 @@ import net.minecraft.world.level.WorldDataConfiguration;
 import net.minecraft.world.level.levelgen.WorldOptions;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 import org.lwjgl.glfw.GLFW;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.packs.resources.ResourceManager;
 //? if >=26.1 {
-/*import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.gamerules.GameRules;
+/*import net.minecraft.world.level.gamerules.GameRules;
 *///?} else {
 import net.minecraft.world.level.GameRules;
 //?}
@@ -70,7 +71,10 @@ public final class Gallery {
     private static final Set<String> OPEN_SPAWNER = Set.of("minecraft:fortress", "minecraft:stronghold");
     private static final int TIMEOUT_TICKS = 20 * 90;
 
-    private enum Step { START, WAIT_WORLD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, DONE }
+    /** A big pack's /reload can take minutes. */
+    private static final int RELOAD_TICKS = 20 * 300;
+
+    private enum Step { START, WAIT_WORLD, WAIT_RELOAD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, DONE }
 
     /** One more screenshot of a structure: what to open first, how long to let it settle, and what to close after. */
     private record Shot(String suffix, Runnable open, int settle, Runnable close) {
@@ -104,6 +108,13 @@ public final class Gallery {
     private int reelFrames;
     private StructureViewport.Camera reelFrom;
     private final Set<ResourceLocation> retried = new HashSet<>();
+    /**
+     * Whether to /reload once the world is open, before any shots. A new world only has the data
+     * packs that switch themselves on; /reload turns on every other pack a mod or the pack offers,
+     * as it would for a player who ran it.
+     */
+    private final boolean reload;
+    private ResourceManager resourcesBefore;
 
     private Gallery(Path out) {
         String list = System.getProperty("jes.autoshot.structures", "");
@@ -116,6 +127,7 @@ public final class Gallery {
         reelTicks = Integer.getInteger("jes.autoshot.reel", 60);
         reelTurn = Float.parseFloat(System.getProperty("jes.autoshot.reel.turn", "1.5"));
         perMod = Integer.getInteger("jes.autoshot.per.mod", 0);
+        reload = Boolean.getBoolean("jes.autoshot.reload");
         this.out = out;
         spread();
     }
@@ -215,9 +227,21 @@ public final class Gallery {
                     //? if >=26.1 {
                     /*stopTheSun(mc);
                     *///?}
-                    screen = new JesScreen();
-                    mc.setScreen(screen);
-                    go(Step.WAIT_CATALOG);
+                    MinecraftServer server = mc.getSingleplayerServer();
+                    if (reload && server != null) {
+                        resourcesBefore = server.getResourceManager();
+                        server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "reload"));
+                        go(Step.WAIT_RELOAD);
+                    } else {
+                        openBrowser(mc);
+                    }
+                }
+            }
+            case WAIT_RELOAD -> {
+                // A finished reload swaps in a new resource manager.
+                MinecraftServer server = mc.getSingleplayerServer();
+                if (server == null || server.getResourceManager() != resourcesBefore || stepTicks > RELOAD_TICKS) {
+                    openBrowser(mc);
                 }
             }
             case WAIT_CATALOG -> {
@@ -348,6 +372,12 @@ public final class Gallery {
 
     private void next() {
         index++;
+        go(Step.WAIT_CATALOG);
+    }
+
+    private void openBrowser(Minecraft mc) {
+        screen = new JesScreen();
+        mc.setScreen(screen);
         go(Step.WAIT_CATALOG);
     }
 
