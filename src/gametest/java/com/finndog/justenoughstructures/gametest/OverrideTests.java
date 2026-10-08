@@ -152,6 +152,25 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    //? if >=1.21 {
+    /*// Before a world has loaded only the game's own registries are there, so an override naming a
+    // mod's enchantment is kept for the world to load, while one the world itself couldn't load,
+    // checked once it has, is still caught.
+    public static void overridesWithModdedEntriesLoad(GameTestHelper helper) {
+        String modded = LootFormat.forGame(JsonParser.parseString("""
+                {"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:book",
+                  "functions": [{"function": "minecraft:set_enchantments", "enchantments": {"somemod:frostbite": 1}}]}]}]}
+                """).getAsJsonObject()).toString();
+        helper.assertTrue(LootOverrides.check(IGLOO, modded, true) == null, "a table naming a mod's enchantment was left out before the world loaded");
+        helper.assertTrue(LootOverrides.check(IGLOO, modded, false) != null, "a table naming an enchantment the world doesn't have counted as loading");
+        String vanilla = modded.replace("somemod:frostbite", "minecraft:sharpness");
+        helper.assertTrue(LootOverrides.check(IGLOO, vanilla, false) == null, "a table naming one of the game's own enchantments didn't load");
+        String broken = "{\"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:nonsense\"}]}]}";
+        helper.assertTrue(LootOverrides.check(IGLOO, broken, true) != null, "a table with an unknown entry type passed before the world loaded");
+        helper.succeed();
+    }
+    *///?}
+
     /** Edits the game couldn't load are never saved. */
     public static void brokenEditsAreRefused(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

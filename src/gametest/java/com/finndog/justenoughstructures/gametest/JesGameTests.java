@@ -188,6 +188,13 @@ public final class JesGameTests {
         OverrideTests.tableIdsStayInTheFolder(helper);
     }
 
+    //? if >=1.21 {
+    /*@GameTest(template = EMPTY_STRUCTURE)
+    public void overridesWithModdedEntriesLoad(GameTestHelper helper) {
+        OverrideTests.overridesWithModdedEntriesLoad(helper);
+    }
+    *///?}
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void editsNoticeTheirOriginalChanging(GameTestHelper helper) {
         OverrideTests.editsNoticeTheirOriginalChanging(helper);

@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.server.JesServer;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -36,11 +37,17 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.level.storage.loot.LootDataType;
 import net.minecraft.world.level.storage.loot.LootTable;
 //? if >=1.21 {
-/*import com.finndog.justenoughstructures.server.JesServer;
-import com.mojang.serialization.JsonOps;
+/*import com.mojang.serialization.JsonOps;
+import java.util.Optional;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.HolderOwner;
+import net.minecraft.core.HolderSet;
+import net.minecraft.core.Registry;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.tags.TagKey;
 *///?}
 
 /**
@@ -197,6 +204,15 @@ public final class LootOverrides {
 
     /** What's wrong with a draft, or null if the game can load it as a loot table. */
     public static Component check(ResourceLocation id, String json) {
+        return check(id, json, JesServer.running() == null);
+    }
+
+    /**
+     * The same, with {@code beforeWorld} while a world is still loading and only the game's own
+     * registries are there to read a table with: anything else it names, like a mod's enchantment or
+     * a datapack's trim, is taken as there, as it will be once the world has loaded.
+     */
+    public static Component check(ResourceLocation id, String json, boolean beforeWorld) {
         JsonElement parsed;
         try {
             parsed = JsonParser.parseString(json);
@@ -204,7 +220,7 @@ public final class LootOverrides {
             return jsonProblem(e);
         }
         try {
-            LootTable table = fromJson(id, parsed);
+            LootTable table = fromJson(id, parsed, beforeWorld);
             return table == null ? Component.translatable("screen.justenoughstructures.override.invalid_table", "") : null;
         } catch (RuntimeException e) {
             return Component.translatable("screen.justenoughstructures.override.invalid_table", message(e));
@@ -214,30 +230,65 @@ public final class LootOverrides {
     /** A draft as a loot table, or null if it isn't one. For rolling it before it's saved. */
     public static LootTable parse(String json) {
         try {
-            return fromJson(JustEnoughStructures.id("draft"), JsonParser.parseString(json));
+            return fromJson(JustEnoughStructures.id("draft"), JsonParser.parseString(json), JesServer.running() == null);
         } catch (RuntimeException e) {
             return null;
         }
     }
 
-    //? if >=1.21 {
-    /*private static HolderLookup.Provider vanilla;
+    //? if >=26.1 {
+    /*private static HolderLookup.Provider lenient;
 
-    private static synchronized HolderLookup.Provider vanillaRegistries() {
-        if (vanilla == null) {
-            vanilla = VanillaRegistries.createLookup();
+    // The game's own registries, where an entry or tag they don't have is taken as there: before a
+    // world has loaded, what its mods and datapacks add to them isn't known.
+    private static synchronized HolderLookup.Provider lenientRegistries() {
+        if (lenient == null) {
+            HolderLookup.Provider vanilla = VanillaRegistries.createLookup();
+            lenient = HolderLookup.Provider.create(vanilla.listRegistryKeys().<HolderLookup.RegistryLookup<?>>map(key -> lenient(vanilla.lookup(key).orElseThrow())));
         }
-        return vanilla;
+        return lenient;
+    }
+    *///?} else if >=1.21 {
+    /*private static HolderLookup.Provider lenient;
+
+    // The game's own registries, where an entry or tag they don't have is taken as there: before a
+    // world has loaded, what its mods and datapacks add to them isn't known.
+    private static synchronized HolderLookup.Provider lenientRegistries() {
+        if (lenient == null) {
+            HolderLookup.Provider vanilla = VanillaRegistries.createLookup();
+            lenient = HolderLookup.Provider.create(vanilla.listRegistries().<HolderLookup.RegistryLookup<?>>map(key -> lenient(vanilla.lookup(key).orElseThrow())));
+        }
+        return lenient;
+    }
+    *///?}
+
+    //? if >=1.21 {
+    /*private static <T> HolderLookup.RegistryLookup<T> lenient(HolderLookup.RegistryLookup<T> registry) {
+        return new Lenient<>(registry, new HolderOwner<>() {
+        });
+    }
+
+    // A registry that takes an entry or tag it doesn't have as there, standing alone.
+    private record Lenient<T>(HolderLookup.RegistryLookup<T> parent, HolderOwner<T> owner) implements HolderLookup.RegistryLookup.Delegate<T> {
+        @Override
+        public Optional<Holder.Reference<T>> get(ResourceKey<T> key) {
+            return Optional.of(parent.get(key).orElseGet(() -> Holder.Reference.createStandAlone(owner, key)));
+        }
+
+        @Override
+        public Optional<HolderSet.Named<T>> get(TagKey<T> tag) {
+            return Optional.of(parent.get(tag).orElseGet(() -> HolderSet.emptyNamed(owner, tag)));
+        }
     }
     *///?}
 
     /** Reads a loot table the way the game reads one from a datapack. */
-    private static LootTable fromJson(ResourceLocation id, JsonElement json) {
+    private static LootTable fromJson(ResourceLocation id, JsonElement json, boolean beforeWorld) {
         //? if >=1.21 {
-        /*// Read with the running server's registries, or before there's one, the game's own, which is
-        // enough to tell a table that loads from one that doesn't.
+        /*// Read with the running server's registries, or before a world has loaded, the game's own,
+        // taking whatever else a table names as there, as a mod's enchantment will be by then.
         MinecraftServer server = JesServer.running();
-        HolderLookup.Provider registries = server != null ? server.registryAccess() : vanillaRegistries();
+        HolderLookup.Provider registries = beforeWorld || server == null ? lenientRegistries() : server.registryAccess();
         return named(LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, registries), json).getOrThrow(JsonParseException::new), id);
         *///?} else if forge {
         /*// Forge names each pool as a table is read, which only works inside its own loading.
