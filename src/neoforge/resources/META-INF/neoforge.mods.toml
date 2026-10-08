@@ -10,6 +10,7 @@ displayName = "${mod_name}"
 authors = "${mod_author}"
 description = '''${description}'''
 displayURL = "https://github.com/FinnSetchell/Just-Enough-Structures"
+logoFile = "assets/justenoughstructures/icon.png"
 
 [[mixins]]
 config = "${mod_id}.mixins.json"

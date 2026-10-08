@@ -10,6 +10,7 @@ displayName = "${mod_name}"
 authors = "${mod_author}"
 description = '''${description}'''
 displayURL = "https://github.com/FinnSetchell/Just-Enough-Structures"
+logoFile = "assets/justenoughstructures/icon.png"
 # Players without it can still join a server that has it, and the other way round.
 displayTest = "IGNORE_ALL_VERSION"
 
