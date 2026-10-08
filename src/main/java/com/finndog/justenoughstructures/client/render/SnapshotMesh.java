@@ -255,15 +255,19 @@ public final class SnapshotMesh implements AutoCloseable {
                     if (state.isAir()) {
                         continue;
                     }
-                    FluidState fluid = state.getFluidState();
-                    if (!fluid.isEmpty()) {
-                        int fx = x;
-                        int fz = z;
-                        fluids.tesselate(view, pos, layer -> new OffsetConsumer(begin(started, layer)).at(fx, y, fz), state, fluid);
-                    }
-                    if (state.getRenderShape() == RenderShape.MODEL) {
-                        blocks.tesselateBlock(ModelBlockRenderer.forceOpaque(cutoutLeaves, state) ? solid : output,
-                                x, y, z, view, pos, state, models.get(state), state.getSeed(pos));
+                    try {
+                        FluidState fluid = state.getFluidState();
+                        if (!fluid.isEmpty()) {
+                            int fx = x;
+                            int fz = z;
+                            fluids.tesselate(view, pos, layer -> new OffsetConsumer(begin(started, layer)).at(fx, y, fz), state, fluid);
+                        }
+                        if (state.getRenderShape() == RenderShape.MODEL) {
+                            blocks.tesselateBlock(ModelBlockRenderer.forceOpaque(cutoutLeaves, state) ? solid : output,
+                                    x, y, z, view, pos, state, models.get(state), state.getSeed(pos));
+                        }
+                    } catch (RuntimeException | LinkageError e) {
+                        RenderFailures.failed("Building the model of a block", state.getBlock(), e);
                     }
                 }
                 z++;
@@ -642,31 +646,37 @@ public final class SnapshotMesh implements AutoCloseable {
                 if (state.isAir()) {
                     continue;
                 }
-                FluidState fluid = state.getFluidState();
-                if (!fluid.isEmpty()) {
-                    BufferBuilder builder = begin(started, ItemBlockRenderTypes.getRenderLayer(fluid));
-                    dispatcher.renderLiquid(pos, view, new OffsetConsumer(builder).at(x, y, z), state, fluid);
-                }
-                if (state.getRenderShape() == RenderShape.MODEL) {
-                    //? if forge || neoforge {
-                    /*// Forge and NeoForge models can say which layers they draw in themselves, often in
-                    // their json, which the vanilla lookup doesn't know about. This is how they build chunks.
-                    BakedModel model = dispatcher.getBlockModel(state);
-                    random.setSeed(state.getSeed(pos));
-                    for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {
-                        BufferBuilder builder = begin(started, type);
+                try {
+                    FluidState fluid = state.getFluidState();
+                    if (!fluid.isEmpty()) {
+                        BufferBuilder builder = begin(started, ItemBlockRenderTypes.getRenderLayer(fluid));
+                        dispatcher.renderLiquid(pos, view, new OffsetConsumer(builder).at(x, y, z), state, fluid);
+                    }
+                    if (state.getRenderShape() == RenderShape.MODEL) {
+                        //? if forge || neoforge {
+                        /*// Forge and NeoForge models can say which layers they draw in themselves, often in
+                        // their json, which the vanilla lookup doesn't know about. This is how they build chunks.
+                        BakedModel model = dispatcher.getBlockModel(state);
+                        random.setSeed(state.getSeed(pos));
+                        for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {
+                            BufferBuilder builder = begin(started, type);
+                            pose.pushPose();
+                            pose.translate(x, y, z);
+                            dispatcher.renderBatched(state, pos, view, pose, builder, true, random, ModelData.EMPTY, type);
+                            pose.popPose();
+                        }
+                        *///?} else {
+                        BufferBuilder builder = begin(started, ItemBlockRenderTypes.getChunkRenderType(state));
                         pose.pushPose();
                         pose.translate(x, y, z);
-                        dispatcher.renderBatched(state, pos, view, pose, builder, true, random, ModelData.EMPTY, type);
+                        dispatcher.renderBatched(state, pos, view, pose, builder, true, random);
                         pose.popPose();
+                        //?}
                     }
-                    *///?} else {
-                    BufferBuilder builder = begin(started, ItemBlockRenderTypes.getChunkRenderType(state));
-                    pose.pushPose();
-                    pose.translate(x, y, z);
-                    dispatcher.renderBatched(state, pos, view, pose, builder, true, random);
-                    pose.popPose();
-                    //?}
+                } catch (RuntimeException | LinkageError e) {
+                    // A fresh pose, as one left pushed by the failure would move every block after it.
+                    pose = new PoseStack();
+                    RenderFailures.failed("Building the model of a block", state.getBlock(), e);
                 }
             }
             z++;

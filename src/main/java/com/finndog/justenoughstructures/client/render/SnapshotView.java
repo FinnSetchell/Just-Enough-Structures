@@ -104,8 +104,8 @@ public final class SnapshotView implements BlockAndTintGetter {
                         be.setLevel(level);
                         blockEntities.put(pos, be);
                     }
-                } catch (RuntimeException e) {
-                    JesLog.debug("Couldn't recreate block entity {} at {}", Nbt.string(tag, "id"), pos, e);
+                } catch (RuntimeException | LinkageError e) {
+                    RenderFailures.failed("Loading a block entity", Nbt.string(tag, "id"), e);
                 }
             }
             for (CompoundTag tag : snapshot.entities()) {
@@ -125,8 +125,8 @@ public final class SnapshotView implements BlockAndTintGetter {
                         *///?}
                         entities.add(entity);
                     });
-                } catch (RuntimeException e) {
-                    JesLog.debug("Couldn't recreate entity {}", Nbt.string(tag, "id"), e);
+                } catch (RuntimeException | LinkageError e) {
+                    RenderFailures.failed("Loading an entity", Nbt.string(tag, "id"), e);
                 }
             }
         });

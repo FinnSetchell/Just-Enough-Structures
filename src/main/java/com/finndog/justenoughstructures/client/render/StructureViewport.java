@@ -23,6 +23,7 @@ import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -532,7 +533,7 @@ public final class StructureViewport implements AutoCloseable {
             dispatcher.submit(state, pose, nodes, camera);
         } catch (RuntimeException | LinkageError e) {
             failed.add(be);
-            JesLog.debug("Block entity renderer failed for {}", be, e);
+            RenderFailures.failed("Drawing a block entity", be.getBlockState().getBlock(), e);
         } finally {
             pose.popPose();
         }
@@ -553,7 +554,7 @@ public final class StructureViewport implements AutoCloseable {
             entities.submit(state, camera, entity.getX(), entity.getY(), entity.getZ(), pose, nodes);
         } catch (RuntimeException | LinkageError e) {
             failed.add(entity);
-            JesLog.debug("Entity renderer failed for {}", entity, e);
+            RenderFailures.failed("Drawing an entity", EntityType.getKey(entity.getType()), e);
         }
     }
 
@@ -626,9 +627,9 @@ public final class StructureViewport implements AutoCloseable {
         pose.translate(pos.getX(), pos.getY(), pos.getZ());
         try {
             renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed.add(be);
-            JesLog.debug("Block entity renderer failed for {}", be, e);
+            RenderFailures.failed("Drawing a block entity", be.getBlockState().getBlock(), e);
         }
         pose.popPose();
     }
@@ -642,9 +643,9 @@ public final class StructureViewport implements AutoCloseable {
             // at whatever loading left them (0 for a mob's head and body), and blending towards
             // those by a different amount each frame made them shake.
             entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             failed.add(entity);
-            JesLog.debug("Entity renderer failed for {}", entity, e);
+            RenderFailures.failed("Drawing an entity", EntityType.getKey(entity.getType()), e);
         }
     }
     //?}
@@ -711,22 +712,39 @@ public final class StructureViewport implements AutoCloseable {
         }
         try {
             renderFeatures(features, color, depth);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             // One of them couldn't be drawn after all. What it left behind goes with the old queue.
             nodes = new SubmitNodeStorage();
             endFrame(features);
-            JesLog.debug("Drawing the preview's block entities and mobs failed", e);
+            RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
         }
     }
 
     // A failure while the game's feature drawing was getting a frame ready leaves that frame open, and
     // it won't open another until it's closed, so the world itself could no longer be drawn. The frame
-    // isn't reachable any other way.
-    private static void endFrame(FeatureRenderDispatcher features) {
+    // isn't reachable any other way, so it's looked up once, and a game where it can't be found says so.
+    private static final java.lang.reflect.Field PREPARED_FRAME = preparedFrame();
+
+    private static java.lang.reflect.Field preparedFrame() {
         try {
             java.lang.reflect.Field frame = FeatureRenderDispatcher.class.getDeclaredField("preparedFrame");
             frame.setAccessible(true);
-            ((FeatureRenderDispatcher.PreparedFrame) frame.get(features)).close();
+            return frame;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.warnOnce("prepared-frame", "Couldn't find the frame the game's feature drawing keeps, so a renderer that fails in a preview could stop the world being drawn: {}",
+                    e.toString());
+            return null;
+        }
+    }
+
+    private static void endFrame(FeatureRenderDispatcher features) {
+        if (PREPARED_FRAME == null) {
+            return;
+        }
+        try {
+            if (PREPARED_FRAME.get(features) instanceof FeatureRenderDispatcher.PreparedFrame frame) {
+                frame.close();
+            }
         } catch (ReflectiveOperationException | RuntimeException e) {
             // Already closed: the failure came once it was ready, and drawing it closed it.
         }
@@ -785,10 +803,10 @@ public final class StructureViewport implements AutoCloseable {
         try {
             try {
                 features.renderAllFeatures();
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | LinkageError e) {
                 // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
                 features.clearSubmitNodes();
-                JesLog.debug("Drawing the preview's block entities and mobs failed", e);
+                RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
             }
 
             MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
