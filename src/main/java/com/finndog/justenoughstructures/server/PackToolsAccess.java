@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -147,7 +148,7 @@ public final class PackToolsAccess {
         Path file = file();
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, GSON.toJson(FileFormat.stamped(json)));
+            SafeFiles.write(file, GSON.toJson(FileFormat.stamped(json)));
         } catch (IOException e) {
             JesLog.warnOnce("write:" + file, "Couldn't save {}: {}", file, e.toString());
         }

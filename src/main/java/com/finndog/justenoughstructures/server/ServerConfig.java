@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.server;
 import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -133,7 +134,7 @@ public final class ServerConfig {
         try {
             if (!Files.exists(file)) {
                 Files.createDirectories(file.getParent());
-                Files.writeString(file, render(DEFAULTS));
+                SafeFiles.write(file, render(DEFAULTS));
             }
             String text = Files.readString(file);
             current = parse(text, file.toString(), true);
@@ -173,7 +174,7 @@ public final class ServerConfig {
         }
         try {
             Files.copy(file, file.resolveSibling(file.getFileName() + ".old"), StandardCopyOption.REPLACE_EXISTING);
-            Files.writeString(file, render(settings));
+            SafeFiles.write(file, render(settings));
             JesLog.debug("Added {} to {}, keeping the old file as {}.old", missing, file, file.getFileName());
         } catch (IOException e) {
             JesLog.debug("Couldn't add {} to {}", missing, file, e);
@@ -203,7 +204,7 @@ public final class ServerConfig {
             }
         }
         Files.createDirectories(file.getParent());
-        Files.writeString(file, render(settings));
+        SafeFiles.write(file, render(settings));
     }
 
     /** The settings file with these values in it. */

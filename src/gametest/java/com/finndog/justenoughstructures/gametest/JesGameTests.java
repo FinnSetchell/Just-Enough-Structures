@@ -169,6 +169,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void filesAreWrittenSafely(GameTestHelper helper) {
+        ServiceTests.filesAreWrittenSafely(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void requestsAreLimited(GameTestHelper helper) {
         ServiceTests.requestsAreLimited(helper);
     }

@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -16,7 +17,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -364,9 +364,7 @@ public final class LootIndexStore {
     public static void write(Path dir, String key, StructureScan saved) {
         try {
             Files.createDirectories(dir);
-            Path temp = dir.resolve(key + ".tmp");
-            Files.write(temp, Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
-            Files.move(temp, dir.resolve(key + ".bin"), StandardCopyOption.REPLACE_EXISTING);
+            SafeFiles.write(dir.resolve(key + ".bin"), Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
             List<Path> files;
             try (Stream<Path> list = Files.list(dir)) {
                 files = list.filter(p -> p.toString().endsWith(".bin"))

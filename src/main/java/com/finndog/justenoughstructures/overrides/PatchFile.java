@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.FileFormat;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -115,6 +116,6 @@ final class PatchFile {
     private void write(JsonObject json) throws IOException {
         Path file = path();
         Files.createDirectories(file.getParent());
-        Files.writeString(file, PRETTY.toJson(FileFormat.stamped(json)));
+        SafeFiles.write(file, PRETTY.toJson(FileFormat.stamped(json)));
     }
 }

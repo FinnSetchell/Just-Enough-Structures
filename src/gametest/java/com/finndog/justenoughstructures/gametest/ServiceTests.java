@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Levels;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -283,6 +284,27 @@ public final class ServiceTests {
         } finally {
             RequestLimits.forget(asking);
             RequestLimits.forget(sent);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A file written safely is all there afterwards, writing it again replaces it, and nothing's
+     * left beside it.
+     */
+    public static void filesAreWrittenSafely(GameTestHelper helper) {
+        try {
+            Path dir = Files.createTempDirectory("jes-safe");
+            Path file = dir.resolve("containers.json");
+            SafeFiles.write(file, "{\"first\": true}");
+            SafeFiles.write(file, "{\"second\": true}");
+            helper.assertTrue(Files.readString(file).equals("{\"second\": true}"), "the file reads " + Files.readString(file));
+            try (var files = Files.list(dir)) {
+                List<String> names = files.map(f -> f.getFileName().toString()).toList();
+                helper.assertTrue(names.equals(List.of("containers.json")), "the folder holds " + names);
+            }
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary folder", e);
         }
         helper.succeed();
     }

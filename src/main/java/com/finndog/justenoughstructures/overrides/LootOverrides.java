@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.google.common.hash.Hashing;
@@ -323,18 +324,18 @@ public final class LootOverrides {
         Path file = file(root, id);
         try {
             ensurePack(root);
-            Files.createDirectories(file.getParent());
-            Path temp = file.resolveSibling(file.getFileName() + ".tmp");
-            Files.writeString(temp, PRETTY.toJson(JsonParser.parseString(json)));
-            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+            // What it was made from goes down first, so a record that can't be read stops the save
+            // before the table changes, and the table is only put in place once the rest is there.
             String original = original(resources, id);
             JsonObject meta = readMeta(root);
             JsonObject entry = new JsonObject();
             entry.addProperty("base", original == null ? NO_ORIGINAL : hash(original));
             entry.addProperty("saved", Instant.now().toString());
             meta.add(id.toString(), entry);
-            writeMeta(root, meta);
             writeBaseText(root, id, original);
+            writeMeta(root, meta);
+            Files.createDirectories(file.getParent());
+            SafeFiles.write(file, PRETTY.toJson(JsonParser.parseString(json)));
         } catch (IOException | RuntimeException e) {
             JustEnoughStructures.LOGGER.warn("Couldn't save the loot override for {}: {}", id, e.toString());
             JesLog.debug("Couldn't save the loot override for {}", id, e);
@@ -403,7 +404,7 @@ public final class LootOverrides {
         pack.addProperty("description", "Loot tables edited in Just Enough Structures");
         JsonObject json = new JsonObject();
         json.add("pack", pack);
-        Files.writeString(mcmeta, PRETTY.toJson(json));
+        SafeFiles.write(mcmeta, PRETTY.toJson(json));
     }
 
     private static String base(ResourceLocation id) {
@@ -432,7 +433,7 @@ public final class LootOverrides {
             return;
         }
         Files.createDirectories(file.getParent());
-        Files.writeString(file, original);
+        SafeFiles.write(file, original);
     }
 
     private static String baseText(Path root, ResourceLocation id) {
@@ -457,7 +458,7 @@ public final class LootOverrides {
 
     private static void writeMeta(Path root, JsonObject meta) throws IOException {
         Files.createDirectories(root);
-        Files.writeString(root.resolve(META), PRETTY.toJson(FileFormat.stamped(meta)));
+        SafeFiles.write(root.resolve(META), PRETTY.toJson(FileFormat.stamped(meta)));
     }
 
     /** A fingerprint of a table that ignores spacing, so reformatting a file isn't taken as a change. */

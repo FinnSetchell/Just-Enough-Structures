@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.TextJson;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.google.gson.Gson;
@@ -16,7 +17,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.network.chat.Component;
@@ -102,9 +102,7 @@ public final class StructureInfoFiles {
                 }
                 LootOverrides.ensurePack(root);
                 Files.createDirectories(file.getParent());
-                Path temp = file.resolveSibling(file.getFileName() + ".tmp");
-                Files.writeString(temp, PRETTY.toJson(FileFormat.stamped(toJson(info))));
-                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+                SafeFiles.write(file, PRETTY.toJson(FileFormat.stamped(toJson(info))));
             }
         } catch (IOException | RuntimeException e) {
             JustEnoughStructures.LOGGER.warn("Couldn't save what players are told about {}: {}", id, e.toString());

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.client;
 import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.SafeFiles;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -97,7 +98,7 @@ public final class ClientState {
         json.add("favourites", starred);
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, GSON.toJson(json));
+            SafeFiles.write(file, GSON.toJson(json));
         } catch (IOException e) {
             JesLog.debug("Couldn't save {}", file, e);
         }
