@@ -1,8 +1,8 @@
 package com.finndog.justenoughstructures.mixin;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import org.spongepowered.asm.mixin.Final;
@@ -28,6 +28,6 @@ public abstract class StructureTemplatePaletteMixin {
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void justenoughstructures$shareableCache(CallbackInfo ci) {
-        cache = new ConcurrentHashMap<>();
+        cache = Collections.synchronizedMap(cache);
     }
 }
