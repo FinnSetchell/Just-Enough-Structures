@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
@@ -1204,12 +1205,16 @@ final class InfoPanel {
         }
         // Spawners by what they make: a mob, a list each got one of, or a mix they keep making. A
         // row shows its spawners in the preview while it's hovered, and opens them when clicked.
+        // Trial spawners have a section of their own.
         Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind = new LinkedHashMap<>();
+        Map<SpawnerKind, List<StructureSnapshot.Spawner>> trialByKind = new LinkedHashMap<>();
         Map<BlockPos, CompoundTag> spawnerTags = SpawnerKind.tags(s);
         for (StructureSnapshot.Spawner spawner : s.spawners()) {
             CompoundTag tag = spawnerTags.get(spawner.pos());
             if (tag != null && Nbt.string(tag, "id").equals(SPAWNER)) {
                 byKind.computeIfAbsent(SpawnerKind.of(tag), k -> new ArrayList<>()).add(spawner);
+            } else if (tag != null && Nbt.hasList(tag, TrialSpawners.TAG)) {
+                trialByKind.computeIfAbsent(SpawnerKind.of(tag), k -> new ArrayList<>()).add(spawner);
             }
         }
         Map<String, Integer> overTime = new LinkedHashMap<>();
@@ -1227,7 +1232,7 @@ final class InfoPanel {
             }
         }
 
-        if (placed.isEmpty() && byKind.isEmpty() && overTime.isEmpty()) {
+        if (placed.isEmpty() && byKind.isEmpty() && trialByKind.isEmpty() && overTime.isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = placedSection(g, cy, placed, mouseX, mouseY, clipTop, clipHeight);
@@ -1240,30 +1245,41 @@ final class InfoPanel {
                 }
             }
         }
-        if (!byKind.isEmpty()) {
-            Gui.band(g, font, Component.translatable("screen.justenoughstructures.mobs_spawners").getString(), x, cy, contentRight - x, 13);
-            cy += 16;
-            for (Map.Entry<SpawnerKind, List<StructureSnapshot.Spawner>> e : byKind.entrySet()) {
-                if (e.getKey().type() != SpawnerKind.Type.MOB) {
-                    continue;
-                }
-                String mob = e.getKey().mob().isEmpty() ? "?" : e.getKey().mob();
-                int top = cy;
-                boolean over = inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
-                cy = mobRow(g, cy, mob, Component.translatable("screen.justenoughstructures.times", e.getValue().size()).getString(), over, true);
-                String was = changedFrom.get(mob);
-                if (was != null) {
-                    cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(was)),
-                            x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
-                }
-                spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, "spawners:" + mob, e.getValue());
-            }
-            cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", mouseX, mouseY, clipTop, clipHeight);
-            cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", mouseX, mouseY, clipTop, clipHeight);
-            cy += 4;
-        }
+        cy = spawners(g, cy, "mobs_spawners", "", byKind, changedFrom, mouseX, mouseY, clipTop, clipHeight);
+        cy = spawners(g, cy, "mobs_trial_spawners", "trial_", trialByKind, Map.of(), mouseX, mouseY, clipTop, clipHeight);
         cy = mobSection(g, cy, "over_time", overTime, false);
         return cy;
+    }
+
+    /**
+     * A band of spawners under {@code title}: a row for each mob, then the lists and mixes. Rows' keys
+     * start with {@code prefix}, so trial spawners' don't run into the others'.
+     */
+    private int spawners(GuiGraphics g, int cy, String title, String prefix, Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind,
+                         Map<String, String> changedFrom, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        if (byKind.isEmpty()) {
+            return cy;
+        }
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures." + title).getString(), x, cy, contentRight - x, 13);
+        cy += 16;
+        for (Map.Entry<SpawnerKind, List<StructureSnapshot.Spawner>> e : byKind.entrySet()) {
+            if (e.getKey().type() != SpawnerKind.Type.MOB) {
+                continue;
+            }
+            String mob = e.getKey().mob().isEmpty() ? "?" : e.getKey().mob();
+            int top = cy;
+            boolean over = inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
+            cy = mobRow(g, cy, mob, Component.translatable("screen.justenoughstructures.times", e.getValue().size()).getString(), over, true);
+            String was = changedFrom.get(mob);
+            if (was != null) {
+                cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(was)),
+                        x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
+            }
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + "spawners:" + mob, e.getValue());
+        }
+        cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", prefix, mouseX, mouseY, clipTop, clipHeight);
+        cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", prefix, mouseX, mouseY, clipTop, clipHeight);
+        return cy + 4;
     }
 
     /**
@@ -1271,7 +1287,7 @@ final class InfoPanel {
      * every mob's chance. The whole list is one row: it lights up and opens its spawners as one.
      */
     private int pools(GuiGraphics g, int cy, Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind, SpawnerKind.Type type, String key,
-                      int mouseX, int mouseY, int clipTop, int clipHeight) {
+                      String prefix, int mouseX, int mouseY, int clipTop, int clipHeight) {
         for (Map.Entry<SpawnerKind, List<StructureSnapshot.Spawner>> pool : byKind.entrySet()) {
             if (pool.getKey().type() != type) {
                 continue;
@@ -1289,7 +1305,7 @@ final class InfoPanel {
             for (Map.Entry<String, Integer> mob : mobs) {
                 cy = mobRow(g, cy, mob.getKey(), OddsList.percent((float) mob.getValue() / total), over, true);
             }
-            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, key + ":" + weights, pool.getValue());
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + key + ":" + weights, pool.getValue());
         }
         return cy;
     }

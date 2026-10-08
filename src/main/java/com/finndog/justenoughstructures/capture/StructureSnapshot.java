@@ -210,9 +210,22 @@ public final class StructureSnapshot {
         if (found == null) {
             List<Spawner> out = new ArrayList<>();
             for (CompoundTag tag : blockEntities) {
+                BlockPos pos = new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z"));
                 if (Nbt.hasCompound(tag, "SpawnData")) {
-                    out.add(new Spawner(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), SpawnerPatches.mobOf(tag),
-                            SpawnerPatches.othersOf(tag), Source.read(Nbt.compound(tag, ContainerSources.SPAWNER_TAG))));
+                    out.add(new Spawner(pos, SpawnerPatches.mobOf(tag), SpawnerPatches.othersOf(tag),
+                            Source.read(Nbt.compound(tag, ContainerSources.SPAWNER_TAG))));
+                } else if (Nbt.hasList(tag, TrialSpawners.TAG)) {
+                    // A trial spawner: its likeliest mob, and how many others. Pack tools can't change one.
+                    ListTag mobs = Nbt.list(tag, TrialSpawners.TAG, Tag.TAG_COMPOUND);
+                    String mob = "";
+                    int best = 0;
+                    for (Tag t : mobs) {
+                        if (Nbt.getInt((CompoundTag) t, "weight") > best) {
+                            best = Nbt.getInt((CompoundTag) t, "weight");
+                            mob = Nbt.string((CompoundTag) t, "entity");
+                        }
+                    }
+                    out.add(new Spawner(pos, mob, Math.max(0, mobs.size() - 1), null));
                 }
             }
             found = List.copyOf(out);

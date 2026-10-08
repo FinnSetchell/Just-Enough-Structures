@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
@@ -1415,7 +1416,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             key = "picking:spawners";
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
-                s.spawners().forEach(spawner -> out.add(spawner.pos().asLong()));
+                Map<BlockPos, CompoundTag> tags = SpawnerKind.tags(s);
+                for (StructureSnapshot.Spawner spawner : s.spawners()) {
+                    // Trial spawners can't be given another mob.
+                    CompoundTag tag = tags.get(spawner.pos());
+                    if (tag == null || !Nbt.hasList(tag, TrialSpawners.TAG)) {
+                        out.add(spawner.pos().asLong());
+                    }
+                }
                 return out;
             };
         }

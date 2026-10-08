@@ -303,6 +303,7 @@
   "screen.justenoughstructures.block_amount": "%s, or %s",
   "screen.justenoughstructures.mobs_placed": "Placed with it",
   "screen.justenoughstructures.mobs_spawners": "Spawners",
+  "screen.justenoughstructures.mobs_trial_spawners": "Trial spawners",
   "screen.justenoughstructures.spawner_pool_one": "Gets one of these:",
   "screen.justenoughstructures.spawner_pool_many": "%s spawners, each gets one of these:",
   "screen.justenoughstructures.spawner_mix_one": "Makes a mix of these:",

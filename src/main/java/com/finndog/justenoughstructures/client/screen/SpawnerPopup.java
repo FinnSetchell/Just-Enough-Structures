@@ -166,7 +166,8 @@ final class SpawnerPopup extends SidePopup {
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.spawner.spawns").getString(), x + 7,
                 cy + (ICON - Gui.fineLine(font)) / 2, Gui.LABEL_SOFT);
         int iconRight = x + WIDTH - 7;
-        if (packTools || picking) {
+        // Pack tools can't give a trial spawner another mob.
+        if ((packTools || picking) && !kind.trial()) {
             toolsIcon(g, iconRight, cy, mouseX, mouseY);
         }
         cy += ICON + 2;

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -16,12 +17,20 @@ import net.minecraft.nbt.Tag;
 /**
  * What a spawner makes, which is how the Mobs tab groups spawners and how far a spawner's popup
  * steps: one mob (none for an empty spawner), a list it got one of as it generated, or a mix it
- * keeps making, each with every mob's weight.
+ * keeps making, each with every mob's weight. Trial spawners are kept apart from the rest.
  */
-public record SpawnerKind(Type type, Map<String, Integer> mobs) {
+public record SpawnerKind(Type type, Map<String, Integer> mobs, boolean trial) {
     public enum Type { MOB, POOL, MIX }
 
+    public SpawnerKind(Type type, Map<String, Integer> mobs) {
+        this(type, mobs, false);
+    }
+
     public static SpawnerKind of(CompoundTag tag) {
+        if (Nbt.hasList(tag, TrialSpawners.TAG)) {
+            Map<String, Integer> mobs = weights(Nbt.list(tag, TrialSpawners.TAG, Tag.TAG_COMPOUND), "entity", null);
+            return new SpawnerKind(mobs.size() > 1 ? Type.MIX : Type.MOB, mobs, true);
+        }
         Map<String, Integer> pool = weights(Nbt.list(tag, SpawnerPools.TAG, Tag.TAG_COMPOUND), "entity", null);
         if (pool.size() > 1) {
             return new SpawnerKind(Type.POOL, pool);
@@ -60,7 +69,7 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs) {
     public static Map<BlockPos, CompoundTag> tags(StructureSnapshot s) {
         Map<BlockPos, CompoundTag> out = new HashMap<>();
         for (CompoundTag tag : s.blockEntities()) {
-            if (Nbt.hasCompound(tag, "SpawnData")) {
+            if (Nbt.hasCompound(tag, "SpawnData") || Nbt.hasList(tag, TrialSpawners.TAG)) {
                 out.put(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), tag);
             }
         }
