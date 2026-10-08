@@ -101,6 +101,21 @@ public final class Codecs {
 
     // ------------------------------------------------------------------ catalog
 
+    /**
+     * What the server's structures are made from, so a client knows whether the pictures it saved
+     * last time still show them. Null while the server is still working it out.
+     */
+    public static void writeFingerprint(FriendlyByteBuf buf, String fingerprint) {
+        buf.writeBoolean(fingerprint != null);
+        if (fingerprint != null) {
+            buf.writeUtf(fingerprint);
+        }
+    }
+
+    public static String readFingerprint(FriendlyByteBuf buf) {
+        return buf.readBoolean() ? buf.readUtf() : null;
+    }
+
     public static void writeCatalog(FriendlyByteBuf buf, List<StructureCatalog.Entry> entries) {
         buf.writeVarInt(entries.size());
         for (StructureCatalog.Entry e : entries) {
@@ -282,6 +297,7 @@ public final class Codecs {
             writeSnapshot(buf, result.snapshot());
         } else {
             writeComponent(buf, result.reason());
+            buf.writeBoolean(result.temporary());
         }
     }
 
@@ -298,9 +314,13 @@ public final class Codecs {
         for (int i = 0; i < attemptCount; i++) {
             attempts.add(readComponent(buf));
         }
-        CaptureResult result = buf.readBoolean()
-                ? CaptureResult.success(readSnapshot(buf), attempts, millis)
-                : CaptureResult.failure(readComponent(buf), attempts, millis);
+        CaptureResult result;
+        if (buf.readBoolean()) {
+            result = CaptureResult.success(readSnapshot(buf), attempts, millis);
+        } else {
+            Component reason = readComponent(buf);
+            result = buf.readBoolean() ? CaptureResult.temporaryFailure(reason, attempts, millis) : CaptureResult.failure(reason, attempts, millis);
+        }
         return new CaptureReply(id, seed, result);
     }
 

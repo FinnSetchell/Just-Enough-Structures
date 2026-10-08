@@ -165,15 +165,20 @@ public final class ServiceTests {
         helper.succeed();
     }
 
+    /** A failure reads back as it was sent, along with whether it may work another time. */
     public static void failedCaptureSurvivesTheWire(GameTestHelper helper) {
         ResourceLocation id = Ids.of("justenoughstructures", "nope");
-        CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", "it didn't work"),
+        CaptureResult crashed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", "it didn't work"),
                 List.of(Component.translatable("screen.justenoughstructures.attempt.no_start", "LAND")), 12);
-        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
-                Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, 5, failed))))));
-        helper.assertFalse(reply.result().succeeded(), "a failure came back as a success");
-        helper.assertTrue(failed.reason().equals(reply.result().reason()), "the error message changed");
-        helper.assertTrue(reply.result().attempts().equals(failed.attempts()), "the attempts changed");
+        CaptureResult shortOfMemory = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
+        for (CaptureResult failed : List.of(crashed, shortOfMemory)) {
+            Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
+                    Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, 5, failed))))));
+            helper.assertFalse(reply.result().succeeded(), "a failure came back as a success");
+            helper.assertTrue(failed.reason().equals(reply.result().reason()), "the error message changed");
+            helper.assertTrue(reply.result().attempts().equals(failed.attempts()), "the attempts changed");
+            helper.assertTrue(reply.result().temporary() == failed.temporary(), "whether it may work later changed on the way through");
+        }
         helper.succeed();
     }
 

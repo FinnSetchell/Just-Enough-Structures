@@ -97,6 +97,14 @@ public final class LootIndexStore {
     private LootIndexStore() {
     }
 
+    /**
+     * The fingerprint of what the server's structures are made from, or null while it's still being
+     * worked out after the server started or reloaded. Server thread only.
+     */
+    public static String knownFingerprint() {
+        return checking ? null : fingerprint;
+    }
+
     /** When the server has started and after /reload: checks whether the index still holds. */
     public static void refresh(MinecraftServer server) {
         int generation = GENERATION.incrementAndGet();
@@ -142,6 +150,7 @@ public final class LootIndexStore {
                 }
                 checking = false;
                 fingerprint = current;
+                JesServer.fingerprintKnown(server, current);
                 if (ready != null) {
                     JesLog.debug("The loot index is up to date in {} ms", millis);
                     scan = ready;

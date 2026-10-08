@@ -55,14 +55,16 @@ final class ThumbnailQueue {
         current = id;
         // Laid out off the render thread, as the preview is.
         ClientRequests.capture(id, StructureCapture.defaultSeed(id), false)
-                .thenApplyAsync(reply -> reply.result().succeeded() ? new SnapshotView(reply.result().snapshot()) : null, Util.backgroundExecutor())
-                .whenCompleteAsync((view, error) -> {
+                .thenApplyAsync(reply -> reply.result().succeeded() ? new Made(new SnapshotView(reply.result().snapshot()), false)
+                        : new Made(null, reply.result().temporary()), Util.backgroundExecutor())
+                .whenCompleteAsync((made, error) -> {
                     waiting = false;
                     Minecraft mc = Minecraft.getInstance();
+                    SnapshotView view = made == null ? null : made.view();
                     if (view == null || mc.level == null) {
                         // Leaving the server cancels it or takes the level away, which says nothing about this structure.
                         if (mc.level != null && !cancelled(error)) {
-                            Thumbnails.fail(id);
+                            Thumbnails.fail(id, made != null && made.temporary());
                         }
                         current = null;
                         return;
@@ -71,6 +73,10 @@ final class ThumbnailQueue {
                     viewport = new StructureViewport();
                     viewport.setView(view);
                 }, Minecraft.getInstance());
+    }
+
+    /** What came back: the structure ready to draw, or nothing and whether the server may manage it later. */
+    private record Made(SnapshotView view, boolean temporary) {
     }
 
     private static boolean cancelled(Throwable error) {

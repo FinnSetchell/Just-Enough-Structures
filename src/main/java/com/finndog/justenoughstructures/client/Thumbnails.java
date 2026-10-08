@@ -40,7 +40,10 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
  * size it's shown at and shrunk smoothly, so edges come out clean at any GUI scale, and a copy is
  * saved to disk so next time the list has its pictures straight away instead of asking the server
  * to generate every structure again. A saved picture is only used while the structure's definition,
- * its mod's version, the resource packs and the size it's shown at are the same. Render thread only.
+ * the server's fingerprint of everything structures are made from, the resource packs and the size
+ * it's shown at are the same. The fingerprint covers mods, datapacks, pools and templates, so a
+ * picture is never shown for a structure that's changed since, or from another server's version of
+ * it. Render thread only.
  */
 public final class Thumbnails {
     /** Goes up when thumbnails are drawn differently, so old ones aren't used. */
@@ -65,6 +68,13 @@ public final class Thumbnails {
      * arrives, after a /reload or a change in Pack tools, as what failed may work then.
      */
     private static final Set<ResourceLocation> FAILED = new HashSet<>();
+    /**
+     * Structures the server couldn't make a thumbnail for just then, like while it was short on
+     * memory, with when to ask again and how many times it's said so. Each time, it's longer to wait.
+     */
+    private static final Map<ResourceLocation, long[]> LATER = new HashMap<>();
+    private static final long FIRST_WAIT_MILLIS = 5_000L;
+    private static final long LONGEST_WAIT_MILLIS = 160_000L;
     /** Thumbnails drawn but still being copied back from the GPU, which takes a frame or so from 26.1. */
     private static final Set<ResourceLocation> PENDING = new HashSet<>();
     /** Goes up on {@link #clear()}, so a copy that finishes after it isn't kept. */
@@ -171,6 +181,7 @@ public final class Thumbnails {
             old.close();
         }
         NOT_SAVED.remove(id);
+        LATER.remove(id);
         save(id, copy);
     }
 
@@ -233,26 +244,44 @@ public final class Thumbnails {
         //?}
     }
 
-    /** Works out what each structure's saved thumbnail must match, once the structure list arrives. */
-    static void onCatalog(List<StructureCatalog.Entry> entries) {
-        Map<String, String> mods = JustEnoughStructures.modVersions();
-        String packs = String.join(",", Minecraft.getInstance().getResourcePackRepository().getSelectedIds());
+    /**
+     * Works out what each structure's saved thumbnail must match, once the structure list arrives.
+     * Without the server's fingerprint, which it sends once it's worked it out, nothing saved is used
+     * and nothing new is saved, as there'd be no telling what it shows.
+     */
+    static void onCatalog(String fingerprint, List<StructureCatalog.Entry> entries) {
         Map<ResourceLocation, String> out = new HashMap<>();
-        for (StructureCatalog.Entry entry : entries) {
-            out.put(entry.id(), entry.id() + "|" + entry.definition() + "|" + mods.get(entry.id().getNamespace()) + "|" + packs);
+        if (fingerprint != null) {
+            String packs = String.join(",", Minecraft.getInstance().getResourcePackRepository().getSelectedIds());
+            for (StructureCatalog.Entry entry : entries) {
+                out.put(entry.id(), entry.id() + "|" + entry.definition() + "|" + fingerprint + "|" + packs);
+            }
         }
         keys = out;
         NOT_SAVED.clear();
         FAILED.clear();
+        LATER.clear();
     }
 
     /** Whether a thumbnail couldn't be made for this structure, so isn't worth asking for again yet. */
     public static boolean failed(ResourceLocation id) {
-        return FAILED.contains(id);
+        long[] later = LATER.get(id);
+        return FAILED.contains(id) || later != null && Util.getMillis() < later[0];
     }
 
-    public static void fail(ResourceLocation id) {
-        FAILED.add(id);
+    /**
+     * Notes that a thumbnail couldn't be made. One the server may well make later is asked for again
+     * after a wait; any other isn't until the structure list next arrives.
+     */
+    public static void fail(ResourceLocation id, boolean temporary) {
+        if (!temporary) {
+            FAILED.add(id);
+            return;
+        }
+        long[] later = LATER.computeIfAbsent(id, k -> new long[2]);
+        long wait = Math.min(LONGEST_WAIT_MILLIS, FIRST_WAIT_MILLIS << Math.min(later[1], 10));
+        later[0] = Util.getMillis() + wait;
+        later[1]++;
     }
 
     public static void clear() {
@@ -262,6 +291,7 @@ public final class Thumbnails {
         generation++;
         NOT_SAVED.clear();
         FAILED.clear();
+        LATER.clear();
         keys = Map.of();
     }
 

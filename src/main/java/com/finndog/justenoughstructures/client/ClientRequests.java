@@ -526,8 +526,9 @@ public final class ClientRequests {
         }
         FriendlyByteBuf buf = Blobs.fromBytes(registries(), Blobs.inflate(transfer.bytes()));
         if (part.kind() == JesNetwork.KIND_CATALOG) {
+            String fingerprint = Codecs.readFingerprint(buf);
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
-            Thumbnails.onCatalog(entries);
+            Thumbnails.onCatalog(fingerprint, entries);
             if (catalog == null) {
                 catalog = new CompletableFuture<>();
             }

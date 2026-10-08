@@ -25,6 +25,7 @@ import com.mojang.datafixers.util.Pair;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -100,6 +101,8 @@ public final class JesServer {
     private static long cachedBytes;
     private static final Map<UUID, AtomicInteger> QUEUED = new ConcurrentHashMap<>();
     private static byte[] catalog;
+    /** The fingerprint {@link #catalog} was sent with, which tells clients which saved pictures still hold. */
+    private static String catalogFingerprint;
 
     private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
     /** Odds still being rolled, with everyone waiting for each. Only touched on the server thread. */
@@ -190,6 +193,26 @@ public final class JesServer {
         ROLLING.clear();
     }
 
+    /**
+     * Once the fingerprint of what structures are made from is worked out: a structure list already
+     * sent without it, or with an old one, is sent again, so everyone browsing knows which of their
+     * saved pictures still hold. Server thread only.
+     */
+    static void fingerprintKnown(MinecraftServer server, String fingerprint) {
+        if (catalog == null || Objects.equals(catalogFingerprint, fingerprint)) {
+            return;
+        }
+        catalog = null;
+        for (UUID id : BROWSING) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                BROWSING.remove(id);
+            } else {
+                sendSettings(player, false, true);
+            }
+        }
+    }
+
     /** Drops the captures kept to send again, along with any still being made from before. */
     private static void clearCaptures() {
         synchronized (CAPTURE_CACHE) {
@@ -244,7 +267,12 @@ public final class JesServer {
         MinecraftServer server = Players.server(player);
         if (catalog == null) {
             List<StructureCatalog.Entry> entries = visibleCatalog(server);
-            catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCatalog(buf, entries)));
+            String fingerprint = LootIndexStore.knownFingerprint();
+            catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> {
+                Codecs.writeFingerprint(buf, fingerprint);
+                Codecs.writeCatalog(buf, entries);
+            }));
+            catalogFingerprint = fingerprint;
         }
         BROWSING.add(player.getUUID());
         sendSettings(player, false, false);
