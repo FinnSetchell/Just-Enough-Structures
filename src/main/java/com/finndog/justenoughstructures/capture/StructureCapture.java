@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.Nbt;
@@ -9,14 +10,18 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortList;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -56,6 +61,9 @@ import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.RandomSupport;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
@@ -85,15 +93,45 @@ public final class StructureCapture {
      * a preview only ever waits for the one index capture in progress.
      */
     private static final ReentrantLock LOCK = new ReentrantLock(true);
-    /** Other seeds tried when a structure finds nowhere to start on any terrain, and how long they may take. */
-    private static final int OTHER_SEEDS = 24;
-    private static final long OTHER_SEEDS_NANOS = 3_000_000_000L;
+    /** The climates made for a world that has none, by dimension, and the server they're for. */
+    private static final Map<ResourceKey<Level>, RandomState> CLIMATES = new HashMap<>();
+    private static WeakReference<MinecraftServer> climatesFor = new WeakReference<>(null);
+    /**
+     * When a structure finds nowhere to start on any terrain: how many other seeds and spots are tried
+     * on each, how many of its biomes at most, and how long all of that may take.
+     */
+    private static final int OTHER_SPOTS = 24;
+    private static final int MOST_BIOMES = 64;
+    private static final long OTHER_PLACES_NANOS = 3_000_000_000L;
     /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
     private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
     /** What draws from the real world's random come from while this thread is placing a capture. */
     private static final ThreadLocal<RandomSource> SANDBOX_RANDOM = new ThreadLocal<>();
 
     private StructureCapture() {
+    }
+
+    /**
+     * Where a structure is asked to start: on what ground, in which of its biomes, at what chunk, with
+     * what seed, with what climate and in what dimension. A null biome, climate or dimension is the
+     * usual one for the ground.
+     */
+    private record Place(SandboxTerrain terrain, Holder<Biome> biome, ChunkPos chunk, long seed, RandomState climate, ServerLevel dimension) {
+        Place(SandboxTerrain terrain, long seed, ServerLevel dimension) {
+            this(terrain, null, START_CHUNK, seed, null, dimension);
+        }
+
+        Place(SandboxTerrain terrain, Holder<Biome> biome, ChunkPos chunk, long seed, ServerLevel dimension) {
+            this(terrain, biome, chunk, seed, null, dimension);
+        }
+
+        Place withClimate(RandomState climate) {
+            return new Place(terrain, biome, chunk, seed, climate, dimension);
+        }
+
+        ServerLevel level(MinecraftServer server) {
+            return dimension != null ? dimension : levelFor(server, terrain);
+        }
     }
 
     /** The seed a structure is shown with before anyone rerolls it, so the first preview is always the same. */
@@ -131,82 +169,233 @@ public final class StructureCapture {
         Structure structure = holder.get().value();
         List<SandboxTerrain> terrains = terrainsFor(structure);
 
-        Component lastError = Component.translatable("screen.justenoughstructures.error.nowhere_to_generate");
-        boolean crashed = false;
-        for (SandboxTerrain terrain : terrains) {
+        Round usual = round(server, structureId, holder.get(), terrains, seed, null, attempts, started);
+        if (usual.result() != null) {
+            return usual.result();
+        }
+        // Some only work in a dimension of their own. Twilight Forest's troll cave on 1.20.1 asks the
+        // dimension it's in for the height of its sea, and crashes anywhere else. The Undergarden's
+        // catacombs look for a floor a set height above the bottom of the world, which is lower down
+        // in the Overworld than in the Undergarden.
+        Component crash = usual.crash();
+        ServerLevel dimension = null;
+        ServerLevel own = ownDimension(server, structure);
+        if (own != null) {
+            attempts.add(Component.translatable("screen.justenoughstructures.attempt.own_dimension", Ids.of(own.dimension()).toString()));
+            Round there = round(server, structureId, holder.get(), terrains, seed, own, attempts, started);
+            if (there.result() != null) {
+                return there.result();
+            }
+            if (there.crash() == null) {
+                dimension = own;
+                crash = null;
+            } else if (crash != null) {
+                crash = there.crash();
+            }
+        }
+        if (crash != null) {
+            return CaptureResult.failure(crash, attempts, elapsed(started));
+        }
+
+        // Some structures only start on a share of seeds, like the End City with BetterEnd, which turns
+        // most of them down. Others check for a biome of their own choosing, the height of the ground,
+        // or the world's climate where they'd go. So other biomes, high ground, and other seeds at other
+        // spots are tried, quickly, as a start that can't be made fails before anything's built.
+        Registry<Biome> biomes = server.registryAccess().registryOrThrow(Registries.BIOME);
+        long deadline = System.nanoTime() + OTHER_PLACES_NANOS;
+        int placedNothing = 0;
+        for (Place other : otherPlaces(structure, terrains, seed, biomes, dimension)) {
+            if (System.nanoTime() > deadline || placedNothing >= 3) {
+                break;
+            }
             try {
-                StructureSnapshot snapshot = attempt(server, structureId, holder.get(), terrain, seed, attempts);
+                Place place = other.withClimate(climate(server, other.level(server)));
+                if (!startsOn(server, structureId, holder.get(), place)) {
+                    continue;
+                }
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.other_place", other.terrain().name()));
+                StructureSnapshot snapshot = attempt(server, structureId, holder.get(), place, attempts);
                 if (snapshot != null) {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
                 }
+                placedNothing++;
+            } catch (TooLargeException e) {
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
+                return CaptureResult.failure(e.reason, attempts, elapsed(started));
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                JesLog.debug("Capturing {} on {} terrain somewhere else failed", structureId, other.terrain(), e);
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", other.terrain().name(), String.valueOf(e)));
+                return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e)),
+                        attempts, elapsed(started));
+            }
+        }
+        attempts.add(Component.translatable("screen.justenoughstructures.attempt.other_places"));
+        return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.nowhere_to_generate"), attempts, elapsed(started));
+    }
+
+    /** How trying every terrain went: a result to give back, if it came to one, and what it crashed with, if it did. */
+    private record Round(CaptureResult result, Component crash) {
+    }
+
+    /** Tries the structure on each of its terrains in turn, in its usual dimension for each or the one given. */
+    private static Round round(MinecraftServer server, ResourceLocation structureId, Holder<Structure> holder, List<SandboxTerrain> terrains,
+                               long seed, ServerLevel dimension, List<Component> attempts, long started) {
+        Component crash = null;
+        for (SandboxTerrain terrain : terrains) {
+            try {
+                StructureSnapshot snapshot = attempt(server, structureId, holder, new Place(terrain, seed, dimension), attempts);
+                if (snapshot != null) {
+                    return new Round(CaptureResult.success(snapshot, attempts, elapsed(started)), null);
+                }
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
-                return CaptureResult.failure(e.reason, attempts, elapsed(started));
+                return new Round(CaptureResult.failure(e.reason, attempts, elapsed(started)), null);
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 JesLog.debug("Capturing {} on {} terrain failed", structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
-                lastError = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
-                crashed = true;
+                crash = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
             }
         }
-        if (crashed) {
-            return CaptureResult.failure(lastError, attempts, elapsed(started));
-        }
-
-        // Some only start on a share of seeds, like the End City with BetterEnd, which turns most of
-        // them down. Trying others is quick, as a start that can't be made fails before anything's built.
-        long deadline = System.nanoTime() + OTHER_SEEDS_NANOS;
-        for (SandboxTerrain terrain : terrains) {
-            for (int i = 1; i <= OTHER_SEEDS && System.nanoTime() < deadline; i++) {
-                long other = seed + i * 0x9E3779B97F4A7C15L;
-                try {
-                    if (!startsOn(server, structureId, holder.get(), terrain, other)) {
-                        continue;
-                    }
-                    attempts.add(Component.translatable("screen.justenoughstructures.attempt.other_seed", terrain.name()));
-                    StructureSnapshot snapshot = attempt(server, structureId, holder.get(), terrain, other, attempts);
-                    if (snapshot != null) {
-                        return CaptureResult.success(snapshot, attempts, elapsed(started));
-                    }
-                } catch (TooLargeException e) {
-                    attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
-                    return CaptureResult.failure(e.reason, attempts, elapsed(started));
-                } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                    JesLog.debug("Capturing {} on {} terrain with another seed failed", structureId, terrain, e);
-                    attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
-                    return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e)),
-                            attempts, elapsed(started));
-                }
-                // It started but placed nothing, which another seed won't change.
-                break;
-            }
-        }
-        attempts.add(Component.translatable("screen.justenoughstructures.attempt.other_seeds", OTHER_SEEDS));
-        return CaptureResult.failure(lastError, attempts, elapsed(started));
+        return new Round(null, crash);
     }
 
-    /** One terrain and seed: what was placed, or null if it found nowhere to start or placed nothing. */
+    /**
+     * Where else to try a structure, most likely first: its other biomes on its likeliest ground, high
+     * ground in its land biomes, mountains first, and other seeds at other spots, then the same on the
+     * rest of its terrains.
+     */
+    private static List<Place> otherPlaces(Structure structure, List<SandboxTerrain> terrains, long seed, Registry<Biome> biomes,
+                                           ServerLevel dimension) {
+        List<Place> out = new ArrayList<>();
+        SandboxTerrain first = terrains.get(0);
+        addBiomes(out, structure, first, seed, biomes, dimension);
+        if (terrains.contains(SandboxTerrain.LAND)) {
+            for (Holder<Biome> biome : fitting(structure, SandboxTerrain.HIGH_LAND, true)) {
+                out.add(new Place(SandboxTerrain.HIGH_LAND, biome, START_CHUNK, seed, dimension));
+            }
+        }
+        addSpots(out, first, seed, dimension);
+        for (SandboxTerrain terrain : terrains.subList(1, terrains.size())) {
+            addBiomes(out, structure, terrain, seed, biomes, dimension);
+        }
+        for (SandboxTerrain terrain : terrains.subList(1, terrains.size())) {
+            addSpots(out, terrain, seed, dimension);
+        }
+        return out;
+    }
+
+    private static void addBiomes(List<Place> out, Structure structure, SandboxTerrain terrain, long seed, Registry<Biome> biomes,
+                                  ServerLevel dimension) {
+        Holder<Biome> usual = biomeFor(structure, terrain, biomes);
+        for (Holder<Biome> biome : fitting(structure, terrain, false)) {
+            if (!biome.equals(usual)) {
+                out.add(new Place(terrain, biome, START_CHUNK, seed, dimension));
+            }
+        }
+    }
+
+    /** Other seeds, each at a spot of its own, picked the same way every time for the same seed. */
+    private static void addSpots(List<Place> out, SandboxTerrain terrain, long seed, ServerLevel dimension) {
+        Random random = new Random(seed * 31 + terrain.ordinal());
+        for (int i = 1; i <= OTHER_SPOTS; i++) {
+            ChunkPos chunk = new ChunkPos(random.nextInt(2001) - 1000, random.nextInt(2001) - 1000);
+            out.add(new Place(terrain, null, chunk, seed + i * 0x9E3779B97F4A7C15L, dimension));
+        }
+    }
+
+    /**
+     * The dimension a structure's biomes are mostly in, when that's one a mod adds. Null for the
+     * Overworld, the Nether and the End, as those are where structures are tried anyway.
+     */
+    private static ServerLevel ownDimension(MinecraftServer server, Structure structure) {
+        ServerLevel best = null;
+        long most = 0;
+        for (ServerLevel level : server.getAllLevels()) {
+            Set<Holder<Biome>> possible = level.getChunkSource().getGenerator().getBiomeSource().possibleBiomes();
+            long count = structure.biomes().stream().filter(possible::contains).count();
+            if (count > most) {
+                best = level;
+                most = count;
+            }
+        }
+        if (best == null || best.dimension() == Level.OVERWORLD || best.dimension() == Level.NETHER || best.dimension() == Level.END) {
+            return null;
+        }
+        return best;
+    }
+
+    /** The structure's biomes that suit a terrain, each once, mountains first if asked. */
+    private static List<Holder<Biome>> fitting(Structure structure, SandboxTerrain terrain, boolean mountainsFirst) {
+        List<Holder<Biome>> out = new ArrayList<>();
+        for (Holder<Biome> biome : structure.biomes()) {
+            if (fits(biome, terrain) && !out.contains(biome)) {
+                out.add(biome);
+            }
+        }
+        if (mountainsFirst) {
+            out.sort(Comparator.comparing(biome -> !biome.is(BiomeTags.IS_MOUNTAIN)));
+        }
+        return out.size() > MOST_BIOMES ? out.subList(0, MOST_BIOMES) : out;
+    }
+
+    private static boolean fits(Holder<Biome> biome, SandboxTerrain terrain) {
+        return switch (terrain.kind()) {
+            case NETHER -> biome.is(BiomeTags.IS_NETHER);
+            case END -> biome.is(BiomeTags.IS_END);
+            case OCEAN -> biome.is(BiomeTags.IS_OCEAN);
+            default -> !biome.is(BiomeTags.IS_NETHER) && !biome.is(BiomeTags.IS_END) && !biome.is(BiomeTags.IS_OCEAN);
+        };
+    }
+
+    /**
+     * The climate a structure that checks it reads, like Supplementaries' galleon, which only sails where
+     * the sea is deep. A superflat world has none to speak of, so there the dimension's usual climate
+     * stands in. Some mods make one slow to make, so each is kept for as long as the world is open.
+     */
+    private static RandomState climate(MinecraftServer server, ServerLevel level) {
+        if (level.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator) {
+            return level.getChunkSource().randomState();
+        }
+        // Only ever reached holding the lock, so these need nothing more.
+        if (climatesFor.get() != server) {
+            CLIMATES.clear();
+            climatesFor = new WeakReference<>(server);
+        }
+        long seed = level.getSeed();
+        return CLIMATES.computeIfAbsent(level.dimension(), dimension -> {
+            ResourceKey<NoiseGeneratorSettings> key = dimension == Level.NETHER ? NoiseGeneratorSettings.NETHER
+                    : dimension == Level.END ? NoiseGeneratorSettings.END : NoiseGeneratorSettings.OVERWORLD;
+            NoiseGeneratorSettings settings = Regs.value(server.registryAccess().registryOrThrow(Registries.NOISE_SETTINGS), key);
+            //? if >=26.3 {
+            /*return RandomState.create(Regs.getter(server.registryAccess().registryOrThrow(Registries.NOISE)), seed, settings);
+            *///?} else {
+            return RandomState.create(settings, Regs.getter(server.registryAccess().registryOrThrow(Registries.NOISE)), seed);
+            //?}
+        });
+    }
+
+    /** One place: what was placed, or null if it found nowhere to start or placed nothing. */
     private static StructureSnapshot attempt(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
-                                             SandboxTerrain terrain, long seed, List<Component> attempts) {
+                                             Place place, List<Component> attempts) {
         try {
-            return captureOn(server, structureId, structure, terrain, seed, attempts);
+            return captureOn(server, structureId, structure, place, attempts);
         } catch (ConcurrentModificationException e) {
             // The world's own generation threads can still race us over those caches. It says
             // nothing about the terrain, so try the same one again.
-            attempts.add(Component.translatable("screen.justenoughstructures.attempt.retrying", terrain.name()));
-            return captureOn(server, structureId, structure, terrain, seed, attempts);
+            attempts.add(Component.translatable("screen.justenoughstructures.attempt.retrying", place.terrain().name()));
+            return captureOn(server, structureId, structure, place, attempts);
         }
     }
 
-    /** Whether the structure finds somewhere to start on this terrain with this seed, building nothing. */
-    private static boolean startsOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
-                                    SandboxTerrain terrain, long seed) {
-        ServerLevel level = levelFor(server, terrain);
-        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + terrain.name().toLowerCase(Locale.ROOT) + " terrain");
+    /** Whether the structure finds somewhere to start at a place, building nothing. */
+    private static boolean startsOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure, Place place) {
+        ServerLevel level = place.level(server);
+        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + place.terrain().name().toLowerCase(Locale.ROOT) + " terrain");
         try {
-            Holder<Biome> biome = biomeFor(structure.value(), terrain, level.registryAccess().registryOrThrow(Registries.BIOME));
+            Holder<Biome> biome = place.biome() != null ? place.biome()
+                    : biomeFor(structure.value(), place.terrain(), level.registryAccess().registryOrThrow(Registries.BIOME));
             FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
-            return start(server, structure, level, new SandboxChunkGenerator(biomeSource, terrain, level), biomeSource, seed).isValid();
+            return start(server, structure, level, new SandboxChunkGenerator(biomeSource, place.terrain(), level), biomeSource, place).isValid();
         } catch (ConcurrentModificationException e) {
             return false;
         } finally {
@@ -256,45 +445,50 @@ public final class StructureCapture {
     }
 
     private static StructureSnapshot captureOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
-                                               SandboxTerrain terrain, long seed, List<Component> attempts) {
-        ServerLevel level = levelFor(server, terrain);
+                                               Place place, List<Component> attempts) {
+        ServerLevel level = place.level(server);
         // Structure code that reaches past the sandbox to the real world gets the sandbox anyway,
         // from laying the structure out to the last block placed.
-        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + terrain.name().toLowerCase(Locale.ROOT) + " terrain");
+        RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + place.terrain().name().toLowerCase(Locale.ROOT) + " terrain");
         try {
-            return captureGuarded(server, structureId, structure, terrain, seed, attempts, level, guard);
+            return captureGuarded(server, structureId, structure, place, attempts, level, guard);
         } finally {
             RealWorldGuard.end(guard);
         }
     }
 
-    /** Lays the structure out at the sandbox's start chunk, as the place command does, building nothing yet. */
+    /** Lays the structure out at the place's chunk, as the place command does, building nothing yet. */
     private static StructureStart start(MinecraftServer server, Holder<Structure> holder, ServerLevel level, SandboxChunkGenerator generator,
-                                        FixedBiomeSource biomeSource, long seed) {
+                                        FixedBiomeSource biomeSource, Place place) {
         Structure structure = holder.value();
+        RandomState randomState = place.climate() != null ? place.climate() : level.getChunkSource().randomState();
+        long seed = place.seed();
+        ChunkPos chunk = place.chunk();
         //? if >=26.3 {
         /*// From 26.3 a structure reads the climate through a sampler of its own, made as the place command makes it.
         return structure.generate(holder, level.dimension(), server.registryAccess(), generator, biomeSource,
-                level.getChunkSource().randomState().createClimateSampler(net.minecraft.world.level.levelgen.densityfunction.SamplerContext.EMPTY_UNCACHED),
-                level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+                randomState.createClimateSampler(net.minecraft.world.level.levelgen.densityfunction.SamplerContext.EMPTY_UNCACHED),
+                randomState, server.getStructureManager(), seed, chunk, 0, level, b -> true);
         *///?} else if >=26.1 {
         /*return structure.generate(holder, level.dimension(), server.registryAccess(), generator, biomeSource,
-                level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+                randomState, server.getStructureManager(), seed, chunk, 0, level, b -> true);
         *///?} else {
         return structure.generate(server.registryAccess(), generator, biomeSource,
-                level.getChunkSource().randomState(), server.getStructureManager(), seed, START_CHUNK, 0, level, b -> true);
+                randomState, server.getStructureManager(), seed, chunk, 0, level, b -> true);
         //?}
     }
 
-    private static StructureSnapshot captureGuarded(MinecraftServer server, ResourceLocation structureId, Holder<Structure> holder, SandboxTerrain terrain,
-                                                    long seed, List<Component> attempts, ServerLevel level, RealWorldGuard.Sandbox guard) {
+    private static StructureSnapshot captureGuarded(MinecraftServer server, ResourceLocation structureId, Holder<Structure> holder, Place place,
+                                                    List<Component> attempts, ServerLevel level, RealWorldGuard.Sandbox guard) {
         Structure structure = holder.value();
+        SandboxTerrain terrain = place.terrain();
+        long seed = place.seed();
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
-        Holder<Biome> biome = biomeFor(structure, terrain, biomes);
+        Holder<Biome> biome = place.biome() != null ? place.biome() : biomeFor(structure, terrain, biomes);
         FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
 
-        StructureStart start = start(server, holder, level, generator, biomeSource, seed);
+        StructureStart start = start(server, holder, level, generator, biomeSource, place);
         if (!start.isValid()) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.no_start", terrain.name()));
             return null;
@@ -423,13 +617,7 @@ public final class StructureCapture {
             if (any == null) {
                 any = biome;
             }
-            boolean fits = switch (terrain.kind()) {
-                case NETHER -> biome.is(BiomeTags.IS_NETHER);
-                case END -> biome.is(BiomeTags.IS_END);
-                case OCEAN -> biome.is(BiomeTags.IS_OCEAN);
-                default -> !biome.is(BiomeTags.IS_NETHER) && !biome.is(BiomeTags.IS_END) && !biome.is(BiomeTags.IS_OCEAN);
-            };
-            if (fits) {
+            if (fits(biome, terrain)) {
                 return biome;
             }
         }

@@ -21,7 +21,12 @@ public enum SandboxTerrain {
     /** The Nether's lava sea with open air over it, for structures that float on the lava. */
     LAVA_SEA(32, 32),
     END(0, 65),
-    VOID(0, Integer.MIN_VALUE);
+    VOID(0, Integer.MIN_VALUE),
+    /**
+     * Land as high as a mountain's peak, for structures that only go up there, like Mowzie's Mobs'
+     * monastery. Kept last, as a snapshot is sent with its terrain's place in this list.
+     */
+    HIGH_LAND(63, 150);
 
     private final int seaLevel;
     private final int surface;
@@ -45,6 +50,7 @@ public enum SandboxTerrain {
         return switch (this) {
             case SHALLOW_OCEAN, DEEP_OCEAN -> OCEAN;
             case LAVA_SEA -> NETHER;
+            case HIGH_LAND -> LAND;
             default -> this;
         };
     }
@@ -66,6 +72,10 @@ public enum SandboxTerrain {
                     : Blocks.AIR.defaultBlockState();
             case END -> y >= 0 && y <= 64 ? Blocks.END_STONE.defaultBlockState() : Blocks.AIR.defaultBlockState();
             case VOID -> Blocks.AIR.defaultBlockState();
+            case HIGH_LAND -> y <= 145 ? Blocks.STONE.defaultBlockState()
+                    : y <= 148 ? Blocks.DIRT.defaultBlockState()
+                    : y == 149 ? Blocks.GRASS_BLOCK.defaultBlockState()
+                    : Blocks.AIR.defaultBlockState();
         };
     }
 }
