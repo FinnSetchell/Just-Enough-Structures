@@ -233,7 +233,7 @@ public final class StructureSnapshot {
                     out.add(new Spawner(pos, SpawnerPatches.mobOf(tag), SpawnerPatches.othersOf(tag),
                             Source.read(Nbt.compound(tag, ContainerSources.SPAWNER_TAG))));
                 } else if (Nbt.hasList(tag, TrialSpawners.TAG)) {
-                    // A trial spawner: its likeliest mob, and how many others. Pack tools can't change one.
+                    // A trial spawner: its likeliest mob, and how many others.
                     ListTag mobs = Nbt.list(tag, TrialSpawners.TAG, Tag.TAG_COMPOUND);
                     String mob = "";
                     int best = 0;
@@ -243,7 +243,7 @@ public final class StructureSnapshot {
                             mob = Nbt.string((CompoundTag) t, "entity");
                         }
                     }
-                    out.add(new Spawner(pos, mob, Math.max(0, mobs.size() - 1), null));
+                    out.add(new Spawner(pos, mob, Math.max(0, mobs.size() - 1), Source.read(Nbt.compound(tag, ContainerSources.SPAWNER_TAG))));
                 }
             }
             found = List.copyOf(out);
@@ -271,7 +271,8 @@ public final class StructureSnapshot {
 
     /**
      * The template a container came from and its spot in it, what block it is there, and the table it
-     * had before a dev changed it, or null if it's not been changed. For a spawner, the mob it had.
+     * had before a dev changed it, or null if it's not been changed. For a spawner, the mob it had, and
+     * the block it was before a dev made it the other kind of spawner.
      */
     public record Source(ResourceLocation template, BlockPos pos, ResourceLocation block, String patchedFrom) {
         static Source read(CompoundTag tag) {

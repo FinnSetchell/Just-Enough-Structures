@@ -268,8 +268,16 @@ public final class ClientRequests {
         return future;
     }
 
-    /** Gives a spawner in a template another mob, "" for none, or with a null mob, back its own. */
-    public static CompletableFuture<EditReply> spawnerAction(ResourceLocation template, BlockPos pos, String mob) {
+    /** Takes a spawner in a template back to how it was. */
+    public static CompletableFuture<EditReply> undoSpawner(ResourceLocation template, BlockPos pos) {
+        return spawnerAction(template, pos, null, null);
+    }
+
+    /**
+     * Gives a spawner in a template another mob, "" for none, and makes it {@code block}: a spawner
+     * or a trial spawner. With a null mob, it goes back to how it was.
+     */
+    public static CompletableFuture<EditReply> spawnerAction(ResourceLocation template, BlockPos pos, String mob, ResourceLocation block) {
         int requestId = nextRequestId++;
         CompletableFuture<EditReply> future = new CompletableFuture<>();
         EDITS.put(requestId, future);
@@ -280,6 +288,7 @@ public final class ClientRequests {
             buf.writeBoolean(mob != null);
             if (mob != null) {
                 buf.writeUtf(mob, 256);
+                buf.writeResourceLocation(block);
             }
         });
         return future;

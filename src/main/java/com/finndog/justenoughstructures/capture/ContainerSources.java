@@ -17,6 +17,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
@@ -31,9 +32,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /**
  * Which template, and which spot in it, each container a structure placed came from, so a dev can
- * point that one container at a different loot table. Spawners are traced the same way, so one can
- * be given a different mob. Only those placed from a template's blocks can be traced; ones
- * structure code places itself have no spot to patch.
+ * point that one container at a different loot table. Spawners and trial spawners are traced the
+ * same way, so one can be given a different mob. Only those placed from a template's blocks can be
+ * traced; ones structure code places itself have no spot to patch.
  */
 final class ContainerSources {
     static final String TAG = "jes:source";
@@ -49,14 +50,16 @@ final class ContainerSources {
 
     /**
      * For containers, the tag names the template, the spot, the block, its table there and, if
-     * patched, its old table; for spawners, its mob there and, if patched, its old mob.
-     * {@code filledBy} is the template that really filled each block entity.
+     * patched, its old table; for spawners, its mob there (a trial spawner's mobs) and, if patched,
+     * its old mob and the block it was before any patch made it the other kind. {@code filledBy} is
+     * the template that really filled each block entity, and {@code resources} has the trial spawner
+     * configs that are named rather than written in.
      */
-    static Found find(StructureStart start, StructureTemplateManager templates, Map<Long, StructureTemplate> filledBy) {
+    static Found find(StructureStart start, StructureTemplateManager templates, Map<Long, StructureTemplate> filledBy, ResourceManager resources) {
         Found out = new Found(new HashMap<>(), new HashMap<>());
         for (StructurePiece piece : start.getPieces()) {
             try {
-                trace(piece, templates, filledBy, out);
+                trace(piece, templates, filledBy, resources, out);
             } catch (RuntimeException e) {
                 // A piece that doesn't give up its template just isn't traced; its containers can't be patched.
             }
@@ -76,27 +79,34 @@ final class ContainerSources {
         return Nbt.string(blockEntity, "LootTable").equals(Nbt.string(source, "table"));
     }
 
-    /** Whether a spawner is still the block, with the mob, that the template gave it. */
+    /**
+     * Whether a spawner is still the block, with the mob, that the template gave it. A trial spawner's
+     * mobs are on its tag by now, put there by {@link TrialSpawners#describe}.
+     */
     static boolean spawnerMatches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
-        return BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(Nbt.string(source, "block"))
-                && SpawnerPatches.mobOf(blockEntity).equals(Nbt.string(source, "mob"));
+        String block = Nbt.hasString(source, "placed") ? Nbt.string(source, "placed") : Nbt.string(source, "block");
+        if (!BuiltInRegistries.BLOCK.getKey(placed.getBlock()).toString().equals(block)) {
+            return false;
+        }
+        return TrialSpawners.is(placed) ? Nbt.list(source, "mobs", Tag.TAG_COMPOUND).equals(Nbt.list(blockEntity, TrialSpawners.TAG, Tag.TAG_COMPOUND))
+                : SpawnerPatches.mobOf(blockEntity).equals(Nbt.string(source, "mob"));
     }
 
     private static void trace(StructurePiece piece, StructureTemplateManager templates, Map<Long, StructureTemplate> filledBy,
-                              Found out) {
+                              ResourceManager resources, Found out) {
         if (piece instanceof PoolElementStructurePiece pool) {
             StructurePlaceSettings settings = new StructurePlaceSettings().setRotation(pool.getRotation());
             for (SinglePoolElement single : singles(pool.getElement())) {
                 Optional<ResourceLocation> named = ((SinglePoolElementAccessor) single).justenoughstructures$template().left();
                 Optional<StructureTemplate> template = named.flatMap(templates::get);
                 if (template.isPresent()) {
-                    trace(named.get(), template.get(), settings, pool.getPosition(), filledBy, out);
+                    trace(named.get(), template.get(), settings, pool.getPosition(), filledBy, resources, out);
                 }
             }
         } else if (piece instanceof TemplateStructurePiece templatePiece) {
             TemplateStructurePieceAccessor accessor = (TemplateStructurePieceAccessor) templatePiece;
             trace(accessor.justenoughstructures$templateLocation(), accessor.justenoughstructures$template(),
-                    accessor.justenoughstructures$placeSettings(), accessor.justenoughstructures$templatePosition(), filledBy, out);
+                    accessor.justenoughstructures$placeSettings(), accessor.justenoughstructures$templatePosition(), filledBy, resources, out);
         }
     }
 
@@ -115,7 +125,7 @@ final class ContainerSources {
     }
 
     private static void trace(ResourceLocation id, StructureTemplate template, StructurePlaceSettings settings, BlockPos origin,
-                              Map<Long, StructureTemplate> filledBy, Found out) {
+                              Map<Long, StructureTemplate> filledBy, ResourceManager resources, Found out) {
         for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
             for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
                 boolean container = info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable");
@@ -141,10 +151,19 @@ final class ContainerSources {
                     }
                     out.containers().put(world.asLong(), source);
                 } else {
-                    source.putString("mob", SpawnerPatches.mobOf(info.nbt()));
+                    if (TrialSpawners.is(info.state())) {
+                        source.put("mobs", TrialSpawners.mobs(info.nbt(), resources));
+                    } else {
+                        source.putString("mob", SpawnerPatches.mobOf(info.nbt()));
+                    }
                     SpawnerPatches.Patch patch = SpawnerPatches.find(id, info.pos());
                     if (patch != null) {
                         source.putString("patched_from", patch.original());
+                        if (!patch.block().equals(patch.target())) {
+                            // Made the other kind: the patch is kept under the block it was.
+                            source.putString("placed", Nbt.string(source, "block"));
+                            source.putString("block", patch.block().toString());
+                        }
                     }
                     out.spawners().put(world.asLong(), source);
                 }

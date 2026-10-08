@@ -3,11 +3,13 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -23,8 +25,9 @@ import net.minecraft.world.item.Items;
 
 /**
  * A spawner opened from the preview or the Mobs tab: every mob it can make with each one's chance,
- * and how often it spawns them. It's drawn like the chest popup and sits beside the preview the same
- * way, with arrows to the other spawners that make the same.
+ * and how often it spawns them. A trial spawner's list goes on to what it makes once ominous, when
+ * that's different. It's drawn like the chest popup and sits beside the preview the same way, with
+ * arrows to the other spawners that make the same.
  */
 final class SpawnerPopup extends SidePopup {
     /** The list of mobs scrolls once it's taller than this. */
@@ -38,13 +41,19 @@ final class SpawnerPopup extends SidePopup {
         TOOLS
     }
 
-    /** A mob it can make, and the share of spawns or spawners that get it. */
-    private record Mob(String id, float chance) {
+    /**
+     * A row of the list: a mob it can make, with the share of spawns or spawners that get it, out of
+     * {@code of} mobs, and whether it's given gear; or with no mob, a line about the mobs after it.
+     */
+    private record Row(String mob, float chance, int of, boolean gear, Component text) {
+        static Row text(Component text) {
+            return new Row(null, 0, 0, false, text);
+        }
     }
 
     final StructureSnapshot.Spawner spawner;
     final SpawnerKind kind;
-    private final List<Mob> mobs = new ArrayList<>();
+    private final List<Row> rows = new ArrayList<>();
     /** How many it spawns and how often, or null when its block entity doesn't say. */
     private final Component timing;
     /** Whether this player sees Pack tools: its shortcut, and what a changed spawner made before. */
@@ -61,10 +70,26 @@ final class SpawnerPopup extends SidePopup {
         super(title, index, count);
         this.spawner = spawner;
         this.kind = tag == null ? new SpawnerKind(SpawnerKind.Type.MOB, spawner.mob().isEmpty() ? Map.of() : Map.of(spawner.mob(), 1)) : SpawnerKind.of(tag);
-        int total = kind.mobs().values().stream().mapToInt(Integer::intValue).sum();
-        kind.mobs().forEach((mob, weight) -> mobs.add(new Mob(mob, (float) weight / Math.max(1, total))));
-        mobs.sort((a, b) -> Float.compare(b.chance(), a.chance()));
+        boolean ominous = kind.trial() && !kind.sameOminous() && !kind.ominous().isEmpty();
+        if (kind.mobs().isEmpty() && ominous) {
+            rows.add(Row.text(Component.translatable("screen.justenoughstructures.hover_spawns_nothing")));
+        }
+        addRows(kind.mobs(), Set.of());
+        if (ominous) {
+            rows.add(Row.text(Component.translatable(kind.gear().isEmpty() ? "screen.justenoughstructures.spawner.ominous"
+                    : "screen.justenoughstructures.spawner.ominous_gear")));
+            addRows(kind.ominous(), kind.gear());
+        }
         timing = tag == null ? null : timing(tag);
+    }
+
+    /** A row for each mob, likeliest first. */
+    private void addRows(Map<String, Integer> weights, Set<String> gear) {
+        int total = weights.values().stream().mapToInt(Integer::intValue).sum();
+        List<Row> added = new ArrayList<>();
+        weights.forEach((mob, weight) -> added.add(new Row(mob, (float) weight / Math.max(1, total), weights.size(), gear.contains(mob), null)));
+        added.sort((a, b) -> Float.compare(b.chance(), a.chance()));
+        rows.addAll(added);
     }
 
     /** "Up to 4 at a time, every 10 to 40 seconds, while a player is within 16 blocks", from a spawner's settings. */
@@ -97,14 +122,25 @@ final class SpawnerPopup extends SidePopup {
         };
     }
 
-    /** The lines under the summary: what a changed spawner made before, and how often it spawns. */
+    /**
+     * The lines under the summary: what a changed spawner made before, what a trial spawner makes
+     * once it's ominous when that's the same mobs, and how often it spawns.
+     */
     private List<Line> notes(Font font) {
         List<Line> lines = new ArrayList<>();
         int width = (int) ((WIDTH - 14) / Gui.fineScale());
         String changedFrom = spawner.source() == null ? null : spawner.source().patchedFrom();
         if (packTools && changedFrom != null && !overview()) {
-            Component note = Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(changedFrom));
+            // Made the other kind of spawner: which kind it was says what changed.
+            boolean wasTrial = spawner.source().block().equals(TrialSpawners.BLOCK);
+            String key = wasTrial == kind.trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
+            Component note = Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(changedFrom));
             font.split(note, width).forEach(line -> lines.add(new Line(line, ToolsUi.CHANGED)));
+        }
+        if (kind.trial() && kind.sameOminous() && !kind.mobs().isEmpty()) {
+            Component note = Component.translatable(kind.gear().isEmpty() ? "screen.justenoughstructures.spawner.ominous_same"
+                    : "screen.justenoughstructures.spawner.ominous_same_gear");
+            font.split(note, width).forEach(line -> lines.add(new Line(line, Gui.LABEL_SOFT)));
         }
         if (timing != null) {
             font.split(timing, width).forEach(line -> lines.add(new Line(line, Gui.LABEL_SOFT)));
@@ -116,7 +152,7 @@ final class SpawnerPopup extends SidePopup {
     }
 
     private int listHeight() {
-        return mobs.isEmpty() ? OddsList.ROW + 4 : Math.min(MOST_LIST, mobs.size() * (OddsList.ROW + 1) + 3);
+        return rows.isEmpty() ? OddsList.ROW + 4 : Math.min(MOST_LIST, rows.size() * (OddsList.ROW + 1) + 3);
     }
 
     private int infoHeight(Font font) {
@@ -139,9 +175,13 @@ final class SpawnerPopup extends SidePopup {
         if (mouseX < x || mouseX >= x + WIDTH) {
             return false;
         }
-        int most = Math.max(0, mobs.size() * (OddsList.ROW + 1) - (listHeight() - 4));
-        scroll = Math.max(0, Math.min(most, scroll - (int) (delta * (OddsList.ROW + 1))));
+        scroll = Math.max(0, Math.min(mostScroll(), scroll - (int) (delta * (OddsList.ROW + 1))));
         return true;
+    }
+
+    /** How far the list scrolls, or 0 when it all fits. */
+    private int mostScroll() {
+        return Math.max(0, rows.size() * (OddsList.ROW + 1) - (listHeight() - 4));
     }
 
     @Override
@@ -166,8 +206,7 @@ final class SpawnerPopup extends SidePopup {
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.spawner.spawns").getString(), x + 7,
                 cy + (ICON - Gui.fineLine(font)) / 2, Gui.LABEL_SOFT);
         int iconRight = x + WIDTH - 7;
-        // Pack tools can't give a trial spawner another mob.
-        if ((packTools || picking) && !kind.trial()) {
+        if (packTools || picking) {
             toolsIcon(g, iconRight, cy, mouseX, mouseY);
         }
         cy += ICON + 2;
@@ -190,36 +229,53 @@ final class SpawnerPopup extends SidePopup {
         int right = x + WIDTH - 7;
         int bottom = top + body - 2;
         Gui.inset(g, left, top - 1, right - left, body, 0xFFB9B9B9);
-        if (mobs.isEmpty()) {
+        if (rows.isEmpty()) {
             Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.hover_spawns_nothing"), left + 4, top + 4, right - left - 8, Gui.LABEL_SOFT);
             return;
         }
+        // A list that scrolls says so with a bar down its side, and its rows make room for it.
+        int most = mostScroll();
+        int rowRight = most > 0 ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
         int cy = top + 1 - scroll;
-        for (Mob mob : mobs) {
+        for (Row row : rows) {
             if (cy + OddsList.ROW > top && cy < bottom) {
-                boolean over = mouseX >= left && mouseX < right && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
-                ResourceLocation id = ResourceLocation.tryParse(mob.id());
-                EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? Regs.value(BuiltInRegistries.ENTITY_TYPE, id) : null;
-                ItemStack icon = type == null ? SPAWNER : InfoPanel.entityIcon(type);
-                Component name = StructureNames.mob(mob.id());
-                OddsList.drawRow(g, font, icon, name.getString(), "", mob.chance(), left, cy, right - 1, over);
-                if (over) {
-                    List<Component> tip = new ArrayList<>();
-                    tip.add(name);
-                    if (kind.type() != SpawnerKind.Type.MOB) {
-                        tip.add(Component.translatable("screen.justenoughstructures.spawner." + (kind.type() == SpawnerKind.Type.POOL ? "pool_chance" : "mix_chance"),
-                                OddsList.percent(mob.chance())).withStyle(ChatFormatting.GRAY));
-                    }
-                    if (Gui.advanced()) {
-                        tip.add(Component.literal(mob.id()).withStyle(ChatFormatting.DARK_GRAY));
-                    }
-                    hoveredTip = tip;
+                if (row.mob() == null) {
+                    Gui.fineClipped(g, font, row.text().getString(), left + 4, cy + (OddsList.ROW - Gui.fineLine(font)) / 2 + 1, rowRight - left - 8, Gui.LABEL_SOFT);
+                } else {
+                    renderRow(g, font, row, left, rowRight, cy, top, bottom, mouseX, mouseY);
                 }
             }
             cy += OddsList.ROW + 1;
         }
         Gui.endScissor(g);
+        Gui.scrollbar(g, right - 5, top, bottom - top, scroll, most);
+    }
+
+    private void renderRow(GuiGraphics g, Font font, Row row, int left, int right, int cy, int top, int bottom, int mouseX, int mouseY) {
+        boolean over = mouseX >= left && mouseX < right && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
+        ResourceLocation id = ResourceLocation.tryParse(row.mob());
+        EntityType<?> type = id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? Regs.value(BuiltInRegistries.ENTITY_TYPE, id) : null;
+        ItemStack icon = type == null ? SPAWNER : InfoPanel.entityIcon(type);
+        Component name = StructureNames.mob(row.mob());
+        OddsList.drawRow(g, font, icon, name.getString(), "", row.chance(), left, cy, right - 1, over);
+        if (!over) {
+            return;
+        }
+        List<Component> tip = new ArrayList<>();
+        tip.add(name);
+        if (kind.type() == SpawnerKind.Type.POOL) {
+            tip.add(Component.translatable("screen.justenoughstructures.spawner.pool_chance", OddsList.percent(row.chance())).withStyle(ChatFormatting.GRAY));
+        } else if (row.of() > 1) {
+            tip.add(Component.translatable("screen.justenoughstructures.spawner.mix_chance", OddsList.percent(row.chance())).withStyle(ChatFormatting.GRAY));
+        }
+        if (row.gear()) {
+            tip.add(Component.translatable("screen.justenoughstructures.spawner.with_gear").withStyle(ChatFormatting.GRAY));
+        }
+        if (Gui.advanced()) {
+            tip.add(Component.literal(row.mob()).withStyle(ChatFormatting.DARK_GRAY));
+        }
+        hoveredTip = tip;
     }
 
     /**

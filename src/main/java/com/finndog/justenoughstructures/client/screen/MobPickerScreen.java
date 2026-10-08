@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import java.util.ArrayList;
@@ -21,9 +22,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 
 /**
- * Picks the mob for one spawner in a structure, or none: any mob the game has, modded ones too.
- * Like the loot table picker, the change is saved on the server as a patch to the spawner's
- * template and applies from the next /reload.
+ * Picks the mob for one spawner or trial spawner in a structure, or none: any mob the game has,
+ * modded ones too. Like the loot table picker, the change is saved on the server as a patch to the
+ * spawner's template and applies from the next /reload.
  */
 public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
@@ -39,6 +40,8 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private final ResourceLocation template;
     private final BlockPos pos;
     private final String current;
+    /** The block the spawner is set to be, which it stays. */
+    private final ResourceLocation block;
     private final NavBar navBar = new NavBar(this);
 
     private EditBox search;
@@ -50,17 +53,18 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private Component problem;
     private double scroll;
 
-    MobPickerScreen(Screen parent, ResourceLocation template, BlockPos pos, String current, TablePickerScreen.Used onUsed) {
-        super(Component.translatable("screen.justenoughstructures.mob_picker.title"));
+    MobPickerScreen(Screen parent, ResourceLocation template, BlockPos pos, String current, ResourceLocation block, TablePickerScreen.Used onUsed) {
+        super(Component.translatable(TrialSpawners.isBlock(block) ? "screen.justenoughstructures.mob_picker.title_trial" : "screen.justenoughstructures.mob_picker.title"));
         this.parent = parent;
         this.onUsed = onUsed;
         this.template = template;
         this.pos = pos;
         this.current = current;
+        this.block = block;
     }
 
     /** Where the picker is, for Back and Forward: which spawner it's picking for. */
-    private record PickerLayer(ResourceLocation template, BlockPos pos, String current) implements Nav.Layer {
+    private record PickerLayer(ResourceLocation template, BlockPos pos, String current, ResourceLocation block) implements Nav.Layer {
         @Override
         public Object key() {
             return List.of("mob_picker", template, pos);
@@ -73,7 +77,7 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
 
         @Override
         public Screen open(Screen below) {
-            return new MobPickerScreen(below, template, pos, current, TablePickerScreen.saysSo(below));
+            return new MobPickerScreen(below, template, pos, current, block, TablePickerScreen.saysSo(below));
         }
 
         @Override
@@ -84,7 +88,7 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public Nav.Layer layer() {
-        return new PickerLayer(template, pos, current);
+        return new PickerLayer(template, pos, current, block);
     }
 
     @Override
@@ -178,7 +182,7 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
             return;
         }
         String mob = picked;
-        ClientRequests.spawnerAction(template, pos, mob).thenAccept(reply -> {
+        ClientRequests.spawnerAction(template, pos, mob, block).thenAccept(reply -> {
             if (!JesScreen.replyIs(reply.message(), "spawner.saved")) {
                 problem = reply.message();
                 return;

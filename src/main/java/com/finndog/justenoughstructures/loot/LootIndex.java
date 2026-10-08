@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
+import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -70,18 +71,29 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                      AtomicInteger failed) {
-        // How the containers changed in the browser stand now, which the templates are loaded with.
-        Map<ResourceLocation, String> patches = ContainerPatches.byTemplate();
+        // How the containers and spawners changed in the browser stand now, which the templates are loaded with.
+        Map<ResourceLocation, String> patches = templatePatches();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
         return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches));
     }
 
     /**
-     * Generates again only the structures that place a template whose changed containers differ
-     * from when {@code base} was made, and keeps the rest. Null if cancelled.
+     * Each template changed in the browser in a way that changes its loot, as text that changes
+     * whenever the changes do: its containers, and its spawners made trial spawners or the other way
+     * round, as a trial spawner drops loot when it's beaten.
+     */
+    private static Map<ResourceLocation, String> templatePatches() {
+        Map<ResourceLocation, String> out = new TreeMap<>(ContainerPatches.byTemplate());
+        SpawnerPatches.switchesByTemplate().forEach((template, switches) -> out.merge(template, switches, (containers, spawners) -> containers + "\n" + spawners));
+        return out;
+    }
+
+    /**
+     * Generates again only the structures that place a template whose changes differ from when
+     * {@code base} was made, and keeps the rest. Null if cancelled.
      */
     public static StructureScan update(MinecraftServer server, StructureScan base, BooleanSupplier cancelled) {
-        Map<ResourceLocation, String> now = ContainerPatches.byTemplate();
+        Map<ResourceLocation, String> now = templatePatches();
         Set<ResourceLocation> changed = base.changedTemplates(now);
         if (changed.isEmpty()) {
             return base;
@@ -100,7 +112,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         }
         tables.putAll(part.tables());
         templates.putAll(part.templates());
-        JesLog.debug("Generated {} of {} structures again for the containers changed in {}", affected.size(), base.templates().size(), changed);
+        JesLog.debug("Generated {} of {} structures again for what was changed in {}", affected.size(), base.templates().size(), changed);
         return new StructureScan(tables, templates, now);
     }
 

@@ -1429,13 +1429,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             key = "picking:spawners";
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
-                Map<BlockPos, CompoundTag> tags = SpawnerKind.tags(s);
                 for (StructureSnapshot.Spawner spawner : s.spawners()) {
-                    // Trial spawners can't be given another mob.
-                    CompoundTag tag = tags.get(spawner.pos());
-                    if (tag == null || !Nbt.hasList(tag, TrialSpawners.TAG)) {
-                        out.add(spawner.pos().asLong());
-                    }
+                    out.add(spawner.pos().asLong());
                 }
                 return out;
             };
@@ -1673,7 +1668,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (selected == null) {
             return;
         }
-        openTools(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner));
+        CompoundTag tag = result == null || !result.succeeded() ? null : SpawnerKind.tags(result.snapshot()).get(spawner.pos());
+        openTools(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(selected.id(), seed, spawner, tag != null && Nbt.hasList(tag, TrialSpawners.TAG)));
         picking = Picking.NONE;
     }
 

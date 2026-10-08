@@ -20,7 +20,7 @@ public final class JesNetwork {
      * channel's name, so a client and a server on different versions don't hear each other at all,
      * rather than misreading what they hear.
      */
-    public static final int PROTOCOL = 4;
+    public static final int PROTOCOL = 5;
 
     public static final ResourceLocation REQUEST_CATALOG = channel("request_catalog");
     public static final ResourceLocation REQUEST_CAPTURE = channel("request_capture");

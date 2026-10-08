@@ -73,8 +73,15 @@ public final class ServerPackets {
             int requestId = buf.readVarInt();
             ResourceLocation template = buf.readResourceLocation();
             BlockPos pos = buf.readBlockPos();
-            String mob = buf.readBoolean() ? buf.readUtf(256) : null;
-            server.execute(() -> JesServer.onSpawnerAction(player, requestId, template, pos, mob));
+            String mob = null;
+            ResourceLocation block = null;
+            if (buf.readBoolean()) {
+                mob = buf.readUtf(256);
+                block = buf.readResourceLocation();
+            }
+            String setMob = mob;
+            ResourceLocation setBlock = block;
+            server.execute(() -> JesServer.onSpawnerAction(player, requestId, template, pos, setMob, setBlock));
         });
 
         on(JesNetwork.REQUEST_TOOLS, (server, player, buf) -> server.execute(() -> JesServer.onRequestTools(player)));

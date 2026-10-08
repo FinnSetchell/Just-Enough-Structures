@@ -59,6 +59,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -374,10 +375,19 @@ public final class JesServer {
      * the spawner is really there and the mob is one a spawner can make. It applies from the next /reload.
      */
     public static Component patchSpawner(ServerPlayer player, ResourceLocation template, BlockPos pos, String mob) {
+        return patchSpawner(player, template, pos, mob, null);
+    }
+
+    /**
+     * The same, and makes the spawner {@code block}: a spawner or a trial spawner, or what it was in
+     * its template. Null leaves it the block it's set to be now.
+     */
+    public static Component patchSpawner(ServerPlayer player, ResourceLocation template, BlockPos pos, String mob, ResourceLocation block) {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
         }
-        Optional<StructureTemplate> loaded = Players.server(player).getStructureManager().get(template);
+        MinecraftServer server = Players.server(player);
+        Optional<StructureTemplate> loaded = server.getStructureManager().get(template);
         if (loaded.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.container.no_template");
         }
@@ -396,15 +406,21 @@ public final class JesServer {
         if (!mob.isEmpty() && (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id) || !SpawnerPatches.spawnable(Regs.value(BuiltInRegistries.ENTITY_TYPE, id)))) {
             return Component.translatable("screen.justenoughstructures.spawner.not_a_mob", mob);
         }
+        // The template may already be patched, in which case what it had first is what the patch remembers.
+        SpawnerPatches.Patch existing = SpawnerPatches.find(template, pos);
+        ResourceManager resources = server.getResourceManager();
+        ResourceLocation own = existing != null ? existing.block() : SpawnerPatches.ownBlock(template, pos, spawner, resources);
+        ResourceLocation target = block != null ? block : existing != null ? existing.target() : own;
+        if (!target.equals(own) && !SpawnerPatches.canBecome(target)) {
+            return Component.translatable("screen.justenoughstructures.spawner.cant_become", target.toString());
+        }
         if (!ServerConfig.get().containerChanges()) {
             return Component.translatable("screen.justenoughstructures.spawner.turned_off");
         }
-        // The template may already be patched, in which case what it had first is what the patch remembers.
-        SpawnerPatches.Patch existing = SpawnerPatches.find(template, pos);
-        String original = existing != null ? existing.original() : SpawnerPatches.ownMob(template, pos, spawner.nbt());
-        int others = existing != null ? existing.others() : SpawnerPatches.ownOthers(template, pos, spawner.nbt());
-        Component reply = SpawnerPatches.save(new SpawnerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(spawner.state().getBlock()),
-                original, others, id == null ? "" : id.toString()));
+        String original = existing != null ? existing.original() : SpawnerPatches.ownMob(template, pos, spawner, resources);
+        int others = existing != null ? existing.others() : SpawnerPatches.ownOthers(template, pos, spawner, resources);
+        Component reply = SpawnerPatches.save(new SpawnerPatches.Patch(template, pos, own, original, others, id == null ? "" : id.toString(),
+                target.equals(own) ? null : target));
         if (replyIs(reply, "spawner.saved")) {
             PackToolsServer.waiting(PackToolsState.spawnerKey(template, pos));
         }
@@ -456,8 +472,8 @@ public final class JesServer {
         sendEditReply(player, requestId, reply, null);
     }
 
-    public static void onSpawnerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, String mob) {
-        Component reply = mob == null ? unpatchSpawner(player, template, pos) : patchSpawner(player, template, pos, mob);
+    public static void onSpawnerAction(ServerPlayer player, int requestId, ResourceLocation template, BlockPos pos, String mob, ResourceLocation block) {
+        Component reply = mob == null ? unpatchSpawner(player, template, pos) : patchSpawner(player, template, pos, mob, block);
         sendEditReply(player, requestId, reply, null);
     }
 

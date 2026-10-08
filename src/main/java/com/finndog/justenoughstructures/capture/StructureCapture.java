@@ -650,7 +650,7 @@ public final class StructureCapture {
             recorded = SpawnerPools.end();
         }
 
-        ContainerSources.Found sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy());
+        ContainerSources.Found sources = ContainerSources.find(start, level.getStructureManager(), region.filledBy(), level.getServer().getResourceManager());
         Map<Long, ListTag> spawnerPools = SpawnerPools.resolve(recorded.pools(), level.getServer().getResourceManager());
         StructureSnapshot snapshot = snapshot(structureId, seed, terrain, region, chunks, start.getPieces().size(), sources, spawnerPools,
                 recorded.touched());
@@ -919,12 +919,12 @@ public final class StructureCapture {
                     if (pool != null && SpawnerPools.matches(pool, tag)) {
                         tag.put(SpawnerPools.TAG, pool.copy());
                     }
+                    TrialSpawners.describe(tag, region.getLevel().getServer().getResourceManager());
                     // A spawner a processor changed gets its mob from the processor, not the template.
                     CompoundTag spawner = sources.spawners().get(pos.asLong());
                     if (spawner != null && !touched.contains(pos.asLong()) && ContainerSources.spawnerMatches(spawner, state, tag)) {
                         tag.put(ContainerSources.SPAWNER_TAG, spawner.copy());
                     }
-                    TrialSpawners.describe(tag, region.getLevel().getServer().getResourceManager());
                     blockEntities.add(tag);
                 }
             }

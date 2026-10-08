@@ -143,7 +143,7 @@ final class ToolsOverview extends ToolsSection {
     /** A changed spawner: where it is, what it made and makes now, and a way to open or undo it. */
     private int spawnerRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, SpawnerPatches.Patch patch) {
         String name = Component.translatable("screen.justenoughstructures.tools.chest_name", templateName(patch.template()),
-                Regs.value(BuiltInRegistries.BLOCK, patch.block()).getName()).getString();
+                Regs.value(BuiltInRegistries.BLOCK, patch.target()).getName()).getString();
         boolean waiting = screen.waiting(PackToolsState.spawnerKey(patch.template(), patch.pos()));
         List<RowButton> buttons = List.of(
                 RowButton.of("tools.open", () -> screen.go(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(patch))),

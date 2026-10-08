@@ -409,6 +409,34 @@ public final class JesGameTests {
         SpawnerTests.spawnerPatchesSurviveTheWire(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void spawnerSwitchesAreChecked(GameTestHelper helper) {
+        SpawnerTests.switchesAreChecked(helper);
+    }
+
+    //? if >=1.21 {
+    /*@GameTest(template = EMPTY_STRUCTURE)
+    public void trialSpawnerPatchesKeepTheirSettings(GameTestHelper helper) {
+        SpawnerTests.trialPatchesKeepTheirSettings(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void spawnersSwitchKind(GameTestHelper helper) {
+        SpawnerTests.spawnersSwitchKind(helper);
+    }
+
+    // Loads the lava basin again with a patch, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_switch", timeoutTicks = 1200)
+    public void switchedSpawnersAreCaptured(GameTestHelper helper) {
+        SpawnerTests.switchedSpawnersAreCaptured(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void trialSpawnersKnowTheirTemplate(GameTestHelper helper) {
+        SpawnerTests.trialSpawnersKnowTheirTemplate(helper);
+    }
+    *///?}
+
     @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
     public void spawnersKnowTheirTemplate(GameTestHelper helper) {
         SpawnerTests.spawnersKnowTheirTemplate(helper);

@@ -76,13 +76,24 @@ public final class SpawnerPools {
         return recorded == null ? Recorded.NONE : recorded;
     }
 
-    /** Called after each processor handles a block of a template being placed. Does nothing outside a capture. */
+    /**
+     * Called after each processor handles a block of a template being placed. Does nothing outside a
+     * capture. A trial spawner a processor changes, like the ones Moog's Structure Lib gives configs,
+     * is only noted as changed: there's no list of mobs to pick from.
+     */
     public static void processed(StructureProcessor processor, StructureTemplate.StructureBlockInfo before, StructureTemplate.StructureBlockInfo after) {
         Recorded recorded = RECORDED.get();
-        if (recorded == null || after == null || !(after.state().getBlock() instanceof SpawnerBlock) || Objects.equals(before.nbt(), after.nbt())) {
+        if (recorded == null || after == null || Objects.equals(before.nbt(), after.nbt())) {
+            return;
+        }
+        boolean trial = TrialSpawners.is(after.state());
+        if (!trial && !(after.state().getBlock() instanceof SpawnerBlock)) {
             return;
         }
         recorded.touched().add(after.pos().asLong());
+        if (trial) {
+            return;
+        }
         // The last processor to change a spawner decides its mob.
         Pool pool = KNOWN.computeIfAbsent(processor, p -> Optional.ofNullable(read(p))).orElse(null);
         if (pool != null) {

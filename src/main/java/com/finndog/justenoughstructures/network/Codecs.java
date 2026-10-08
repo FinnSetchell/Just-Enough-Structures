@@ -220,6 +220,10 @@ public final class Codecs {
             buf.writeUtf(patch.original());
             buf.writeVarInt(patch.others());
             buf.writeUtf(patch.mob());
+            buf.writeBoolean(patch.to() != null);
+            if (patch.to() != null) {
+                buf.writeResourceLocation(patch.to());
+            }
         }
         buf.writeVarInt(state.structures().size());
         state.structures().forEach((id, written) -> {
@@ -250,7 +254,7 @@ public final class Codecs {
         count = buf.readVarInt();
         for (int i = 0; i < count; i++) {
             spawners.add(new SpawnerPatches.Patch(buf.readResourceLocation(), buf.readBlockPos(), buf.readResourceLocation(), buf.readUtf(),
-                    buf.readVarInt(), buf.readUtf()));
+                    buf.readVarInt(), buf.readUtf(), buf.readBoolean() ? buf.readResourceLocation() : null));
         }
         Map<ResourceLocation, PackToolsState.Written> structures = new TreeMap<>();
         count = buf.readVarInt();

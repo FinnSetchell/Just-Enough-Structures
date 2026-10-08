@@ -1309,26 +1309,30 @@ final class InfoPanel {
         }
         cy = placedSection(g, cy, placed, mouseX, mouseY, clipTop, clipHeight);
         // For Pack tools: what the spawners of a row made before a dev gave them this mob.
-        Map<String, String> changedFrom = new HashMap<>();
+        Map<String, StructureSnapshot.Source> changedFrom = new HashMap<>();
+        Map<String, StructureSnapshot.Source> trialChangedFrom = new HashMap<>();
         if (ClientRequests.showsPackTools()) {
             for (StructureSnapshot.Spawner spawner : s.spawners()) {
                 if (spawner.source() != null && spawner.source().patchedFrom() != null) {
-                    changedFrom.put(spawner.mob().isEmpty() ? "?" : spawner.mob(), spawner.source().patchedFrom());
+                    CompoundTag tag = spawnerTags.get(spawner.pos());
+                    boolean trial = tag != null && Nbt.hasList(tag, TrialSpawners.TAG);
+                    (trial ? trialChangedFrom : changedFrom).put(spawner.mob().isEmpty() ? "?" : spawner.mob(), spawner.source());
                 }
             }
         }
         cy = spawners(g, cy, "mobs_spawners", "", byKind, changedFrom, mouseX, mouseY, clipTop, clipHeight);
-        cy = spawners(g, cy, "mobs_trial_spawners", "trial_", trialByKind, Map.of(), mouseX, mouseY, clipTop, clipHeight);
+        cy = spawners(g, cy, "mobs_trial_spawners", "trial_", trialByKind, trialChangedFrom, mouseX, mouseY, clipTop, clipHeight);
         cy = mobSection(g, cy, "over_time", overTime, false);
         return cy;
     }
 
     /**
-     * A band of spawners under {@code title}: a row for each mob, then the lists and mixes. Rows' keys
-     * start with {@code prefix}, so trial spawners' don't run into the others'.
+     * A band of spawners under {@code title}: a row for each mob, then the lists and mixes, with what
+     * trial spawners make once ominous under theirs. Rows' keys start with {@code prefix}, so trial
+     * spawners' don't run into the others'.
      */
     private int spawners(GuiGraphics g, int cy, String title, String prefix, Map<SpawnerKind, List<StructureSnapshot.Spawner>> byKind,
-                         Map<String, String> changedFrom, int mouseX, int mouseY, int clipTop, int clipHeight) {
+                         Map<String, StructureSnapshot.Source> changedFrom, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (byKind.isEmpty()) {
             return cy;
         }
@@ -1342,12 +1346,16 @@ final class InfoPanel {
             int top = cy;
             boolean over = inside(mouseX, mouseY, x, cy, contentRight - x, 22, clipTop, clipHeight);
             cy = mobRow(g, cy, mob, Component.translatable("screen.justenoughstructures.times", e.getValue().size()).getString(), over, true);
-            String was = changedFrom.get(mob);
+            StructureSnapshot.Source was = changedFrom.get(mob);
             if (was != null) {
-                cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.container.changed_from", StructureNames.mob(was)),
+                // Made the other kind of spawner: which kind it was says what changed.
+                boolean wasTrial = was.block().equals(TrialSpawners.BLOCK);
+                String key = wasTrial == e.getKey().trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
+                cy = fineWrapped(g, Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(was.patchedFrom())),
                         x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
             }
-            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + "spawners:" + mob, e.getValue());
+            cy = ominous(g, cy, e.getKey(), over);
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + "spawners:" + mob + ominousKey(e.getKey()), e.getValue());
         }
         cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", prefix, mouseX, mouseY, clipTop, clipHeight);
         cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", prefix, mouseX, mouseY, clipTop, clipHeight);
@@ -1373,13 +1381,64 @@ final class InfoPanel {
             int total = weights.values().stream().mapToInt(Integer::intValue).sum();
             List<Map.Entry<String, Integer>> mobs = new ArrayList<>(weights.entrySet());
             mobs.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
-            boolean over = inside(mouseX, mouseY, x, top, contentRight - x, cy - top + mobs.size() * 23, clipTop, clipHeight);
+            boolean over = inside(mouseX, mouseY, x, top, contentRight - x, cy - top + mobs.size() * 23 + ominousHeight(pool.getKey()), clipTop, clipHeight);
             for (Map.Entry<String, Integer> mob : mobs) {
                 cy = mobRow(g, cy, mob.getKey(), OddsList.percent((float) mob.getValue() / total), over, true);
             }
-            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + key + ":" + weights, pool.getValue());
+            cy = ominous(g, cy, pool.getKey(), over);
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + key + ":" + weights + ominousKey(pool.getKey()), pool.getValue());
         }
         return cy;
+    }
+
+    /**
+     * What a group of trial spawners makes once it's ominous, under its own mobs: a note when that's
+     * the same mobs, or a line and a row for each mob. Returns the y below it.
+     */
+    private int ominous(GuiGraphics g, int cy, SpawnerKind kind, boolean hovered) {
+        if (!kind.trial() || kind.ominous().isEmpty() || kind.sameOminous() && kind.mobs().isEmpty()) {
+            return cy;
+        }
+        if (kind.sameOminous()) {
+            return fineWrapped(g, sameOminous(kind), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 2;
+        }
+        cy = fineWrapped(g, ominousHeading(kind), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
+        int total = kind.ominous().values().stream().mapToInt(Integer::intValue).sum();
+        List<Map.Entry<String, Integer>> mobs = new ArrayList<>(kind.ominous().entrySet());
+        mobs.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+        for (Map.Entry<String, Integer> mob : mobs) {
+            cy = mobRow(g, cy, mob.getKey(), mobs.size() > 1 ? OddsList.percent((float) mob.getValue() / total) : "", hovered, true);
+        }
+        return cy;
+    }
+
+    /** How tall {@link #ominous} draws, for lighting the whole group while any of it is hovered. */
+    private int ominousHeight(SpawnerKind kind) {
+        if (!kind.trial() || kind.ominous().isEmpty() || kind.sameOminous() && kind.mobs().isEmpty()) {
+            return 0;
+        }
+        if (kind.sameOminous()) {
+            return 1 + wrappedHeight(sameOminous(kind)) + 2;
+        }
+        return 2 + wrappedHeight(ominousHeading(kind)) + 3 + kind.ominous().size() * 23;
+    }
+
+    /** What sets a group of trial spawners apart from others that make the same mobs, for its row's key. */
+    private static String ominousKey(SpawnerKind kind) {
+        return kind.trial() ? "|" + kind.ominous() + kind.gear() : "";
+    }
+
+    private static Component sameOminous(SpawnerKind kind) {
+        return Component.translatable(kind.gear().isEmpty() ? "screen.justenoughstructures.spawner.ominous_same" : "screen.justenoughstructures.spawner.ominous_same_gear");
+    }
+
+    private static Component ominousHeading(SpawnerKind kind) {
+        return Component.translatable(kind.gear().isEmpty() ? "screen.justenoughstructures.spawner.ominous" : "screen.justenoughstructures.spawner.ominous_gear");
+    }
+
+    /** How tall {@link #fineWrapped} draws this text across the panel. */
+    private int wrappedHeight(Component text) {
+        return font.split(text, (int) (textWidth() / secondaryScale())).size() * (secondaryLine() + 1);
     }
 
     /**

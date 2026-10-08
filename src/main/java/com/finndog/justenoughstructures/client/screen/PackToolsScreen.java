@@ -261,18 +261,36 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         ClientRequests.containerAction(template, pos, null).thenAccept(reply -> replied(reply, "container.removed"));
     }
 
-    /** The mob picker for a spawner that makes {@code mob} now, which comes back here once one's picked. */
-    void changeSpawner(ToolsSpawners.SpawnerRef ref, String mob) {
+    /**
+     * The mob picker for a spawner that makes {@code mob} now and is set to be {@code block}, which
+     * comes back here once one's picked.
+     */
+    void changeSpawner(ToolsSpawners.SpawnerRef ref, String mob, ResourceLocation block) {
         if (ref.byCode()) {
             return;
         }
         Nav.remember();
         current().leaving();
-        minecraft.setScreen(new MobPickerScreen(this, ref.template(), ref.templatePos(), mob, TablePickerScreen.saysSo(this)));
+        minecraft.setScreen(new MobPickerScreen(this, ref.template(), ref.templatePos(), mob, block, TablePickerScreen.saysSo(this)));
+    }
+
+    /**
+     * Makes a spawner {@code block}, the other kind of spawner, making {@code mob}. With {@code undo},
+     * that's how it was in its template, so its change is undone instead.
+     */
+    void switchSpawner(ToolsSpawners.SpawnerRef ref, String mob, ResourceLocation block, boolean undo) {
+        if (ref.byCode()) {
+            return;
+        }
+        if (undo) {
+            undoSpawner(ref.template(), ref.templatePos());
+            return;
+        }
+        ClientRequests.spawnerAction(ref.template(), ref.templatePos(), mob, block).thenAccept(reply -> replied(reply, "spawner.saved"));
     }
 
     void undoSpawner(ResourceLocation template, net.minecraft.core.BlockPos pos) {
-        ClientRequests.spawnerAction(template, pos, null).thenAccept(reply -> replied(reply, "spawner.removed"));
+        ClientRequests.undoSpawner(template, pos).thenAccept(reply -> replied(reply, "spawner.removed"));
     }
 
     private void reloadNow() {

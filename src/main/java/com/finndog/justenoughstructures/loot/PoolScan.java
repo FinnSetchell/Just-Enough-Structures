@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -149,9 +150,15 @@ final class PoolScan {
     }
 
     /** Tables and pools named anywhere in a piece's blocks and entities. {@code parent} is the key {@code tag} sits under. */
-    private static void nbt(Tag tag, String parent, Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
+    private void nbt(Tag tag, String parent, Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
         if (tag instanceof CompoundTag compound) {
-            for (String key : Nbt.keys(compound)) {
+            Set<String> keys = Nbt.keys(compound);
+            if (keys.contains("normal_config") || keys.contains("ominous_config")) {
+                // A trial spawner's: what it drops can be named in its configs, in their own files or
+                // nowhere, for the game's own.
+                TrialSpawners.lootOf(compound, server.getResourceManager()).forEach(table -> add(table, tables::add));
+            }
+            for (String key : keys) {
                 Tag value = compound.get(key);
                 if (value instanceof StringTag string) {
                     // A container's own table, a vault's, which sits in its config, and what a trial

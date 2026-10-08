@@ -12,14 +12,14 @@ import net.minecraft.resources.ResourceLocation;
  * each time instead, which is quick, so editing a loot table never means generating structures again.
  *
  * <p>{@code patches} is how the containers changed in the browser stood when it was made, per
- * template. When they change, only the structures that place one of those templates are generated
- * again.
+ * template, along with spawners made trial spawners or back, which change what drops. When they
+ * change, only the structures that place one of those templates are generated again.
  */
 public record StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables,
                             Map<ResourceLocation, Set<ResourceLocation>> templates,
                             Map<ResourceLocation, String> patches) {
 
-    /** The templates whose container changes differ between the scan and {@code now}. */
+    /** The templates whose changes differ between the scan and {@code now}. */
     public Set<ResourceLocation> changedTemplates(Map<ResourceLocation, String> now) {
         Set<ResourceLocation> changed = new TreeSet<>();
         for (ResourceLocation template : patches.keySet()) {

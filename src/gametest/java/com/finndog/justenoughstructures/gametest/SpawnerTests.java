@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.screen.SpawnerKind;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -37,6 +38,9 @@ import net.minecraft.gametest.framework.GameTestHelper;
 /*import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 *///?}
+//? if >=1.21 {
+/*import net.minecraft.world.level.block.entity.TrialSpawnerBlockEntity;
+*///?}
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -46,6 +50,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -60,6 +65,9 @@ public final class SpawnerTests {
     private static final ResourceLocation BASTION = Ids.parse("bastion_remnant");
     private static final String MAGMA_CUBE = "minecraft:magma_cube";
     private static final String HUSK = "minecraft:husk";
+    private static final String ZOMBIE = "minecraft:zombie";
+    /** One of the trial chambers' zombie trial spawners, from 1.21. */
+    private static final ResourceLocation ZOMBIE_TRIAL = Ids.parse("trial_chambers/spawner/melee/zombie");
     /** Bastion layouts to try for one with the treasure room, which about a quarter have. */
     private static final int TRIES = 16;
     private static volatile Long treasureSeed;
@@ -108,7 +116,7 @@ public final class SpawnerTests {
             CompoundTag rules = new CompoundTag();
             rules.putInt("block_light_limit", 7);
             Nbt.compound(spawnerAt(patched, spawner.pos()).nbt(), "SpawnData").put("custom_spawn_rules", rules);
-            SpawnerPatches.apply(BASIN, patched);
+            SpawnerPatches.apply(BASIN, patched, server.getResourceManager());
             CompoundTag now = spawnerAt(patched, spawner.pos()).nbt();
             CompoundTag entity = Nbt.compound(Nbt.compound(now, "SpawnData"), "entity");
             helper.assertTrue(entity.size() == 1 && HUSK.equals(Nbt.string(entity, "id")), "the spawner's mob is " + entity + ", not just a husk");
@@ -120,7 +128,7 @@ public final class SpawnerTests {
             // No mob at all: an empty spawner.
             expect(helper, SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, spawner.pos(), block, original, 0, "")), "spawner.saved");
             StructureTemplate emptied = copy(basin);
-            SpawnerPatches.apply(BASIN, emptied);
+            SpawnerPatches.apply(BASIN, emptied, server.getResourceManager());
             helper.assertTrue(Nbt.compound(Nbt.compound(spawnerAt(emptied, spawner.pos()).nbt(), "SpawnData"), "entity").isEmpty(),
                     "the spawner wasn't emptied");
 
@@ -136,7 +144,7 @@ public final class SpawnerTests {
                     """.formatted(BASIN, spawner.pos().getX(), spawner.pos().getY(), spawner.pos().getZ(), original, HUSK, block));
             SpawnerPatches.load();
             StructureTemplate mismatched = copy(basin);
-            SpawnerPatches.apply(BASIN, mismatched);
+            SpawnerPatches.apply(BASIN, mismatched, server.getResourceManager());
             helper.assertTrue(MAGMA_CUBE.equals(SpawnerPatches.mobOf(spawnerAt(mismatched, spawner.pos()).nbt())), "a patch for a block that isn't there was applied");
 
             // A file broken by hand patches nothing, and saving refuses rather than writing over it.
@@ -144,7 +152,7 @@ public final class SpawnerTests {
             SpawnerPatches.load();
             helper.assertTrue(SpawnerPatches.find(BASIN, spawner.pos()) == null, "a broken file still had patches");
             StructureTemplate untouched = copy(basin);
-            SpawnerPatches.apply(BASIN, untouched);
+            SpawnerPatches.apply(BASIN, untouched, server.getResourceManager());
             helper.assertTrue(MAGMA_CUBE.equals(SpawnerPatches.mobOf(spawnerAt(untouched, spawner.pos()).nbt())), "a broken file changed a spawner");
             Component refused = SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, spawner.pos(), block, original, 0, HUSK));
             helper.assertTrue(key(refused).endsWith("override.save_failed"), "saving over a broken file got " + refused.getString());
@@ -181,7 +189,7 @@ public final class SpawnerTests {
         try {
             SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, spawner.pos(), BuiltInRegistries.BLOCK.getKey(spawner.state().getBlock()),
                     MAGMA_CUBE, 0, HUSK));
-            SpawnerPatches.apply(BASIN, patched);
+            SpawnerPatches.apply(BASIN, patched, server.getResourceManager());
         } finally {
             leaveFolder();
         }
@@ -238,12 +246,52 @@ public final class SpawnerTests {
         helper.succeed();
     }
 
+    /**
+     * The server only switches a spawner to a spawner or a trial spawner, and to a trial spawner only
+     * where the game has them. Changing just its mob keeps it the kind it was made, and making it its
+     * own block again stops switching it.
+     */
+    public static void switchesAreChecked(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureTemplate basin = server.getStructureManager().get(BASIN).orElse(null);
+        StructureTemplate.StructureBlockInfo spawner = basin == null ? null : firstSpawner(basin);
+        helper.assertTrue(spawner != null, "the lava basin has no spawner");
+        BlockPos pos = spawner.pos();
+        ServerPlayer player = TestPlayers.mock(helper);
+        ServerConfig.Settings before = ServerConfig.get();
+        freshFolder();
+        try {
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK, Ids.parse("chest")), "spawner.cant_become");
+            if (!TrialSpawners.exist()) {
+                expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK, TrialSpawners.BLOCK), "spawner.cant_become");
+                helper.assertTrue(SpawnerPatches.find(BASIN, pos) == null, "a refused switch was saved");
+            } else {
+                expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK, TrialSpawners.BLOCK), "spawner.saved");
+                SpawnerPatches.Patch patch = SpawnerPatches.find(BASIN, pos);
+                helper.assertTrue(patch != null && SpawnerPatches.SPAWNER.equals(patch.block()) && TrialSpawners.BLOCK.equals(patch.to())
+                        && MAGMA_CUBE.equals(patch.original()) && HUSK.equals(patch.mob()), "the switch was saved as " + patch);
+                expect(helper, JesServer.patchSpawner(player, BASIN, pos, ZOMBIE), "spawner.saved");
+                patch = SpawnerPatches.find(BASIN, pos);
+                helper.assertTrue(patch != null && TrialSpawners.BLOCK.equals(patch.to()) && ZOMBIE.equals(patch.mob()), "changing the mob undid the switch: " + patch);
+                expect(helper, JesServer.patchSpawner(player, BASIN, pos, ZOMBIE, SpawnerPatches.SPAWNER), "spawner.saved");
+                patch = SpawnerPatches.find(BASIN, pos);
+                helper.assertTrue(patch != null && patch.to() == null && ZOMBIE.equals(patch.mob()), "making it a spawner again still switches it: " + patch);
+            }
+        } finally {
+            ServerConfig.set(before);
+            leaveFolder();
+        }
+        helper.succeed();
+    }
+
     /** Pack tools gets every changed spawner as it was saved. */
     public static void spawnerPatchesSurviveTheWire(GameTestHelper helper) {
         BlockPos pos = new BlockPos(3, 1, 4);
         List<SpawnerPatches.Patch> patches = List.of(
                 new SpawnerPatches.Patch(BASIN, pos, Ids.parse("spawner"), MAGMA_CUBE, 0, HUSK),
-                new SpawnerPatches.Patch(Ids.of("mod", "rooms/crypt"), pos.above(), Ids.parse("spawner"), "", 2, ""));
+                new SpawnerPatches.Patch(Ids.of("mod", "rooms/crypt"), pos.above(), Ids.parse("spawner"), "", 2, ""),
+                new SpawnerPatches.Patch(Ids.of("mod", "rooms/vault"), pos.below(), Ids.parse("spawner"), MAGMA_CUBE, 0, HUSK, Ids.parse("trial_spawner")));
         PackToolsState state = new PackToolsState(ServerConfig.get(), Set.of(PackToolsState.spawnerKey(BASIN, pos)), Map.of(), List.of(), patches,
                 Map.of(), List.of(), List.of(), Map.of(PackToolsState.STRUCTURE_TAGS, List.of(Ids.parse("on_treasure_maps"))));
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
@@ -387,6 +435,168 @@ public final class SpawnerTests {
                     "the spawner's own mob wasn't back after undoing the change: " + seen[1]);
         });
     }
+
+    //? if >=1.21 {
+    /*// A trial spawner given another mob makes just that, normal and ominous, and keeps the rest of its
+    // settings: how fast it spawns, what it drops, and the gear its ominous mobs get. Read back through
+    // a trial spawner itself, which drops whatever it can't read.
+    public static void trialPatchesKeepTheirSettings(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceManager resources = server.getResourceManager();
+        StructureTemplate zombie = server.getStructureManager().get(ZOMBIE_TRIAL).orElse(null);
+        StructureTemplate.StructureBlockInfo trial = zombie == null ? null : firstSpawner(zombie);
+        helper.assertTrue(trial != null && TrialSpawners.is(trial.state()), "the trial chambers' zombie spawner has no trial spawner");
+        String own = SpawnerPatches.mobOf(trial, resources);
+        helper.assertTrue(ZOMBIE.equals(own), "the zombie trial spawner makes " + own);
+        freshFolder();
+        StructureTemplate patched = copy(zombie);
+        try {
+            SpawnerPatches.save(new SpawnerPatches.Patch(ZOMBIE_TRIAL, trial.pos(), TrialSpawners.BLOCK, ZOMBIE, 0, HUSK));
+            SpawnerPatches.apply(ZOMBIE_TRIAL, patched, resources);
+        } finally {
+            leaveFolder();
+        }
+        StructureTemplate.StructureBlockInfo now = spawnerAt(patched, trial.pos());
+        helper.assertFalse(now.nbt().contains("spawn_data"), "the trial spawner would still make a zombie first");
+        CompoundTag read = roundTrip(now, server.registryAccess());
+        CompoundTag normal = Nbt.compound(read, "normal_config");
+        CompoundTag ominous = Nbt.compound(read, "ominous_config");
+        helper.assertTrue(List.of(HUSK).equals(mobs(normal)) && List.of(HUSK).equals(mobs(ominous)),
+                "the trial spawner makes " + mobs(normal) + ", and once ominous " + mobs(ominous));
+        helper.assertTrue(Nbt.getInt(normal, "ticks_between_spawn") == 20, "the trial spawner lost how fast it spawns: " + normal);
+        helper.assertTrue("minecraft:equipment/trial_chamber_melee".equals(gear(ominous)), "its ominous husks lost their gear: " + ominous);
+        helper.assertTrue(Nbt.list(ominous, "loot_tables_to_eject", Tag.TAG_COMPOUND).stream()
+                        .anyMatch(t -> Nbt.string((CompoundTag) t, "data").equals("minecraft:spawners/ominous/trial_chamber/key")),
+                "it no longer drops ominous keys: " + ominous);
+        helper.assertTrue(ZOMBIE.equals(SpawnerPatches.mobOf(spawnerAt(zombie, trial.pos()), resources)), "patching a copy changed the loaded template");
+        helper.succeed();
+    }
+
+    // A spawner made a trial spawner, and a trial spawner made a spawner: each is the new block with just
+    // the mob, the trial spawner set up like the trial chambers' own.
+    public static void spawnersSwitchKind(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceManager resources = server.getResourceManager();
+        StructureTemplate basin = server.getStructureManager().get(BASIN).orElse(null);
+        StructureTemplate zombie = server.getStructureManager().get(ZOMBIE_TRIAL).orElse(null);
+        StructureTemplate.StructureBlockInfo spawner = basin == null ? null : firstSpawner(basin);
+        StructureTemplate.StructureBlockInfo trial = zombie == null ? null : firstSpawner(zombie);
+        helper.assertTrue(spawner != null && trial != null, "the lava basin's spawner or the zombie trial spawner didn't load");
+        freshFolder();
+        StructureTemplate madeTrial = copy(basin);
+        StructureTemplate madeSpawner = copy(zombie);
+        try {
+            SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, spawner.pos(), SpawnerPatches.SPAWNER, MAGMA_CUBE, 0, HUSK, TrialSpawners.BLOCK));
+            SpawnerPatches.save(new SpawnerPatches.Patch(ZOMBIE_TRIAL, trial.pos(), TrialSpawners.BLOCK, ZOMBIE, 0, ZOMBIE, SpawnerPatches.SPAWNER));
+            SpawnerPatches.apply(BASIN, madeTrial, resources);
+            SpawnerPatches.apply(ZOMBIE_TRIAL, madeSpawner, resources);
+        } finally {
+            leaveFolder();
+        }
+        StructureTemplate.StructureBlockInfo nowTrial = spawnerAt(madeTrial, spawner.pos());
+        helper.assertTrue(nowTrial != null && nowTrial.state().equals(TrialSpawners.waiting()), "the spawner didn't become a waiting trial spawner: " + nowTrial);
+        CompoundTag read = roundTrip(nowTrial, server.registryAccess());
+        CompoundTag ominous = Nbt.compound(read, "ominous_config");
+        helper.assertTrue(List.of(HUSK).equals(mobs(Nbt.compound(read, "normal_config"))) && List.of(HUSK).equals(mobs(ominous)),
+                "the new trial spawner makes " + read);
+        helper.assertTrue("minecraft:equipment/trial_chamber".equals(gear(ominous)), "the new trial spawner's ominous husks wear no armour: " + ominous);
+        helper.assertTrue(Nbt.list(ominous, "loot_tables_to_eject", Tag.TAG_COMPOUND).size() == 2, "the new trial spawner drops no ominous loot: " + ominous);
+
+        StructureTemplate.StructureBlockInfo nowSpawner = spawnerAt(madeSpawner, trial.pos());
+        helper.assertTrue(nowSpawner != null && nowSpawner.state().is(Blocks.SPAWNER), "the trial spawner didn't become a spawner: " + nowSpawner);
+        List<String> next = nextMobs(nowSpawner.nbt(), server.registryAccess());
+        helper.assertTrue(ZOMBIE.equals(SpawnerPatches.mobOf(nowSpawner.nbt())) && !next.isEmpty() && next.stream().allMatch(ZOMBIE::equals),
+                "the new spawner makes " + nowSpawner.nbt());
+        helper.succeed();
+    }
+
+    // After /reload a spawner made a trial spawner is one in the structure, and still knows its template,
+    // the block it was there and the mob it made. Loading the template again stands in for the /reload.
+    public static void switchedSpawnersAreCaptured(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureSnapshot bastion = treasureBastion(server);
+        StructureSnapshot.Spawner before = bastion == null ? null
+                : bastion.spawners().stream().filter(s -> s.source() != null && s.source().template().equals(BASIN)).findFirst().orElse(null);
+        helper.assertTrue(before != null, "no bastion layout had a spawner that knew its template");
+        StructureSnapshot.Source source = before.source();
+        freshFolder();
+        StructureSnapshot after;
+        try {
+            SpawnerPatches.save(new SpawnerPatches.Patch(BASIN, source.pos(), SpawnerPatches.SPAWNER, MAGMA_CUBE, 0, HUSK, TrialSpawners.BLOCK));
+            server.getStructureManager().remove(BASIN);
+            after = capture(server, BASTION, treasureSeed);
+        } finally {
+            leaveFolder();
+            server.getStructureManager().remove(BASIN);
+        }
+        StructureSnapshot.Spawner switched = at(after, source);
+        helper.assertTrue(switched != null && HUSK.equals(switched.mob()), "the switched spawner lost its template, or doesn't make husks: " + switched);
+        helper.assertTrue(SpawnerPatches.SPAWNER.equals(switched.source().block()) && MAGMA_CUBE.equals(switched.source().patchedFrom()),
+                "the switched spawner forgot what it was: " + switched.source());
+        CompoundTag tag = SpawnerKind.tags(after).get(switched.pos());
+        SpawnerKind kind = tag == null ? null : SpawnerKind.of(tag);
+        helper.assertTrue(kind != null && kind.trial() && kind.gear().contains(HUSK), "the switched spawner isn't a trial spawner arming its ominous husks: " + kind);
+        helper.succeed();
+    }
+
+    // Trial spawners placed from a template, like the trial chambers', know where in it they came from,
+    // so they can be changed, and what they make once ominous.
+    public static void trialSpawnersKnowTheirTemplate(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureSnapshot chambers = capture(server, Ids.parse("trial_chambers"), CaptureTests.SEED);
+        Map<BlockPos, CompoundTag> tags = SpawnerKind.tags(chambers);
+        int trials = 0;
+        int armed = 0;
+        for (StructureSnapshot.Spawner spawner : chambers.spawners()) {
+            CompoundTag tag = tags.get(spawner.pos());
+            if (tag == null || !Nbt.hasList(tag, TrialSpawners.TAG)) {
+                continue;
+            }
+            trials++;
+            SpawnerKind kind = SpawnerKind.of(tag);
+            helper.assertFalse(kind.ominous().isEmpty(), "the trial spawner at " + spawner.pos() + " makes nothing once ominous");
+            if (!kind.gear().isEmpty()) {
+                armed++;
+            }
+            StructureSnapshot.Source source = spawner.source();
+            helper.assertTrue(source != null, "the trial spawner at " + spawner.pos() + " doesn't know its template");
+            StructureTemplate template = server.getStructureManager().get(source.template()).orElse(null);
+            StructureTemplate.StructureBlockInfo info = template == null ? null : spawnerAt(template, source.pos());
+            helper.assertTrue(info != null && TrialSpawners.is(info.state()) && spawner.mob().equals(SpawnerPatches.mobOf(info, server.getResourceManager())),
+                    "the trial spawner at " + spawner.pos() + " doesn't match its spot in " + source.template());
+        }
+        helper.assertTrue(trials > 0, "the trial chambers had no trial spawners");
+        helper.assertTrue(armed > 0, "no trial spawner gave its ominous mobs gear");
+        helper.succeed();
+    }
+
+    private static List<String> mobs(CompoundTag config) {
+        return Nbt.list(config, "spawn_potentials", Tag.TAG_COMPOUND).stream()
+                .map(t -> Nbt.string(Nbt.compound(Nbt.compound((CompoundTag) t, "data"), "entity"), "id")).toList();
+    }
+
+    // The equipment table a config's first mob is given, or "".
+    private static String gear(CompoundTag config) {
+        ListTag potentials = Nbt.list(config, "spawn_potentials", Tag.TAG_COMPOUND);
+        return potentials.isEmpty() ? "" : Nbt.string(Nbt.compound(Nbt.compound(Nbt.compound(potentials, 0), "data"), "equipment"), "loot_table");
+    }
+    *///?}
+
+    //? if >=26.1 {
+    /*// A trial spawner's data as the game itself reads it and saves it again, dropping what it can't read.
+    private static CompoundTag roundTrip(StructureTemplate.StructureBlockInfo info, RegistryAccess registries) {
+        TrialSpawnerBlockEntity spawner = new TrialSpawnerBlockEntity(BlockPos.ZERO, info.state());
+        spawner.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, registries, info.nbt().copy()));
+        return spawner.saveWithoutMetadata(registries);
+    }
+    *///?} else if >=1.21 {
+    /*// A trial spawner's data as the game itself reads it and saves it again, dropping what it can't read.
+    private static CompoundTag roundTrip(StructureTemplate.StructureBlockInfo info, RegistryAccess registries) {
+        TrialSpawnerBlockEntity spawner = new TrialSpawnerBlockEntity(BlockPos.ZERO, info.state());
+        spawner.loadWithComponents(info.nbt().copy(), registries);
+        return spawner.saveWithoutMetadata(registries);
+    }
+    *///?}
 
     /** A bastion layout with the treasure room, found once and then remembered. */
     private static StructureSnapshot treasureBastion(MinecraftServer server) {
