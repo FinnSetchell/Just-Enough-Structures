@@ -219,6 +219,10 @@ final class StructureList {
         hovered = null;
         starHovered = false;
         if (rows.isEmpty()) {
+            if (all.isEmpty()) {
+                // Nothing from the server yet, or nothing at all: the browser beside it says why.
+                return;
+            }
             Component message = Component.translatable("screen.justenoughstructures.no_matches");
             if (query.contains("$") && !FoundIn.ready()) {
                 float progress = ClientRequests.indexProgress();
