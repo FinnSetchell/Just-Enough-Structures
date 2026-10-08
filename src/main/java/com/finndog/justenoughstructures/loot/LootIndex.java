@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -24,6 +25,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
@@ -163,6 +165,15 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         // The template a container came from, for structures placed without pools.
                         if (c.source() != null) {
                             placed.add(c.source().template());
+                        }
+                    }
+                    // What trial spawners drop when they're beaten, like trial keys.
+                    for (CompoundTag tag : result.snapshot().blockEntities()) {
+                        for (String drop : TrialSpawners.loot(tag)) {
+                            ResourceLocation table = ResourceLocation.tryParse(drop);
+                            if (table != null) {
+                                found.add(table);
+                            }
                         }
                     }
                     if (i > 0 && found.size() == before) {

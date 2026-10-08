@@ -125,7 +125,7 @@ final class PoolScan {
         try {
             StructureTemplate template = server.getStructureManager().get(id).orElse(null);
             if (template != null) {
-                nbt(template.save(new CompoundTag()), tables, next);
+                nbt(template.save(new CompoundTag()), "", tables, next);
             }
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read structure piece {}", id, e);
@@ -148,23 +148,27 @@ final class PoolScan {
         });
     }
 
-    private static void nbt(Tag tag, Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
+    /** Tables and pools named anywhere in a piece's blocks and entities. {@code parent} is the key {@code tag} sits under. */
+    private static void nbt(Tag tag, String parent, Set<ResourceLocation> tables, Set<ResourceLocation> pools) {
         if (tag instanceof CompoundTag compound) {
             for (String key : Nbt.keys(compound)) {
                 Tag value = compound.get(key);
                 if (value instanceof StringTag string) {
-                    if (key.equals("LootTable")) {
+                    // A container's own table, a vault's, which sits in its config, and what a trial
+                    // spawner drops when it's beaten. Mobs' equipment tables aren't loot.
+                    if (key.equals("LootTable") || key.equals("loot_table") && parent.equals("config")
+                            || key.equals("data") && parent.equals("loot_tables_to_eject")) {
                         add(Nbt.value(string), tables::add);
                     } else if (key.equals("pool")) {
                         add(Nbt.value(string), pools::add);
                     }
                 } else {
-                    nbt(value, tables, pools);
+                    nbt(value, key, tables, pools);
                 }
             }
         } else if (tag instanceof ListTag list) {
             for (Tag element : list) {
-                nbt(element, tables, pools);
+                nbt(element, parent, tables, pools);
             }
         }
     }

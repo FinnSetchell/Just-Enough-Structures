@@ -101,9 +101,12 @@ final class ChestPopup {
         return new ChestPopup(container, container.lootTable(), title, size, index, count, title.getString().toLowerCase(Locale.ROOT), View.ROLL);
     }
 
-    /** A loot table this layout doesn't have, in a container as big as a chest, showing its chances first. */
-    static ChestPopup forTable(String table) {
-        return new ChestPopup(null, table, Component.translatable("screen.justenoughstructures.not_in_layout"), 27, 0, 1,
+    /**
+     * A loot table on its own, in a container as big as a chest, showing its chances first. Its title
+     * says it's not in this layout unless {@code title} says otherwise.
+     */
+    static ChestPopup forTable(String table, Component title) {
+        return new ChestPopup(null, table, title != null ? title : Component.translatable("screen.justenoughstructures.not_in_layout"), 27, 0, 1,
                 Component.translatable("screen.justenoughstructures.container").getString(), View.ODDS);
     }
 

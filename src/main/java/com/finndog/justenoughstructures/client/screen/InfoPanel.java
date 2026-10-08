@@ -732,10 +732,11 @@ final class InfoPanel {
         if (everyTable == null) {
             ClientRequests.index();
         }
+        Map<String, LongSet> trialDrops = trialDrops(snapshot);
         List<String> others = everyTable == null ? List.of() : everyTable.stream().map(ResourceLocation::toString)
-                .filter(t -> snapshot.containers().stream().noneMatch(c -> t.equals(c.lootTable())))
+                .filter(t -> snapshot.containers().stream().noneMatch(c -> t.equals(c.lootTable())) && !trialDrops.containsKey(t))
                 .sorted(Comparator.comparing(StructureNames::lootTable)).toList();
-        if (groups.isEmpty() && others.isEmpty()) {
+        if (groups.isEmpty() && others.isEmpty() && trialDrops.isEmpty()) {
             return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
 
@@ -779,6 +780,10 @@ final class InfoPanel {
             }
         }
 
+        if (!trialDrops.isEmpty()) {
+            cy = trialDrops(g, cy, snapshot, trialDrops, mouseX, mouseY, clipTop, clipHeight);
+        }
+
         if (!others.isEmpty()) {
             cy += 2;
             fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
@@ -809,6 +814,66 @@ final class InfoPanel {
             }
         }
         return lootTotals(g, cy, snapshot, mouseX, mouseY, clipTop, clipHeight);
+    }
+
+    /** What the trial spawners in a layout drop when they're beaten: each loot table, with where the spawners that drop it are. */
+    private static Map<String, LongSet> trialDrops(StructureSnapshot snapshot) {
+        Map<String, LongSet> out = new LinkedHashMap<>();
+        for (CompoundTag tag : snapshot.blockEntities()) {
+            long pos = new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")).asLong();
+            for (String table : TrialSpawners.loot(tag)) {
+                out.computeIfAbsent(table, t -> new LongOpenHashSet()).add(pos);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A row for each table the trial spawners drop from, which lights them up while it's hovered and
+     * opens the table's chances when clicked.
+     */
+    private int trialDrops(GuiGraphics g, int cy, StructureSnapshot snapshot, Map<String, LongSet> drops, int mouseX, int mouseY,
+                           int clipTop, int clipHeight) {
+        cy += 2;
+        fine(g, Component.translatable("screen.justenoughstructures.trial_drops").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+        cy += secondaryLine() + 2;
+        int rowHeight = 20;
+        for (Map.Entry<String, LongSet> drop : drops.entrySet()) {
+            String table = drop.getKey();
+            LongSet spawners = drop.getValue();
+            boolean hovered = inside(mouseX, mouseY, x, cy, contentRight - x, rowHeight, clipTop, clipHeight);
+            Gui.card(g, x, cy, contentRight - x, rowHeight);
+            if (hovered) {
+                g.fill(x + 1, cy + 1, contentRight - 1, cy + rowHeight - 1, Gui.ROW_HOVER);
+            }
+            BlockState state = snapshot.stateAt(BlockPos.of(spawners.iterator().nextLong()));
+            Gui.slot(g, x + PAD + 1, cy + 1);
+            g.renderItem(state == null ? ItemStack.EMPTY : new ItemStack(state.getBlock().asItem()), x + PAD + 2, cy + 2);
+            // The tables are named after the key and the consumables, ominous or not.
+            ResourceLocation id = ResourceLocation.tryParse(table);
+            String name = id == null ? table : StructureNames.pretty(id.getPath());
+            if (id != null && id.getPath().contains("ominous") && !name.toLowerCase(Locale.ROOT).contains("ominous")) {
+                name = Component.translatable("screen.justenoughstructures.trial_drops_ominous", name).getString();
+            }
+            String count = Component.translatable("screen.justenoughstructures.times", spawners.size()).getString();
+            int mark = editedMark(g, table, contentRight - 12 - font.width(count) - 4, cy + 7);
+            Gui.fitted(g, font, name, x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 16 - font.width(count) - mark, TEXT);
+            g.drawString(font, count, contentRight - 12 - font.width(count), cy + 6, Gui.LABEL_SOFT, false);
+            g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? TEXT : Gui.LABEL_SOFT, false);
+            String key = "trial_drop:" + table;
+            if (hovered) {
+                List<Component> lines = new ArrayList<>(List.of(Component.literal(name)));
+                if (Gui.advanced()) {
+                    lines.add(Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
+                }
+                hoveredText = withEditedNote(lines, table);
+                hoveredBlocks = new Hovered(key, s -> spawners);
+            }
+            highlightRows.put(key, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
+            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenTable.accept(table)));
+            cy += rowHeight + 1;
+        }
+        return cy;
     }
 
     /** One item's chance across every container in the layout, built up a table at a time. */

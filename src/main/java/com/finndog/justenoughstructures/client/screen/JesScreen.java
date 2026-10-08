@@ -918,12 +918,25 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     private void showTable(String table) {
         foundIn = null;
-        popup = ChestPopup.forTable(table);
+        popup = ChestPopup.forTable(table, trialDrop(table) ? Component.translatable("screen.justenoughstructures.trial_drop_title") : null);
         popup.place(width, height, font);
         layoutPopupButtons();
         popup.seed = ThreadLocalRandom.current().nextLong();
         rollPopup();
         fetchPopupOdds();
+    }
+
+    /** Whether a trial spawner in the layout on show drops from the table when it's beaten. */
+    private boolean trialDrop(String table) {
+        if (result == null || !result.succeeded()) {
+            return false;
+        }
+        for (CompoundTag tag : result.snapshot().blockEntities()) {
+            if (TrialSpawners.loot(tag).contains(table)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void fetchPopupOdds() {

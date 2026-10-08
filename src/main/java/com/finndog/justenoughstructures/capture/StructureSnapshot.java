@@ -21,6 +21,8 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class StructureSnapshot {
     public static final int MAX_SIZE = 1024;
+    private static final String VAULT = "minecraft:vault";
+    private static final String VAULT_DEFAULT_TABLE = "minecraft:chests/trial_chambers/reward";
 
     private final ResourceLocation structureId;
     private final long seed;
@@ -168,6 +170,10 @@ public final class StructureSnapshot {
             copy.remove("LootTableSeed");
             copy.remove("Items");
             copy.remove(ContainerSources.TAG);
+            // A vault keeps its table in its config, and has one even without, so it goes altogether.
+            if (Nbt.string(copy, "id").equals(VAULT)) {
+                continue;
+            }
             out.add(copy);
         }
         return out;
@@ -187,7 +193,7 @@ public final class StructureSnapshot {
     private List<Container> findContainers() {
         List<Container> out = new ArrayList<>();
         for (CompoundTag tag : blockEntities) {
-            String table = Nbt.hasString(tag, "LootTable") ? Nbt.string(tag, "LootTable") : null;
+            String table = Nbt.hasString(tag, "LootTable") ? Nbt.string(tag, "LootTable") : vaultTable(tag);
             boolean hasItems = Nbt.hasList(tag, "Items") && !Nbt.list(tag, "Items", Tag.TAG_COMPOUND).isEmpty();
             if (table != null || hasItems) {
                 out.add(new Container(new BlockPos(Nbt.getInt(tag, "x"), Nbt.getInt(tag, "y"), Nbt.getInt(tag, "z")), Nbt.string(tag, "id"),
@@ -202,6 +208,18 @@ public final class StructureSnapshot {
             }
         }
         return out;
+    }
+
+    /**
+     * A vault's loot table, which it keeps in its config, or the trial chambers' reward when it has
+     * none of its own, as the game does. Null for anything else.
+     */
+    private static String vaultTable(CompoundTag tag) {
+        if (!Nbt.string(tag, "id").equals(VAULT)) {
+            return null;
+        }
+        String table = Nbt.string(Nbt.compound(tag, "config"), "loot_table");
+        return table.isEmpty() ? VAULT_DEFAULT_TABLE : table;
     }
 
     /** Every spawner, worked out once like {@link #containers()}. */
