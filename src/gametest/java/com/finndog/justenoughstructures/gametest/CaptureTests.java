@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -210,9 +211,10 @@ public final class CaptureTests {
     }
 
     /**
-     * Previews and the loot index capture on separate threads, and structure code shares caches
-     * that aren't thread safe. Run several captures at once on freshly loaded templates and check
-     * each comes out exactly as it does on its own.
+     * Previews, the list's pictures and the loot index capture on separate threads, and structure
+     * code shares caches that aren't thread safe. Run several captures at once on freshly loaded
+     * templates and check each comes out exactly as it does on its own. Half are captures nobody's
+     * looking at, which stop for the others and start again.
      */
     public static void parallelCapturesMatchSerialOnes(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -224,8 +226,11 @@ public final class CaptureTests {
         server.getStructureManager().onResourceManagerReload(server.getResourceManager());
         ExecutorService pool = Executors.newFixedThreadPool(jobs.size());
         List<Future<CaptureResult>> parallel = new ArrayList<>();
-        for (Job job : jobs) {
-            parallel.add(pool.submit(() -> StructureCapture.capture(server, job.id(), job.seed())));
+        for (int i = 0; i < jobs.size(); i++) {
+            Job job = jobs.get(i);
+            boolean background = i % 2 == 1;
+            parallel.add(pool.submit(() -> background ? StructureCapture.captureInBackground(server, job.id(), job.seed())
+                    : StructureCapture.capture(server, job.id(), job.seed())));
         }
         pool.shutdown();
         for (int i = 0; i < jobs.size(); i++) {
@@ -249,6 +254,52 @@ public final class CaptureTests {
                 helper.fail(job + ": " + difference);
                 return;
             }
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A capture nobody's looking at yet, like a picture for the list, stops for a preview someone is
+     * waiting on, so a big one doesn't hold the preview up for minutes. It starts again after, and
+     * comes out the same.
+     */
+    public static void backgroundCapturesStopForPreviews(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation big = Ids.parse("ancient_city");
+        ResourceLocation small = Ids.parse("igloo");
+        List<String> finished = Collections.synchronizedList(new ArrayList<>());
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        Future<CaptureResult> background = pool.submit(() -> {
+            CaptureResult result = StructureCapture.captureInBackground(server, big, SEED);
+            finished.add("background");
+            return result;
+        });
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!StructureCapture.busy() && System.nanoTime() < until) {
+            Thread.onSpinWait();
+        }
+        Future<CaptureResult> preview = pool.submit(() -> {
+            CaptureResult result = StructureCapture.capture(server, small, SEED);
+            finished.add("preview");
+            return result;
+        });
+        pool.shutdown();
+        CaptureResult behind;
+        CaptureResult ahead;
+        try {
+            ahead = preview.get(1, TimeUnit.MINUTES);
+            behind = background.get(1, TimeUnit.MINUTES);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            helper.fail("the captures didn't finish, they may be waiting on the server thread: " + e);
+            return;
+        }
+        helper.assertTrue(ahead.succeeded(), "the preview failed: " + ahead.error());
+        helper.assertTrue(behind.succeeded(), "the background capture failed: " + behind.error());
+        helper.assertTrue(finished.get(0).equals("preview"), "the preview waited for the whole background capture");
+        String difference = difference(behind.snapshot(), StructureCapture.capture(server, big, SEED).snapshot());
+        if (difference != null) {
+            helper.fail("the background capture came out differently after stopping: " + difference);
+            return;
         }
         helper.succeed();
     }

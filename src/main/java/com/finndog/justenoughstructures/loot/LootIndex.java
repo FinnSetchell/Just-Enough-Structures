@@ -151,7 +151,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     return null;
                 }
                 try {
-                    CaptureResult result = StructureCapture.capture(server, id, StructureCapture.defaultSeed(id) + i);
+                    CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i);
                     if (!result.succeeded()) {
                         break;
                     }

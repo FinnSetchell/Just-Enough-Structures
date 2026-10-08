@@ -50,10 +50,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -76,32 +75,20 @@ public final class JesServer {
     private static final int MAX_QUEUED_PER_PLAYER = 3;
 
     // Structure generation normally runs on worker threads, so structure code expects to run off the
-    // server thread. One thread keeps a busy screen from flooding the server with work. Its queue puts
-    // the structure a player is looking at ahead of the list's pictures, which can take a while each.
-    private static final ThreadPoolExecutor CAPTURES = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
-            new PriorityBlockingQueue<>(), r -> {
-        Thread t = new Thread(r, "Just Enough Structures capture");
-        t.setDaemon(true);
-        return t;
-    });
-    private static final AtomicLong CAPTURE_ORDER = new AtomicLong();
+    // server thread. A thread for the structures players are looking at and one for the list's
+    // pictures keep a busy screen from flooding the server with work. Only one capture runs at a time
+    // either way, and a picture stops for a preview that's waiting, to be made again after it.
+    private static final ExecutorService PREVIEWS = captureThread("Just Enough Structures capture");
+    private static final ExecutorService PICTURES = captureThread("Just Enough Structures pictures");
     /** Each player's newest preview, so ones they've already moved on from aren't generated. */
     private static final Map<UUID, Integer> LATEST_PREVIEW = new ConcurrentHashMap<>();
 
-    /** A capture waiting its turn: previews first, then in the order they were asked for. */
-    private record CaptureTask(boolean preview, long order, Runnable work) implements Runnable, Comparable<CaptureTask> {
-        @Override
-        public void run() {
-            work.run();
-        }
-
-        @Override
-        public int compareTo(CaptureTask other) {
-            if (preview != other.preview) {
-                return preview ? -1 : 1;
-            }
-            return Long.compare(order, other.order);
-        }
+    private static ExecutorService captureThread(String name) {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
@@ -598,7 +585,7 @@ public final class JesServer {
         if (preview) {
             LATEST_PREVIEW.put(playerId, requestId);
         }
-        CAPTURES.execute(new CaptureTask(preview, CAPTURE_ORDER.getAndIncrement(), () -> {
+        (preview ? PREVIEWS : PICTURES).execute(() -> {
             if (preview && !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))) {
                 CaptureResult skipped = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
                 byte[] reply = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
@@ -616,7 +603,8 @@ public final class JesServer {
                     CaptureResult refused = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
                     payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, refused)));
                 } else {
-                    CaptureResult result = forPlayers(structure, StructureCapture.capture(server, structure, seed));
+                    CaptureResult result = forPlayers(structure, preview ? StructureCapture.capture(server, structure, seed)
+                            : StructureCapture.captureInBackground(server, structure, seed));
                     payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, result)));
                     if (result.succeeded()) {
                         cache(key, payload);
@@ -643,7 +631,7 @@ public final class JesServer {
                     sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, done);
                 }
             });
-        }));
+        });
     }
 
     /**

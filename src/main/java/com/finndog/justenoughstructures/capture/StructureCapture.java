@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -88,11 +89,15 @@ public final class StructureCapture {
     private static final ChunkPos START_CHUNK = new ChunkPos(0, 0);
     private static final int MAX_CHUNKS_ACROSS = StructureSnapshot.MAX_SIZE / 16;
     /**
-     * One capture at a time. Previews and the loot index run on different threads, and structure
-     * code leans on caches that aren't safe to share, like the block lists templates keep. Fair, so
-     * a preview only ever waits for the one index capture in progress.
+     * One capture at a time. Previews, the list's pictures and the loot index run on different
+     * threads, and structure code leans on caches that aren't safe to share, like the block lists
+     * templates keep. Fair, so a preview is next once the capture in progress stops for it.
      */
     private static final ReentrantLock LOCK = new ReentrantLock(true);
+    /** Threads making captures someone is waiting to see, which captures nobody's looking at stop for. */
+    private static final Set<Thread> FOREGROUND = ConcurrentHashMap.newKeySet();
+    /** Whether the capture on this thread is one nobody's looking at yet. */
+    private static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> false);
     /** The climates made for a world that has none, by dimension, and the server they're for. */
     private static final Map<ResourceKey<Level>, RandomState> CLIMATES = new HashMap<>();
     private static WeakReference<MinecraftServer> climatesFor = new WeakReference<>(null);
@@ -140,21 +145,75 @@ public final class StructureCapture {
     }
 
     public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed) {
-        try {
-            // Only ever a wait for one other capture, so this is a safety net rather than a limit.
-            if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
-                return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
+        boolean foreground = !BACKGROUND.get();
+        if (foreground) {
+            FOREGROUND.add(Thread.currentThread());
         }
         try {
-            // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
-            // not this mod's problem, so they go to the debug log.
-            return JesLog.quietly(() -> captureLocked(server, structureId, seed));
+            try {
+                // Only ever a wait for one other capture, so this is a safety net rather than a limit.
+                if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
+                    return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
+            }
+            try {
+                // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
+                // not this mod's problem, so they go to the debug log.
+                return JesLog.quietly(() -> captureLocked(server, structureId, seed));
+            } finally {
+                LOCK.unlock();
+            }
         } finally {
-            LOCK.unlock();
+            if (foreground) {
+                FOREGROUND.remove(Thread.currentThread());
+            }
+        }
+    }
+
+    /**
+     * A capture nobody is looking at yet, like a picture for the list or one for the loot index. It
+     * stops for a preview someone is waiting on, which can be minutes for the biggest structures, and
+     * starts again once that's done.
+     */
+    public static CaptureResult captureInBackground(MinecraftServer server, ResourceLocation structureId, long seed) {
+        BACKGROUND.set(true);
+        try {
+            while (true) {
+                try {
+                    return capture(server, structureId, seed);
+                } catch (GaveWay e) {
+                    // The lock is fair, so this queues up behind the preview.
+                }
+            }
+        } finally {
+            BACKGROUND.remove();
+        }
+    }
+
+    /** Whether a capture is being made right now. For tests. */
+    public static boolean busy() {
+        return LOCK.isLocked();
+    }
+
+    /** Stops a capture nobody's looking at when someone is waiting on one they are. */
+    private static void giveWayIfWaitedOn() {
+        if (!BACKGROUND.get()) {
+            return;
+        }
+        for (Thread thread : FOREGROUND) {
+            if (LOCK.hasQueuedThread(thread)) {
+                throw new GaveWay();
+            }
+        }
+    }
+
+    /** A capture nobody's looking at stopping for one somebody is. */
+    private static final class GaveWay extends RuntimeException {
+        GaveWay() {
+            super(null, null, false, false);
         }
     }
 
@@ -219,6 +278,8 @@ public final class StructureCapture {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
                 }
                 placedNothing++;
+            } catch (GaveWay e) {
+                throw e;
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
@@ -247,6 +308,8 @@ public final class StructureCapture {
                 if (snapshot != null) {
                     return new Round(CaptureResult.success(snapshot, attempts, elapsed(started)), null);
                 }
+            } catch (GaveWay e) {
+                throw e;
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return new Round(CaptureResult.failure(e.reason, attempts, elapsed(started)), null);
@@ -377,6 +440,7 @@ public final class StructureCapture {
     /** One place: what was placed, or null if it found nowhere to start or placed nothing. */
     private static StructureSnapshot attempt(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
                                              Place place, List<Component> attempts) {
+        giveWayIfWaitedOn();
         try {
             return captureOn(server, structureId, structure, place, attempts);
         } catch (ConcurrentModificationException e) {
@@ -389,6 +453,7 @@ public final class StructureCapture {
 
     /** Whether the structure finds somewhere to start at a place, building nothing. */
     private static boolean startsOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure, Place place) {
+        giveWayIfWaitedOn();
         ServerLevel level = place.level(server);
         RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + place.terrain().name().toLowerCase(Locale.ROOT) + " terrain");
         try {
@@ -538,11 +603,13 @@ public final class StructureCapture {
                     random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
                     BoundingBox writable = new BoundingBox(pos.getMinBlockX(), Levels.minY(level), pos.getMinBlockZ(),
                             pos.getMaxBlockX(), Levels.maxY(level), pos.getMaxBlockZ());
+                    giveWayIfWaitedOn();
                     region.placing(pos);
                     start.placeInChunk(region, structureManager, generator, random, writable, pos);
                 }
             }
             region.placing(null);
+            giveWayIfWaitedOn();
             postProcess(region, chunks);
         } finally {
             SANDBOX_STRUCTURES.remove();
