@@ -105,11 +105,14 @@ public final class StructureCapture {
     private static WeakReference<MinecraftServer> climatesFor = new WeakReference<>(null);
     /**
      * When a structure finds nowhere to start on any terrain: how many other seeds and spots are tried
-     * on each, how many of its biomes at most, and how long all of that may take.
+     * on each, how many of its biomes at most, and how many places in all. A number of places rather
+     * than a time, so a structure previews the same on a slow machine as on a fast one. The time limit
+     * is only a safety net, and running into it counts as a failure that may not happen again.
      */
     private static final int OTHER_SPOTS = 24;
     private static final int MOST_BIOMES = 64;
-    private static final long OTHER_PLACES_NANOS = 3_000_000_000L;
+    private static final int OTHER_PLACES = 192;
+    private static final long OTHER_PLACES_NANOS = 30_000_000_000L;
     /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
     private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
     /** What draws from the real world's random come from while this thread is placing a capture. */
@@ -155,11 +158,11 @@ public final class StructureCapture {
             try {
                 // Only ever a wait for one other capture, so this is a safety net rather than a limit.
                 if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
-                    return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
+                    return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
+                return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
             }
             NOT_LOADED.set(new HashSet<>());
             JesLog.ranOutOfMemory();
@@ -170,7 +173,7 @@ public final class StructureCapture {
                 CaptureResult result = JesLog.quietly(() -> captureLocked(server, structureId, seed));
                 outOfMemory = JesLog.ranOutOfMemory();
                 return outOfMemory && !result.succeeded()
-                        ? CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), result.attempts(), result.millis())
+                        ? CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), result.attempts(), result.millis())
                         : result;
             } catch (OutOfMemoryError e) {
                 outOfMemory = true;
@@ -314,10 +317,16 @@ public final class StructureCapture {
         // spots are tried, quickly, as a start that can't be made fails before anything's built.
         Registry<Biome> biomes = server.registryAccess().registryOrThrow(Registries.BIOME);
         long deadline = System.nanoTime() + OTHER_PLACES_NANOS;
+        int tried = 0;
         int placedNothing = 0;
         for (Place other : otherPlaces(structure, terrains, seed, biomes, dimension)) {
-            if (System.nanoTime() > deadline || placedNothing >= 3) {
+            if (tried++ >= OTHER_PLACES || placedNothing >= 3) {
                 break;
+            }
+            if (System.nanoTime() > deadline) {
+                attempts.add(Component.translatable("screen.justenoughstructures.attempt.out_of_time"));
+                return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.nowhere_to_generate"),
+                        attempts, elapsed(started));
             }
             try {
                 Place place = other.withClimate(climate(server, other.level(server)));

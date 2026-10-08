@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.loot;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.Memory;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -50,6 +51,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int SEEDS = 4;
+    /** How often to look again while waiting for memory to free up. */
+    private static final long MEMORY_WAIT_MILLIS = 5_000L;
 
     /**
      * Captures every structure and reads every loot table they use. {@code progress} gets the number
@@ -67,7 +70,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     /**
      * The slow half: generates each structure, and reads its template pools where it has them, for
      * the loot tables it uses and the templates it can place. Null if cancelled. Structures that
-     * couldn't be generated are counted in {@code failed}.
+     * couldn't be generated are counted in {@code failed}, except those that may work another time,
+     * which the scan keeps to try again.
      */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                      AtomicInteger failed) {
@@ -90,15 +94,16 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     /**
      * Generates again only the structures that place a template whose changes differ from when
-     * {@code base} was made, and keeps the rest. Null if cancelled.
+     * {@code base} was made, and those it's keeping to try again, and keeps the rest. Null if cancelled.
      */
     public static StructureScan update(MinecraftServer server, StructureScan base, BooleanSupplier cancelled) {
         Map<ResourceLocation, String> now = templatePatches();
         Set<ResourceLocation> changed = base.changedTemplates(now);
-        if (changed.isEmpty()) {
+        if (changed.isEmpty() && base.retry().isEmpty()) {
             return base;
         }
-        Set<ResourceLocation> affected = base.placing(changed);
+        Set<ResourceLocation> affected = new TreeSet<>(base.placing(changed));
+        affected.addAll(base.retry());
         StructureScan part = scan(server, new ArrayList<>(affected), done -> {
         }, cancelled, new AtomicInteger());
         if (part == null) {
@@ -112,8 +117,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         }
         tables.putAll(part.tables());
         templates.putAll(part.templates());
-        JesLog.debug("Generated {} of {} structures again for what was changed in {}", affected.size(), base.templates().size(), changed);
-        return new StructureScan(tables, templates, now);
+        JesLog.debug("Generated {} of {} structures again for what was changed in {} and {} tried again", affected.size(), base.templates().size(),
+                changed, base.retry());
+        return new StructureScan(tables, templates, now, part.retry());
     }
 
     /** The index from a scan, with the items each table can give read from the loot tables as they are now. */
@@ -133,82 +139,146 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                                              AtomicInteger failed, Map<ResourceLocation, String> patches) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
+        Set<ResourceLocation> retry = new TreeSet<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
         int done = 0;
         for (ResourceLocation id : ids) {
-            if (cancelled.getAsBoolean()) {
+            Found found = scanOne(server, registry, scan, id, cancelled);
+            if (found == null) {
                 return null;
             }
-            Set<ResourceLocation> found = new TreeSet<>();
-            Set<ResourceLocation> placed = new TreeSet<>();
-            // Jigsaw structures' pieces can all be read without generating anything, which finds
-            // rare pieces too. One generation still runs for loot that code sets as it places.
-            Structure structure = Regs.value(registry, id);
-            PoolScan.Reach fromPools = null;
-            try {
-                fromPools = structure == null ? null : scan.scan(structure);
-            } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                JesLog.debug("Reading {}'s pools failed", id, e);
-            }
-            if (fromPools != null) {
-                found.addAll(fromPools.tables());
-                placed.addAll(fromPools.templates());
-            }
-            // Otherwise keep generating new layouts until one turns up nothing new.
-            int seeds = fromPools != null ? 1 : SEEDS;
-            boolean generated = false;
-            for (int i = 0; i < seeds; i++) {
-                if (cancelled.getAsBoolean()) {
-                    return null;
-                }
-                try {
-                    CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i);
-                    if (!result.succeeded()) {
-                        break;
-                    }
-                    generated = true;
-                    int before = found.size();
-                    for (StructureSnapshot.Container c : result.snapshot().containers()) {
-                        ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());
-                        if (table != null) {
-                            found.add(table);
-                        }
-                        // The template a container came from, for structures placed without pools.
-                        if (c.source() != null) {
-                            placed.add(c.source().template());
-                        }
-                    }
-                    // What trial spawners drop when they're beaten, like trial keys.
-                    for (CompoundTag tag : result.snapshot().blockEntities()) {
-                        for (String drop : TrialSpawners.loot(tag)) {
-                            ResourceLocation table = ResourceLocation.tryParse(drop);
-                            if (table != null) {
-                                found.add(table);
-                            }
-                        }
-                    }
-                    if (i > 0 && found.size() == before) {
-                        break;
-                    }
-                } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                    // A broken structure from some mod is left out rather than ending the whole index.
-                    JesLog.debug("Indexing {} failed", id, e);
-                    break;
-                }
-            }
-            if (!generated) {
+            keep(id, found, tables, templates);
+            if (found.tryAgain()) {
+                retry.add(id);
+            } else if (!found.generated()) {
                 failed.incrementAndGet();
-            }
-            if (!found.isEmpty()) {
-                tables.put(id, found);
-            }
-            if (!placed.isEmpty()) {
-                templates.put(id, placed);
             }
             progress.accept(++done);
         }
-        return new StructureScan(tables, templates, patches);
+        // Those that failed for a reason that may have passed by now get one more go. Any that fail
+        // that way again are kept to try another time.
+        for (ResourceLocation id : List.copyOf(retry)) {
+            Found again = scanOne(server, registry, scan, id, cancelled);
+            if (again == null) {
+                return null;
+            }
+            if (!again.tryAgain()) {
+                retry.remove(id);
+                keep(id, again, tables, templates);
+                if (!again.generated()) {
+                    failed.incrementAndGet();
+                }
+            }
+        }
+        return new StructureScan(tables, templates, patches, retry);
+    }
+
+    /**
+     * What generating a structure found: the loot tables it uses and the templates it places, whether
+     * it generated at all, and whether it's worth trying again, as it failed for a reason that may pass.
+     */
+    private record Found(Set<ResourceLocation> tables, Set<ResourceLocation> templates, boolean generated, boolean tryAgain) {
+    }
+
+    private static void keep(ResourceLocation id, Found found, Map<ResourceLocation, Set<ResourceLocation>> tables,
+                             Map<ResourceLocation, Set<ResourceLocation>> templates) {
+        tables.remove(id);
+        templates.remove(id);
+        if (!found.tables().isEmpty()) {
+            tables.put(id, found.tables());
+        }
+        if (!found.templates().isEmpty()) {
+            templates.put(id, found.templates());
+        }
+    }
+
+    /** Reads a structure's pools and generates it. Null if cancelled. */
+    private static Found scanOne(MinecraftServer server, Registry<Structure> registry, PoolScan scan, ResourceLocation id, BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean()) {
+            return null;
+        }
+        Set<ResourceLocation> found = new TreeSet<>();
+        Set<ResourceLocation> placed = new TreeSet<>();
+        // Jigsaw structures' pieces can all be read without generating anything, which finds
+        // rare pieces too. One generation still runs for loot that code sets as it places.
+        Structure structure = Regs.value(registry, id);
+        PoolScan.Reach fromPools = null;
+        try {
+            fromPools = structure == null ? null : scan.scan(structure);
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            JesLog.debug("Reading {}'s pools failed", id, e);
+        }
+        if (fromPools != null) {
+            found.addAll(fromPools.tables());
+            placed.addAll(fromPools.templates());
+        }
+        // Otherwise keep generating new layouts until one turns up nothing new.
+        int seeds = fromPools != null ? 1 : SEEDS;
+        boolean generated = false;
+        boolean tryAgain = false;
+        for (int i = 0; i < seeds; i++) {
+            if (cancelled.getAsBoolean() || !waitForMemory(cancelled)) {
+                return null;
+            }
+            try {
+                CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i);
+                if (!result.succeeded()) {
+                    // One with layouts in already keeps those rather than being tried again.
+                    tryAgain = !generated && result.temporary();
+                    break;
+                }
+                generated = true;
+                int before = found.size();
+                for (StructureSnapshot.Container c : result.snapshot().containers()) {
+                    ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());
+                    if (table != null) {
+                        found.add(table);
+                    }
+                    // The template a container came from, for structures placed without pools.
+                    if (c.source() != null) {
+                        placed.add(c.source().template());
+                    }
+                }
+                // What trial spawners drop when they're beaten, like trial keys.
+                for (CompoundTag tag : result.snapshot().blockEntities()) {
+                    for (String drop : TrialSpawners.loot(tag)) {
+                        ResourceLocation table = ResourceLocation.tryParse(drop);
+                        if (table != null) {
+                            found.add(table);
+                        }
+                    }
+                }
+                if (i > 0 && found.size() == before) {
+                    break;
+                }
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                // A broken structure from some mod is left out rather than ending the whole index.
+                JesLog.debug("Indexing {} failed", id, e);
+                break;
+            }
+        }
+        return new Found(found, placed, generated, tryAgain);
+    }
+
+    /**
+     * Waits while the server is short on memory, as a structure can need hundreds of megabytes while
+     * it generates, and running out could take the server down with it. False if cancelled meanwhile.
+     */
+    private static boolean waitForMemory(BooleanSupplier cancelled) {
+        while (Memory.low()) {
+            JesLog.warnOnce("loot-index-memory", "The loot index is waiting for the server to have more memory free before it generates more structures");
+            if (cancelled.getAsBoolean()) {
+                return false;
+            }
+            try {
+                Thread.sleep(MEMORY_WAIT_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Every item a table can ever give, found by reading the table rather than rolling it. */

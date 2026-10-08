@@ -261,6 +261,29 @@ public final class ContainerTests {
         helper.succeed();
     }
 
+    /**
+     * A structure that couldn't be generated for a reason that may pass, like the server running short
+     * on memory, is generated again the next time the index is brought up to date.
+     */
+    public static void lootIndexTriesTemporaryFailuresAgain(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        freshFolder();
+        try {
+            StructureScan full = LootIndex.scan(server, List.of(OUTPOST), done -> {
+            }, () -> false, new AtomicInteger());
+            helper.assertTrue(full.retry().isEmpty(), "the outpost was kept to try again, though it generated: " + full.retry());
+            // As if the outpost couldn't be generated the first time round.
+            StructureScan failed = new StructureScan(Map.of(), Map.of(), full.patches(), Set.of(OUTPOST));
+            StructureScan updated = LootIndex.update(server, failed, () -> false);
+            helper.assertTrue(updated.tables().equals(full.tables()), "the outpost's tables weren't found again: " + updated.tables());
+            helper.assertTrue(updated.templates().equals(full.templates()), "the outpost's templates weren't found again: " + updated.templates());
+            helper.assertTrue(updated.retry().isEmpty(), "the outpost is still kept to try again: " + updated.retry());
+        } finally {
+            leaveFolder();
+        }
+        helper.succeed();
+    }
+
     /** After /reload, bringing the loot index up to date finds the table a container was changed to. */
     public static void lootIndexFollowsContainerChanges(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

@@ -381,6 +381,11 @@ public final class JesGameTests {
         ContainerTests.lootIndexUpdatesOnlyWhatChanged(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
+    public void lootIndexTriesTemporaryFailuresAgain(GameTestHelper helper) {
+        ContainerTests.lootIndexTriesTemporaryFailuresAgain(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_update", timeoutTicks = 1200)
     public void lootIndexFollowsContainerChanges(GameTestHelper helper) {

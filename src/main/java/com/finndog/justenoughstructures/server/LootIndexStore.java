@@ -49,8 +49,9 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * template file. Loot tables don't change which tables a structure uses, so they're not in it:
  * what each table can give is read from the tables after every start and /reload, which is quick.
  * Containers changed in the browser only send the structures that place those templates through
- * again. Anything else that changes means generating every structure again, as does anything that
- * goes wrong along the way.
+ * again, as do structures that failed for a reason that may have passed, like the server running
+ * short on memory. Anything else that changes means generating every structure again, as does
+ * anything that goes wrong along the way.
  *
  * <p>All of this runs in the background. If a saved scan matches, the index is ready in moments.
  * Otherwise a dedicated server builds it straight away and singleplayer waits until someone wants
@@ -60,9 +61,9 @@ import net.minecraft.server.packs.resources.ResourceManager;
 public final class LootIndexStore {
     /**
      * Goes up whenever what's saved changes shape, or what goes in it does, so old files are never
-     * read as new ones. 3: vaults and what trial spawners drop.
+     * read as new ones. 3: vaults and what trial spawners drop. 4: structures to try again.
      */
-    private static final String FORMAT = "3";
+    private static final String FORMAT = "4";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list");
@@ -206,8 +207,8 @@ public final class LootIndexStore {
                 return;
             }
             LootIndex built = LootIndex.of(server, scanned);
-            JesLog.debug("Indexed the loot of {} structures in {} s ({} wouldn't generate)", ids.size(),
-                    (System.nanoTime() - started) / 1_000_000_000L, failed.get());
+            JesLog.debug("Indexed the loot of {} structures in {} s ({} wouldn't generate, {} to try again)", ids.size(),
+                    (System.nanoTime() - started) / 1_000_000_000L, failed.get(), scanned.retry().size());
             if (key != null) {
                 write(dir, key, scanned);
             }

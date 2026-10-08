@@ -14,10 +14,20 @@ import net.minecraft.resources.ResourceLocation;
  * <p>{@code patches} is how the containers changed in the browser stood when it was made, per
  * template, along with spawners made trial spawners or back, which change what drops. When they
  * change, only the structures that place one of those templates are generated again.
+ *
+ * <p>{@code retry} are the structures that couldn't be generated for a reason that may have passed,
+ * like the server running short on memory, rather than anything about them. They're generated
+ * again the next time the scan is brought up to date.
  */
 public record StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables,
                             Map<ResourceLocation, Set<ResourceLocation>> templates,
-                            Map<ResourceLocation, String> patches) {
+                            Map<ResourceLocation, String> patches,
+                            Set<ResourceLocation> retry) {
+
+    public StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables, Map<ResourceLocation, Set<ResourceLocation>> templates,
+                         Map<ResourceLocation, String> patches) {
+        this(tables, templates, patches, Set.of());
+    }
 
     /** The templates whose changes differ between the scan and {@code now}. */
     public Set<ResourceLocation> changedTemplates(Map<ResourceLocation, String> now) {

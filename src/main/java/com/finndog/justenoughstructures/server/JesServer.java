@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.server;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Memory;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.Players;
@@ -21,10 +22,6 @@ import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.mojang.datafixers.util.Pair;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryPoolMXBean;
-import java.lang.management.MemoryType;
-import java.lang.management.MemoryUsage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -619,7 +616,7 @@ public final class JesServer {
         AtomicInteger queued = QUEUED.computeIfAbsent(player.getUUID(), id -> new AtomicInteger());
         if (!preview && queued.incrementAndGet() > MAX_QUEUED_PER_PLAYER) {
             queued.decrementAndGet();
-            CaptureResult busy = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
+            CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
                     Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
             return;
@@ -631,7 +628,7 @@ public final class JesServer {
         }
         (preview ? PREVIEWS : PICTURES).execute(() -> {
             if (preview && !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))) {
-                CaptureResult skipped = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
+                CaptureResult skipped = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
                 byte[] reply = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
                 server.execute(() -> {
                     ServerPlayer target = server.getPlayerList().getPlayer(playerId);
@@ -643,8 +640,8 @@ public final class JesServer {
             }
             byte[] payload;
             try {
-                if (lowOnMemory()) {
-                    CaptureResult refused = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
+                if (Memory.low()) {
+                    CaptureResult refused = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
                     payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, refused)));
                 } else {
                     CaptureResult result = forPlayers(structure, preview ? StructureCapture.capture(server, structure, seed)
@@ -661,7 +658,7 @@ public final class JesServer {
             } catch (OutOfMemoryError e) {
                 // Whatever the capture had is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
-                CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
+                CaptureResult failed = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
                 payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed)));
             } finally {
                 if (!preview) {
@@ -698,31 +695,6 @@ public final class JesServer {
                 cachedBytes -= entry.getValue().length;
                 eldest.remove();
             }
-        }
-    }
-
-    /**
-     * Whether too little memory is free to start a capture, as a big structure can need hundreds of
-     * megabytes while it generates. Judged by what was still in use after the last garbage
-     * collection, so garbage waiting to be collected doesn't count against it.
-     */
-    private static boolean lowOnMemory() {
-        try {
-            long max = Runtime.getRuntime().maxMemory();
-            if (max == Long.MAX_VALUE) {
-                return false;
-            }
-            long live = 0;
-            for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
-                if (pool.getType() != MemoryType.HEAP) {
-                    continue;
-                }
-                MemoryUsage afterGc = pool.getCollectionUsage();
-                live += afterGc != null ? afterGc.getUsed() : pool.getUsage().getUsed();
-            }
-            return max - live < Math.max(384L << 20, max / 5);
-        } catch (RuntimeException e) {
-            return false;
         }
     }
 

@@ -269,13 +269,13 @@ public final class ServiceTests {
         ResourceLocation table = Ids.of("test", "chests/tower");
         ResourceLocation template = Ids.of("test", "tower/top");
         StructureScan index = new StructureScan(Map.of(structure, Set.of(table)), Map.of(structure, Set.of(template)),
-                Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"));
+                Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"), Set.of(Ids.of("test", "too_big_for_now")));
         try {
             Path dir = Files.createTempDirectory("jes-index");
             LootIndexStore.write(dir, "abc", index);
             StructureScan read = LootIndexStore.read(dir, "abc");
             helper.assertTrue(read != null && read.tables().equals(index.tables()) && read.templates().equals(index.templates())
-                    && read.patches().equals(index.patches()), "the saved scan read back as " + read);
+                    && read.patches().equals(index.patches()) && read.retry().equals(index.retry()), "the saved scan read back as " + read);
             helper.assertTrue(LootIndexStore.read(dir, "missing") == null, "an index that was never saved was read");
             Files.write(dir.resolve("broken.bin"), new byte[]{1, 2, 3});
             helper.assertTrue(LootIndexStore.read(dir, "broken") == null, "a damaged file was read as an index");

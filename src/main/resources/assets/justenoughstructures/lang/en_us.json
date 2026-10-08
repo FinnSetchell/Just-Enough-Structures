@@ -382,6 +382,7 @@
   "screen.justenoughstructures.attempt.other_place": "%s: started somewhere else",
   "screen.justenoughstructures.attempt.own_dimension": "Trying again in its own dimension, %s",
   "screen.justenoughstructures.attempt.other_places": "Its other biomes, high ground and other seeds didn't work either",
+  "screen.justenoughstructures.attempt.out_of_time": "Stopped trying other places, as it was taking too long",
   "screen.justenoughstructures.times": "x%s",
   "screen.justenoughstructures.name_times": "%s x%s",
   "screen.justenoughstructures.times_name": "%s x %s",

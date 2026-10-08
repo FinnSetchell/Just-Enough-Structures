@@ -426,6 +426,8 @@ public final class Codecs {
             buf.writeResourceLocation(template);
             buf.writeUtf(patches);
         });
+        buf.writeVarInt(scan.retry().size());
+        scan.retry().forEach(buf::writeResourceLocation);
     }
 
     public static StructureScan readScan(FriendlyByteBuf buf) {
@@ -436,7 +438,12 @@ public final class Codecs {
         for (int i = 0; i < count; i++) {
             patches.put(buf.readResourceLocation(), buf.readUtf());
         }
-        return new StructureScan(tables, templates, patches);
+        int retrying = buf.readVarInt();
+        Set<ResourceLocation> retry = new TreeSet<>();
+        for (int i = 0; i < retrying; i++) {
+            retry.add(buf.readResourceLocation());
+        }
+        return new StructureScan(tables, templates, patches, retry);
     }
 
     private static void writeIdMap(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> map) {
