@@ -361,6 +361,8 @@
   "screen.justenoughstructures.attempt.retrying": "%s: ran into world generation, trying again",
   "screen.justenoughstructures.attempt.crashed": "%s: crashed with %s",
   "screen.justenoughstructures.attempt.failed": "%s: %s",
+  "screen.justenoughstructures.attempt.other_seed": "%s: started with another seed",
+  "screen.justenoughstructures.attempt.other_seeds": "No start with %s other seeds either",
   "screen.justenoughstructures.times": "x%s",
   "screen.justenoughstructures.name_times": "%s x%s",
   "screen.justenoughstructures.times_name": "%s x %s",
