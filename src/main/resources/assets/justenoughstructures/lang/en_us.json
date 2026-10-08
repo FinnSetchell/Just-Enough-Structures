@@ -435,7 +435,7 @@
   "screen.justenoughstructures.json.value": "a value should be here, or there is a comma too many",
   "screen.justenoughstructures.json.other": "check the brackets, quotes and commas",
   "screen.justenoughstructures.override.invalid_table": "The game can't load that as a loot table: %s",
-  "screen.justenoughstructures.override.no_permission": "Editing loot tables needs permission",
+  "screen.justenoughstructures.override.no_permission": "Using Pack tools needs permission",
   "screen.justenoughstructures.override.save_failed": "Couldn't save it: %s",
   "screen.justenoughstructures.override.kept": "Your version stays, and won't be flagged again until the original changes",
   "screen.justenoughstructures.override.removed": "The override is off from the next /reload. A copy is kept in %s",
