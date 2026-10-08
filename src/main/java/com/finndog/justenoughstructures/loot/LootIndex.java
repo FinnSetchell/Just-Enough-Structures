@@ -222,7 +222,10 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 return null;
             }
             try {
-                CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i);
+                CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i, cancelled);
+                if (result == null) {
+                    return null;
+                }
                 if (!result.succeeded()) {
                     // One with layouts in already keeps those rather than being tried again.
                     tryAgain = !generated && result.temporary();

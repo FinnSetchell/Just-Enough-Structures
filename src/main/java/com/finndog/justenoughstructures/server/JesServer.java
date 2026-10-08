@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -78,7 +79,7 @@ public final class JesServer {
     // either way, and a picture stops for a preview that's waiting, to be made again after it.
     private static final ExecutorService PREVIEWS = captureThread("Just Enough Structures capture");
     private static final ExecutorService PICTURES = captureThread("Just Enough Structures pictures");
-    /** Each player's newest preview, so ones they've already moved on from aren't generated. */
+    /** Each player's newest preview, so ones they've already moved on from stop. */
     private static final Map<UUID, Integer> LATEST_PREVIEW = new ConcurrentHashMap<>();
 
     private static ExecutorService captureThread(String name) {
@@ -92,6 +93,8 @@ public final class JesServer {
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
     /** Captures already sent, newest use last, kept to {@link #CACHED_CAPTURES} and {@link #CACHE_BYTES}. */
     private static final Map<String, byte[]> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true);
+    /** Goes up whenever the kept captures are dropped, so one started before isn't kept after. */
+    private static int captureGeneration;
     /** A few big structures can be megabytes each, so the cache is limited by size as well as count. */
     private static final long CACHE_BYTES = 48L << 20;
     private static long cachedBytes;
@@ -155,10 +158,7 @@ public final class JesServer {
      */
     public static void structuresChanged(MinecraftServer server) {
         catalog = null;
-        synchronized (CAPTURE_CACHE) {
-            CAPTURE_CACHE.clear();
-            cachedBytes = 0;
-        }
+        clearCaptures();
         for (UUID id : BROWSING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
             if (player == null) {
@@ -184,21 +184,31 @@ public final class JesServer {
     public static void invalidate() {
         ContainerPatches.load();
         SpawnerPatches.load();
-        synchronized (CAPTURE_CACHE) {
-            CAPTURE_CACHE.clear();
-            cachedBytes = 0;
-        }
+        clearCaptures();
         catalog = null;
         ODDS_CACHE.clear();
         ROLLING.clear();
     }
 
-    /** When a player leaves: drops anything they were halfway through sending. */
-    public static void left(ServerPlayer player) {
-        Uploads.forget(player.getUUID());
+    /** Drops the captures kept to send again, along with any still being made from before. */
+    private static void clearCaptures() {
+        synchronized (CAPTURE_CACHE) {
+            captureGeneration++;
+            CAPTURE_CACHE.clear();
+            cachedBytes = 0;
+        }
     }
 
-    /** When the server stops: drops what belonged to that world and stops the loot index. */
+    /** When a player leaves: drops anything they were halfway through sending, and stops their previews and pictures. */
+    public static void left(ServerPlayer player) {
+        UUID id = player.getUUID();
+        Uploads.forget(id);
+        LATEST_PREVIEW.remove(id);
+        BROWSING.remove(id);
+        QUEUED.remove(id);
+    }
+
+    /** When the server stops: drops what belonged to that world, and stops the loot index and the captures under way. */
     public static void stop() {
         running = null;
         guardChecked = false;
@@ -206,6 +216,9 @@ public final class JesServer {
         Uploads.clear();
         LootIndexStore.stop();
         BROWSING.clear();
+        LATEST_PREVIEW.clear();
+        QUEUED.clear();
+        LOCATING.clear();
     }
 
     public static void onRequestIndex(ServerPlayer player) {
@@ -626,30 +639,35 @@ public final class JesServer {
         if (preview) {
             LATEST_PREVIEW.put(playerId, requestId);
         }
+        int generation;
+        synchronized (CAPTURE_CACHE) {
+            generation = captureGeneration;
+        }
+        // A preview stops once its player has moved on to another or left, a picture once its player
+        // has left, and both once the world closes, rather than keep hold of the old world.
+        BooleanSupplier unwanted = preview
+                ? () -> !server.isRunning() || !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))
+                : () -> !server.isRunning() || !BROWSING.contains(playerId);
         (preview ? PREVIEWS : PICTURES).execute(() -> {
-            if (preview && !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))) {
-                CaptureResult skipped = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
-                byte[] reply = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, skipped)));
-                server.execute(() -> {
-                    ServerPlayer target = server.getPlayerList().getPlayer(playerId);
-                    if (target != null) {
-                        sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, reply);
-                    }
-                });
-                return;
-            }
             byte[] payload;
             try {
-                if (Memory.low()) {
-                    CaptureResult refused = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
-                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, refused)));
+                CaptureResult result;
+                if (unwanted.getAsBoolean()) {
+                    result = null;
+                } else if (Memory.low()) {
+                    result = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
                 } else {
-                    CaptureResult result = forPlayers(structure, preview ? StructureCapture.capture(server, structure, seed)
-                            : StructureCapture.captureInBackground(server, structure, seed));
-                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, result)));
-                    if (result.succeeded()) {
-                        cache(key, payload);
-                    }
+                    CaptureResult captured = preview ? StructureCapture.capture(server, structure, seed, unwanted)
+                            : StructureCapture.captureInBackground(server, structure, seed, unwanted);
+                    result = captured == null ? null : forPlayers(structure, captured);
+                }
+                // Nobody wants it any more. Only a player who's moved on to another preview is still
+                // there to be told.
+                CaptureResult reply = result != null ? result
+                        : CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
+                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply)));
+                if (reply.succeeded()) {
+                    cache(key, payload, generation);
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
@@ -677,13 +695,17 @@ public final class JesServer {
 
     /**
      * Keeps a capture to send again, dropping the least recently sent ones once there are too many
-     * or they take too much room. One bigger than the whole limit isn't kept.
+     * or they take too much room. One bigger than the whole limit isn't kept, nor one started before
+     * the kept ones were last dropped, as it may be from before a /reload.
      */
-    private static void cache(String key, byte[] payload) {
+    private static void cache(String key, byte[] payload, int generation) {
         if (payload.length > CACHE_BYTES) {
             return;
         }
         synchronized (CAPTURE_CACHE) {
+            if (generation != captureGeneration) {
+                return;
+            }
             byte[] old = CAPTURE_CACHE.put(key, payload);
             cachedBytes += payload.length - (old == null ? 0 : old.length);
             Iterator<Map.Entry<String, byte[]>> eldest = CAPTURE_CACHE.entrySet().iterator();

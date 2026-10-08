@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -98,6 +99,8 @@ public final class StructureCapture {
     private static final Set<Thread> FOREGROUND = ConcurrentHashMap.newKeySet();
     /** Whether the capture on this thread is one nobody's looking at yet. */
     private static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> false);
+    /** What says the capture on this thread is no longer wanted. */
+    private static final ThreadLocal<BooleanSupplier> UNWANTED = new ThreadLocal<>();
     /** Templates that couldn't be loaded during the capture on this thread. */
     private static final ThreadLocal<Set<ResourceLocation>> NOT_LOADED = new ThreadLocal<>();
     /** The climates made for a world that has none, by dimension, and the server they're for. */
@@ -150,6 +153,16 @@ public final class StructureCapture {
     }
 
     public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed) {
+        return capture(server, structureId, seed, () -> false);
+    }
+
+    /**
+     * A capture that {@code unwanted} says when nobody wants any more, like when the player who asked
+     * has moved on or left, or the world has closed. It's asked again and again as the structure is
+     * placed, and a capture that's no longer wanted stops there and gives back null, letting go of the
+     * world rather than keeping hold of it until it's done.
+     */
+    public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed, BooleanSupplier unwanted) {
         boolean foreground = !BACKGROUND.get();
         if (foreground) {
             FOREGROUND.add(Thread.currentThread());
@@ -165,9 +178,13 @@ public final class StructureCapture {
                 return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
             }
             NOT_LOADED.set(new HashSet<>());
+            UNWANTED.set(unwanted);
             JesLog.ranOutOfMemory();
             boolean outOfMemory = false;
             try {
+                if (unwanted.getAsBoolean()) {
+                    return null;
+                }
                 // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
                 // not this mod's problem, so they go to the debug log.
                 CaptureResult result = JesLog.quietly(() -> captureLocked(server, structureId, seed));
@@ -175,6 +192,8 @@ public final class StructureCapture {
                 return outOfMemory && !result.succeeded()
                         ? CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), result.attempts(), result.millis())
                         : result;
+            } catch (Unwanted e) {
+                return null;
             } catch (OutOfMemoryError e) {
                 outOfMemory = true;
                 throw e;
@@ -186,6 +205,7 @@ public final class StructureCapture {
                     NOT_LOADED.get().forEach(server.getStructureManager()::remove);
                 }
                 NOT_LOADED.remove();
+                UNWANTED.remove();
                 LOCK.unlock();
             }
         } finally {
@@ -201,11 +221,16 @@ public final class StructureCapture {
      * starts again once that's done.
      */
     public static CaptureResult captureInBackground(MinecraftServer server, ResourceLocation structureId, long seed) {
+        return captureInBackground(server, structureId, seed, () -> false);
+    }
+
+    /** The same, stopping once it's {@code unwanted}, as {@link #capture(MinecraftServer, ResourceLocation, long, BooleanSupplier)} does. */
+    public static CaptureResult captureInBackground(MinecraftServer server, ResourceLocation structureId, long seed, BooleanSupplier unwanted) {
         BACKGROUND.set(true);
         try {
             while (true) {
                 try {
-                    return capture(server, structureId, seed);
+                    return capture(server, structureId, seed, unwanted);
                 } catch (GaveWay e) {
                     // The lock is fair, so this queues up behind the preview.
                 }
@@ -254,8 +279,15 @@ public final class StructureCapture {
         return LOCK.isLocked();
     }
 
-    /** Stops a capture nobody's looking at when someone is waiting on one they are. */
-    private static void giveWayIfWaitedOn() {
+    /**
+     * Where a capture can stop part way: when nobody wants it any more, and when it's one nobody's
+     * looking at and someone is waiting on one they are.
+     */
+    private static void checkpoint() {
+        BooleanSupplier unwanted = UNWANTED.get();
+        if (unwanted != null && unwanted.getAsBoolean()) {
+            throw new Unwanted();
+        }
         if (!BACKGROUND.get()) {
             return;
         }
@@ -266,11 +298,19 @@ public final class StructureCapture {
         }
     }
 
-    /** A capture nobody's looking at stopping for one somebody is. */
-    private static final class GaveWay extends RuntimeException {
-        GaveWay() {
+    /** A capture stopping part way, which goes straight past everything that catches a structure's failures. */
+    private abstract static class Stopped extends RuntimeException {
+        Stopped() {
             super(null, null, false, false);
         }
+    }
+
+    /** A capture nobody's looking at stopping for one somebody is. */
+    private static final class GaveWay extends Stopped {
+    }
+
+    /** A capture nobody wants any more stopping. */
+    private static final class Unwanted extends Stopped {
     }
 
     private static CaptureResult captureLocked(MinecraftServer server, ResourceLocation structureId, long seed) {
@@ -339,7 +379,7 @@ public final class StructureCapture {
                     return CaptureResult.success(snapshot, attempts, elapsed(started));
                 }
                 placedNothing++;
-            } catch (GaveWay e) {
+            } catch (Stopped e) {
                 throw e;
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
@@ -371,7 +411,7 @@ public final class StructureCapture {
                 if (snapshot != null) {
                     return new Round(CaptureResult.success(snapshot, attempts, elapsed(started)), null);
                 }
-            } catch (GaveWay e) {
+            } catch (Stopped e) {
                 throw e;
             } catch (TooLargeException e) {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
@@ -510,13 +550,13 @@ public final class StructureCapture {
     /** One place: what was placed, or null if it found nowhere to start or placed nothing. */
     private static StructureSnapshot attempt(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
                                              Place place, List<Component> attempts) {
-        giveWayIfWaitedOn();
+        checkpoint();
         return captureOn(server, structureId, structure, place, attempts);
     }
 
     /** Whether the structure finds somewhere to start at a place, building nothing. */
     private static boolean startsOn(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure, Place place) {
-        giveWayIfWaitedOn();
+        checkpoint();
         ServerLevel level = place.level(server);
         RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, structureId + " on " + place.terrain().name().toLowerCase(Locale.ROOT) + " terrain");
         try {
@@ -664,13 +704,13 @@ public final class StructureCapture {
                     random.setFeatureSeed(decorationSeed, 0, structure.step().ordinal());
                     BoundingBox writable = new BoundingBox(pos.getMinBlockX(), Levels.minY(level), pos.getMinBlockZ(),
                             pos.getMaxBlockX(), Levels.maxY(level), pos.getMaxBlockZ());
-                    giveWayIfWaitedOn();
+                    checkpoint();
                     region.placing(pos);
                     start.placeInChunk(region, structureManager, generator, random, writable, pos);
                 }
             }
             region.placing(null);
-            giveWayIfWaitedOn();
+            checkpoint();
             postProcess(region, chunks);
         } finally {
             SANDBOX_STRUCTURES.remove();

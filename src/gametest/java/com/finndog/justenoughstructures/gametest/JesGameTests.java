@@ -98,6 +98,11 @@ public final class JesGameTests {
         CaptureTests.backgroundCapturesStopForPreviews(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void unwantedCapturesStop(GameTestHelper helper) {
+        CaptureTests.unwantedCapturesStop(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void outOfMemoryTheGameOnlyLogsIsNoticed(GameTestHelper helper) {
         CaptureTests.outOfMemoryTheGameOnlyLogsIsNoticed(helper);

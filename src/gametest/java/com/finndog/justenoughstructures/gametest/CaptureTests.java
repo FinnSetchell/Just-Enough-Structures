@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -310,6 +311,33 @@ public final class CaptureTests {
             helper.fail("the background capture came out differently after stopping: " + difference);
             return;
         }
+        helper.succeed();
+    }
+
+    /**
+     * A capture nobody wants any more, like a preview its player has moved on from or one for a world
+     * that's closed, stops part way and gives back nothing, and doesn't hold up the next one.
+     */
+    public static void unwantedCapturesStop(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        AtomicInteger asked = new AtomicInteger();
+        // On a thread of its own, which ends after, so a lock it kept would hold up the capture below.
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        CaptureResult stopped;
+        try {
+            // Wanted as it starts, and not from the first time it's asked again, as it's placed.
+            stopped = pool.submit(() -> StructureCapture.capture(server, Ids.parse("ancient_city"), SEED, () -> asked.incrementAndGet() > 1))
+                    .get(1, TimeUnit.MINUTES);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            helper.fail("the capture nobody wanted didn't stop: " + e);
+            return;
+        } finally {
+            pool.shutdown();
+        }
+        helper.assertTrue(stopped == null, "a capture nobody wanted any more carried on: " + (stopped == null ? "" : stopped.error()));
+        helper.assertTrue(asked.get() == 2, "it was asked whether it was still wanted " + asked.get() + " times, rather than stopping the first time it wasn't");
+        CaptureResult after = StructureCapture.capture(server, Ids.parse("igloo"), SEED);
+        helper.assertTrue(after.succeeded(), "a capture after the stopped one failed: " + after.error());
         helper.succeed();
     }
 
