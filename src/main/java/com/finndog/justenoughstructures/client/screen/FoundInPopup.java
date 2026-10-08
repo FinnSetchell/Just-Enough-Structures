@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -23,6 +24,8 @@ final class FoundInPopup {
     private static final int ROW = 22;
     private static final int VISIBLE_ROWS = 7;
     private static final ItemStack STRUCTURE_ICON = new ItemStack(Items.FILLED_MAP);
+    /** How long the list waits for every chance before showing anyway. */
+    private static final long SORT_WAIT_MILLIS = 3000;
 
     record Row(ResourceLocation structure, Set<ResourceLocation> tables) {
     }
@@ -30,6 +33,7 @@ final class FoundInPopup {
     final ItemStack item;
     private List<Row> rows;
     private boolean sorted;
+    private long listedAt;
     private int scroll;
     int x;
     int y;
@@ -51,6 +55,7 @@ final class FoundInPopup {
         return mouseX >= x && mouseX < x + WIDTH && mouseY >= y && mouseY < y + height();
     }
 
+    /** The rows, best chance first, or null until they're ready to show. */
     private List<Row> rows() {
         if (rows == null && FoundIn.ready()) {
             rows = new ArrayList<>();
@@ -59,13 +64,20 @@ final class FoundInPopup {
                 e.getValue().forEach(ClientRequests::odds);
             }
             rows.sort(Comparator.comparing(r -> StructureNames.structure(r.structure())));
+            listedAt = Util.getMillis();
         }
-        if (rows != null && !sorted && rows.stream().allMatch(r -> chance(r) >= 0)) {
-            // Best chance first, once every chance is known, so the list only moves once.
+        // The list only shows once it's sorted, so it never moves under the cursor. A long one shows
+        // after a moment anyway, with what's known so far first; the rest fill in where they are.
+        if (rows != null && !sorted && (known() == rows.size() || Util.getMillis() - listedAt > SORT_WAIT_MILLIS)) {
             rows.sort(Comparator.comparingDouble((Row r) -> -chance(r)).thenComparing(r -> StructureNames.structure(r.structure())));
             sorted = true;
         }
-        return rows;
+        return sorted ? rows : null;
+    }
+
+    /** How many rows' chances are known. */
+    private int known() {
+        return (int) rows.stream().filter(r -> chance(r) >= 0).count();
     }
 
     private double chance(Row row) {
@@ -82,8 +94,8 @@ final class FoundInPopup {
         int top = y + 30;
         if (list == null) {
             float progress = ClientRequests.indexProgress();
-            Component text = progress < 0
-                    ? Component.translatable("screen.justenoughstructures.indexing")
+            Component text = rows != null ? Component.translatable("screen.justenoughstructures.found_in_working", known(), rows.size())
+                    : progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
                     : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
             Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.LABEL_SOFT);
             return;

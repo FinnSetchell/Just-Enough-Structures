@@ -309,6 +309,7 @@
   "screen.justenoughstructures.spawner_mix_many": "%s spawners, each makes a mix of these:",
   "screen.justenoughstructures.mobs_over_time": "Keeps spawning here",
   "screen.justenoughstructures.found_in_chance": "In %s structures (chance per container)",
+  "screen.justenoughstructures.found_in_working": "Working out each one's chance... %s of %s",
   "screen.justenoughstructures.locate_structures_off": "Structures are turned off in this world",
   "screen.justenoughstructures.locate_wrong_dimension": "It can't generate in this dimension",
   "screen.justenoughstructures.locate_teleport_hint": "Ctrl-click to teleport there",
