@@ -54,6 +54,8 @@ public final class Gui {
     public static final int LABEL = 0xFF000000;
     /** Secondary text, as JEI's cook times and other recipe details. */
     public static final int LABEL_SOFT = 0xFF808080;
+    /** The same, drawn smaller, as vanilla's dark grey. */
+    static final int LABEL_SOFT_SMALL = 0xFF555555;
     /** Row highlights: JEI's slot highlight, and a darker one for what's picked. */
     static final int ROW_HOVER = 0x80FFFFFF;
     static final int ROW_SELECTED = 0x40000000;
@@ -296,7 +298,7 @@ public final class Gui {
         push(g);
         translate(g, x, y);
         scale(g, scale);
-        g.drawString(font, text, 0, 0, color, false);
+        g.drawString(font, text, 0, 0, readable(color, scale), false);
         pop(g);
     }
 
@@ -304,8 +306,13 @@ public final class Gui {
         push(g);
         translate(g, x, y);
         scale(g, scale);
-        g.drawString(font, text, 0, 0, color, false);
+        g.drawString(font, text, 0, 0, readable(color, scale), false);
         pop(g);
+    }
+
+    /** The grey of secondary text is too faint once it's drawn smaller, so it's darker there. */
+    private static int readable(int color, float scale) {
+        return color == LABEL_SOFT && scale < 1f ? LABEL_SOFT_SMALL : color;
     }
 
     /**
