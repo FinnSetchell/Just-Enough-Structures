@@ -147,6 +147,12 @@ val devMods = mapOf(
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
+// Performance mods that change how the game looks chunks up, for checking previews still work with
+// them: -Pperformance_mods. A Modrinth version id: Lithium 0.15.4. C2ME keeps its parts inside its
+// jar, which the development game can't load, so the tests check it with a stand-in instead.
+val performanceMods = mapOf(
+    "1.21.1" to listOf("lithium:N08Z8wog"),
+)
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
 val viewer = findProperty("viewer")?.toString() ?: "jei"
 
@@ -187,6 +193,7 @@ dependencies {
             }
         }
         if (has("modmenu")) modLocalRuntime("com.terraformersmc:modmenu:${prop("deps.modmenu")}")
+        if (hasProperty("performance_mods")) performanceMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
         // Libraries these mods bundle inside their jars, which Loom doesn't unpack in a dev environment:
         // YUNG's (Reflections), Cristel Lib (Jankson) and Cloth Config (basic-math).
         localRuntime("org.reflections:reflections:0.10.2")
