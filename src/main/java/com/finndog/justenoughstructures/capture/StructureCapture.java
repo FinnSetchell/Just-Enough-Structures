@@ -337,7 +337,9 @@ public final class StructureCapture {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                JesLog.debug("Capturing {} on {} terrain somewhere else failed", structureId, other.terrain(), e);
+                // Into the game log once for each structure and kind of failure, so a report about it has the cause.
+                JesLog.warnOnce("capture-crash:" + structureId + "|" + e.getClass().getName(), "Capturing {} on {} terrain somewhere else failed",
+                        structureId, other.terrain(), e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", other.terrain().name(), String.valueOf(e)));
                 return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e)),
                         attempts, elapsed(started));
@@ -367,7 +369,8 @@ public final class StructureCapture {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return new Round(CaptureResult.failure(e.reason, attempts, elapsed(started)), null);
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                JesLog.debug("Capturing {} on {} terrain failed", structureId, terrain, e);
+                // Into the game log once for each structure and kind of failure, so a report about it has the cause.
+                JesLog.warnOnce("capture-crash:" + structureId + "|" + e.getClass().getName(), "Capturing {} on {} terrain failed", structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
                 crash = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
             }

@@ -1,6 +1,9 @@
 package com.finndog.justenoughstructures;
 
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Marker;
@@ -16,11 +19,16 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 
 /**
  * Drops other code's log lines on a thread that's inside {@link JesLog#quietly}, sending its
- * warnings and errors to the debug log instead. Added to the whole logging context, so it sees
- * every logger, and it does nothing on threads that aren't in a quiet scope.
+ * warnings to the debug log instead. Errors are worth seeing, so the first of each kind still goes
+ * to the game log, and only repeats of it go to the debug log. Added to the whole logging context,
+ * so it sees every logger, and it does nothing on threads that aren't in a quiet scope.
  */
 final class QuietFilter extends AbstractFilter {
     private static final String OURS = "Just Enough Structures";
+    /** Each logger's error messages let through so far, by their text before it's filled in. */
+    private static final Set<String> ERRORS_SEEN = ConcurrentHashMap.newKeySet();
+    /** After this many kinds, errors go to the debug log too, rather than fill the game log. */
+    private static final int MOST_ERROR_KINDS = 500;
 
     private QuietFilter() {
     }
@@ -49,7 +57,7 @@ final class QuietFilter extends AbstractFilter {
         }
         try {
             Message message = event.getMessage();
-            return decide(event.getLoggerName(), event.getLevel(), message == null ? null : message.getFormattedMessage(), event.getThrown());
+            return decide(event.getLoggerName(), event.getLevel(), kind(message), () -> message.getFormattedMessage(), event.getThrown());
         } catch (Throwable t) {
             return Result.NEUTRAL;
         }
@@ -61,12 +69,8 @@ final class QuietFilter extends AbstractFilter {
             return Result.NEUTRAL;
         }
         try {
-            if (msg == null || !loud(level) || !JesLog.enabled()) {
-                return decide(logger.getName(), level, null, params != null && params.length > 0
-                        && params[params.length - 1] instanceof Throwable thrown ? thrown : null);
-            }
-            ParameterizedMessage message = new ParameterizedMessage(msg, params);
-            return decide(logger.getName(), level, message.getFormattedMessage(), message.getThrowable());
+            Throwable thrown = params != null && params.length > 0 && params[params.length - 1] instanceof Throwable t ? t : null;
+            return decide(logger.getName(), level, msg, () -> new ParameterizedMessage(msg, params).getFormattedMessage(), thrown);
         } catch (Throwable t) {
             return Result.NEUTRAL;
         }
@@ -78,7 +82,8 @@ final class QuietFilter extends AbstractFilter {
             return Result.NEUTRAL;
         }
         try {
-            return decide(logger.getName(), level, msg == null ? null : String.valueOf(msg), t);
+            String text = msg == null ? null : String.valueOf(msg);
+            return decide(logger.getName(), level, text, () -> text, t);
         } catch (Throwable e) {
             return Result.NEUTRAL;
         }
@@ -90,30 +95,45 @@ final class QuietFilter extends AbstractFilter {
             return Result.NEUTRAL;
         }
         try {
-            if (msg == null) {
-                return decide(logger.getName(), level, null, t);
-            }
-            return decide(logger.getName(), level, msg.getFormattedMessage(), t != null ? t : msg.getThrowable());
+            return decide(logger.getName(), level, kind(msg), () -> msg.getFormattedMessage(), t != null || msg == null ? t : msg.getThrowable());
         } catch (Throwable e) {
             return Result.NEUTRAL;
         }
     }
 
     /**
-     * Our own lines always go through. Anything else is dropped, after copying warnings and errors
-     * to the debug log. A null message is a level check, like isWarnEnabled, with nothing to copy.
+     * Our own lines always go through, and so does the first error of each kind, by its logger and
+     * its text before it's filled in. Anything else is dropped, after copying warnings and errors to
+     * the debug log. A null {@code kind} is a level check, like isErrorEnabled, with nothing to copy,
+     * which errors pass so code that asks first still logs them.
      */
-    private static Result decide(String loggerName, Level level, String text, Throwable thrown) {
+    private static Result decide(String loggerName, Level level, String kind, Supplier<String> text, Throwable thrown) {
         if (OURS.equals(loggerName)) {
             return Result.NEUTRAL;
         }
         if (outOfMemory(thrown)) {
             JesLog.sawOutOfMemory();
         }
-        if (text != null && loud(level) && JesLog.enabled()) {
-            JesLog.debug("[{}] ({}) {}", level, loggerName, text, thrown);
+        if (serious(level) && (kind == null || firstOfKind(loggerName + "|" + kind))) {
+            return Result.NEUTRAL;
+        }
+        if (kind != null && loud(level) && JesLog.enabled()) {
+            JesLog.debug("[{}] ({}) {}", level, loggerName, text.get(), thrown);
         }
         return Result.DENY;
+    }
+
+    private static boolean firstOfKind(String key) {
+        return ERRORS_SEEN.size() < MOST_ERROR_KINDS && ERRORS_SEEN.add(key);
+    }
+
+    /** A message's text before it's filled in, which is the same for every line of its kind. */
+    private static String kind(Message message) {
+        if (message == null) {
+            return null;
+        }
+        String format = message.getFormat();
+        return format != null ? format : message.getFormattedMessage();
     }
 
     private static boolean outOfMemory(Throwable thrown) {
@@ -127,5 +147,9 @@ final class QuietFilter extends AbstractFilter {
 
     private static boolean loud(Level level) {
         return level != null && level.isMoreSpecificThan(Level.WARN);
+    }
+
+    private static boolean serious(Level level) {
+        return level != null && level.isMoreSpecificThan(Level.ERROR);
     }
 }

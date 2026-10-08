@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +37,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -322,6 +327,30 @@ public final class CaptureTests {
         });
         helper.assertTrue(noticed, "running out of memory that the game only logged wasn't noticed");
         helper.assertFalse(JesLog.ranOutOfMemory(), "asking whether memory ran out didn't clear it");
+        helper.succeed();
+    }
+
+    /**
+     * Other mods' lines are dropped while a capture runs, but the first error of each kind still
+     * reaches the game log, and a check of whether errors are wanted still says yes.
+     */
+    public static void otherModsErrorsStillReachTheLog(GameTestHelper helper) {
+        if (!(LogManager.getContext(false) instanceof LoggerContext context)) {
+            helper.succeed();
+            return;
+        }
+        Filter filter = context.getConfiguration().getFilter();
+        org.apache.logging.log4j.core.Logger logger = context.getLogger("Some Other Mod");
+        String error = "Some other mod's piece " + UUID.randomUUID() + " broke: {}";
+        Filter.Result[] results = JesLog.quietly(() -> new Filter.Result[]{
+                filter.filter(logger, Level.ERROR, null, error, "first"),
+                filter.filter(logger, Level.ERROR, null, error, "second"),
+                filter.filter(logger, Level.WARN, null, "Some other mod's piece has an odd block: {}", "x"),
+                filter.filter(logger, Level.ERROR, null, (String) null)});
+        helper.assertTrue(results[0] != Filter.Result.DENY, "the first error of its kind was dropped");
+        helper.assertTrue(results[1] == Filter.Result.DENY, "a repeat of an error went to the game log");
+        helper.assertTrue(results[2] == Filter.Result.DENY, "another mod's warning went to the game log");
+        helper.assertTrue(results[3] != Filter.Result.DENY, "asking whether errors are wanted was turned down");
         helper.succeed();
     }
 

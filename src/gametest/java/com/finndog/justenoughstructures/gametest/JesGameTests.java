@@ -104,6 +104,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void otherModsErrorsStillReachTheLog(GameTestHelper helper) {
+        CaptureTests.otherModsErrorsStillReachTheLog(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownStructureFailsCleanly(GameTestHelper helper) {
         CaptureTests.unknownStructureFailsCleanly(helper);
     }

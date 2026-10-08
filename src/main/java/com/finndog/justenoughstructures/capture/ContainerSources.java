@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.capture;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.mixin.ListPoolElementAccessor;
 import com.finndog.justenoughstructures.mixin.SinglePoolElementAccessor;
@@ -62,6 +63,7 @@ final class ContainerSources {
                 trace(piece, templates, filledBy, resources, out);
             } catch (RuntimeException e) {
                 // A piece that doesn't give up its template just isn't traced; its containers can't be patched.
+                JesLog.debug("Couldn't trace the containers of {} back to its template", piece, e);
             }
         }
         return out;
