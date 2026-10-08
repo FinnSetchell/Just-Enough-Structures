@@ -169,6 +169,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void requestsAreLimited(GameTestHelper helper) {
+        ServiceTests.requestsAreLimited(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void lootIndexFingerprintIsStable(GameTestHelper helper) {
         ServiceTests.lootIndexFingerprintIsStable(helper);
     }

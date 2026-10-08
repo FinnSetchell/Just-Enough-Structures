@@ -24,10 +24,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
+import com.finndog.justenoughstructures.server.RequestLimits;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -260,6 +262,28 @@ public final class ServiceTests {
                 .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size())
                 .toList();
         helper.assertTrue(got.equals(List.of("a diamond 2", "a gold_ingot 1", "b diamond 1")), "expected diamonds from both tables in a, gold in a and diamonds in b, got " + got);
+        helper.succeed();
+    }
+
+    /**
+     * A client asking far faster than the browser does is turned away once it's used up its allowance,
+     * and one big answer bigger than the whole allowance still goes, but nothing straight after it.
+     */
+    public static void requestsAreLimited(GameTestHelper helper) {
+        UUID asking = UUID.randomUUID();
+        UUID sent = UUID.randomUUID();
+        try {
+            int allowed = 0;
+            while (allowed < 1000 && RequestLimits.request(asking, 1)) {
+                allowed++;
+            }
+            helper.assertTrue(allowed >= 200 && allowed < 210, allowed + " requests in a row were let through, expected about 200");
+            helper.assertTrue(RequestLimits.send(sent, 100L << 20), "an answer bigger than the whole allowance wasn't sent to a player who'd been sent nothing");
+            helper.assertFalse(RequestLimits.send(sent, 1 << 20), "another answer went straight after one bigger than the whole allowance");
+        } finally {
+            RequestLimits.forget(asking);
+            RequestLimits.forget(sent);
+        }
         helper.succeed();
     }
 

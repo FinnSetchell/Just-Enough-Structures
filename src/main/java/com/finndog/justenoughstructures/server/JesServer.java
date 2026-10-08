@@ -203,6 +203,7 @@ public final class JesServer {
     public static void left(ServerPlayer player) {
         UUID id = player.getUUID();
         Uploads.forget(id);
+        RequestLimits.forget(id);
         LATEST_PREVIEW.remove(id);
         BROWSING.remove(id);
         QUEUED.remove(id);
@@ -214,6 +215,7 @@ public final class JesServer {
         guardChecked = false;
         invalidate();
         Uploads.clear();
+        RequestLimits.clear();
         LootIndexStore.stop();
         BROWSING.clear();
         LATEST_PREVIEW.clear();
@@ -226,7 +228,9 @@ public final class JesServer {
     }
 
     static void sendIndex(ServerPlayer player, byte[] payload) {
-        sendBlob(player, JesNetwork.KIND_INDEX, 0, payload);
+        if (maySend(player, payload)) {
+            sendBlob(player, JesNetwork.KIND_INDEX, 0, payload);
+        }
     }
 
     static void sendIndexProgress(ServerPlayer player, int done, int total) {
@@ -244,7 +248,9 @@ public final class JesServer {
         }
         BROWSING.add(player.getUUID());
         sendSettings(player, false, false);
-        sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
+        if (maySend(player, catalog)) {
+            sendBlob(player, JesNetwork.KIND_CATALOG, 0, catalog);
+        }
     }
 
     // ------------------------------------------------------------------ loot table editing
@@ -620,7 +626,13 @@ public final class JesServer {
             cached = CAPTURE_CACHE.get(key);
         }
         if (cached != null) {
-            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, cached);
+            if (maySend(player, cached)) {
+                sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, cached);
+            } else {
+                CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
+                sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
+                        Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
+            }
             return;
         }
 
@@ -737,9 +749,9 @@ public final class JesServer {
         };
         MinecraftServer server = Players.server(player);
         // Only tables that exist are kept, so made-up names from a client can't fill the cache. One
-        // that doesn't exist rolls nothing, which takes no time.
+        // that doesn't exist would only ever roll nothing, so that's the answer, without rolling it.
         if (!LootOverrides.exists(server, table)) {
-            reply.accept(LootRolls.odds(Players.level(player), table, ODDS_ROLLS, table.hashCode()));
+            reply.accept(new LootOdds(table, ODDS_ROLLS, ODDS_ROLLS, List.of()));
             return;
         }
         // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
@@ -1010,6 +1022,19 @@ public final class JesServer {
 
     private static boolean open(ServerLevel level, BlockPos pos) {
         return !solid(level, pos) && !level.getFluidState(pos).is(FluidTags.LAVA);
+    }
+
+    /**
+     * Whether the player may be sent this big answer now, as each player is only sent so much so
+     * quickly. A client that asks for more than it could be reading is the only one that's refused.
+     */
+    private static boolean maySend(ServerPlayer player, byte[] compressed) {
+        if (RequestLimits.send(player.getUUID(), compressed.length)) {
+            return true;
+        }
+        JesLog.warnOnce("sent:" + player.getUUID(), "{} is asking for structures and lists far faster than the browser does, so some aren't being sent",
+                player.getName().getString());
+        return false;
     }
 
     private static void sendBlob(ServerPlayer player, int kind, int requestId, byte[] compressed) {
