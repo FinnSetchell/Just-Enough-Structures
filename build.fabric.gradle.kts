@@ -229,7 +229,8 @@ loom {
         // Opens the structure browser in a throwaway superflat world, saves screenshots to
         // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
         // -Pmode=review|open|showcase plays a scripted tour or recording instead, -Pwidth and
-        // -Pheight size the window and -Pshow keeps it visible.
+        // -Pheight size the window, -Pshow keeps it visible and -Pjoin=host:port joins that server
+        // instead of making a world.
         register("autoshot") {
             client()
             configName = "Fabric Autoshot"
@@ -242,6 +243,8 @@ loom {
             vmArg("-Djes.autoshot.gui=${findProperty("gui") ?: 2}")
             vmArg("-Djustenoughstructures.debug=true")
             programArgs("--width", "${findProperty("width") ?: 1600}", "--height", "${findProperty("height") ?: 900}")
+            vmArg("-Djes.autoshot.join=${hasProperty("join")}")
+            findProperty("join")?.let { programArgs("--quickPlayMultiplayer", it.toString()) }
         }
     }
 

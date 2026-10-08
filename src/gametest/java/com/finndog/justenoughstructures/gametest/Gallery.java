@@ -114,6 +114,9 @@ public final class Gallery {
      * as it would for a player who ran it.
      */
     private final boolean reload;
+    /** Whether the run joins the server the game was started with, by --quickPlayMultiplayer, instead of making a world. */
+    private final boolean joins;
+    private int inWorldTicks;
     private ResourceManager resourcesBefore;
 
     private Gallery(Path out) {
@@ -128,6 +131,7 @@ public final class Gallery {
         reelTurn = Float.parseFloat(System.getProperty("jes.autoshot.reel.turn", "1.5"));
         perMod = Integer.getInteger("jes.autoshot.per.mod", 0);
         reload = Boolean.getBoolean("jes.autoshot.reload");
+        joins = Boolean.getBoolean("jes.autoshot.join");
         this.out = out;
         spread();
     }
@@ -215,7 +219,9 @@ public final class Gallery {
                     hideWindow(mc);
                 }
                 blockedTicks = menuWait(mc, blockedTicks);
-                if (canStart(mc, blockedTicks)) {
+                if (joins) {
+                    go(Step.WAIT_WORLD);
+                } else if (canStart(mc, blockedTicks)) {
                     blockedTicks = 0;
                     startWorld(mc, hide, false);
                     go(Step.WAIT_WORLD);
@@ -223,7 +229,9 @@ public final class Gallery {
             }
             case WAIT_WORLD -> {
                 blockedTicks = closeJoinScreen(mc, blockedTicks);
-                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
+                inWorldTicks = mc.player != null && mc.level != null ? inWorldTicks + 1 : 0;
+                // On a server, long enough after joining for the notices that pop up then to go, as they'd cover the shots.
+                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40 && (!joins || inWorldTicks > 300)) {
                     //? if >=26.1 {
                     /*stopTheSun(mc);
                     *///?}

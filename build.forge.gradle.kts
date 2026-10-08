@@ -150,7 +150,8 @@ minecraft {
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
         // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
-        // the structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
+        // the structures, -Pwidth and -Pheight size the window, -Pshow keeps it visible and
+        // -Pjoin=host:port joins that server instead of making a world.
         named("client") {
             this.with(gametest) {
                 workingDir.set(layout.buildDirectory.dir("autoshot"))
@@ -161,6 +162,8 @@ minecraft {
                 systemProperty("justenoughstructures.debug", "true")
                 args("--mixin.config", "${modId}_gametest.mixins.json")
                 args("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
+                systemProperty("jes.autoshot.join", hasProperty("join").toString())
+                findProperty("join")?.let { args("--quickPlayMultiplayer", it.toString()) }
                 mods {
                     register(modId) { source(sourceSets.main.get()) }
                     register("${modId}_gametest") { source(gametest) }

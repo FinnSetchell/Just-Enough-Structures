@@ -178,7 +178,8 @@ neoForge {
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
         // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
-        // the structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
+        // the structures, -Pwidth and -Pheight size the window, -Pshow keeps it visible and
+        // -Pjoin=host:port joins that server instead of making a world.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -189,6 +190,8 @@ neoForge {
             systemProperty("jes.autoshot.gui", findProperty("gui")?.toString() ?: "2")
             systemProperty("justenoughstructures.debug", "true")
             programArguments.addAll("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
+            systemProperty("jes.autoshot.join", hasProperty("join").toString())
+            findProperty("join")?.let { programArguments.addAll("--quickPlayMultiplayer", it.toString()) }
         }
     }
 }

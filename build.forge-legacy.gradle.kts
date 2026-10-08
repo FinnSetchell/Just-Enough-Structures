@@ -112,7 +112,8 @@ legacyForge {
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
         // build/autoshot/screenshots and quits, as on Fabric. -Pstructures=a:b,c:d picks the
-        // structures, -Pwidth and -Pheight size the window and -Pshow keeps it visible.
+        // structures, -Pwidth and -Pheight size the window, -Pshow keeps it visible and
+        // -Pjoin=host:port joins that server instead of making a world.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -124,6 +125,8 @@ legacyForge {
             systemProperty("justenoughstructures.debug", "true")
             programArguments.addAll("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
             programArguments.addAll("--mixin.config", "${modId}_gametest.mixins.json")
+            systemProperty("jes.autoshot.join", hasProperty("join").toString())
+            findProperty("join")?.let { programArguments.addAll("--quickPlayMultiplayer", it.toString()) }
         }
     }
 }
