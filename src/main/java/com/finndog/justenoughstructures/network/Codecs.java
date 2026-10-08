@@ -120,6 +120,10 @@ public final class Codecs {
                 buf.writeUtf(e.availability().by());
             }
             writeNullableId(buf, e.availability().replacedBy());
+            buf.writeVarInt(e.dimensions().size());
+            for (ResourceLocation dimension : e.dimensions()) {
+                buf.writeResourceLocation(dimension);
+            }
         }
     }
 
@@ -156,7 +160,13 @@ public final class Codecs {
             StructureInfo info = readInfo(buf);
             Availability.Reason reason = buf.readEnum(Availability.Reason.class);
             String by = buf.readBoolean() ? buf.readUtf() : null;
-            out.add(new StructureCatalog.Entry(id, type, definition, sets, info, new Availability(reason, by, readNullableId(buf))));
+            Availability availability = new Availability(reason, by, readNullableId(buf));
+            int dimensionCount = buf.readVarInt();
+            List<ResourceLocation> dimensions = new ArrayList<>(dimensionCount);
+            for (int d = 0; d < dimensionCount; d++) {
+                dimensions.add(buf.readResourceLocation());
+            }
+            out.add(new StructureCatalog.Entry(id, type, definition, sets, info, availability, dimensions));
         }
         return out;
     }

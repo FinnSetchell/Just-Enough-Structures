@@ -55,7 +55,7 @@ public final class PackToolsServer {
         Map<ResourceLocation, PackToolsState.Written> structures = new HashMap<>();
         StructureInfo.all().forEach((id, info) -> structures.put(id, new PackToolsState.Written(info, StructureInfoFiles.written(id))));
         List<StructureCatalog.Entry> hidden = new ArrayList<>();
-        for (StructureCatalog.Entry entry : StructureCatalog.build(server.registryAccess())) {
+        for (StructureCatalog.Entry entry : StructureCatalog.build(server)) {
             if (ServerConfig.hides(entry.id())) {
                 hidden.add(entry);
             }

@@ -1,8 +1,8 @@
 package com.finndog.justenoughstructures.client.screen;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.resources.language.I18n;
@@ -97,18 +97,25 @@ public final class StructureNames {
         //?}
     }
 
-    public static String pretty(String path) {
-        String last = path.substring(path.lastIndexOf('/') + 1);
-        StringBuilder out = new StringBuilder();
-        for (String word : last.split("_")) {
-            if (word.isEmpty()) {
-                continue;
-            }
-            if (!out.isEmpty()) {
-                out.append(' ');
-            }
-            out.append(word.substring(0, 1).toUpperCase(Locale.ROOT)).append(word.substring(1));
+    /**
+     * The Overworld, the Nether or the End, a translation if a mod provides {@code dimension.<namespace>.<path>},
+     * otherwise the id tidied up, like "Twilight Forest".
+     */
+    public static String dimension(ResourceLocation id) {
+        String vanilla = switch (id.toString()) {
+            case "minecraft:overworld" -> "overworld";
+            case "minecraft:the_nether" -> "nether";
+            case "minecraft:the_end" -> "end";
+            default -> null;
+        };
+        if (vanilla != null) {
+            return I18n.get("screen.justenoughstructures.dimension." + vanilla);
         }
-        return out.toString();
+        String key = "dimension." + id.getNamespace() + "." + id.getPath().replace('/', '.');
+        return Language.getInstance().has(key) ? I18n.get(key) : pretty(id.getPath());
+    }
+
+    public static String pretty(String path) {
+        return Ids.pretty(path);
     }
 }

@@ -1,9 +1,10 @@
 package com.finndog.justenoughstructures;
 
+import java.util.Locale;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 
-/** Makes ids the same way on every Minecraft version, as 1.21 replaced the constructors with these. */
+/** Makes ids the same way on every Minecraft version, as 1.21 replaced the constructors with these, and tidies them up for showing. */
 public final class Ids {
     private Ids() {
     }
@@ -23,6 +24,22 @@ public final class Ids {
         *///?} else {
         return new ResourceLocation(namespace, path);
         //?}
+    }
+
+    /** The last part of a path tidied up for showing, like "Twilight Forest" for {@code twilight_forest}. */
+    public static String pretty(String path) {
+        String last = path.substring(path.lastIndexOf('/') + 1);
+        StringBuilder out = new StringBuilder();
+        for (String word : last.split("_")) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            if (!out.isEmpty()) {
+                out.append(' ');
+            }
+            out.append(word.substring(0, 1).toUpperCase(Locale.ROOT)).append(word.substring(1));
+        }
+        return out.toString();
     }
 
     /** The id a registry key names. */

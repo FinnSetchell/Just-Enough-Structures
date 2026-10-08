@@ -536,7 +536,7 @@ public final class JesServer {
     /** Every structure, less the ones the server hides, each marked if where its loot is is hidden. */
     public static List<StructureCatalog.Entry> visibleCatalog(MinecraftServer server) {
         boolean showLoot = ServerConfig.get().showLootLocations();
-        return StructureCatalog.build(server.registryAccess()).stream()
+        return StructureCatalog.build(server).stream()
                 .filter(entry -> !ServerConfig.hides(entry.id()))
                 .map(entry -> showLoot ? entry : entry.withInfo(entry.info().hidingLoot()))
                 .toList();
@@ -879,7 +879,7 @@ public final class JesServer {
         return null;
     }
 
-    /** "The End", or for a mod's dimension, its id. */
+    /** "The End", or for a mod's dimension, its name if the mod gives one, otherwise its id tidied up. */
     private static Component dimensionName(ServerLevel level) {
         ResourceLocation id = Ids.of(level.dimension());
         String vanilla = switch (id.toString()) {
@@ -888,7 +888,8 @@ public final class JesServer {
             case "minecraft:the_end" -> "end";
             default -> null;
         };
-        return vanilla != null ? Component.translatable("screen.justenoughstructures.dimension." + vanilla) : Component.literal(id.toString());
+        return vanilla != null ? Component.translatable("screen.justenoughstructures.dimension." + vanilla)
+                : Component.translatableWithFallback("dimension." + id.getNamespace() + "." + id.getPath().replace('/', '.'), Ids.pretty(id.getPath()));
     }
 
     /** Where a locate ended up, or a null position and the reason why not. */

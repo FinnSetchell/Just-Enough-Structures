@@ -13,6 +13,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,6 +22,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
@@ -33,7 +37,8 @@ public final class StructureCatalog {
     private StructureCatalog() {
     }
 
-    public static List<Entry> build(RegistryAccess access) {
+    public static List<Entry> build(MinecraftServer server) {
+        RegistryAccess access = server.registryAccess();
         DynamicOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, access);
         Registry<Structure> structures = access.registryOrThrow(Registries.STRUCTURE);
         Registry<StructureSet> sets = access.registryOrThrow(Registries.STRUCTURE_SET);
@@ -57,13 +62,32 @@ public final class StructureCatalog {
                 ResourceLocation type = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
                 JsonObject definition = encode(Structure.DIRECT_CODEC, ops, structure, id);
                 List<SetInfo> inSets = List.copyOf(setsByStructure.getOrDefault(id, List.of()));
-                out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets)));
+                out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets),
+                        dimensions(server, structures, e.getKey())));
             } catch (RuntimeException | LinkageError ex) {
                 // A structure some mod left broken is left out, rather than taking the whole list with it.
                 JesLog.warnOnce("catalog:" + id, "Left {} out of the structure list, as it couldn't be read: {}", id, ex.toString());
             }
         }
         out.sort(Comparator.comparing(entry -> entry.id().toString()));
+        return out;
+    }
+
+    /**
+     * The dimensions the structure generates in, as the world's own generators place it, the way
+     * locate finds it. None in a superflat world, which places almost nothing.
+     */
+    private static List<ResourceLocation> dimensions(MinecraftServer server, Registry<Structure> structures, ResourceKey<Structure> key) {
+        Optional<Holder.Reference<Structure>> holder = Regs.holder(structures, key);
+        if (holder.isEmpty()) {
+            return List.of();
+        }
+        List<ResourceLocation> out = new ArrayList<>();
+        for (ServerLevel level : server.getAllLevels()) {
+            if (!level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {
+                out.add(Ids.of(level.dimension()));
+            }
+        }
         return out;
     }
 
@@ -112,13 +136,13 @@ public final class StructureCatalog {
 
     /**
      * One structure. {@code definition} is the structure's JSON as its codec writes it, or null when
-     * the codec couldn't encode it. {@code info} is what its mod or a datapack says about it, and
-     * {@code availability} whether it turns up in new worlds.
+     * the codec couldn't encode it. {@code info} is what its mod or a datapack says about it,
+     * {@code availability} whether it turns up in new worlds, and {@code dimensions} where it does.
      */
     public record Entry(ResourceLocation id, ResourceLocation type, JsonObject definition, List<SetInfo> sets, StructureInfo info,
-                        Availability availability) {
+                        Availability availability, List<ResourceLocation> dimensions) {
         public Entry withInfo(StructureInfo newInfo) {
-            return new Entry(id, type, definition, sets, newInfo, availability);
+            return new Entry(id, type, definition, sets, newInfo, availability, dimensions);
         }
     }
 

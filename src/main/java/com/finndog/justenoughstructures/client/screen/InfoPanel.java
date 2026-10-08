@@ -358,13 +358,20 @@ final class InfoPanel {
             cy = field(g, cy, "unavailable", unavailable(entry.availability()).getString());
         }
 
+        // Where the world's generators place it, or in a world that places nothing, like a superflat
+        // one, a guess from its biomes.
         Set<String> dimensions = new LinkedHashSet<>();
-        for (Holder<Biome> biome : biomes) {
-            dimensions.add(biome.is(BiomeTags.IS_NETHER) ? "nether" : biome.is(BiomeTags.IS_END) ? "end" : "overworld");
+        for (ResourceLocation dimension : entry.dimensions()) {
+            dimensions.add(StructureNames.dimension(dimension));
+        }
+        if (dimensions.isEmpty()) {
+            for (Holder<Biome> biome : biomes) {
+                dimensions.add(Component.translatable("screen.justenoughstructures.dimension."
+                        + (biome.is(BiomeTags.IS_NETHER) ? "nether" : biome.is(BiomeTags.IS_END) ? "end" : "overworld")).getString());
+            }
         }
         if (!dimensions.isEmpty()) {
-            cy = field(g, cy, "dimension", String.join(", ", dimensions.stream()
-                    .map(d -> Component.translatable("screen.justenoughstructures.dimension." + d).getString()).toList()));
+            cy = field(g, cy, "dimension", String.join(", ", dimensions));
         }
         if (!biomes.isEmpty()) {
             List<String> names = biomes.stream().map(InfoPanel::biomeName).distinct().sorted().toList();

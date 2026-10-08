@@ -56,7 +56,7 @@ public final class ServiceTests {
     }
 
     public static void catalogListsEveryVanillaStructure(GameTestHelper helper) {
-        List<StructureCatalog.Entry> entries = StructureCatalog.build(helper.getLevel().registryAccess());
+        List<StructureCatalog.Entry> entries = StructureCatalog.build(helper.getLevel().getServer());
         Map<ResourceLocation, StructureCatalog.Entry> byId = entries.stream()
                 .collect(Collectors.toMap(StructureCatalog.Entry::id, Function.identity()));
         for (String name : CaptureTests.VANILLA) {
@@ -64,6 +64,12 @@ public final class ServiceTests {
             helper.assertTrue(entry != null, name + " is missing from the catalog");
             helper.assertTrue(entry.definition() != null && entry.definition().has("type"), name + " has no definition");
             helper.assertTrue(!entry.sets().isEmpty() && entry.sets().get(0).placement() != null, name + " has no placement");
+        }
+        // Each says which dimensions it's found in, from where the world's generators place it.
+        ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
+        if (nether != null && JesServer.searchedIn(nether, Ids.parse("fortress")) == nether) {
+            helper.assertTrue(byId.get(Ids.parse("fortress")).dimensions().contains(Ids.of(Level.NETHER)),
+                    "the fortress doesn't say it's found in the Nether: " + byId.get(Ids.parse("fortress")).dimensions());
         }
 
         List<StructureCatalog.Entry> decoded = Codecs.readCatalog(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
@@ -75,6 +81,8 @@ public final class ServiceTests {
                     entries.get(i).id() + " definition changed on the way through");
             helper.assertTrue(decoded.get(i).availability().equals(entries.get(i).availability()),
                     entries.get(i).id() + " whether it generates changed on the way through");
+            helper.assertTrue(decoded.get(i).dimensions().equals(entries.get(i).dimensions()),
+                    entries.get(i).id() + " where it's found changed on the way through");
         }
         helper.succeed();
     }
@@ -84,7 +92,7 @@ public final class ServiceTests {
      * them, as Better Strongholds always does the stronghold.
      */
     public static void structuresSayIfTheyGenerate(GameTestHelper helper) {
-        Map<ResourceLocation, StructureCatalog.Entry> byId = StructureCatalog.build(helper.getLevel().registryAccess()).stream()
+        Map<ResourceLocation, StructureCatalog.Entry> byId = StructureCatalog.build(helper.getLevel().getServer()).stream()
                 .collect(Collectors.toMap(StructureCatalog.Entry::id, Function.identity()));
         for (String name : CaptureTests.VANILLA) {
             Availability availability = byId.get(Ids.parse(name)).availability();
