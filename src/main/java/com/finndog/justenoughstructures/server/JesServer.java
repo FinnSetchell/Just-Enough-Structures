@@ -114,6 +114,8 @@ public final class JesServer {
 
     /** The server that's running, for code with nothing else to ask, like a datapack being read. Null between worlds. */
     private static volatile MinecraftServer running;
+    /** Whether the chunk guard's been checked since the server started. */
+    private static boolean guardChecked;
 
     public static MinecraftServer running() {
         return running;
@@ -125,6 +127,10 @@ public final class JesServer {
      */
     public static void reload(MinecraftServer server) {
         running = server;
+        if (!guardChecked) {
+            guardChecked = true;
+            StructureCapture.checkChunkGuard(server);
+        }
         ServerConfig.Settings settings = ServerConfig.load();
         var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         for (ResourceLocation id : settings.hiddenStructures()) {
@@ -198,6 +204,7 @@ public final class JesServer {
     /** When the server stops: drops what belonged to that world and stops the loot index. */
     public static void stop() {
         running = null;
+        guardChecked = false;
         invalidate();
         Uploads.clear();
         LootIndexStore.stop();

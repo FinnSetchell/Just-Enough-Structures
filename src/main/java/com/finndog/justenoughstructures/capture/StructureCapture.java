@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.capture;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
@@ -218,6 +219,32 @@ public final class StructureCapture {
         if (notLoaded != null) {
             notLoaded.add(id);
         }
+    }
+
+    /**
+     * Checks once the server's up that the chunk guard is in place with the mods installed: from a
+     * thread of its own, as captures run, inside a sandbox, the overworld's chunk source must hand
+     * over the sandbox's chunk. Only a chunk that's already there is asked for, so nothing is loaded
+     * either way. A mod that replaces how the game looks chunks up can leave the guard out, and that's
+     * worth saying, as a preview's structure code could then load real chunks.
+     */
+    public static void checkChunkGuard(MinecraftServer server) {
+        ServerLevel level = server.overworld();
+        Thread check = new Thread(() -> {
+            try {
+                boolean guarded = inSandbox(level, new ChunkPos(0, 0), () -> {
+                    ChunkAccess own = RealWorldGuard.current().chunk(level, 0, 0);
+                    return own != null && level.getChunkSource().getChunk(0, 0, ChunkStatus.FULL, false) == own;
+                });
+                if (!guarded) {
+                    JustEnoughStructures.LOGGER.warn("A mod here changes how the game looks chunks up, so structure code building a preview could load real chunks");
+                }
+            } catch (RuntimeException | LinkageError e) {
+                JesLog.debug("Couldn't check the chunk guard", e);
+            }
+        }, "Just Enough Structures chunk guard check");
+        check.setDaemon(true);
+        check.start();
     }
 
     /** Whether a capture is being made right now. For tests. */

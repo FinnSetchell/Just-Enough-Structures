@@ -23,6 +23,7 @@ import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 
 /** Loader-neutral test bodies for keeping captures away from the real world. */
@@ -107,6 +108,14 @@ public final class RealWorldTests {
                 return "got a chunk outside the sandbox";
             } catch (RuntimeException expected) {
                 // Code that insists on a real chunk fails, rather than loading one.
+            }
+            // Straight from the chunk source, as some structure code asks, past the level.
+            if (level.getChunkSource().getChunk(Levels.chunkX(far), Levels.chunkZ(far), ChunkStatus.FULL, true) != null) {
+                return "the chunk source handed over a chunk outside the sandbox";
+            }
+            if (level.getChunkSource().getChunk(Levels.chunkX(centre), Levels.chunkZ(centre), ChunkStatus.FULL, false)
+                    != RealWorldGuard.current().chunk(level, Levels.chunkX(centre), Levels.chunkZ(centre))) {
+                return "the chunk source didn't hand over the sandbox's own chunk";
             }
             return null;
         }));
