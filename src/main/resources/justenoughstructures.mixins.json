@@ -17,6 +17,7 @@
     "StructureTemplateAccessor",
     "StructureTemplateManagerMixin",
     "StructureTemplateMixin",
+    "StructureTemplatePaletteMixin",
     "TemplateStructurePieceAccessor"
   ],
   "client": [

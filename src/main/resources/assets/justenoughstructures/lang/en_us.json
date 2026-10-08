@@ -377,7 +377,6 @@
   "screen.justenoughstructures.attempt.no_start": "%s: no valid start",
   "screen.justenoughstructures.attempt.placed_nothing": "%s: placed nothing",
   "screen.justenoughstructures.attempt.blocks": "%s: %s blocks",
-  "screen.justenoughstructures.attempt.retrying": "%s: ran into world generation, trying again",
   "screen.justenoughstructures.attempt.crashed": "%s: crashed with %s",
   "screen.justenoughstructures.attempt.failed": "%s: %s",
   "screen.justenoughstructures.attempt.other_place": "%s: started somewhere else",

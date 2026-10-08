@@ -14,7 +14,6 @@ import it.unimi.dsi.fastutil.shorts.ShortList;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.ConcurrentModificationException;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,8 +90,8 @@ public final class StructureCapture {
     private static final int MAX_CHUNKS_ACROSS = StructureSnapshot.MAX_SIZE / 16;
     /**
      * One capture at a time. Previews, the list's pictures and the loot index run on different
-     * threads, and structure code leans on caches that aren't safe to share, like the block lists
-     * templates keep. Fair, so a preview is next once the capture in progress stops for it.
+     * threads, and structure code leans on caches that aren't safe to share. Fair, so a preview is
+     * next once the capture in progress stops for it.
      */
     private static final ReentrantLock LOCK = new ReentrantLock(true);
     /** Threads making captures someone is waiting to see, which captures nobody's looking at stop for. */
@@ -503,14 +502,7 @@ public final class StructureCapture {
     private static StructureSnapshot attempt(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
                                              Place place, List<Component> attempts) {
         giveWayIfWaitedOn();
-        try {
-            return captureOn(server, structureId, structure, place, attempts);
-        } catch (ConcurrentModificationException e) {
-            // The world's own generation threads can still race us over those caches. It says
-            // nothing about the terrain, so try the same one again.
-            attempts.add(Component.translatable("screen.justenoughstructures.attempt.retrying", place.terrain().name()));
-            return captureOn(server, structureId, structure, place, attempts);
-        }
+        return captureOn(server, structureId, structure, place, attempts);
     }
 
     /** Whether the structure finds somewhere to start at a place, building nothing. */
@@ -523,8 +515,6 @@ public final class StructureCapture {
                     : biomeFor(structure.value(), place.terrain(), level.registryAccess().registryOrThrow(Registries.BIOME));
             FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
             return start(server, structure, level, new SandboxChunkGenerator(biomeSource, place.terrain(), level), biomeSource, place).isValid();
-        } catch (ConcurrentModificationException e) {
-            return false;
         } finally {
             RealWorldGuard.end(guard);
         }
