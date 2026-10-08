@@ -2,6 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.finndog.justenoughstructures.mixin",
+  "plugin": "com.finndog.justenoughstructures.JesMixinPlugin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "BlockableEventLoopGuardMixin",
