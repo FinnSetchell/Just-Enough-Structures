@@ -99,10 +99,24 @@ public final class LootOverrides {
     }
 
     static Path file(Path root, ResourceLocation id) {
-        return root.resolve("data").resolve(id.getNamespace()).resolve(Folders.LOOT_TABLES).resolve(id.getPath() + ".json");
+        return inside(root, root.resolve("data").resolve(id.getNamespace()).resolve(Folders.LOOT_TABLES).resolve(id.getPath() + ".json"));
+    }
+
+    /**
+     * The file, after making sure it's in the folder. Ids come from players' requests, and only one
+     * that isn't {@link Ids#fileSafe} could take it out, to any file on the server.
+     */
+    private static Path inside(Path root, Path file) {
+        if (!file.normalize().startsWith(root.normalize())) {
+            throw new IllegalArgumentException(file + " isn't in " + root);
+        }
+        return file;
     }
 
     public static View view(ResourceManager resources, ResourceLocation id) {
+        if (!Ids.fileSafe(id)) {
+            return new View(id, null, null, null, Status.NONE);
+        }
         String original = original(resources, id);
         Path root = folder();
         Path file = file(root, id);
@@ -178,7 +192,7 @@ public final class LootOverrides {
 
     /** Whether there's a loot table by that name, loaded or saved here since the last /reload. */
     public static boolean exists(MinecraftServer server, ResourceLocation id) {
-        return LootRolls.table(server, id) != LootTable.EMPTY || Files.exists(file(folder(), id));
+        return LootRolls.table(server, id) != LootTable.EMPTY || Ids.fileSafe(id) && Files.exists(file(folder(), id));
     }
 
     /** What's wrong with a draft, or null if the game can load it as a loot table. */
@@ -247,6 +261,9 @@ public final class LootOverrides {
 
     /** Saves an edit, remembering the table it was made from. It applies after /reload. */
     public static Component save(ResourceManager resources, ResourceLocation id, String json) {
+        if (!Ids.fileSafe(id)) {
+            return Component.translatable("screen.justenoughstructures.override.bad_id", id.toString());
+        }
         Component problem = check(id, json);
         if (problem != null) {
             return problem;
@@ -278,7 +295,7 @@ public final class LootOverrides {
     /** Keeps an override as it is after its original changed, and stops flagging it until it changes again. */
     public static Component keep(ResourceManager resources, ResourceLocation id) {
         Path root = folder();
-        if (!Files.exists(file(root, id))) {
+        if (!Ids.fileSafe(id) || !Files.exists(file(root, id))) {
             return Component.translatable("screen.justenoughstructures.override.none");
         }
         String original = original(resources, id);
@@ -302,12 +319,15 @@ public final class LootOverrides {
      */
     public static Component remove(ResourceLocation id) {
         Path root = folder();
+        if (!Ids.fileSafe(id)) {
+            return Component.translatable("screen.justenoughstructures.override.none");
+        }
         Path file = file(root, id);
         if (!Files.exists(file)) {
             return Component.translatable("screen.justenoughstructures.override.none");
         }
-        Path kept = root.resolve("removed").resolve(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")))
-                .resolve(id.getNamespace()).resolve(id.getPath() + ".json");
+        Path kept = inside(root, root.resolve("removed").resolve(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss")))
+                .resolve(id.getNamespace()).resolve(id.getPath() + ".json"));
         try {
             Files.createDirectories(kept.getParent());
             Files.move(file, kept, StandardCopyOption.REPLACE_EXISTING);
@@ -351,7 +371,7 @@ public final class LootOverrides {
      * since needs to know what the table was then, not only that it's different now.
      */
     private static Path baseFile(Path root, ResourceLocation id) {
-        return root.resolve("originals").resolve(id.getNamespace()).resolve(id.getPath() + ".json");
+        return inside(root, root.resolve("originals").resolve(id.getNamespace()).resolve(id.getPath() + ".json"));
     }
 
     private static void writeBaseText(Path root, ResourceLocation id, String original) throws IOException {

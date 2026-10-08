@@ -42,6 +42,22 @@ public final class Ids {
         return out.toString();
     }
 
+    /**
+     * Whether an id can name a file of its own under a folder: one with an empty, "." or ".." part
+     * would reach outside it. Ids that come over the network are checked before they're made a path.
+     */
+    public static boolean fileSafe(ResourceLocation id) {
+        if (id.getNamespace().equals(".") || id.getNamespace().equals("..")) {
+            return false;
+        }
+        for (String part : id.getPath().split("/", -1)) {
+            if (part.isEmpty() || part.equals(".") || part.equals("..")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** The id a registry key names. */
     public static ResourceLocation of(ResourceKey<?> key) {
         //? if >=1.21.11 {

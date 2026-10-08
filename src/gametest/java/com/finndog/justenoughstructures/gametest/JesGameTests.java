@@ -184,6 +184,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void tableIdsStayInTheFolder(GameTestHelper helper) {
+        OverrideTests.tableIdsStayInTheFolder(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void editsNoticeTheirOriginalChanging(GameTestHelper helper) {
         OverrideTests.editsNoticeTheirOriginalChanging(helper);
     }

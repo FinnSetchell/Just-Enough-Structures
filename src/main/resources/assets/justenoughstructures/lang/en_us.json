@@ -440,6 +440,7 @@
   "screen.justenoughstructures.override.kept": "Your version stays, and won't be flagged again until the original changes",
   "screen.justenoughstructures.override.removed": "The override is off from the next /reload. A copy is kept in %s",
   "screen.justenoughstructures.override.none": "That table isn't overridden",
+  "screen.justenoughstructures.override.bad_id": "%s can't be the name of a loot table",
   "screen.justenoughstructures.editor.title": "Editing %s",
   "screen.justenoughstructures.editor.new_title": "New loot table",
   "screen.justenoughstructures.editor.unsaved": "Unsaved changes",

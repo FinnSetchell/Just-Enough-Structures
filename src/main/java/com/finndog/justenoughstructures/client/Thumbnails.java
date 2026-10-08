@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -281,8 +282,12 @@ public final class Thumbnails {
         return hasher.hash().toString();
     }
 
+    /**
+     * Where a structure's pictures are kept, or null for an id that would reach outside the cache:
+     * structure ids come from the server, and saving one clears the pictures beside it.
+     */
     private static Path folder(ResourceLocation id) {
-        return JustEnoughStructures.cacheDir().resolve("thumbnails").resolve(id.getNamespace()).resolve(id.getPath());
+        return Ids.fileSafe(id) ? JustEnoughStructures.cacheDir().resolve("thumbnails").resolve(id.getNamespace()).resolve(id.getPath()) : null;
     }
 
     private static boolean load(ResourceLocation id) {
@@ -290,8 +295,9 @@ public final class Thumbnails {
         if (key == null || NOT_SAVED.contains(id)) {
             return false;
         }
-        Path file = folder(id).resolve(key + ".png");
-        if (!Files.exists(file)) {
+        Path dir = folder(id);
+        Path file = dir == null ? null : dir.resolve(key + ".png");
+        if (file == null || !Files.exists(file)) {
             NOT_SAVED.add(id);
             return false;
         }
@@ -313,14 +319,14 @@ public final class Thumbnails {
     /** Writes the picture to disk off the render thread, then frees it. */
     private static void save(ResourceLocation id, NativeImage image) {
         String key = fileKey(id);
-        if (key == null) {
+        Path dir = folder(id);
+        if (key == null || dir == null) {
             image.close();
             return;
         }
         //? if <26.1 {
         image.flipY();
         //?}
-        Path dir = folder(id);
         Util.ioPool().execute(() -> {
             try (image) {
                 Files.createDirectories(dir);

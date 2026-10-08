@@ -112,6 +112,46 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * A table named to reach outside the overrides folder, with ".." in its id, is turned down, and
+     * the file it names is never read, written or moved.
+     */
+    public static void tableIdsStayInTheFolder(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path dir = freshFolder();
+        Path outside = dir.resolveSibling(dir.getFileName() + "-outside.json");
+        try {
+            Files.writeString(outside, DIAMONDS_ONLY);
+            // data/minecraft/loot_table(s)/ and four steps back up is the folder's own parent.
+            ResourceLocation escape = Ids.parse("minecraft:../../../../" + dir.getFileName() + "-outside");
+            LootOverrides.View view = LootOverrides.view(server.getResourceManager(), escape);
+            helper.assertTrue(view.status() == LootOverrides.Status.NONE && (view.current() == null || !view.current().contains("diamond")),
+                    "a file outside the folder was read as an override");
+            helper.assertFalse(LootOverrides.exists(server, escape), "a file outside the folder counted as a table");
+            Component saved = LootOverrides.save(server.getResourceManager(), escape, "{\"pools\": []}");
+            helper.assertTrue(key(saved).endsWith("override.bad_id"), "saving outside the folder got " + saved.getString());
+            helper.assertTrue(key(LootOverrides.remove(escape)).endsWith("override.none"), "removing outside the folder wasn't refused");
+            helper.assertTrue(key(LootOverrides.keep(server.getResourceManager(), escape)).endsWith("override.none"), "keeping outside the folder wasn't refused");
+            helper.assertTrue(Files.readString(outside).equals(DIAMONDS_ONLY), "the file outside the folder was changed");
+            // Some versions don't let an id be made with these at all, which is just as safe.
+            ResourceLocation dots = ResourceLocation.tryParse("..:chests/igloo");
+            helper.assertTrue(dots == null || !Ids.fileSafe(dots), "a namespace of .. counted as safe");
+            ResourceLocation empty = ResourceLocation.tryParse("minecraft:chests//igloo");
+            helper.assertTrue(empty == null || !Ids.fileSafe(empty), "an empty part counted as safe");
+            helper.assertTrue(Ids.fileSafe(Ids.parse("chests/igloo_chest")), "an ordinary table counted as unsafe");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't write the test's files", e);
+        } finally {
+            LootOverrides.setFolder(null);
+            try {
+                Files.deleteIfExists(outside);
+            } catch (IOException e) {
+                // Left in the temp folder.
+            }
+        }
+        helper.succeed();
+    }
+
     /** Edits the game couldn't load are never saved. */
     public static void brokenEditsAreRefused(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
