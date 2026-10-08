@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "BlockableEventLoopGuardMixin",
+    "C2meRandomMixin",
     "EntityTypeMixin",
     "LegacyRandomSourceMixin",
     "LevelTicksMixin",

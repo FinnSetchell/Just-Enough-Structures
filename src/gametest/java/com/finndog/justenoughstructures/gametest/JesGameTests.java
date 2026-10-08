@@ -104,6 +104,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void worldRandomIsTheCapturesWhilePlacing(GameTestHelper helper) {
+        CaptureTests.worldRandomIsTheCapturesWhilePlacing(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void outOfMemoryTheGameOnlyLogsIsNoticed(GameTestHelper helper) {
         CaptureTests.outOfMemoryTheGameOnlyLogsIsNoticed(helper);
     }

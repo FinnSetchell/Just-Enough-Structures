@@ -4,9 +4,11 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.LevelRandom;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.Vec3i;
@@ -35,7 +39,9 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import org.apache.logging.log4j.Level;
@@ -338,6 +344,35 @@ public final class CaptureTests {
         helper.assertTrue(asked.get() == 2, "it was asked whether it was still wanted " + asked.get() + " times, rather than stopping the first time it wasn't");
         CaptureResult after = StructureCapture.capture(server, Ids.parse("igloo"), SEED);
         helper.assertTrue(after.succeeded(), "a capture after the stopped one failed: " + after.error());
+        helper.succeed();
+    }
+
+    /**
+     * While a capture places a structure, drawing from the world's random, as bees do as they're made,
+     * takes from the capture's own instead, so the world's is never drawn from on two threads at
+     * once. Checked with the game's own and with C2ME's, which refuses to be drawn from on any thread
+     * but the server's, by way of a stand-in under its name.
+     */
+    public static void worldRandomIsTheCapturesWhilePlacing(GameTestHelper helper) {
+        Thread serverThread = Thread.currentThread();
+        CheckedThreadLocalRandom c2me = new CheckedThreadLocalRandom(1L, () -> serverThread);
+        ((LevelRandom) c2me).justenoughstructures$markLevelRandom();
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            for (RandomSource world : List.of(helper.getLevel().getRandom(), c2me)) {
+                Callable<List<Integer>> draws = () -> StructureCapture.withSandboxRandom(new XoroshiroRandomSource(7),
+                        () -> IntStream.range(0, 8).mapToObj(i -> world.nextInt(1000)).toList());
+                List<Integer> first = pool.submit(draws).get(1, TimeUnit.MINUTES);
+                List<Integer> second = pool.submit(draws).get(1, TimeUnit.MINUTES);
+                helper.assertTrue(first.equals(second), "draws from " + world.getClass().getSimpleName() + " came out as " + first + " and then "
+                        + second + ", not from the capture's own");
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            helper.fail("drawing from the world's random while placing failed: " + e);
+            return;
+        } finally {
+            pool.shutdown();
+        }
         helper.succeed();
     }
 

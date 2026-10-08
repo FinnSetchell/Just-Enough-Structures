@@ -274,6 +274,16 @@ public final class StructureCapture {
         check.start();
     }
 
+    /** Runs {@code action} as though this thread were placing a capture with {@code random} as its own. For tests. */
+    public static <T> T withSandboxRandom(RandomSource random, Supplier<T> action) {
+        SANDBOX_RANDOM.set(random);
+        try {
+            return action.get();
+        } finally {
+            SANDBOX_RANDOM.remove();
+        }
+    }
+
     /** Whether a capture is being made right now. For tests. */
     public static boolean busy() {
         return LOCK.isLocked();
