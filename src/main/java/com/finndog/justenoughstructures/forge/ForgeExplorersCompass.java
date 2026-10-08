@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.forge;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassLink;
 import net.minecraft.client.Minecraft;
@@ -13,6 +14,10 @@ final class ForgeExplorersCompass {
     }
 
     static void register() {
+        if (!ExplorersCompassLink.supported()) {
+            JustEnoughStructures.LOGGER.warn("This Explorer's Compass is older than the one the browser works with, so the browser and the compass won't open each other. Updating it brings that back");
+            return;
+        }
         ExplorersCompassLink link = new ExplorersCompassLink();
         CompassLink.set(link);
         MinecraftForge.EVENT_BUS.addListener((ScreenEvent.Init.Post event) -> link.afterInit(event.getScreen(), event::addListener));

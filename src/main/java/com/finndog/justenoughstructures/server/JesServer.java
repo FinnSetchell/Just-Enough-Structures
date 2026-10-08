@@ -842,7 +842,16 @@ public final class JesServer {
         if (ServerConfig.hides(id)) {
             return Component.translatable("screen.justenoughstructures.locate_hidden");
         }
-        return compassSearch.search(player, id);
+        try {
+            return compassSearch.search(player, id);
+        } catch (LinkageError e) {
+            // A compass build that's missing something the search calls: it's turned off rather than
+            // let the error stop the server.
+            JesLog.warnOnce("compass-linkage", "Explorer's Compass is missing something the browser calls, so it won't set the compass searching any more: {}",
+                    e.toString());
+            compassSearch = null;
+            return Component.translatable("screen.justenoughstructures.compass_unsupported");
+        }
     }
 
     public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {

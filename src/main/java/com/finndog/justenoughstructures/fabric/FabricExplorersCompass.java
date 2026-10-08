@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.fabric;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompassLink;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -11,6 +12,10 @@ final class FabricExplorersCompass {
     }
 
     static void register() {
+        if (!ExplorersCompassLink.supported()) {
+            JustEnoughStructures.LOGGER.warn("This Explorer's Compass is older than the one the browser works with, so the browser and the compass won't open each other. Updating it brings that back");
+            return;
+        }
         ExplorersCompassLink link = new ExplorersCompassLink();
         CompassLink.set(link);
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {

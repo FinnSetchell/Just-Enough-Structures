@@ -12,6 +12,7 @@ import com.chaosthedude.explorerscompass.items.ExplorersCompassItem;
 import com.chaosthedude.explorerscompass.util.ItemUtils;
 import com.chaosthedude.explorerscompass.util.StructureUtils;
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -40,6 +41,9 @@ import net.minecraft.world.item.ItemStack;
  * that opens the picked structure in the browser, and the browser gets a button that opens the
  * compass's screen on the structure being looked at. Searching stays with the compass, along with
  * its costs and whatever it's set up to refuse. Client only, and only loaded with the mod installed.
+ *
+ * <p>A compass build missing something this calls would crash the game, so each way in catches
+ * that and turns the link off instead.
  */
 public final class ExplorersCompassLink implements CompassLink {
     private static final ResourceLocation ICON = Ids.of(ExplorersCompass.MODID, "textures/item/explorerscompass_00.png");
@@ -56,6 +60,32 @@ public final class ExplorersCompassLink implements CompassLink {
     private Pick pending;
     private List<ResourceLocation> listWhenOpened;
     private int waited;
+    /** Set once something this calls turns out to be missing from the installed compass. */
+    private boolean broken;
+
+    /**
+     * Whether the installed compass has what this reads. Its builds from before April 2026 don't say
+     * when its screen's list has arrived.
+     */
+    public static boolean supported() {
+        //? if forge && >=1.21 {
+        /*return true;
+        *///?} else {
+        try {
+            ExplorersCompass.class.getField("synced");
+            return true;
+        } catch (NoSuchFieldException | LinkageError | RuntimeException e) {
+            return false;
+        }
+        //?}
+    }
+
+    private void broke(LinkageError e) {
+        if (!broken) {
+            broken = true;
+            JustEnoughStructures.LOGGER.warn("Explorer's Compass is missing something the browser calls, so the browser's compass button is off: {}", e.toString());
+        }
+    }
 
     @Override
     public ResourceLocation icon() {
@@ -64,11 +94,28 @@ public final class ExplorersCompassLink implements CompassLink {
 
     @Override
     public boolean holding(Player player) {
-        return player != null && !ItemUtils.getHeldItem(player, ExplorersCompass.EXPLORERS_COMPASS_ITEM).isEmpty();
+        if (broken) {
+            return false;
+        }
+        try {
+            return player != null && !ItemUtils.getHeldItem(player, ExplorersCompass.EXPLORERS_COMPASS_ITEM).isEmpty();
+        } catch (LinkageError e) {
+            broke(e);
+            return false;
+        }
     }
 
     @Override
     public boolean open(Player player, ResourceLocation structure) {
+        try {
+            return !broken && openCompass(player, structure);
+        } catch (LinkageError e) {
+            broke(e);
+            return false;
+        }
+    }
+
+    private boolean openCompass(Player player, ResourceLocation structure) {
         Minecraft minecraft = Minecraft.getInstance();
         // Right-clicking while sneaking clears the compass rather than opening it.
         if (!holding(player) || player.isShiftKeyDown() || minecraft.gameMode == null) {
@@ -85,6 +132,15 @@ public final class ExplorersCompassLink implements CompassLink {
 
     @Override
     public Component status(Player player, ResourceLocation structure) {
+        try {
+            return broken ? null : compassStatus(player, structure);
+        } catch (LinkageError e) {
+            broke(e);
+            return null;
+        }
+    }
+
+    private Component compassStatus(Player player, ResourceLocation structure) {
         if (player == null) {
             return null;
         }
@@ -124,6 +180,16 @@ public final class ExplorersCompassLink implements CompassLink {
 
     /** After any screen is set up: gives the compass's screen its Preview button, and puts back where it was. */
     public void afterInit(Screen screen, Consumer<AbstractWidget> addWidget) {
+        try {
+            if (!broken) {
+                addPreview(screen, addWidget);
+            }
+        } catch (LinkageError e) {
+            broke(e);
+        }
+    }
+
+    private void addPreview(Screen screen, Consumer<AbstractWidget> addWidget) {
         if (!(screen instanceof ExplorersCompassScreen compass) || !ClientRequests.serverSupported()) {
             return;
         }
@@ -141,6 +207,16 @@ public final class ExplorersCompassLink implements CompassLink {
 
     /** Each tick a screen is open: keeps the Preview button in step, and picks what the browser asked for. */
     public void afterTick(Screen screen) {
+        try {
+            if (!broken) {
+                tick(screen);
+            }
+        } catch (LinkageError e) {
+            broke(e);
+        }
+    }
+
+    private void tick(Screen screen) {
         if (!(screen instanceof ExplorersCompassScreen compass)) {
             return;
         }

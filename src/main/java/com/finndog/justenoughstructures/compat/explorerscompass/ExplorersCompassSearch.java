@@ -7,10 +7,12 @@ import com.chaosthedude.explorerscompass.ExplorersCompass;
 import com.chaosthedude.explorerscompass.items.ExplorersCompassItem;
 import com.chaosthedude.explorerscompass.util.ItemUtils;
 import com.chaosthedude.explorerscompass.util.StructureUtils;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.server.CompassSearch;
 import com.finndog.justenoughstructures.server.JesServer;
+import java.lang.reflect.Method;
 import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
@@ -38,9 +40,41 @@ public final class ExplorersCompassSearch implements CompassSearch {
     private ExplorersCompassSearch() {
     }
 
-    /** Only called with Explorer's Compass installed, so its classes are never touched otherwise. */
+    /**
+     * Only called with Explorer's Compass installed, so its classes are never touched otherwise. A
+     * build without everything this calls gets no link, as a call it can't answer would stop the server.
+     */
     public static void install() {
+        if (!supported()) {
+            JustEnoughStructures.LOGGER.warn("This Explorer's Compass is older than the one the browser works with, so it won't set the compass searching. Updating it brings that back");
+            return;
+        }
         JesServer.setCompassSearch(new ExplorersCompassSearch());
+    }
+
+    /**
+     * Whether the installed compass has what this calls. Its builds from before April 2026 have no
+     * durability or XP cost to check.
+     */
+    private static boolean supported() {
+        //? if !forge || <1.21 {
+        return has(ExplorersCompassItem.class, "isBroken") && has(StructureUtils.class, "getXpLevelsForStructure");
+        //?} else {
+        /*return true;
+        *///?}
+    }
+
+    private static boolean has(Class<?> type, String method) {
+        try {
+            for (Method m : type.getMethods()) {
+                if (m.getName().equals(method)) {
+                    return true;
+                }
+            }
+        } catch (LinkageError | RuntimeException e) {
+            // A class that can't be looked through is as good as missing.
+        }
+        return false;
     }
 
     @Override
