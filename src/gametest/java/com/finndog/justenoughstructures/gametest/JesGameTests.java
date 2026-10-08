@@ -99,6 +99,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void outOfMemoryTheGameOnlyLogsIsNoticed(GameTestHelper helper) {
+        CaptureTests.outOfMemoryTheGameOnlyLogsIsNoticed(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void unknownStructureFailsCleanly(GameTestHelper helper) {
         CaptureTests.unknownStructureFailsCleanly(helper);
     }

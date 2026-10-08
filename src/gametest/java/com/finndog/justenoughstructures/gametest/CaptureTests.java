@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
@@ -34,6 +35,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Loader-neutral test bodies for the capture pipeline. */
 public final class CaptureTests {
@@ -301,6 +305,23 @@ public final class CaptureTests {
             helper.fail("the background capture came out differently after stopping: " + difference);
             return;
         }
+        helper.succeed();
+    }
+
+    /**
+     * The game reads a structure's pieces itself, and when it runs out of memory doing so it only logs
+     * it. A capture has to notice, to say it ran out of memory rather than that the structure found
+     * nowhere to start.
+     */
+    public static void outOfMemoryTheGameOnlyLogsIsNoticed(GameTestHelper helper) {
+        Logger logger = LoggerFactory.getLogger(StructureTemplateManager.class);
+        boolean noticed = JesLog.quietly(() -> {
+            JesLog.ranOutOfMemory();
+            logger.error("Couldn't load structure {}", "justenoughstructures:test", new OutOfMemoryError("Java heap space"));
+            return JesLog.ranOutOfMemory();
+        });
+        helper.assertTrue(noticed, "running out of memory that the game only logged wasn't noticed");
+        helper.assertFalse(JesLog.ranOutOfMemory(), "asking whether memory ran out didn't clear it");
         helper.succeed();
     }
 

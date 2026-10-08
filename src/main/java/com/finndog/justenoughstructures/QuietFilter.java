@@ -62,7 +62,8 @@ final class QuietFilter extends AbstractFilter {
         }
         try {
             if (msg == null || !loud(level) || !JesLog.enabled()) {
-                return decide(logger.getName(), level, null, null);
+                return decide(logger.getName(), level, null, params != null && params.length > 0
+                        && params[params.length - 1] instanceof Throwable thrown ? thrown : null);
             }
             ParameterizedMessage message = new ParameterizedMessage(msg, params);
             return decide(logger.getName(), level, message.getFormattedMessage(), message.getThrowable());
@@ -106,10 +107,22 @@ final class QuietFilter extends AbstractFilter {
         if (OURS.equals(loggerName)) {
             return Result.NEUTRAL;
         }
+        if (outOfMemory(thrown)) {
+            JesLog.sawOutOfMemory();
+        }
         if (text != null && loud(level) && JesLog.enabled()) {
             JesLog.debug("[{}] ({}) {}", level, loggerName, text, thrown);
         }
         return Result.DENY;
+    }
+
+    private static boolean outOfMemory(Throwable thrown) {
+        for (int depth = 0; thrown != null && depth < 10; depth++, thrown = thrown.getCause()) {
+            if (thrown instanceof OutOfMemoryError) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean loud(Level level) {

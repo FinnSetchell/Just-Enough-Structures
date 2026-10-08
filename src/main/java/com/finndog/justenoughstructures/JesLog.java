@@ -30,6 +30,8 @@ public final class JesLog {
     private static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
     /** How many quiet scopes this thread is inside. */
     private static final ThreadLocal<int[]> QUIET = new ThreadLocal<>();
+    /** Set when other code on this thread logged running out of memory rather than throwing it on. */
+    private static final ThreadLocal<boolean[]> OUT_OF_MEMORY = ThreadLocal.withInitial(() -> new boolean[1]);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final Object LOCK = new Object();
 
@@ -155,6 +157,21 @@ public final class JesLog {
         }
         depth[0]++;
         return depth;
+    }
+
+    static void sawOutOfMemory() {
+        OUT_OF_MEMORY.get()[0] = true;
+    }
+
+    /**
+     * Whether other code on this thread ran out of memory and only logged it, like the game reading a
+     * structure's pieces, since this was last asked. Asking clears it.
+     */
+    public static boolean ranOutOfMemory() {
+        boolean[] seen = OUT_OF_MEMORY.get();
+        boolean was = seen[0];
+        seen[0] = false;
+        return was;
     }
 
     static boolean quiet() {

@@ -98,6 +98,8 @@ public final class StructureCapture {
     private static final Set<Thread> FOREGROUND = ConcurrentHashMap.newKeySet();
     /** Whether the capture on this thread is one nobody's looking at yet. */
     private static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> false);
+    /** Templates that couldn't be loaded during the capture on this thread. */
+    private static final ThreadLocal<Set<ResourceLocation>> NOT_LOADED = new ThreadLocal<>();
     /** The climates made for a world that has none, by dimension, and the server they're for. */
     private static final Map<ResourceKey<Level>, RandomState> CLIMATES = new HashMap<>();
     private static WeakReference<MinecraftServer> climatesFor = new WeakReference<>(null);
@@ -159,11 +161,28 @@ public final class StructureCapture {
                 Thread.currentThread().interrupt();
                 return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
             }
+            NOT_LOADED.set(new HashSet<>());
+            JesLog.ranOutOfMemory();
+            boolean outOfMemory = false;
             try {
                 // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
                 // not this mod's problem, so they go to the debug log.
-                return JesLog.quietly(() -> captureLocked(server, structureId, seed));
+                CaptureResult result = JesLog.quietly(() -> captureLocked(server, structureId, seed));
+                outOfMemory = JesLog.ranOutOfMemory();
+                return outOfMemory && !result.succeeded()
+                        ? CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), result.attempts(), result.millis())
+                        : result;
+            } catch (OutOfMemoryError e) {
+                outOfMemory = true;
+                throw e;
             } finally {
+                // The game moves on from a template it ran out of memory loading as though it were
+                // missing, and remembers it that way, real world included. So it's forgotten again,
+                // to be loaded when there's room.
+                if (outOfMemory) {
+                    NOT_LOADED.get().forEach(server.getStructureManager()::remove);
+                }
+                NOT_LOADED.remove();
                 LOCK.unlock();
             }
         } finally {
@@ -190,6 +209,14 @@ public final class StructureCapture {
             }
         } finally {
             BACKGROUND.remove();
+        }
+    }
+
+    /** Notes a template that couldn't be loaded, when it was for a capture. */
+    public static void couldntLoad(ResourceLocation id) {
+        Set<ResourceLocation> notLoaded = NOT_LOADED.get();
+        if (notLoaded != null) {
+            notLoaded.add(id);
         }
     }
 
