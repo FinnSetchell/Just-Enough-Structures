@@ -170,6 +170,7 @@ public final class StructureSnapshot {
             copy.remove("LootTableSeed");
             copy.remove("Items");
             copy.remove(ContainerSources.TAG);
+            TrialSpawners.hideLoot(copy);
             // A vault keeps its table in its config, and has one even without, so it goes altogether.
             if (Nbt.string(copy, "id").equals(VAULT)) {
                 continue;

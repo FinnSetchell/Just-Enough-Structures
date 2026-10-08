@@ -125,6 +125,21 @@ public final class TrialSpawners {
         return loot;
     }
 
+    /**
+     * Takes what a trial spawner drops off its tag, for a structure whose loot locations are hidden:
+     * the tables noted on it, and those its configs name when they're written into it.
+     */
+    static void hideLoot(CompoundTag tag) {
+        tag.remove(LOOT_TAG);
+        for (String key : List.of(NORMAL, OMINOUS)) {
+            if (Nbt.hasCompound(tag, key)) {
+                CompoundTag config = Nbt.compound(tag, key);
+                config.remove("loot_tables_to_eject");
+                config.remove("items_to_drop_when_ominous");
+            }
+        }
+    }
+
     /** The loot tables a trial spawner in a snapshot can drop from. */
     public static List<String> loot(CompoundTag tag) {
         List<String> out = new ArrayList<>();

@@ -327,6 +327,13 @@ public final class JesGameTests {
         SettingsTests.hiddenLootLeavesThePreview(helper);
     }
 
+    //? if >=1.21 {
+    /*@GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void hiddenLootLeavesTrialSpawners(GameTestHelper helper) {
+        SettingsTests.hiddenLootLeavesTrialSpawners(helper);
+    }
+    *///?}
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void patchesFollowTheirContainer(GameTestHelper helper) {
         ContainerTests.patchesFollowTheirContainer(helper);

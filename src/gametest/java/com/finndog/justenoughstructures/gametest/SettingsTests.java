@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
+import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.client.ClientState;
@@ -17,11 +18,13 @@ import com.mojang.authlib.GameProfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
@@ -306,6 +309,22 @@ public final class SettingsTests {
         }
         helper.succeed();
     }
+
+    //? if >=1.21 {
+    /*// Trial spawners don't say what they drop either, when a structure hides its loot.
+    public static void hiddenLootLeavesTrialSpawners(GameTestHelper helper) {
+        CaptureResult raw = StructureCapture.capture(helper.getLevel().getServer(), Ids.parse("trial_chambers"), CaptureTests.SEED);
+        helper.assertTrue(raw.succeeded(), "the trial chambers didn't capture: " + raw.error());
+        Set<String> drops = new HashSet<>();
+        raw.snapshot().blockEntities().forEach(tag -> drops.addAll(TrialSpawners.loot(tag)));
+        helper.assertFalse(drops.isEmpty(), "the trial chambers' trial spawners drop nothing to hide");
+        for (CompoundTag tag : raw.snapshot().withoutLoot().blockEntities()) {
+            String text = tag.toString();
+            helper.assertTrue(drops.stream().noneMatch(text::contains), "a trial spawner still says what it drops: " + text);
+        }
+        helper.succeed();
+    }
+    *///?}
 
     private static String key(Component reply) {
         return reply.getContents() instanceof TranslatableContents t ? t.getKey() : reply.getString();
