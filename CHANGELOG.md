@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Trial spawners show on the Mobs tab, with the mobs they spawn and what they spawn once ominous
+- Pack tools can give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
+- The Loot tab shows what's in vaults and what trial spawners drop when beaten, like trial keys, and item search finds them too
+- The mod has its own icon in mod lists
+
+### Fixed
+- More structures can be previewed, like Better End's End City, Supplementaries' galleon, Mowzie's Mobs' monastery and umvuthana grove, Ice and Fire's dragon caves, the Undergarden's catacombs and camps, Formations Nether's structures, and Twilight Forest's troll cave on 1.20.1
+- The structure you click on no longer waits behind a big one being built for the list's pictures or for item search
+- Structures from mods' own dimensions, like the Twilight Forest, now say the right dimension on the Info tab, and finding one names it properly
+- A structure too big for the memory left now says so, rather than that it found nowhere to generate, and can still generate in your world later
+- Item search's list no longer jumps around while it works out each structure's chance
+- Small grey text is easier to read at bigger GUI scales
+- Loot table edits that use another mod's enchantments or the like now work as soon as the world loads
+- Bees and other mobs now show in previews with C2ME installed
+- A broken block or mob from another mod no longer crashes the game from the browser; it's left out of the preview
+- List pictures now update when a mod or datapack changes a structure, and one the server couldn't make for a moment is tried again
+- Item search no longer misses structures that couldn't be generated while the server was short on memory
+- An older Explorer's Compass no longer crashes the game; the compass button turns off instead
+
 ## [0.1.0] - Unreleased
 
 First release.
