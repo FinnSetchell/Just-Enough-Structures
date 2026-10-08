@@ -641,7 +641,8 @@ public final class ClientRequests {
     }
 
     private static void send(ResourceLocation channel, Consumer<FriendlyByteBuf> writer) {
-        if (sender == null) {
+        // NeoForge throws on a payload the server never agreed to, which would take the game down.
+        if (sender == null || !sender.canSend(channel)) {
             return;
         }
         FriendlyByteBuf buf = Blobs.buffer(registries());
