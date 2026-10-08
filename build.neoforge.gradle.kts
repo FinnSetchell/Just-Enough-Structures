@@ -178,8 +178,9 @@ neoForge {
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
         // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
-        // the structures, -Pwidth and -Pheight size the window, -Pshow keeps it visible and
-        // -Pjoin=host:port joins that server instead of making a world.
+        // the structures, -Pmode plays a scripted tour instead, -Pwidth and -Pheight size the window,
+        // -Pshow keeps it visible, -Pjoin=host:port joins that server instead of making a world and
+        // -Pusername=name joins as that player.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -188,10 +189,12 @@ neoForge {
             systemProperty("jes.autoshot.structures", findProperty("structures")?.toString() ?: "")
             systemProperty("jes.autoshot.hidden", (!hasProperty("show")).toString())
             systemProperty("jes.autoshot.gui", findProperty("gui")?.toString() ?: "2")
+            systemProperty("jes.autoshot.mode", findProperty("mode")?.toString() ?: "gallery")
             systemProperty("justenoughstructures.debug", "true")
             programArguments.addAll("--width", findProperty("width")?.toString() ?: "1600", "--height", findProperty("height")?.toString() ?: "900")
             systemProperty("jes.autoshot.join", hasProperty("join").toString())
             findProperty("join")?.let { programArguments.addAll("--quickPlayMultiplayer", it.toString()) }
+            findProperty("username")?.let { programArguments.addAll("--username", it.toString()) }
         }
     }
 }

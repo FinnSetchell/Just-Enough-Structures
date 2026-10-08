@@ -153,6 +153,11 @@ val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toStri
 val performanceMods = mapOf(
     "1.21.1" to listOf("lithium:N08Z8wog"),
 )
+// LuckPerms, for trying the Pack tools permission on a development server: -Pluckperms. Modrinth
+// version ids: LuckPerms 5.4.140, and the Fabric Permissions API 0.3.1 it keeps inside its jar.
+val luckPerms = mapOf(
+    "1.21.1" to listOf("luckperms:l47d4ZWk", "fabric-permissions-api:62DUD085"),
+)
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
 val viewer = findProperty("viewer")?.toString() ?: "jei"
 
@@ -201,6 +206,7 @@ dependencies {
         localRuntime("blue.endless:jankson:1.2.3")
         localRuntime("me.shedaniel.cloth:basic-math:0.6.1")
     }
+    if (hasProperty("luckperms")) luckPerms[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
 }
 
 loom {
@@ -236,8 +242,8 @@ loom {
         // Opens the structure browser in a throwaway superflat world, saves screenshots to
         // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
         // -Pmode=review|open|showcase plays a scripted tour or recording instead, -Pwidth and
-        // -Pheight size the window, -Pshow keeps it visible and -Pjoin=host:port joins that server
-        // instead of making a world.
+        // -Pheight size the window, -Pshow keeps it visible, -Pjoin=host:port joins that server
+        // instead of making a world and -Pusername=name joins as that player.
         register("autoshot") {
             client()
             configName = "Fabric Autoshot"
@@ -252,6 +258,7 @@ loom {
             programArgs("--width", "${findProperty("width") ?: 1600}", "--height", "${findProperty("height") ?: 900}")
             vmArg("-Djes.autoshot.join=${hasProperty("join")}")
             findProperty("join")?.let { programArgs("--quickPlayMultiplayer", it.toString()) }
+            findProperty("username")?.let { programArgs("--username", it.toString()) }
         }
     }
 

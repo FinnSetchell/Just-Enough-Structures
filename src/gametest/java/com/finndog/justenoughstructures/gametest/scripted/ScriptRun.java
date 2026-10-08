@@ -12,10 +12,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * A scripted screenshot run, the same on every loader: makes a superflat world, plays one of the
- * {@link Scenarios} in it, writes a summary and quits. The loader's test mod calls {@link #tick}
- * every client tick, and {@link #afterScreen} and {@link #afterHud} once those are drawn, as the
- * scripts draw a cursor and count frames there.
+ * A scripted screenshot run, the same on every loader: makes a superflat world, or joins the server
+ * the game was started with, plays one of the {@link Scenarios} in it, writes a summary and quits.
+ * The loader's test mod calls {@link #tick} every client tick, and {@link #afterScreen} and
+ * {@link #afterHud} once those are drawn, as the scripts draw a cursor and count frames there.
  */
 public final class ScriptRun {
     private enum Step { START, WAIT_WORLD, SCRIPT, DONE }
@@ -27,6 +27,8 @@ public final class ScriptRun {
     private final Path out;
     private final boolean hide;
     private final String mode;
+    /** Joins the server the game was started with (-Pjoin) instead of making a world. */
+    private final boolean joins = Boolean.getBoolean("jes.autoshot.join");
     private Director director;
     private final JsonArray summary = new JsonArray();
 
@@ -53,6 +55,10 @@ public final class ScriptRun {
                 if (hide && stepTicks == 1) {
                     Gallery.hideWindow(mc);
                 }
+                if (joins) {
+                    go(Step.WAIT_WORLD);
+                    return;
+                }
                 blockedTicks = Gallery.menuWait(mc, blockedTicks);
                 if (Gallery.canStart(mc, blockedTicks)) {
                     blockedTicks = 0;
@@ -62,7 +68,8 @@ public final class ScriptRun {
             }
             case WAIT_WORLD -> {
                 blockedTicks = Gallery.closeJoinScreen(mc, blockedTicks);
-                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40) {
+                // On a server, long enough after joining for the notices that pop up then to go.
+                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > (joins ? 200 : 40)) {
                     director = Scenarios.build(mode, mc);
                     go(Step.SCRIPT);
                 }
