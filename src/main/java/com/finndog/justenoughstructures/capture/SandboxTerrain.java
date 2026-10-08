@@ -24,9 +24,26 @@ public enum SandboxTerrain {
     VOID(0, Integer.MIN_VALUE),
     /**
      * Land as high as a mountain's peak, for structures that only go up there, like Mowzie's Mobs'
-     * monastery. Kept last, as a snapshot is sent with its terrain's place in this list.
+     * monastery. This and the ones after it are kept last, as a snapshot is sent with its terrain's
+     * place in this list.
      */
-    HIGH_LAND(63, 150);
+    HIGH_LAND(63, 150),
+    /**
+     * Land with caves under it, for structures that look for a cave's floor, like the Undergarden's
+     * catacombs, which then go a long way down, and its camps, which only look below y 0.
+     */
+    CAVE(63, 64),
+    /** Netherrack with a cave inside it, for structures that look for a floor under a roof, like Formations Nether's. */
+    NETHER_CAVE(32, 41);
+
+    /** The air of {@link #CAVE}'s two caves, from each floor to its roof. */
+    private static final int CAVE_BOTTOM = -15;
+    private static final int CAVE_TOP = 0;
+    private static final int HIGH_CAVE_BOTTOM = 30;
+    private static final int HIGH_CAVE_TOP = 45;
+    /** The air of {@link #NETHER_CAVE}, low enough for a roof over all but the tallest structures. */
+    private static final int NETHER_CAVE_BOTTOM = 8;
+    private static final int NETHER_CAVE_TOP = 18;
 
     private final int seaLevel;
     private final int surface;
@@ -50,7 +67,8 @@ public enum SandboxTerrain {
         return switch (this) {
             case SHALLOW_OCEAN, DEEP_OCEAN -> OCEAN;
             case LAVA_SEA -> NETHER;
-            case HIGH_LAND -> LAND;
+            case HIGH_LAND, CAVE -> LAND;
+            case NETHER_CAVE -> NETHER;
             default -> this;
         };
     }
@@ -76,6 +94,9 @@ public enum SandboxTerrain {
                     : y <= 148 ? Blocks.DIRT.defaultBlockState()
                     : y == 149 ? Blocks.GRASS_BLOCK.defaultBlockState()
                     : Blocks.AIR.defaultBlockState();
+            case CAVE -> y >= CAVE_BOTTOM && y <= CAVE_TOP || y >= HIGH_CAVE_BOTTOM && y <= HIGH_CAVE_TOP
+                    ? Blocks.AIR.defaultBlockState() : LAND.stateAt(y);
+            case NETHER_CAVE -> y >= NETHER_CAVE_BOTTOM && y <= NETHER_CAVE_TOP ? Blocks.AIR.defaultBlockState() : NETHER.stateAt(y);
         };
     }
 }

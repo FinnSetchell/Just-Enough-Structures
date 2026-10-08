@@ -207,6 +207,8 @@
   "screen.justenoughstructures.terrain.end": "End stone",
   "screen.justenoughstructures.terrain.void": "Nothing",
   "screen.justenoughstructures.terrain.high_land": "High ground",
+  "screen.justenoughstructures.terrain.cave": "Cave",
+  "screen.justenoughstructures.terrain.nether_cave": "Cave in netherrack",
   "screen.justenoughstructures.loot_waiting": "Waiting for the preview...",
   "screen.justenoughstructures.no_loot": "No loot in this layout",
   "screen.justenoughstructures.prefilled": "Items saved in the structure",

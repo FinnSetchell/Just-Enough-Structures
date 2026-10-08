@@ -232,10 +232,9 @@ public final class StructureCapture {
         if (usual.result() != null) {
             return usual.result();
         }
-        // Some only work in a dimension of their own. Twilight Forest's troll cave on 1.20.1 asks the
-        // dimension it's in for the height of its sea, and crashes anywhere else. The Undergarden's
-        // catacombs look for a floor a set height above the bottom of the world, which is lower down
-        // in the Overworld than in the Undergarden.
+        // Some only work in a dimension of their own, like Twilight Forest's troll cave on 1.20.1,
+        // which asks the dimension it's in for the height of its sea, and crashes anywhere else. One
+        // that finds nowhere to start gets a try there too, as its own dimension can be another height.
         Component crash = usual.crash();
         ServerLevel dimension = null;
         ServerLevel own = ownDimension(server, structure);
@@ -324,8 +323,8 @@ public final class StructureCapture {
 
     /**
      * Where else to try a structure, most likely first: its other biomes on its likeliest ground, high
-     * ground in its land biomes, mountains first, and other seeds at other spots, then the same on the
-     * rest of its terrains.
+     * ground in its land biomes, mountains first, other seeds at other spots, a cave under its
+     * likeliest ground, and then the same on the rest of its terrains.
      */
     private static List<Place> otherPlaces(Structure structure, List<SandboxTerrain> terrains, long seed, Registry<Biome> biomes,
                                            ServerLevel dimension) {
@@ -338,6 +337,12 @@ public final class StructureCapture {
             }
         }
         addSpots(out, first, seed, dimension);
+        SandboxTerrain cave = first.kind() == SandboxTerrain.NETHER ? SandboxTerrain.NETHER_CAVE
+                : first.kind() == SandboxTerrain.LAND ? SandboxTerrain.CAVE : null;
+        if (cave != null) {
+            out.add(new Place(cave, null, START_CHUNK, seed, dimension));
+            addSpots(out, cave, seed, dimension);
+        }
         for (SandboxTerrain terrain : terrains.subList(1, terrains.size())) {
             addBiomes(out, structure, terrain, seed, biomes, dimension);
         }
