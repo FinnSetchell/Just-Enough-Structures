@@ -19,6 +19,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -236,6 +237,11 @@ public final class ServiceTests {
         ResourceLocation map = Ids.parse("filled_map");
         //?}
         helper.assertTrue(mapItems.contains(map), "the shipwreck map table should list " + map + ", found " + mapItems);
+        //? if >=1.21 {
+        /*// The ominous vault's table names others, one of which has the heavy core.
+        Set<ResourceLocation> vault = LootIndex.itemsIn(helper.getLevel().getServer(), Ids.parse("chests/trial_chambers/reward_ominous"), new HashSet<>());
+        helper.assertTrue(vault.contains(Ids.parse("heavy_core")), "the ominous vault's table should list the heavy core, found " + vault);
+        *///?}
         helper.succeed();
     }
 

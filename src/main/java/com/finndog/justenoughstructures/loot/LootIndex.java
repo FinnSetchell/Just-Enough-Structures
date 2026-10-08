@@ -242,8 +242,11 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             return;
         }
         String type = object.has("type") && object.get("type").isJsonPrimitive() ? object.get("type").getAsString() : "";
-        ResourceLocation name = object.has("name") && object.get("name").isJsonPrimitive()
-                ? ResourceLocation.tryParse(object.get("name").getAsString()) : null;
+        ResourceLocation name = idAt(object, "name");
+        // From 1.20.5 a table within a table is under value: its id, or the table itself, walked below.
+        if (name == null && (type.equals("minecraft:loot_table") || type.equals("loot_table"))) {
+            name = idAt(object, "value");
+        }
         if (name != null) {
             switch (type) {
                 case "minecraft:item", "item" -> {
@@ -271,5 +274,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         for (Map.Entry<String, JsonElement> e : object.entrySet()) {
             walk(server, e.getValue(), out, seen);
         }
+    }
+
+    private static ResourceLocation idAt(JsonObject object, String key) {
+        return object.has(key) && object.get(key).isJsonPrimitive() ? ResourceLocation.tryParse(object.get(key).getAsString()) : null;
     }
 }
