@@ -190,6 +190,11 @@ public final class JesServer {
         ROLLING.clear();
     }
 
+    /** When a player leaves: drops anything they were halfway through sending. */
+    public static void left(ServerPlayer player) {
+        Uploads.forget(player.getUUID());
+    }
+
     /** When the server stops: drops what belonged to that world and stops the loot index. */
     public static void stop() {
         running = null;
@@ -477,17 +482,33 @@ public final class JesServer {
         sendEditReply(player, requestId, reply, null);
     }
 
-    /** A part of an upload. Once it's all in, it's dealt with on the server thread. */
+    /**
+     * A part of an upload. Once it's all in, it's dealt with on the server thread. Every upload is a
+     * Pack tools edit, so one from a player who can't use Pack tools is turned down before anything
+     * is unpacked, and unpacking stops well short of filling the memory.
+     */
     public static void onUploadPart(MinecraftServer server, ServerPlayer player, Blobs.Part part) {
         Uploads.Done done = Uploads.accept(player.getUUID(), part);
         if (done == null) {
             return;
         }
         server.execute(() -> {
+            if (!canEdit(player)) {
+                JesLog.warnOnce("upload-refused:" + player.getUUID(), "Ignoring an upload from {}, who can't use Pack tools", player.getName().getString());
+                if (done.kind() == JesNetwork.KIND_DRAFT_ROLL) {
+                    FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
+                    buf.writeVarInt(done.requestId());
+                    Codecs.writeItems(buf, List.of());
+                    JesNetwork.send(player, JesNetwork.LOOT, buf);
+                } else {
+                    sendEditReply(player, done.requestId(), Component.translatable("screen.justenoughstructures.override.no_permission"), null);
+                }
+                return;
+            }
             if (done.kind() == JesNetwork.KIND_DRAFT_ROLL) {
                 Codecs.DraftRoll roll;
                 try {
-                    roll = Codecs.readDraftRoll(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes())));
+                    roll = Codecs.readDraftRoll(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes(), Uploads.MOST_UNPACKED)));
                 } catch (RuntimeException e) {
                     JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
                     return;
@@ -500,7 +521,7 @@ public final class JesServer {
             }
             Codecs.Draft draft;
             try {
-                draft = Codecs.readDraft(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes())));
+                draft = Codecs.readDraft(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(done.bytes(), Uploads.MOST_UNPACKED)));
             } catch (RuntimeException e) {
                 JesLog.warnOnce("upload:" + player.getUUID(), "Ignoring an upload from {} that didn't read: {}", player.getName().getString(), e.getMessage());
                 return;

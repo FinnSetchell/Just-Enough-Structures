@@ -58,6 +58,11 @@ public final class JustEnoughStructuresNeoForge {
                 PackToolsAccess.joined(player);
             }
         });
+        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                JesServer.left(player);
+            }
+        });
         //? if >=26.1 {
         /*NeoForge.EVENT_BUS.addListener((AddServerReloadListenersEvent event) ->
                 event.addListener(JustEnoughStructures.id("structure_info"), new StructureInfo.Loader()));

@@ -298,6 +298,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void uploadsAreCapped(GameTestHelper helper) {
+        PackToolsTests.uploadsAreCapped(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsWriteBack(GameTestHelper helper) {
         SettingsTests.serverSettingsWriteBack(helper);
     }

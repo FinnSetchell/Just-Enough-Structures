@@ -79,15 +79,26 @@ public final class Blobs {
     }
 
     public static byte[] inflate(byte[] compressed) {
+        return inflate(compressed, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Unpacks at most {@code most} bytes, and throws past that rather than fill the memory: a little
+     * of the right data unpacks to a great deal.
+     */
+    public static byte[] inflate(byte[] compressed, int most) {
         Inflater inflater = new Inflater();
         try {
             inflater.setInput(compressed);
-            ByteArrayOutputStream out = new ByteArrayOutputStream(compressed.length * 4);
+            ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.min(most, compressed.length * 4L));
             byte[] chunk = new byte[64 * 1024];
             while (!inflater.finished()) {
                 int n = inflater.inflate(chunk);
                 if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) {
                     throw new IllegalStateException("Truncated payload");
+                }
+                if (out.size() + n > most) {
+                    throw new IllegalStateException("Payload unpacks to more than " + most + " bytes");
                 }
                 out.write(chunk, 0, n);
             }

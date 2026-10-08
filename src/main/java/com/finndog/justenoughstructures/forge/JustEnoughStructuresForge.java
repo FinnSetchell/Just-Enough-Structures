@@ -55,6 +55,11 @@ public final class JustEnoughStructuresForge {
                 PackToolsAccess.joined(player);
             }
         });
+        PlayerEvent.PlayerLoggedOutEvent.BUS.addListener(event -> {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                JesServer.left(player);
+            }
+        });
         AddReloadListenerEvent.BUS.addListener(event -> event.addListener(new StructureInfo.Loader()));
         ServerStartingEvent.BUS.addListener(event -> JesServer.starting(event.getServer()));
         ServerStartedEvent.BUS.addListener(event -> JesServer.reload(event.getServer()));
@@ -77,6 +82,11 @@ public final class JustEnoughStructuresForge {
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer player) {
                 PackToolsAccess.joined(player);
+            }
+        });
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedOutEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player) {
+                JesServer.left(player);
             }
         });
         MinecraftForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new StructureInfo.Loader()));

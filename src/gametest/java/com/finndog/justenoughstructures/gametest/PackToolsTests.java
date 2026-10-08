@@ -3,17 +3,23 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
+import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsServer;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import com.finndog.justenoughstructures.server.Uploads;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -150,6 +156,36 @@ public final class PackToolsTests {
     }
 
     /** The editor's roll of an edit not saved yet fills a chest from it; one the game can't load fills nothing. */
+    /**
+     * An upload unpacks to no more than a loot table could ever need, and what a player had sent goes
+     * when they leave, so a half-sent upload can't be finished afterwards.
+     */
+    public static void uploadsAreCapped(GameTestHelper helper) {
+        byte[] bomb = Blobs.deflate(new byte[32 << 20]);
+        helper.assertTrue(bomb.length < 1 << 20, "32 MB of nothing packed into " + bomb.length + " bytes");
+        boolean refused = false;
+        try {
+            Blobs.inflate(bomb, Uploads.MOST_UNPACKED);
+        } catch (IllegalStateException e) {
+            refused = true;
+        }
+        helper.assertTrue(refused, "an upload unpacked to 32 MB");
+        byte[] table = DIAMONDS_ONLY.repeat(1000).getBytes(StandardCharsets.UTF_8);
+        helper.assertTrue(Arrays.equals(table, Blobs.inflate(Blobs.deflate(table), Uploads.MOST_UNPACKED)), "an upload the size of a big loot table didn't unpack");
+
+        UUID player = UUID.randomUUID();
+        byte[] first = {1};
+        byte[] second = {2};
+        helper.assertTrue(Uploads.accept(player, new Blobs.Part(5, JesNetwork.KIND_SAVE, 9, 0, 2, first)) == null, "half an upload was taken for all of it");
+        Uploads.forget(player);
+        helper.assertTrue(Uploads.accept(player, new Blobs.Part(5, JesNetwork.KIND_SAVE, 9, 1, 2, second)) == null,
+                "an upload was finished with a part sent before its player left");
+        Uploads.Done done = Uploads.accept(player, new Blobs.Part(5, JesNetwork.KIND_SAVE, 9, 0, 2, first));
+        helper.assertTrue(done != null && Arrays.equals(done.bytes(), new byte[]{1, 2}), "an upload didn't come back together");
+        Uploads.forget(player);
+        helper.succeed();
+    }
+
     public static void draftsRollIntoAChest(GameTestHelper helper) {
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
