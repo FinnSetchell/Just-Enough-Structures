@@ -1,11 +1,9 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
-import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;

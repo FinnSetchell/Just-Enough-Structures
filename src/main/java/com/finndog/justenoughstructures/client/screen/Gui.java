@@ -541,8 +541,4 @@ public final class Gui {
         }
         return y;
     }
-
-    static int wrappedHeight(Font font, Component text, int width) {
-        return font.split(text, width).size() * (font.lineHeight + 1);
-    }
 }

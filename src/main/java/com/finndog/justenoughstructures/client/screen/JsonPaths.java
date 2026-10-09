@@ -10,16 +10,16 @@ import com.google.gson.JsonPrimitive;
  * and array indexes joined by dots. The editor's form works on the table through these, so anything
  * it doesn't know about is left as it was.
  */
-final class JsonPaths {
+public final class JsonPaths {
     private JsonPaths() {
     }
 
-    static String join(String path, Object part) {
+    public static String join(String path, Object part) {
         return path.isEmpty() ? String.valueOf(part) : path + "." + part;
     }
 
     /** What's at the path, or null if there's nothing there. */
-    static JsonElement get(JsonElement root, String path) {
+    public static JsonElement get(JsonElement root, String path) {
         if (path.isEmpty()) {
             return root;
         }
@@ -36,20 +36,20 @@ final class JsonPaths {
         return at;
     }
 
-    static JsonObject object(JsonElement root, String path) {
+    public static JsonObject object(JsonElement root, String path) {
         return get(root, path) instanceof JsonObject object ? object : null;
     }
 
-    static JsonArray array(JsonElement root, String path) {
+    public static JsonArray array(JsonElement root, String path) {
         return get(root, path) instanceof JsonArray array ? array : null;
     }
 
-    static String string(JsonElement root, String path, String fallback) {
+    public static String string(JsonElement root, String path, String fallback) {
         JsonElement value = get(root, path);
         return value instanceof JsonPrimitive p && p.isString() ? p.getAsString() : fallback;
     }
 
-    static boolean bool(JsonElement root, String path) {
+    public static boolean bool(JsonElement root, String path) {
         JsonElement value = get(root, path);
         return value instanceof JsonPrimitive p && p.isBoolean() && p.getAsBoolean();
     }
@@ -58,7 +58,7 @@ final class JsonPaths {
      * Puts a value at the path, making any objects or arrays on the way. Null takes the key away,
      * and an array left empty by that goes too, as the game reads a missing list as an empty one.
      */
-    static void set(JsonElement root, String path, JsonElement value) {
+    public static void set(JsonElement root, String path, JsonElement value) {
         String[] parts = path.split("\\.");
         JsonElement at = root;
         for (int i = 0; i < parts.length - 1; i++) {
@@ -77,7 +77,7 @@ final class JsonPaths {
     }
 
     /** Takes away what's at the path: a key from an object, or an item from an array. */
-    static void remove(JsonElement root, String path) {
+    public static void remove(JsonElement root, String path) {
         int dot = path.lastIndexOf('.');
         String parentPath = dot < 0 ? "" : path.substring(0, dot);
         String last = dot < 0 ? path : path.substring(dot + 1);
@@ -93,7 +93,7 @@ final class JsonPaths {
     }
 
     /** Adds to the end of the list at the path, making the list if there isn't one. Returns its index. */
-    static int append(JsonElement root, String path, JsonElement value) {
+    public static int append(JsonElement root, String path, JsonElement value) {
         JsonArray array = array(root, path);
         if (array == null) {
             array = new JsonArray();
@@ -139,7 +139,7 @@ final class JsonPaths {
     }
 
     /** A number as JSON, whole numbers without a decimal point. */
-    static JsonPrimitive number(double value) {
+    public static JsonPrimitive number(double value) {
         if (value == Math.rint(value) && Math.abs(value) < 1e15) {
             return new JsonPrimitive((long) value);
         }

@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.client.screen.JsonPaths;
 import com.finndog.justenoughstructures.client.screen.LootTypes;
 import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.loot.LootOdds;
@@ -9,10 +10,10 @@ import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.OverridePack;
-import com.finndog.justenoughstructures.overrides.TableDraft;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -35,8 +36,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.item.Items;
 //? if >=1.21 {
-/*import com.google.gson.JsonElement;
-import com.mojang.serialization.JsonOps;
+/*import com.mojang.serialization.JsonOps;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.level.storage.loot.LootTable;
 *///?}
@@ -67,13 +67,6 @@ public final class OverrideTests {
             JsonObject back = LootFormat.forGame(editable);
             JsonElement again = LootTable.DIRECT_CODEC.encodeStart(ops, LootTable.DIRECT_CODEC.parse(ops, back).getOrThrow(AssertionError::new)).getOrThrow();
             helper.assertTrue(again.equals(game), name + " came back from the editor as " + back);
-            if (name.equals("chests/simple_dungeon")) {
-                // The editor's simple form finds an item's count in the shape it's given.
-                JsonObject iron = TableDraft.poolList(editable).stream().flatMap(pool -> TableDraft.entryList(pool).stream())
-                        .filter(entry -> TableDraft.name(entry).equals("minecraft:iron_ingot")).findFirst().orElse(null);
-                helper.assertTrue(iron != null && new TableDraft.Range(1, 4).equals(TableDraft.count(iron)),
-                        "the editor reads the dungeon's iron as " + (iron == null ? "missing" : TableDraft.count(iron)));
-            }
         }
         *///?}
         helper.succeed();
@@ -225,7 +218,10 @@ public final class OverrideTests {
         helper.succeed();
     }
 
-    /** The simple form's edits change only what they're meant to, and keep everything else. */
+    /**
+     * The editor's form changes a table a path at a time, so an edit changes only what it's meant to
+     * and keeps everything else, like another mod's function on the same item.
+     */
     public static void formEditsKeepTheRest(GameTestHelper helper) {
         JsonObject table = JsonParser.parseString("""
                 {"pools": [{"rolls": {"type": "minecraft:uniform", "min": 2, "max": 4}, "entries": [
@@ -233,22 +229,21 @@ public final class OverrideTests {
                    "functions": [{"function": "minecraft:set_count", "count": {"min": 1, "max": 3}}, {"function": "minecraft:enchant_randomly"}]}
                 ]}]}
                 """).getAsJsonObject();
-        JsonObject pool = TableDraft.poolList(table).get(0);
-        helper.assertTrue(new TableDraft.Range(2, 4).equals(TableDraft.rolls(pool)), "rolls didn't read as 2 to 4");
-        JsonObject bone = TableDraft.entryList(pool).get(0);
-        helper.assertTrue(TableDraft.weight(bone) == 10 && new TableDraft.Range(1, 3).equals(TableDraft.count(bone)) && TableDraft.others(bone) == 1,
-                "the bone entry didn't read right");
-
-        TableDraft.setRolls(pool, new TableDraft.Range(5, 5));
-        TableDraft.setCount(bone, new TableDraft.Range(1, 1));
-        TableDraft.setWeight(bone, 3);
-        TableDraft.addItem(pool, "minecraft:diamond");
-        helper.assertTrue(pool.get("rolls").getAsInt() == 5, "a fixed number of rolls should be written as a number");
-        helper.assertTrue(TableDraft.count(bone).equals(new TableDraft.Range(1, 1)) && bone.getAsJsonArray("functions").size() == 1
-                && bone.toString().contains("minecraft:enchant_randomly"), "clearing the count took the other mod's function with it");
-        helper.assertTrue(TableDraft.entryList(pool).size() == 2 && TableDraft.name(TableDraft.entryList(pool).get(1)).equals("minecraft:diamond"),
-                "the new item wasn't added");
+        JsonPaths.set(table, "pools.0.rolls", JsonPaths.number(5));
+        JsonPaths.set(table, "pools.0.entries.0.weight", JsonPaths.number(3));
+        JsonPaths.remove(table, "pools.0.entries.0.functions.0");
+        JsonObject diamond = new JsonObject();
+        diamond.addProperty("type", "minecraft:item");
+        diamond.addProperty("name", "minecraft:diamond");
+        int added = JsonPaths.append(table, "pools.0.entries", diamond);
+        helper.assertTrue(JsonPaths.get(table, "pools.0.rolls").getAsInt() == 5, "a fixed number of rolls should be written as a number");
+        JsonObject bone = JsonPaths.object(table, "pools.0.entries.0");
+        helper.assertTrue(bone.get("weight").getAsInt() == 3 && bone.getAsJsonArray("functions").size() == 1
+                && bone.toString().contains("minecraft:enchant_randomly"), "taking the count away took the other mod's function with it");
+        helper.assertTrue(added == 1 && "minecraft:diamond".equals(JsonPaths.string(table, "pools.0.entries.1.name", null)), "the new item wasn't added");
         helper.assertTrue(LootOverrides.check(IGLOO, table.toString()) == null, "the edited table doesn't load: " + LootOverrides.check(IGLOO, table.toString()));
+        JsonPaths.remove(table, "pools.0.entries.0.functions.0");
+        helper.assertTrue(!bone.has("functions"), "taking the last function away left an empty list behind");
         helper.succeed();
     }
 
@@ -305,8 +300,7 @@ public final class OverrideTests {
                   {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 5}]}]}
                 """;
         JsonMerge.Result result = JsonMerge.merge(JsonParser.parseString(base), JsonParser.parseString(mine), JsonParser.parseString(theirs));
-        JsonObject pool = TableDraft.poolList(result.merged().getAsJsonObject()).get(0);
-        List<String> names = TableDraft.entryList(pool).stream().map(e -> TableDraft.name(e) + "=" + TableDraft.weight(e)).toList();
+        List<String> names = firstPool(result.merged()).stream().map(OverrideTests::nameAndWeight).toList();
         helper.assertTrue(names.equals(List.of("minecraft:emerald=2", "minecraft:bone=20", "minecraft:gold_ingot=1", "minecraft:diamond=1")),
                 "the merge came out as " + names);
         helper.assertTrue(result.conflicts() == 0, "changes to different parts were counted as conflicts");
@@ -314,10 +308,21 @@ public final class OverrideTests {
         // Both changed the gold's weight: the dev's stays, and it's a conflict.
         String theirsGold = theirs.replace("\"minecraft:gold_ingot\", \"weight\": 5", "\"minecraft:gold_ingot\", \"weight\": 8");
         JsonMerge.Result clash = JsonMerge.merge(JsonParser.parseString(base), JsonParser.parseString(mine), JsonParser.parseString(theirsGold));
-        JsonObject gold = TableDraft.entryList(TableDraft.poolList(clash.merged().getAsJsonObject()).get(0)).stream()
-                .filter(e -> TableDraft.name(e).equals("minecraft:gold_ingot")).findFirst().orElseThrow();
-        helper.assertTrue(clash.conflicts() == 1 && TableDraft.weight(gold) == 1, "a clash should keep the dev's weight and count one conflict");
+        List<String> clashed = firstPool(clash.merged()).stream().map(OverrideTests::nameAndWeight).toList();
+        helper.assertTrue(clash.conflicts() == 1 && clashed.contains("minecraft:gold_ingot=1"), "a clash should keep the dev's weight and count one conflict");
         helper.succeed();
+    }
+
+    /** The entries in a loot table's first pool. */
+    private static List<JsonObject> firstPool(JsonElement table) {
+        List<JsonObject> entries = new ArrayList<>();
+        JsonPaths.array(table, "pools.0.entries").forEach(entry -> entries.add(entry.getAsJsonObject()));
+        return entries;
+    }
+
+    /** An entry's item and weight, which is 1 when it doesn't say. */
+    private static String nameAndWeight(JsonObject entry) {
+        return JsonPaths.string(entry, "name", "?") + "=" + (entry.has("weight") ? entry.get("weight").getAsInt() : 1);
     }
 
     /** Removing an edit keeps a copy of it. A dev's work is never deleted. */

@@ -17,7 +17,6 @@ import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.Highlight;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
-import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -155,7 +154,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private boolean refitAfterTour;
     /** How far from a container the arrows bring the camera, the same for every one. */
     private static final float TOUR_DISTANCE = 10f;
-    private boolean messageUntilReload;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
     /** What the markers button last said it was about, to change what it says when that changes. */
@@ -467,6 +465,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     @Override
     public void tick() {
         super.tick();
+        //? if <1.21 {
+        search.tick();
+        //?}
         updateToolsButton();
         updateLocateButton();
         updateMarkersButton();
@@ -474,10 +475,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         // After a /reload the structure may have changed, like a container pointed at another table, so it's generated again.
         if (ClientRequests.reloads() != seenReloads) {
             seenReloads = ClientRequests.reloads();
-            if (messageUntilReload) {
-                locateText = null;
-                messageUntilReload = false;
-            }
             ClientRequests.requestOverrides();
             if (selected != null) {
                 select(selected, seed);
@@ -1641,10 +1638,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         foundIn = null;
     }
 
-    public boolean picking() {
-        return picking != Picking.NONE;
-    }
-
     /** Starts picking a chest, as Pack tools' button does. For the screenshot harness. */
     public void pickForTools() {
         startPicking(Picking.CHEST);
@@ -1712,34 +1705,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return null;
     }
 
-    /** Says something in the preview's top line, where locate results go, for a few seconds. */
-    public void showMessage(Component text) {
-        showMessage(text, true, false);
-    }
-
-    /**
-     * Says something in the preview's top line, green if it went well and red if not. A change that
-     * only applies from the next /reload stays until then, so it can't be missed.
-     */
-    public void showMessage(Component text, boolean good, boolean untilReload) {
-        locateText = text;
-        locateFound = good;
-        locateUntil = untilReload ? Long.MAX_VALUE - 1 : System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
-        messageUntilReload = untilReload;
-    }
-
     /** Whether a reply from the server says it did what was asked, by the message's key. */
     static boolean replyIs(Component reply, String keyEnd) {
         return reply != null && reply.getContents() instanceof TranslatableContents t && t.getKey().endsWith(keyEnd);
-    }
-
-    /** The loot table editor, from the Loot tab's Edit link. Coming back returns here. */
-    private void openEditor(String table) {
-        ResourceLocation id = ResourceLocation.tryParse(table);
-        if (id != null) {
-            Nav.remember();
-            minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(table)));
-        }
     }
 
     /**
@@ -1782,14 +1750,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** Where the details panel last drew a row that tints the preview, such as "block:minecraft:chest". */
     public Optional<int[]> highlightRow(String key) {
         return Optional.ofNullable(info.highlightRow(key));
-    }
-
-    public boolean canGoBack() {
-        return Nav.canGoBack();
-    }
-
-    public boolean canGoForward() {
-        return Nav.canGoForward();
     }
 
     public int[] backButton() {
@@ -1842,16 +1802,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return info.tabCentre(InfoPanel.Tab.valueOf(name.toUpperCase(Locale.ROOT)));
     }
 
-    /** Where the marker for a mob is drawn, if it's on screen. For the screenshot harness. */
-    public Optional<int[]> marker(Entity mob) {
-        for (Marker m : markerRects) {
-            if (m.marks(mob)) {
-                return Optional.of(new int[]{Math.round(m.x() + m.size() / 2f), Math.round(m.y() + m.size() / 2f)});
-            }
-        }
-        return Optional.empty();
-    }
-
     /** Where the marker for the first container using {@code table} is drawn, if it's on screen. */
     public Optional<int[]> marker(String table) {
         for (Marker m : markerRects) {
@@ -1886,14 +1836,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return foundIn != null;
     }
 
-    public boolean spawnerPopupOpen() {
-        return spawnerPopup != null;
-    }
-
-    public boolean mobPopupOpen() {
-        return mobPopup != null;
-    }
-
     /** The mobs the layout on show places, for the screenshot harness. */
     public List<Entity> placedMobs() {
         return view == null ? List.of() : List.copyOf(view.entities());
@@ -1905,10 +1847,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             view.setSliceY(shown);
             updateSlider();
         }
-    }
-
-    public int sliceLayers() {
-        return view == null ? 0 : view.size().getY();
     }
 
     private void closePopup() {
@@ -2943,7 +2881,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             if (selected != null && selected.id().equals(id)) {
                 locateText = reply;
                 locateFound = false;
-                locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+                locateUntil = Util.getMillis() + LOCATE_FAILURE_MILLIS;
             }
         });
     }
@@ -2952,7 +2890,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (selected != null && !CompassLink.get().open(minecraft.player, selected.id())) {
             locateText = Component.translatable("screen.justenoughstructures.compass_cant_open");
             locateFound = false;
-            locateUntil = System.currentTimeMillis() + LOCATE_FAILURE_MILLIS;
+            locateUntil = Util.getMillis() + LOCATE_FAILURE_MILLIS;
         }
     }
 

@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -265,10 +264,6 @@ final class PackTourScenario {
     private static boolean ready(Minecraft mc) {
         JesScreen b = browser(mc);
         return b != null && b.idle() && b.result() != null;
-    }
-
-    private static String text(String key) {
-        return Component.translatable(key).getString();
     }
 
     private static Object get(Object target, String name) {

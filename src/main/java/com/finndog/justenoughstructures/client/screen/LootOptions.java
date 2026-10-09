@@ -65,10 +65,6 @@ final class LootOptions {
             return found != null || id.contains(":") || id.isEmpty() ? found : names.get((id.startsWith("#") ? "#minecraft:" + id.substring(1) : "minecraft:" + id));
         }
 
-        boolean knows(String id) {
-            return name(id) != null;
-        }
-
         /** Worked out again next time, for lists that change, like tags after a /reload. */
         void forget() {
             list = null;

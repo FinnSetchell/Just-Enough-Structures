@@ -36,6 +36,8 @@ public final class ClientState {
     /** Structure ids the player starred, shown at the top of the list in every world that has them. */
     public static final Set<String> favourites = new LinkedHashSet<>();
     private static boolean loaded;
+    /** A file a newer version saved, which this one neither reads nor writes over. */
+    private static Path newerFile;
 
     private ClientState() {
     }
@@ -63,6 +65,10 @@ public final class ClientState {
         }
         try {
             JsonObject json = GSON.fromJson(Files.readString(file), JsonObject.class);
+            if (FileFormat.newer(json)) {
+                newerFile = file;
+            }
+            FileFormat.check(json, file);
             spin = flag(json, "spin", spin);
             markers = flag(json, "markers", markers);
             ground = flag(json, "ground", ground);
@@ -84,6 +90,9 @@ public final class ClientState {
     }
 
     public static void write(Path file) {
+        if (file.equals(newerFile)) {
+            return;
+        }
         JsonObject json = new JsonObject();
         json.addProperty(FileFormat.KEY, FileFormat.CURRENT);
         json.addProperty("spin", spin);

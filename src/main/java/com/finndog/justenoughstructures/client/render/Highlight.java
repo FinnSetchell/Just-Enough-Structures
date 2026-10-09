@@ -93,12 +93,10 @@ public final class Highlight implements AutoCloseable {
     private int builtForSlice = -1;
     private boolean empty;
 
-    /** {@code positions} are {@link BlockPos#asLong} of positions in the structure. */
-    public Highlight(LongSet positions) {
-        this(positions, true);
-    }
-
-    /** With {@code tinted} false, nothing is drawn: the positions only light up markers. */
+    /**
+     * {@code positions} are {@link BlockPos#asLong} of positions in the structure. With {@code tinted}
+     * false, nothing is drawn: the positions only light up markers.
+     */
     public Highlight(LongSet positions, boolean tinted) {
         this.positions = positions;
         this.tinted = tinted;

@@ -215,7 +215,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         Nav.remember();
         current().leaving();
         StructureSnapshot.Source source = new StructureSnapshot.Source(ref.template(), ref.templatePos(), block, null);
-        minecraft.setScreen(new TablePickerScreen(this, source, table, ref.title(), TablePickerScreen.saysSo(this)));
+        minecraft.setScreen(new TablePickerScreen(this, source, table, ref.title()));
     }
 
     void openEditor(ResourceLocation table, boolean merge) {
@@ -271,7 +271,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         }
         Nav.remember();
         current().leaving();
-        minecraft.setScreen(new MobPickerScreen(this, ref.template(), ref.templatePos(), mob, block, TablePickerScreen.saysSo(this)));
+        minecraft.setScreen(new MobPickerScreen(this, ref.template(), ref.templatePos(), mob, block));
     }
 
     /**

@@ -63,8 +63,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SpawnEggItem;
-import net.minecraft.world.item.alchemy.Potion;
-import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -94,7 +92,6 @@ final class InfoPanel {
     private static final int TAB_SIZE = 24;
     private static final int PAD = 2;
     private static final int TEXT = Gui.LABEL;
-    private static final int RARE = 0xFF8A5A00;
     private static final int GOOD = 0xFF2E5B1D;
     private static final ItemStack SECRET_ICON = new ItemStack(Items.CHEST);
 
@@ -1065,22 +1062,13 @@ final class InfoPanel {
      */
     private int editedMark(GuiGraphics g, String table, int right, int top) {
         LootOverrides.Status status = ClientRequests.showsPackTools() ? ClientRequests.overrideStatus(table) : null;
-        if (status == null || status == LootOverrides.Status.NONE) {
+        Component mark = ToolsSection.editedMark(status);
+        if (mark == null) {
             return 0;
         }
-        String key = switch (status) {
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> "edited_changed";
-            case BROKEN -> "edited_broken";
-            default -> "edited";
-        };
-        int colour = switch (status) {
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> 0xFF9A6200;
-            case BROKEN -> 0xFFB02020;
-            default -> GOOD;
-        };
-        String text = Component.translatable("screen.justenoughstructures.loot." + key).getString();
+        String text = mark.getString();
         int width = secondaryWidth(text);
-        fine(g, text, right - width, top, colour);
+        fine(g, text, right - width, top, ToolsSection.markColour(status));
         return width + 4;
     }
 

@@ -247,13 +247,4 @@ public final class Nav {
         BACK.clear();
         FORWARD.clear();
     }
-
-    /** For the screenshot harness. */
-    public static boolean canGoBack() {
-        return backTarget(Minecraft.getInstance().screen) != null;
-    }
-
-    public static boolean canGoForward() {
-        return forwardTarget(Minecraft.getInstance().screen) != null;
-    }
 }

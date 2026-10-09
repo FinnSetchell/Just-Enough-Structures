@@ -1268,7 +1268,6 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** A list of choices under a box in the form, like a function's kind. */
     private final class Choice {
         private static final int LINE = 12;
-        private final int[] rect;
         private final List<String> options;
         private final Function<String, String> names;
         private final String current;
@@ -1277,7 +1276,6 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         private double scroll;
 
         Choice(int[] rect, List<String> options, Function<String, String> names, String current, Consumer<String> pick) {
-            this.rect = rect;
             this.options = options;
             this.names = names;
             this.current = current;

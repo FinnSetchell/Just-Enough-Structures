@@ -44,7 +44,6 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderOwner;
 import net.minecraft.core.HolderSet;
-import net.minecraft.core.Registry;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;

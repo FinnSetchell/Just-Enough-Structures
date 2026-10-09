@@ -42,7 +42,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
-import net.minecraft.nbt.Tag;
 import net.minecraft.core.registries.BuiltInRegistries;
 import java.util.LinkedHashMap;
 import java.util.List;

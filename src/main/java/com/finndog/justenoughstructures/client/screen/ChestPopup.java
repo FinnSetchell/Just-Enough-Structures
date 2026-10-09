@@ -475,22 +475,13 @@ final class ChestPopup {
     /** The note on an edited table at the right of its line, for players who see Pack tools. Returns the room it took. */
     private static int editedMark(GuiGraphics g, Font font, String table, int right, int top) {
         LootOverrides.Status status = ClientRequests.overrideStatus(table);
-        if (status == null || status == LootOverrides.Status.NONE) {
+        Component mark = ToolsSection.editedMark(status);
+        if (mark == null) {
             return 0;
         }
-        String key = switch (status) {
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> "edited_changed";
-            case BROKEN -> "edited_broken";
-            default -> "edited";
-        };
-        int colour = switch (status) {
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> 0xFF9A6200;
-            case BROKEN -> 0xFFB02020;
-            default -> 0xFF2E7D1F;
-        };
-        String text = Component.translatable("screen.justenoughstructures.loot." + key).getString();
+        String text = mark.getString();
         int width = Gui.fineWidth(font, text);
-        Gui.fine(g, font, text, right - width, top, colour);
+        Gui.fine(g, font, text, right - width, top, ToolsSection.markColour(status));
         return width + 4;
     }
 

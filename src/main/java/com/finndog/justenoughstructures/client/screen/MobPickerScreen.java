@@ -36,7 +36,6 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private static final String NONE = "";
 
     private final Screen parent;
-    private final TablePickerScreen.Used onUsed;
     private final ResourceLocation template;
     private final BlockPos pos;
     private final String current;
@@ -53,10 +52,9 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
     private Component problem;
     private double scroll;
 
-    MobPickerScreen(Screen parent, ResourceLocation template, BlockPos pos, String current, ResourceLocation block, TablePickerScreen.Used onUsed) {
+    MobPickerScreen(Screen parent, ResourceLocation template, BlockPos pos, String current, ResourceLocation block) {
         super(Component.translatable(TrialSpawners.isBlock(block) ? "screen.justenoughstructures.mob_picker.title_trial" : "screen.justenoughstructures.mob_picker.title"));
         this.parent = parent;
-        this.onUsed = onUsed;
         this.template = template;
         this.pos = pos;
         this.current = current;
@@ -77,7 +75,7 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
 
         @Override
         public Screen open(Screen below) {
-            return new MobPickerScreen(below, template, pos, current, block, TablePickerScreen.saysSo(below));
+            return new MobPickerScreen(below, template, pos, current, block);
         }
 
         @Override
@@ -188,14 +186,12 @@ public final class MobPickerScreen extends BackdropScreen implements Nav.Page {
                 return;
             }
             String name = name(mob);
-            Screen next;
             if (reload) {
                 ClientRequests.reloadServer();
-                next = onUsed.used(Component.translatable("screen.justenoughstructures.container.saved_reloading", name), false);
-            } else {
-                next = onUsed.used(Component.translatable("screen.justenoughstructures.container.saved_named", name), true);
             }
-            minecraft.setScreen(next != null ? next : parent);
+            TablePickerScreen.saySaved(parent, Component.translatable(reload ? "screen.justenoughstructures.container.saved_reloading"
+                    : "screen.justenoughstructures.container.saved_named", name));
+            minecraft.setScreen(parent);
         });
     }
 

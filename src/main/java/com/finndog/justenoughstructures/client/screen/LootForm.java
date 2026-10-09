@@ -806,7 +806,7 @@ final class LootForm {
     // ------------------------------------------------------------------ controls
 
     /** What a typed field holds, and so how it's read back. */
-    enum Kind { TEXT, OPTIONAL_TEXT, INT, NUMBER, RAW, ITEM, COMPONENT }
+    enum Kind { TEXT, OPTIONAL_TEXT, INT, NUMBER, RAW, COMPONENT }
 
     /** A box to type in: drawn here, and typed in through the editor's one text box when clicked. */
     private void field(GuiGraphics g, int x, int y, int w, String path, Kind kind, String shown) {

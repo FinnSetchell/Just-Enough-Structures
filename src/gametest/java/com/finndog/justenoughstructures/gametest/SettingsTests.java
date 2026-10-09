@@ -73,6 +73,14 @@ public final class SettingsTests {
             Files.writeString(file, "{ this isn't json");
             ClientState.read(file);
             helper.assertTrue(!ClientState.spin && ClientState.maximised && ClientState.favourites.size() == 2, "a broken file changed the state");
+
+            // One a newer version saved is left as it is: not read, and not written over.
+            String newer = "{\"format\": 99, \"spin\": true, \"favourites\": [\"minecraft:mansion\"]}";
+            Files.writeString(file, newer);
+            ClientState.read(file);
+            helper.assertTrue(!ClientState.spin && ClientState.favourites.size() == 2, "a newer version's file was read");
+            ClientState.write(file);
+            helper.assertTrue(Files.readString(file).equals(newer), "a newer version's file was written over");
         } catch (IOException e) {
             throw new AssertionError("couldn't use a temporary file", e);
         } finally {

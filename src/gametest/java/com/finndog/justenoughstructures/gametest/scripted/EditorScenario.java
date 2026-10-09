@@ -15,7 +15,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
-import com.finndog.justenoughstructures.overrides.TableDraft;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -120,6 +120,16 @@ final class EditorScenario {
         return at == null ? new int[]{0, 0} : at;
     }
 
+    /** Sets the weight of an item in a table's first pool. */
+    private static void setWeight(JsonObject table, String item, int weight) {
+        for (JsonElement entry : table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries")) {
+            JsonObject object = entry.getAsJsonObject();
+            if (object.has("name") && object.get("name").getAsString().equals(item)) {
+                object.addProperty("weight", weight);
+            }
+        }
+    }
+
     /**
      * Saves an edit that makes diamonds commoner, then makes out it was made from an older version
      * of the table, with more gold, which the mod has since changed.
@@ -130,16 +140,8 @@ final class EditorScenario {
             String original = LootOverrides.original(server.getResourceManager(), TABLE);
             JsonObject mine = JsonParser.parseString(original).getAsJsonObject();
             JsonObject older = mine.deepCopy();
-            for (JsonObject entry : TableDraft.entryList(TableDraft.poolList(mine).get(0))) {
-                if (TableDraft.name(entry).equals("minecraft:diamond")) {
-                    TableDraft.setWeight(entry, 40);
-                }
-            }
-            for (JsonObject entry : TableDraft.entryList(TableDraft.poolList(older).get(0))) {
-                if (TableDraft.name(entry).equals("minecraft:gold_ingot")) {
-                    TableDraft.setWeight(entry, 50);
-                }
-            }
+            setWeight(mine, "minecraft:diamond", 40);
+            setWeight(older, "minecraft:gold_ingot", 50);
             LootOverrides.save(server.getResourceManager(), TABLE, mine.toString());
             try {
                 Path root = LootOverrides.folder();

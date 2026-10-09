@@ -17,7 +17,6 @@ final class ToolsUi {
     static final int GOOD = 0xFF2E5B1D;
     static final int CHANGED = 0xFF9A6200;
     static final int BAD = 0xFFB02020;
-    static final int NEW = 0xFF3A55A0;
     static final int LINK = 0xFF3A55A0;
     static final int SELECTED = 0xFF4B5280;
 

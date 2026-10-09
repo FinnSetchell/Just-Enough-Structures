@@ -1,9 +1,7 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
-import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;

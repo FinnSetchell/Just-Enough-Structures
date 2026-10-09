@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
-import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.screen.Nav;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;

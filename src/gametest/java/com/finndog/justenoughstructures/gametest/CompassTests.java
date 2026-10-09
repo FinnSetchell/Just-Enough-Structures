@@ -18,8 +18,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.item.ItemStack;
 //? if >=1.21 {
-/*import com.finndog.justenoughstructures.Ids;
-import net.minecraft.core.component.DataComponentType;
+/*import net.minecraft.core.component.DataComponentType;
 *///?}
 
 /** Setting a held Explorer's Compass searching from the browser. Skipped without Explorer's Compass. */
