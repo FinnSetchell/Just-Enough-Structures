@@ -8,9 +8,8 @@ mod:
   name: JustEnoughStructures
   validate: false
 platforms:
-  # The CurseForge and Modrinth projects don't exist yet.
-  curseforge: { projectId: REPLACE_ME, slug: REPLACE_ME }
-  modrinth:   { projectId: REPLACE_ME, slug: REPLACE_ME }
+  curseforge: { projectId: 1733995, slug: just-enough-structures }
+  modrinth:   { projectId: FLDP7V2S, slug: just-enough-structures }
 discord:
   embedColor: "#7a5a1f"
   pingDefault: true
@@ -18,6 +17,8 @@ artifacts:
   - type: mod-jar
 # Each loader gets its own target and tag, e.g. 0.1.0-fabric, 0.1.0-forge or 0.1.0-neoforge. Each build is one node from
 # settings.gradle.kts. `java` is the Java that runs Gradle; the node's own toolchain is downloaded.
+# Optional mods are the ones JES does more with. LuckPerms is left off NeoForge, where its
+# 1.21.1 build fails every login.
 targets:
   - branch: main
     tagLabel: fabric
@@ -34,6 +35,13 @@ targets:
       - { mc: "26.3", java: 25 }
     dependencies:
       - { modrinth: P7dR8mSH, curseforge: fabric-api, type: required }
+      - { modrinth: u6dRKJwZ, curseforge: jei, type: optional }
+      - { modrinth: fRiHVvU7, curseforge: emi, type: optional }
+      - { modrinth: nfn13YXA, curseforge: roughly-enough-items, type: optional }
+      - { modrinth: RV1qfVQ8, curseforge: explorers-compass, type: optional }
+      - { modrinth: 9s6osm5g, curseforge: cloth-config, type: optional }
+      - { modrinth: mOgUt4GM, curseforge: modmenu, type: optional }
+      - { modrinth: Vebnzrzj, curseforge: luckperms, type: optional }
   - branch: main
     tagLabel: forge
     loaders: [forge]
@@ -45,7 +53,13 @@ targets:
       - { mc: "26.1.2", java: 25 }
       - { mc: "26.2", java: 25 }
       - { mc: "26.3", java: 25 }
-    dependencies: []
+    dependencies:
+      - { modrinth: u6dRKJwZ, curseforge: jei, type: optional }
+      - { modrinth: fRiHVvU7, curseforge: emi, type: optional }
+      - { modrinth: nfn13YXA, curseforge: roughly-enough-items, type: optional }
+      - { modrinth: RV1qfVQ8, curseforge: explorers-compass, type: optional }
+      - { modrinth: 9s6osm5g, curseforge: cloth-config, type: optional }
+      - { modrinth: Vebnzrzj, curseforge: luckperms, type: optional }
   - branch: main
     tagLabel: neoforge
     loaders: [neoforge]
@@ -56,4 +70,9 @@ targets:
       - { mc: "26.1.2", java: 25 }
       - { mc: "26.2", java: 25 }
       - { mc: "26.3", java: 25 }
-    dependencies: []
+    dependencies:
+      - { modrinth: u6dRKJwZ, curseforge: jei, type: optional }
+      - { modrinth: fRiHVvU7, curseforge: emi, type: optional }
+      - { modrinth: nfn13YXA, curseforge: roughly-enough-items, type: optional }
+      - { modrinth: RV1qfVQ8, curseforge: explorers-compass, type: optional }
+      - { modrinth: 9s6osm5g, curseforge: cloth-config, type: optional }
