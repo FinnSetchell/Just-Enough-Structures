@@ -52,7 +52,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
@@ -471,7 +470,7 @@ final class InfoPanel {
         int labelWidth = 0;
         for (List<String[]> section : sections) {
             for (String[] r : section) {
-                labelWidth = Math.max(labelWidth, secondaryWidth(r[0]));
+                labelWidth = Math.max(labelWidth, Gui.fineWidth(font, r[0]));
             }
         }
         int valueX = textWidth() - labelWidth - 6 >= 90 ? labelWidth + 6 : 0;
@@ -491,8 +490,8 @@ final class InfoPanel {
 
     /** A small heading over a group of detail rows, with a faint rule under it. */
     private int detailTitle(GuiGraphics g, int cy, String title) {
-        Gui.scaled(g, font, title, x + PAD, cy, TEXT, secondaryScale());
-        int line = secondaryLine();
+        Gui.scaled(g, font, title, x + PAD, cy, TEXT, Gui.fineScale());
+        int line = Gui.fineLine(font);
         g.fill(x + PAD, cy + line, contentRight - PAD, cy + line + 1, 0x30000000);
         return cy + line + 3;
     }
@@ -502,8 +501,8 @@ final class InfoPanel {
      * is 0. Ids break at their separators, and their namespace is dimmed so the name stands out.
      */
     private int detailRow(GuiGraphics g, int cy, String label, String value, int valueX) {
-        float scale = secondaryScale();
-        int line = secondaryLine();
+        float scale = Gui.fineScale();
+        int line = Gui.fineLine(font);
         Gui.scaled(g, font, label, x + PAD, cy, Gui.LABEL_SOFT, scale);
         if (valueX == 0) {
             cy += line + 1;
@@ -521,57 +520,11 @@ final class InfoPanel {
             if (soft > 0) {
                 Gui.scaled(g, font, text.substring(0, soft), left, cy, Gui.LABEL_SOFT, scale);
             }
-            Gui.scaled(g, font, text.substring(soft), left + secondaryWidth(text.substring(0, soft)), cy, TEXT, scale);
+            Gui.scaled(g, font, text.substring(soft), left + Gui.fineWidth(font, text.substring(0, soft)), cy, TEXT, scale);
             shown += text.length();
             cy += line + 1;
         }
         return cy + 1;
-    }
-
-    /**
-     * The size of labels and details: small, unless small text can't be sharp at this GUI scale,
-     * when there's room for them at full size anyway.
-     */
-    private static float secondaryScale() {
-        return Gui.smallIsSharp() ? Gui.smallScale() : 1f;
-    }
-
-    private int secondaryWidth(String text) {
-        return (int) Math.ceil(font.width(text) * secondaryScale());
-    }
-
-    /** Secondary text, at the size of labels and details. */
-    private void fine(GuiGraphics g, String text, int left, int top, int color) {
-        Gui.scaled(g, font, text, left, top, color, secondaryScale());
-    }
-
-    /** Cuts text short to fit {@code width} at the secondary size. */
-    private String fineClip(String text, int width) {
-        return Gui.clip(font, text, (int) (width / secondaryScale()));
-    }
-
-    /** Secondary text cut short to fit {@code width}, shown in full when hovered. */
-    private void fineClipped(GuiGraphics g, String text, int left, int top, int width, int color) {
-        String shown = fineClip(text, width);
-        fine(g, shown, left, top, color);
-        if (!shown.equals(text)) {
-            Gui.noteClipped(left, top - 1, Math.max(6, secondaryWidth(shown)), (int) Math.ceil(font.lineHeight * secondaryScale()) + 1, text);
-        }
-    }
-
-    /** Wrapped text at the secondary size, such as the notes under a list. Returns the y below it. */
-    private int fineWrapped(GuiGraphics g, Component text, int left, int top, int width, int color) {
-        float scale = secondaryScale();
-        for (FormattedCharSequence line : font.split(text, (int) (width / scale))) {
-            Gui.scaled(g, font, line, left, top, color, scale);
-            top += secondaryLine() + 1;
-        }
-        return top;
-    }
-
-    /** How tall a line of labels or details is. */
-    private int secondaryLine() {
-        return (int) Math.ceil(font.lineHeight * secondaryScale());
     }
 
     private String lootSummary(StructureSnapshot s) {
@@ -642,8 +595,8 @@ final class InfoPanel {
     }
 
     private int field(GuiGraphics g, int cy, String key, String value) {
-        Gui.scaled(g, font, Component.translatable("screen.justenoughstructures.field." + key).getString(), x + PAD, cy, Gui.LABEL_SOFT, secondaryScale());
-        cy += secondaryLine() + 1;
+        Gui.scaled(g, font, Component.translatable("screen.justenoughstructures.field." + key).getString(), x + PAD, cy, Gui.LABEL_SOFT, Gui.fineScale());
+        cy += Gui.fineLine(font) + 1;
         for (String line : value.split("\n")) {
             if (line.contains(" ")) {
                 cy = Gui.wrapped(g, font, Component.literal(line), x + PAD, cy, textWidth(), TEXT);
@@ -722,7 +675,7 @@ final class InfoPanel {
             return secretLoot(g, cy, mouseX, mouseY, clipTop, clipHeight);
         }
         if (result == null || !result.succeeded()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot snapshot = result.snapshot();
         // One row per kind of container and loot table, so a chest and a barrel on the same table are told apart.
@@ -741,13 +694,13 @@ final class InfoPanel {
                 .filter(t -> snapshot.containers().stream().noneMatch(c -> t.equals(c.lootTable())) && !trialDrops.containsKey(t))
                 .sorted(Comparator.comparing(StructureNames::lootTable)).toList();
         if (groups.isEmpty() && others.isEmpty() && trialDrops.isEmpty()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.no_loot"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
 
-        int rowHeight = 15 + secondaryLine();
+        int rowHeight = 15 + Gui.fineLine(font);
         if (!groups.isEmpty()) {
-            fine(g, Component.translatable("screen.justenoughstructures.containers_here").getString(), x + PAD, cy, Gui.LABEL_SOFT);
-            cy += secondaryLine() + 2;
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.containers_here").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+            cy += Gui.fineLine(font) + 2;
             List<List<StructureSnapshot.Container>> sorted = new ArrayList<>(groups.values());
             sorted.sort(Comparator.comparing((List<StructureSnapshot.Container> list) -> list.get(0).lootTable() == null)
                     .thenComparing(list -> -list.size()));
@@ -767,7 +720,7 @@ final class InfoPanel {
                 int textWidth = contentRight - x - PAD - 23 - 12;
                 Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, TEXT);
                 int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
-                fineClipped(g, detail, x + PAD + 23, cy + 13, textWidth - mark, Gui.LABEL_SOFT);
+                Gui.fineClipped(g, font, detail, x + PAD + 23, cy + 13, textWidth - mark, Gui.LABEL_SOFT);
                 g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? TEXT : Gui.LABEL_SOFT, false);
                 String key = "loot:" + table + "|" + first.id();
                 if (hovered) {
@@ -790,8 +743,8 @@ final class InfoPanel {
 
         if (!others.isEmpty()) {
             cy += 2;
-            fine(g, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
-            cy += secondaryLine() + 2;
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.other_layouts").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+            cy += Gui.fineLine(font) + 2;
             // One line each, as the heading already says they aren't in this layout.
             int otherHeight = 20;
             for (String table : others) {
@@ -839,8 +792,8 @@ final class InfoPanel {
     private int trialDrops(GuiGraphics g, int cy, StructureSnapshot snapshot, Map<String, LongSet> drops, int mouseX, int mouseY,
                            int clipTop, int clipHeight) {
         cy += 2;
-        fine(g, Component.translatable("screen.justenoughstructures.trial_drops").getString(), x + PAD, cy, Gui.LABEL_SOFT);
-        cy += secondaryLine() + 2;
+        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.trial_drops").getString(), x + PAD, cy, Gui.LABEL_SOFT);
+        cy += Gui.fineLine(font) + 2;
         int rowHeight = 20;
         for (Map.Entry<String, LongSet> drop : drops.entrySet()) {
             String table = drop.getKey();
@@ -930,7 +883,7 @@ final class InfoPanel {
             ResourceLocation id = ResourceLocation.tryParse(table);
             LootOdds found = id == null ? null : ClientRequests.odds(id).getNow(null);
             if (found == null) {
-                return fineWrapped(g, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+                return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
             }
             odds.put(table, found);
         }
@@ -1001,10 +954,10 @@ final class InfoPanel {
     /** "Most likely first" or "Rarest first", which switches the order. Returns the y below it. */
     private int sortLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         Component sortLabel = Component.translatable(ClientState.rarestFirst ? "screen.justenoughstructures.sort_rare" : "screen.justenoughstructures.sort_common");
-        int sortWidth = secondaryWidth(sortLabel.getString()) + 2;
-        int linkHeight = secondaryLine() + 2;
+        int sortWidth = Gui.fineWidth(font, sortLabel.getString()) + 2;
+        int linkHeight = Gui.fineLine(font) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
-        fine(g, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
+        Gui.fine(g, font, sortLabel.getString(), x + PAD, cy, overSort ? 0xFF1F3F8F : 0xFF3A55A0);
         hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
             ClientState.rarestFirst = !ClientState.rarestFirst;
             ClientState.save();
@@ -1024,10 +977,10 @@ final class InfoPanel {
             Component text = progress < 0
                     ? Component.translatable("screen.justenoughstructures.indexing")
                     : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
-            return fineWrapped(g, text, x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, text, x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         if (tables.isEmpty()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<String> sorted = tables.stream().map(ResourceLocation::toString).sorted(Comparator.comparing(StructureNames::lootTable)).toList();
         if (selectedTable == null || !sorted.contains(selectedTable)) {
@@ -1067,8 +1020,8 @@ final class InfoPanel {
             return 0;
         }
         String text = mark.getString();
-        int width = secondaryWidth(text);
-        fine(g, text, right - width, top, ToolsSection.markColour(status));
+        int width = Gui.fineWidth(font, text);
+        Gui.fine(g, font, text, right - width, top, ToolsSection.markColour(status));
         return width + 4;
     }
 
@@ -1093,10 +1046,10 @@ final class InfoPanel {
         cy += 16;
         cy = sortLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         if (odds == null) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         if (odds.rows().isEmpty()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         List<LootOdds.Row> rows = OddsList.sorted(odds, ClientState.rarestFirst);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
@@ -1117,11 +1070,11 @@ final class InfoPanel {
             cy += OddsList.ROW + 1;
         }
         if (odds.emptyRolls() > 0) {
-            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.empty_rolls",
+            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.empty_rolls",
                     String.format("%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         }
         if (Gui.advanced()) {
-            cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
+            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
                     x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT);
         }
         return cy;
@@ -1165,11 +1118,11 @@ final class InfoPanel {
 
     private int blocks(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (result == null || !result.succeeded()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot s = result.snapshot();
         List<Map.Entry<Block, Integer>> sorted = Exports.blockCounts(s);
-        cy = fineWrapped(g, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
+        cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
                 x + PAD, cy, textWidth(), TEXT) + 3;
 
         Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
@@ -1182,10 +1135,10 @@ final class InfoPanel {
         hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 17;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
-            cy = fineWrapped(g, notice, x + PAD, cy, textWidth(), GOOD) + 2;
+            cy = Gui.fineWrapped(g, font, notice, x + PAD, cy, textWidth(), GOOD) + 2;
         }
 
-        int rowHeight = Math.max(19, 12 + secondaryLine());
+        int rowHeight = Math.max(19, 12 + Gui.fineLine(font));
         for (Map.Entry<Block, Integer> e : sorted) {
             if (cy + rowHeight < clipTop || cy > clipTop + clipHeight) {
                 // Scrolled out of view: a big structure can use hundreds of kinds of block.
@@ -1206,10 +1159,10 @@ final class InfoPanel {
             String number = String.format("%,d", count);
             String amount = count >= 64 ? Component.translatable("screen.justenoughstructures.block_amount", number, stacks(count)).getString() : number;
             // Just the number when the stacks don't fit beside it: the tooltip has them.
-            if (secondaryWidth(amount) > contentRight - 2 - textX) {
+            if (Gui.fineWidth(font, amount) > contentRight - 2 - textX) {
                 amount = number;
             }
-            fineClipped(g, amount, textX, cy + 11, contentRight - 2 - textX, Gui.LABEL_SOFT);
+            Gui.fineClipped(g, font, amount, textX, cy + 11, contentRight - 2 - textX, Gui.LABEL_SOFT);
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
                 lines.add(block.getName());
@@ -1256,7 +1209,7 @@ final class InfoPanel {
 
     private int mobs(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
         if (result == null || !result.succeeded()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.loot_waiting"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         StructureSnapshot s = result.snapshot();
         Map<String, Integer> placed = new LinkedHashMap<>();
@@ -1293,7 +1246,7 @@ final class InfoPanel {
         }
 
         if (placed.isEmpty() && byKind.isEmpty() && trialByKind.isEmpty() && overTime.isEmpty()) {
-            return fineWrapped(g, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.no_entities"), x + PAD, cy, textWidth(), Gui.LABEL_SOFT);
         }
         cy = placedSection(g, cy, placed, mouseX, mouseY, clipTop, clipHeight);
         // For Pack tools: what the spawners of a row made before a dev gave them this mob.
@@ -1339,7 +1292,7 @@ final class InfoPanel {
                 // Made the other kind of spawner: which kind it was says what changed.
                 boolean wasTrial = was.block().equals(TrialSpawners.BLOCK);
                 String key = wasTrial == e.getKey().trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
-                cy = fineWrapped(g, Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(was.patchedFrom())),
+                cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(was.patchedFrom())),
                         x + PAD, cy + 1, textWidth(), ToolsUi.CHANGED) + 2;
             }
             cy = ominous(g, cy, e.getKey(), over);
@@ -1364,7 +1317,7 @@ final class InfoPanel {
             int count = pool.getValue().size();
             Component line = count == 1 ? Component.translatable("screen.justenoughstructures." + key + "_one")
                     : Component.translatable("screen.justenoughstructures." + key + "_many", count);
-            cy = fineWrapped(g, line, x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
+            cy = Gui.fineWrapped(g, font, line, x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
             Map<String, Integer> weights = pool.getKey().mobs();
             int total = weights.values().stream().mapToInt(Integer::intValue).sum();
             List<Map.Entry<String, Integer>> mobs = new ArrayList<>(weights.entrySet());
@@ -1388,9 +1341,9 @@ final class InfoPanel {
             return cy;
         }
         if (kind.sameOminous()) {
-            return fineWrapped(g, sameOminous(kind), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 2;
+            return Gui.fineWrapped(g, font, sameOminous(kind), x + PAD, cy + 1, textWidth(), Gui.LABEL_SOFT) + 2;
         }
-        cy = fineWrapped(g, ominousHeading(kind), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
+        cy = Gui.fineWrapped(g, font, ominousHeading(kind), x + PAD, cy + 2, textWidth(), Gui.LABEL_SOFT) + 3;
         int total = kind.ominous().values().stream().mapToInt(Integer::intValue).sum();
         List<Map.Entry<String, Integer>> mobs = new ArrayList<>(kind.ominous().entrySet());
         mobs.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
@@ -1426,7 +1379,7 @@ final class InfoPanel {
 
     /** How tall {@link #fineWrapped} draws this text across the panel. */
     private int wrappedHeight(Component text) {
-        return font.split(text, (int) (textWidth() / secondaryScale())).size() * (secondaryLine() + 1);
+        return font.split(text, (int) (textWidth() / Gui.fineScale())).size() * (Gui.fineLine(font) + 1);
     }
 
     /**
