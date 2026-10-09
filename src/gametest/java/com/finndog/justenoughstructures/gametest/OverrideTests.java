@@ -1,5 +1,9 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
+
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JsonPaths;
@@ -27,7 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -44,9 +47,6 @@ import net.minecraft.world.level.storage.loot.LootTable;
 /** Loot tables edited in the browser, saved as overrides. Every test works in a folder of its own. */
 public final class OverrideTests {
     private static final ResourceLocation IGLOO = Ids.parse("chests/igloo_chest");
-    private static final String DIAMONDS_ONLY = """
-            {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
-            """;
 
     // Vanilla tables that between them write modifiers and conditions every way 26.3 does: one or a
     // list, conditions on modifiers, predicates by id, and entries inside entries.
@@ -424,17 +424,7 @@ public final class OverrideTests {
         });
     }
 
-    /** What /reload does: look for new datapacks, then reload with them. */
-    private static CompletableFuture<Void> reload(MinecraftServer server) {
-        server.getPackRepository().reload();
-        return server.reloadResources(server.getPackRepository().getSelectedIds());
-    }
-
     private static boolean onlyDiamonds(LootOdds odds) {
         return odds.rows().size() == 1 && odds.rows().get(0).example().is(Items.DIAMOND);
-    }
-
-    private static String key(Component message) {
-        return message != null && message.getContents() instanceof TranslatableContents t ? t.getKey() : String.valueOf(message);
     }
 }

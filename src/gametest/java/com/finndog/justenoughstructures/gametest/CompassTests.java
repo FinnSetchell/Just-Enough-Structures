@@ -1,5 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
@@ -11,7 +13,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -93,9 +94,5 @@ public final class CompassTests {
         }
         return null;
         //?}
-    }
-
-    private static String key(Component reply) {
-        return reply.getContents() instanceof TranslatableContents t ? t.getKey() : reply.getString();
     }
 }

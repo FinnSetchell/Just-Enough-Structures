@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
@@ -24,9 +25,6 @@ import net.minecraft.server.MinecraftServer;
  */
 final class MarkersScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/pillager_outpost");
-    private static final String DIAMONDS_ONLY = """
-            {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
-            """;
 
     private MarkersScenario() {
     }

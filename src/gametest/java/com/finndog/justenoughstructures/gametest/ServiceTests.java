@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.finndog.justenoughstructures.server.JesServer;
@@ -170,13 +171,8 @@ public final class ServiceTests {
         StructureSnapshot b = reply.result().snapshot();
         helper.assertTrue(b != null, "snapshot was lost on the way through");
         helper.assertTrue(reply.id().equals(id) && reply.seed() == CaptureTests.SEED, "reply names the wrong capture");
-        helper.assertTrue(a.blockCount() == b.blockCount(), "block count changed on the way through");
-        for (int i = 0; i < a.blockCount(); i++) {
-            if (a.packedPosition(i) != b.packedPosition(i) || a.state(i) != b.state(i)) {
-                helper.fail("block " + i + " changed on the way through");
-                return;
-            }
-        }
+        String changed = CaptureTests.difference(a, b);
+        helper.assertTrue(changed == null, "blocks changed on the way through: " + changed);
         helper.assertTrue(a.size().equals(b.size()) && a.origin().equals(b.origin()), "bounds changed on the way through");
         helper.assertTrue(a.blockEntities().equals(b.blockEntities()), "block entities changed on the way through");
         helper.assertTrue(a.entities().equals(b.entities()), "entities changed on the way through");
@@ -209,13 +205,9 @@ public final class ServiceTests {
                 .forPicture();
         for (StructureSnapshot sent : List.of(scattered, picture)) {
             StructureSnapshot back = throughTheWire(helper, sent);
-            helper.assertTrue(back.size().equals(sent.size()) && back.blockCount() == sent.blockCount(), sent.structureId() + " came back a different size");
-            for (int i = 0; i < sent.blockCount(); i++) {
-                if (back.packedPosition(i) != sent.packedPosition(i) || back.state(i) != sent.state(i)) {
-                    helper.fail("block " + i + " of " + sent.structureId() + " changed on the way through");
-                    return;
-                }
-            }
+            helper.assertTrue(back.size().equals(sent.size()), sent.structureId() + " came back a different size");
+            String changed = CaptureTests.difference(sent, back);
+            helper.assertTrue(changed == null, sent.structureId() + " changed on the way through: " + changed);
         }
         StructureSnapshot flat = new StructureSnapshot(Ids.of("test", "flat"), 5L, SandboxTerrain.LAND, BlockPos.ZERO, new Vec3i(0, 1, 1), palette,
                 new int[0], new int[0], List.of(), List.of(), 1);
@@ -517,12 +509,17 @@ public final class ServiceTests {
     }
 
     private static byte[] readSaved(Path dir, ResourceLocation id, boolean picture) {
-        CompletableFuture<byte[]> read = new CompletableFuture<>();
-        SavedPreviews.load(dir, id, picture, read::complete);
+        return await(then -> SavedPreviews.load(dir, id, picture, then), "reading a saved view");
+    }
+
+    /** What a callback is handed, once {@code ask} has asked for it. */
+    private static <T> T await(Consumer<Consumer<T>> ask, String what) {
+        CompletableFuture<T> answer = new CompletableFuture<>();
+        ask.accept(answer::complete);
         try {
-            return read.get(10, TimeUnit.SECONDS);
+            return answer.get(10, TimeUnit.SECONDS);
         } catch (Exception e) {
-            throw new AssertionError("reading a saved view took too long", e);
+            throw new AssertionError(what + " took too long", e);
         }
     }
 
@@ -654,13 +651,7 @@ public final class ServiceTests {
     }
 
     private static byte[] readKept(ResourceLocation id) {
-        CompletableFuture<byte[]> read = new CompletableFuture<>();
-        KeptPreviews.read(id, read::complete);
-        try {
-            return read.get(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new AssertionError("reading a kept view took too long", e);
-        }
+        return await(then -> KeptPreviews.read(id, then), "reading a kept view");
     }
 
     /** A structure's kept files of one kind: first views end in .bin, pictures' copies in .pic. */
@@ -673,13 +664,7 @@ public final class ServiceTests {
     }
 
     private static byte[] readKeptPicture(ResourceLocation id, String version) {
-        CompletableFuture<byte[]> read = new CompletableFuture<>();
-        KeptPreviews.readPicture(id, version, read::complete);
-        try {
-            return read.get(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new AssertionError("reading a kept picture's copy took too long", e);
-        }
+        return await(then -> KeptPreviews.readPicture(id, version, then), "reading a kept picture's copy");
     }
 
     /** How kept previews name their folders and files. */

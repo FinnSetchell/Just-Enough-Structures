@@ -1,14 +1,17 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
+import static com.finndog.justenoughstructures.gametest.TestSupport.copy;
+import static com.finndog.justenoughstructures.gametest.TestSupport.expect;
+import static com.finndog.justenoughstructures.gametest.TestSupport.firstBlock;
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Nbt;
-import com.finndog.justenoughstructures.Regs;
-import com.finndog.justenoughstructures.capture.CaptureResult;
-import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
-import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
@@ -29,10 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,9 +45,6 @@ public final class ContainerTests {
     private static final ResourceLocation OUTPOST = Ids.parse("pillager_outpost");
     private static final ResourceLocation VILLAGE = Ids.parse("village_plains");
     private static final ResourceLocation MARKER = Ids.of("justenoughstructures", "test/marker");
-    private static final String DIAMONDS_ONLY = """
-            {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
-            """;
 
     private ContainerTests() {
     }
@@ -409,11 +406,7 @@ public final class ContainerTests {
     }
 
     private static StructureSnapshot capture(MinecraftServer server, String structure) {
-        CaptureResult result = StructureCapture.capture(server, Ids.parse(structure), CaptureTests.SEED);
-        if (!result.succeeded()) {
-            throw new AssertionError(structure + " did not capture: " + result.error());
-        }
-        return result.snapshot();
+        return TestSupport.capture(server, Ids.parse(structure), CaptureTests.SEED);
     }
 
     private static StructureSnapshot.Container at(StructureSnapshot snapshot, StructureSnapshot.Source source) {
@@ -422,51 +415,16 @@ public final class ContainerTests {
                 .findFirst().orElse(null);
     }
 
-    /** What /reload does: look for new datapacks, then reload with them. */
-    private static CompletableFuture<Void> reload(MinecraftServer server) {
-        server.getPackRepository().reload();
-        return server.reloadResources(server.getPackRepository().getSelectedIds());
-    }
-
-    private static StructureTemplate copy(StructureTemplate template) {
-        StructureTemplate copy = new StructureTemplate();
-        // Saving hands over the template's own block entity tags, so they're copied to keep the two apart.
-        copy.load(Regs.getter(BuiltInRegistries.BLOCK), template.save(new CompoundTag()).copy());
-        return copy;
-    }
-
     private static StructureTemplate.StructureBlockInfo firstContainer(StructureTemplate template) {
-        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
-            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable")) {
-                    return info;
-                }
-            }
-        }
-        return null;
+        return firstBlock(template, info -> info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable"));
     }
 
     private static StructureTemplate.StructureBlockInfo containerAt(StructureTemplate template, BlockPos pos) {
-        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
-            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.pos().equals(pos) && info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable")) {
-                    return info;
-                }
-            }
-        }
-        return null;
+        return firstBlock(template, info -> info.pos().equals(pos) && info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable"));
     }
 
     private static String tableAt(StructureTemplate template, BlockPos pos) {
         StructureTemplate.StructureBlockInfo info = containerAt(template, pos);
         return info == null ? null : Nbt.string(info.nbt(), "LootTable");
-    }
-
-    private static void expect(GameTestHelper helper, Component reply, String keyEnd) {
-        helper.assertTrue(key(reply).endsWith(keyEnd), "expected " + keyEnd + " but got " + reply.getString());
-    }
-
-    private static String key(Component message) {
-        return message != null && message.getContents() instanceof TranslatableContents t ? t.getKey() : String.valueOf(message);
     }
 }

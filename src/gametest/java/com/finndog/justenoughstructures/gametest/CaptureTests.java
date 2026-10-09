@@ -422,7 +422,7 @@ public final class CaptureTests {
     }
 
     /** Why two snapshots aren't the same, or null if they are. */
-    private static String difference(StructureSnapshot a, StructureSnapshot b) {
+    static String difference(StructureSnapshot a, StructureSnapshot b) {
         if (a.blockCount() != b.blockCount()) {
             return "block counts differ: " + a.blockCount() + " vs " + b.blockCount();
         }

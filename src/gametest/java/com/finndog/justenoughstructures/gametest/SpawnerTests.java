@@ -1,15 +1,18 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.capture;
+import static com.finndog.justenoughstructures.gametest.TestSupport.copy;
+import static com.finndog.justenoughstructures.gametest.TestSupport.expect;
+import static com.finndog.justenoughstructures.gametest.TestSupport.firstBlock;
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Nbt;
-import com.finndog.justenoughstructures.Regs;
-import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
-import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.screen.SpawnerKind;
-import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -46,7 +49,6 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -630,60 +632,17 @@ public final class SpawnerTests {
         return potentials.stream().map(t -> Nbt.string(Nbt.compound(Nbt.compound((CompoundTag) t, "data"), "entity"), "id")).toList();
     }
 
-    private static StructureSnapshot capture(MinecraftServer server, ResourceLocation structure, long seed) {
-        CaptureResult result = StructureCapture.capture(server, structure, seed);
-        if (!result.succeeded()) {
-            throw new AssertionError(structure + " did not capture: " + result.error());
-        }
-        return result.snapshot();
-    }
-
     private static StructureSnapshot.Spawner at(StructureSnapshot snapshot, StructureSnapshot.Source source) {
         return snapshot.spawners().stream()
                 .filter(s -> s.source() != null && s.source().template().equals(source.template()) && s.source().pos().equals(source.pos()))
                 .findFirst().orElse(null);
     }
 
-    /** What /reload does: look for new datapacks, then reload with them. */
-    private static CompletableFuture<Void> reload(MinecraftServer server) {
-        server.getPackRepository().reload();
-        return server.reloadResources(server.getPackRepository().getSelectedIds());
-    }
-
-    private static StructureTemplate copy(StructureTemplate template) {
-        StructureTemplate copy = new StructureTemplate();
-        // Saving hands over the template's own block entity tags, so they're copied to keep the two apart.
-        copy.load(Regs.getter(BuiltInRegistries.BLOCK), template.save(new CompoundTag()).copy());
-        return copy;
-    }
-
     private static StructureTemplate.StructureBlockInfo firstSpawner(StructureTemplate template) {
-        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
-            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (SpawnerPatches.isSpawner(info)) {
-                    return info;
-                }
-            }
-        }
-        return null;
+        return firstBlock(template, SpawnerPatches::isSpawner);
     }
 
     private static StructureTemplate.StructureBlockInfo spawnerAt(StructureTemplate template, BlockPos pos) {
-        for (StructureTemplate.Palette palette : ((StructureTemplateAccessor) template).justenoughstructures$palettes()) {
-            for (StructureTemplate.StructureBlockInfo info : palette.blocks()) {
-                if (info.pos().equals(pos) && SpawnerPatches.isSpawner(info)) {
-                    return info;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static void expect(GameTestHelper helper, Component reply, String keyEnd) {
-        helper.assertTrue(key(reply).endsWith(keyEnd), "expected " + keyEnd + " but got " + reply.getString());
-    }
-
-    private static String key(Component message) {
-        return message != null && message.getContents() instanceof TranslatableContents t ? t.getKey() : String.valueOf(message);
+        return firstBlock(template, info -> info.pos().equals(pos) && SpawnerPatches.isSpawner(info));
     }
 }

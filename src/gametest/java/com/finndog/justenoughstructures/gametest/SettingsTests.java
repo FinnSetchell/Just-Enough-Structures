@@ -1,5 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -26,7 +28,6 @@ import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -333,8 +334,4 @@ public final class SettingsTests {
         helper.succeed();
     }
     *///?}
-
-    private static String key(Component reply) {
-        return reply.getContents() instanceof TranslatableContents t ? t.getKey() : reply.getString();
-    }
 }

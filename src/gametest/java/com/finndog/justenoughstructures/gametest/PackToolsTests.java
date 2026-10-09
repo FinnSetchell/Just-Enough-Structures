@@ -1,5 +1,8 @@
 package com.finndog.justenoughstructures.gametest;
 
+import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
+import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
@@ -22,7 +25,6 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -33,9 +35,6 @@ import net.minecraft.world.item.Items;
 public final class PackToolsTests {
     private static final ResourceLocation IGLOO = Ids.parse("igloo");
     private static final ResourceLocation IGLOO_TABLE = Ids.parse("chests/igloo_chest");
-    private static final String DIAMONDS_ONLY = """
-            {"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:diamond"}]}]}
-            """;
 
     private PackToolsTests() {
     }
@@ -204,9 +203,5 @@ public final class PackToolsTests {
             ServerConfig.set(before);
         }
         helper.succeed();
-    }
-
-    private static String key(Component reply) {
-        return reply != null && reply.getContents() instanceof TranslatableContents t ? t.getKey() : String.valueOf(reply);
     }
 }
