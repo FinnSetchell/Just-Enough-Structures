@@ -205,7 +205,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
             Component changed = Component.translatable(changedFromKey(patch, waiting(patch.template(), patch.pos())), mobName(patch.original(), patch.others()));
             cy = undoBar(g, ui, changed, x, cy, w, () -> screen.undoSpawner(patch.template(), patch.pos()));
         } else if (ref.structure() != null && waitingUndo(ref)) {
-            cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.spawner_undone_next"), x, cy, w, 2) + 3;
+            cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.spawner_undone_next"), x, cy, w, ToolsUi.STATUS_CHANGED) + 3;
         }
         List<Component> notes = new ArrayList<>();
         if (ref.byCode()) {

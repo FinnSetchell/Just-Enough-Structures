@@ -193,7 +193,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
                     : "screen.justenoughstructures.container.changed_from", ToolsOverview.tableName(patch.original()));
             cy = undoBar(g, ui, changed, x, cy, w, () -> screen.undoChest(patch.template(), patch.pos()));
         } else if (ref.structure() != null && waitingUndo(ref)) {
-            cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.undone_next"), x, cy, w, 2) + 3;
+            cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.undone_next"), x, cy, w, ToolsUi.STATUS_CHANGED) + 3;
         }
         if (ref.byCode()) {
             cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.code_note"), x, cy, w, Gui.LABEL_SOFT) + 3;

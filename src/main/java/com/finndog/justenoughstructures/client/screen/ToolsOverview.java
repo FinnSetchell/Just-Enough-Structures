@@ -60,9 +60,8 @@ final class ToolsOverview extends ToolsSection {
                         RowButton.of("editor.keep", () -> screen.keep(table)),
                         new RowButton(Component.translatable("screen.justenoughstructures.editor.use_mods"), () -> screen.removeEdit(table),
                                 Component.translatable("screen.justenoughstructures.editor.use_mods_hint")));
-                cy += row(g, ui, x, cy, cw, Icon.item(CHEST), StructureNames.lootTable(table.toString()), null, 0,
-                        Component.translatable("screen.justenoughstructures.editor.status." + e.getValue().name().toLowerCase(java.util.Locale.ROOT)).getString(),
-                        buttons, null, 0xFFF1DCAE, false);
+                cy += row(g, ui, x, cy, cw, Icon.item(CHEST), StructureNames.lootTable(table.toString()), null, 0, statusText(e.getValue()).getString(),
+                        buttons, null, ToolsUi.statusColours(ToolsUi.STATUS_CHANGED)[0], false);
             }
             cy += 4;
         }

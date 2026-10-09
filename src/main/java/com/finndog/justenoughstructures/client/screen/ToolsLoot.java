@@ -279,19 +279,13 @@ final class ToolsLoot extends ToolsSection {
         int cy = y + row(g, ui, x, y, w, Icon.item(CHEST), StructureNames.lootTable(table.toString()), null, 0, table.toString(), buttons, null, 0, false) + 2;
 
         boolean waiting = screen.waiting(PackToolsState.tableKey(table));
-        Component text = Component.translatable("screen.justenoughstructures.editor.status." + status.name().toLowerCase(Locale.ROOT));
+        Component text = statusText(status);
         if (waiting) {
             // Some statuses end a sentence and some don't.
             text = text.copy().append(text.getString().endsWith(".") ? " " : ". ")
                     .append(Component.translatable("screen.justenoughstructures.tools.waiting_this"));
         }
-        int kind = switch (status) {
-            case NONE -> 0;
-            case ACTIVE -> 1;
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> 2;
-            case BROKEN -> 3;
-        };
-        cy += ui.status(g, text, x, cy, w, kind) + 2;
+        cy += ui.status(g, text, x, cy, w, statusKind(status)) + 2;
         if (status == LootOverrides.Status.ORIGINAL_CHANGED) {
             // Side by side, each on a line of its own once they don't fit.
             Component[] labels = {Component.translatable("screen.justenoughstructures.editor.see_changes"),

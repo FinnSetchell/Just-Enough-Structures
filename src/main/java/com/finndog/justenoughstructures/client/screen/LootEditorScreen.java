@@ -944,13 +944,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             status = idProblem;
             colour = BAD;
         }
-        int[] fill = switch (view.status()) {
-            case ACTIVE -> new int[]{0xFFCFE8C0};
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> new int[]{0xFFF1DCAE};
-            case BROKEN -> new int[]{0xFFF0C0C0};
-            default -> new int[]{isNew() ? 0xFFC6D4F0 : 0xFFD6D6D6};
-        };
-        g.fill(PAD + 6 + inset, barY, width - PAD - 6 - inset, barY + 13, fill[0]);
+        g.fill(PAD + 6 + inset, barY, width - PAD - 6 - inset, barY + 13, ToolsUi.statusColours(statusKind())[0]);
         int actionsLeft = right;
         if (view.status() == LootOverrides.Status.ORIGINAL_CHANGED && message == null) {
             for (String key : List.of("use_mods", "keep", "merge", "see_changes")) {
@@ -991,19 +985,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (isNew()) {
             return Component.translatable("screen.justenoughstructures.editor.status.new");
         }
-        return Component.translatable("screen.justenoughstructures.editor.status." + view.status().name().toLowerCase(Locale.ROOT));
+        return ToolsSection.statusText(view.status());
     }
 
     private int statusColour() {
-        if (view == null || isNew()) {
-            return 0xFF1F2F60;
-        }
-        return switch (view.status()) {
-            case NONE -> 0xFF505050;
-            case ACTIVE -> 0xFF24451A;
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> 0xFF5A3A00;
-            case BROKEN -> 0xFF6A1010;
-        };
+        return ToolsUi.statusColours(statusKind())[1];
+    }
+
+    /** The colours of the status bar: see {@link ToolsUi#status}. */
+    private int statusKind() {
+        return view == null || isNew() ? ToolsUi.STATUS_NEW : ToolsSection.statusKind(view.status());
     }
 
     /** The table, its pools and their entries, to pick one to change, with ways to add more. */

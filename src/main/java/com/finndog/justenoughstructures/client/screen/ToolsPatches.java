@@ -204,8 +204,8 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
     int undoBar(GuiGraphics g, ToolsUi ui, Component changed, int x, int y, int w, Runnable undo) {
         Component label = Component.translatable("screen.justenoughstructures.container.undo");
         int undoW = ui.buttonWidth(label);
-        int barH = ui.status(g, changed, x, y, w - undoW - 4, 2);
-        g.fill(x + w - undoW - 4, y, x + w, y + barH, 0xFFF1DCAE);
+        int barH = ui.status(g, changed, x, y, w - undoW - 4, ToolsUi.STATUS_CHANGED);
+        g.fill(x + w - undoW - 4, y, x + w, y + barH, ToolsUi.statusColours(ToolsUi.STATUS_CHANGED)[0]);
         ui.button(g, label, x + w - undoW - 2, y + (barH - ToolsUi.BUTTON) / 2, true, undo,
                 Component.translatable("screen.justenoughstructures.container.undo_hint"));
         return y + Math.max(barH, ToolsUi.BUTTON) + 3;

@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -246,6 +247,21 @@ abstract class ToolsSection {
             case ORIGINAL_CHANGED, ORIGINAL_MISSING -> ToolsUi.CHANGED;
             case BROKEN -> ToolsUi.BAD;
             default -> ToolsUi.GOOD;
+        };
+    }
+
+    /** How a table's edit stands, as its status bar says it. */
+    static Component statusText(LootOverrides.Status status) {
+        return Component.translatable("screen.justenoughstructures.editor.status." + status.name().toLowerCase(Locale.ROOT));
+    }
+
+    /** The colours of a table's status bar: see {@link ToolsUi#status}. */
+    static int statusKind(LootOverrides.Status status) {
+        return switch (status) {
+            case NONE -> ToolsUi.STATUS_PLAIN;
+            case ACTIVE -> ToolsUi.STATUS_GOOD;
+            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> ToolsUi.STATUS_CHANGED;
+            case BROKEN -> ToolsUi.STATUS_BAD;
         };
     }
 

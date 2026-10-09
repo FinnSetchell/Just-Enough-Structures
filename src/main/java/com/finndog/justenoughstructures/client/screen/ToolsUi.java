@@ -19,6 +19,12 @@ final class ToolsUi {
     static final int BAD = 0xFFB02020;
     static final int LINK = 0xFF3A55A0;
     static final int SELECTED = 0xFF4B5280;
+    /** The kinds of {@link #status} bar, by how what it says stands. */
+    static final int STATUS_PLAIN = 0;
+    static final int STATUS_GOOD = 1;
+    static final int STATUS_CHANGED = 2;
+    static final int STATUS_BAD = 3;
+    static final int STATUS_NEW = 4;
 
     private final Font font;
     private final List<Spot> spots = new ArrayList<>();
@@ -275,15 +281,20 @@ final class ToolsUi {
         return y + 14;
     }
 
-    /** A coloured bar with a line of text, for how something stands. Returns its height. */
-    int status(GuiGraphics g, Component text, int x, int y, int w, int kind) {
-        int[] colours = switch (kind) {
-            case 1 -> new int[]{0xFFCFE8C0, 0xFF24451A};
-            case 2 -> new int[]{0xFFF1DCAE, 0xFF5A3A00};
-            case 3 -> new int[]{0xFFF0C0C0, 0xFF6A1010};
-            case 4 -> new int[]{0xFFC6D4F0, 0xFF1F2F60};
+    /** A status bar's fill and text colours, by its kind. */
+    static int[] statusColours(int kind) {
+        return switch (kind) {
+            case STATUS_GOOD -> new int[]{0xFFCFE8C0, 0xFF24451A};
+            case STATUS_CHANGED -> new int[]{0xFFF1DCAE, 0xFF5A3A00};
+            case STATUS_BAD -> new int[]{0xFFF0C0C0, 0xFF6A1010};
+            case STATUS_NEW -> new int[]{0xFFC6D4F0, 0xFF1F2F60};
             default -> new int[]{0xFFD6D6D6, 0xFF505050};
         };
+    }
+
+    /** A coloured bar with a line of text, for how something stands. Returns its height. */
+    int status(GuiGraphics g, Component text, int x, int y, int w, int kind) {
+        int[] colours = statusColours(kind);
         List<net.minecraft.util.FormattedCharSequence> lines = font.split(text, w - 8);
         int h = Math.max(1, lines.size()) * (font.lineHeight + 1) + 3;
         g.fill(x, y, x + w, y + h, colours[0]);
