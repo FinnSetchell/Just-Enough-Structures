@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * Containers: picking one in the browser to change, those changed so far, and for the one picked,
  * where it is, its loot table and what it's changed from, and one possible roll of it.
  */
-final class ToolsChests extends ToolsSection {
+final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests.ChestRef> {
     private static final int SLOT = 18;
 
     /**
@@ -39,7 +39,7 @@ final class ToolsChests extends ToolsSection {
      * @param table       the loot table it has, or null for one saved with its items
      */
     record ChestRef(ResourceLocation structure, long seed, BlockPos pos, boolean entity, String block, ResourceLocation template,
-                    BlockPos templatePos, String table, Component title, int size) {
+                    BlockPos templatePos, String table, Component title, int size) implements Ref<ContainerPatches.Patch> {
         static ChestRef of(ContainerPatches.Patch patch) {
             Block block = Regs.value(BuiltInRegistries.BLOCK, patch.block());
             return new ChestRef(null, 0, null, false, patch.block().toString(), patch.template(), patch.pos(), patch.table().toString(),
@@ -52,12 +52,8 @@ final class ToolsChests extends ToolsSection {
                     source == null ? null : source.pos(), c.lootTable(), title, size);
         }
 
-        /** Only containers in a template can be pointed at another table; those a structure's code places can't. */
-        boolean byCode() {
-            return template == null;
-        }
-
-        boolean same(ContainerPatches.Patch patch) {
+        @Override
+        public boolean same(ContainerPatches.Patch patch) {
             return template != null && template.equals(patch.template()) && templatePos.equals(patch.pos());
         }
     }
@@ -78,142 +74,77 @@ final class ToolsChests extends ToolsSection {
         return 27;
     }
 
-    private final Scroller list = new Scroller();
-    private final Scroller detail = new Scroller();
-    /** Whether the list and what's picked were last shown one at a time, rather than side by side. */
-    private boolean single;
-    private ChestRef selected;
     private List<ItemStack> roll;
     private String rollFor;
     private long seed = ThreadLocalRandom.current().nextLong();
     private ItemStack hovered = ItemStack.EMPTY;
 
     ToolsChests(PackToolsScreen screen) {
-        super(screen);
+        super(screen, ChestRef.class);
     }
 
     @Override
-    String count() {
-        PackToolsState state = screen.state();
-        return state == null || state.patches().isEmpty() ? "" : String.valueOf(state.patches().size());
+    List<ContainerPatches.Patch> patches(PackToolsState state) {
+        return state.patches();
     }
 
     @Override
-    Object selection() {
-        return selected;
+    ChestRef refOf(ContainerPatches.Patch patch) {
+        return ChestRef.of(patch);
+    }
+
+    @Override
+    ResourceLocation templateOf(ContainerPatches.Patch patch) {
+        return patch.template();
+    }
+
+    @Override
+    BlockPos posOf(ContainerPatches.Patch patch) {
+        return patch.pos();
+    }
+
+    @Override
+    String kind() {
+        return "chest";
+    }
+
+    @Override
+    void pickInBrowser() {
+        screen.pickChest();
+    }
+
+    @Override
+    boolean waiting(ResourceLocation template, BlockPos pos) {
+        return screen.waiting(PackToolsState.chestKey(template, pos));
     }
 
     @Override
     void select(Object selection) {
-        selected = selection instanceof ChestRef ref ? ref : null;
-        detail.reset();
+        super.select(selection);
         rollFor = null;
-    }
-
-    @Override
-    Object parse(String text) {
-        PackToolsState state = screen.state();
-        if (state == null) {
-            return null;
-        }
-        for (ContainerPatches.Patch patch : state.patches()) {
-            if (patch.template().toString().equals(text)) {
-                return ChestRef.of(patch);
-            }
-        }
-        return null;
-    }
-
-    @Override
-    boolean scroll(double mouseX, double mouseY, double delta) {
-        // Shown one at a time, only the one on show scrolls.
-        return (!single || selected == null) && list.scroll(mouseX, mouseY, delta)
-                || (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
-    }
-
-    /** The patch for the picked container, if it has one. */
-    private ContainerPatches.Patch patchOf(ChestRef ref) {
-        if (ref == null || screen.state() == null) {
-            return null;
-        }
-        for (ContainerPatches.Patch patch : screen.state().patches()) {
-            if (ref.same(patch)) {
-                return patch;
-            }
-        }
-        return null;
     }
 
     @Override
     void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
         hovered = ItemStack.EMPTY;
-        single = oneAtATime(w);
-        if (single && selected != null) {
-            int cy = backToList(g, ui, x, y);
-            int dTop = detail.begin(g, ui, x, cy, w, y + h - cy);
-            int end = detail(g, ui, x, dTop, detail.width(), selected);
-            detail.end(g, ui, end - dTop);
-            return;
-        }
-        int leftW = single ? w : Math.max(130, Math.min(300, w * 38 / 100));
-        // As wide as the list, or as its label where that's wider, reaching over the column beside it.
-        Component pick = Component.translatable("screen.justenoughstructures.tools.pick_chest");
-        int pickW = Math.min(w, Math.max(leftW, ui.buttonWidth(pick)));
-        ui.button(g, pick, x, y, pickW, 18, screen.browser() != null, screen::pickChest,
-                Component.translatable("screen.justenoughstructures.tools.pick_chest_hint"));
-        int listTop = y + 22;
-        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
-        int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
-        int rw = list.width();
-        int cy = top + 2;
-        if (single) {
-            // No room beside the list, so what this is for goes above it.
-            cy = intro(g, x + 4, cy, rw - 8) + 6;
-        }
-        PackToolsState state = screen.state();
-        if (selected != null && selected.structure() != null && patchOf(selected) == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.from_browser").getString(), x + 4, cy, Gui.LABEL_SOFT);
-            cy += Gui.fineLine(font) + 2;
-            String name = Component.translatable("screen.justenoughstructures.tools.chest_name", StructureNames.structure(selected.structure()),
-                    selected.title()).getString();
-            cy += row(g, ui, x + 1, cy, rw, Icon.item(icon(selected.block())), name, null, 0,
-                    selected.table() == null ? Component.translatable("screen.justenoughstructures.prefilled").getString()
-                            : StructureNames.lootTable(selected.table()), List.of(), null, 0, true) + 4;
-        }
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.changed_chests").getString(), x + 4, cy, Gui.LABEL_SOFT);
-        cy += Gui.fineLine(font) + 2;
-        if (state.patches().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.none_yet").getString(), x + 4, cy, Gui.LABEL_SOFT);
-            cy += Gui.fineLine(font) + 4;
-        }
-        for (ContainerPatches.Patch patch : state.patches()) {
-            ChestRef ref = ChestRef.of(patch);
-            boolean isSelected = selected != null && selected.same(patch);
-            String name = Component.translatable("screen.justenoughstructures.tools.chest_name", templateName(patch.template()),
-                    Regs.value(BuiltInRegistries.BLOCK, patch.block()).getName()).getString();
-            String detailText = Component.translatable("screen.justenoughstructures.tools.changed", ToolsOverview.tableName(patch.original()),
-                    StructureNames.lootTable(patch.table().toString())).getString();
-            if (screen.waiting(PackToolsState.chestKey(patch.template(), patch.pos()))) {
-                detailText += " " + Component.translatable("screen.justenoughstructures.tools.after_reload_brackets").getString();
-            }
-            cy += row(g, ui, x + 1, cy, rw, Icon.item(icon(patch.block().toString())), name, null, 0, detailText, List.of(),
-                    () -> screen.pick(ref), 0, isSelected);
-        }
-        list.end(g, ui, cy - top + 2);
-        if (single) {
-            return;
-        }
-
-        int dx = x + leftW + 6;
-        int dw = Math.min(w - leftW - 6, READABLE);
-        int dy = pickW > leftW ? listTop : y;
-        int dTop = detail.begin(g, ui, dx, dy, dw, y + h - dy);
-        int end = selected == null ? intro(g, dx, dTop + 4, detail.width()) : detail(g, ui, dx, dTop, detail.width(), selected);
-        detail.end(g, ui, end - dTop);
+        super.render(g, ui, x, y, w, h, mouseX, mouseY);
     }
 
-    /** What a change here does, while nothing's picked. Returns the y below it. */
-    private int intro(GuiGraphics g, int x, int y, int w) {
+    @Override
+    Line browserLine(ChestRef ref) {
+        return new Line(icon(ref.block()), ref.title(), ref.table() == null ? Component.translatable("screen.justenoughstructures.prefilled").getString()
+                : StructureNames.lootTable(ref.table()));
+    }
+
+    @Override
+    Line patchLine(ContainerPatches.Patch patch) {
+        return new Line(icon(patch.block().toString()), Regs.value(BuiltInRegistries.BLOCK, patch.block()).getName(),
+                Component.translatable("screen.justenoughstructures.tools.changed", ToolsOverview.tableName(patch.original()),
+                        StructureNames.lootTable(patch.table().toString())).getString());
+    }
+
+    @Override
+    int intro(GuiGraphics g, int x, int y, int w) {
         return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro"), x, y, w, Gui.LABEL_SOFT);
     }
 
@@ -225,18 +156,16 @@ final class ToolsChests extends ToolsSection {
         return CHEST;
     }
 
-    /** The picked container. Returns the y below it. */
-    private int detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, ChestRef ref) {
+    @Override
+    int detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, ChestRef ref) {
         ContainerPatches.Patch patch = patchOf(ref);
         String table = patch != null ? patch.table().toString() : ref.table();
         String name = ref.template() == null ? ref.title().getString()
                 : Component.translatable("screen.justenoughstructures.tools.chest_in", ref.title(), templateName(ref.template())).getString();
-        String where = ref.structure() == null ? ref.template().toString()
-                : StructureNames.structure(ref.structure()) + " · " + StructureNames.mod(ref.structure().getNamespace());
         List<RowButton> show = ref.structure() == null ? List.of()
                 : List.of(new RowButton(Component.translatable("screen.justenoughstructures.tools.show_in_browser"), screen.browser() == null ? null
                 : () -> screen.showContainerInBrowser(ref)));
-        int cy = y + row(g, ui, x, y, w, Icon.item(icon(ref.block())), name, null, 0, where, show, null, 0, false);
+        int cy = y + row(g, ui, x, y, w, Icon.item(icon(ref.block())), name, null, 0, where(ref), show, null, 0, false);
         Component from = ref.byCode() ? Component.translatable("screen.justenoughstructures.tools.by_code")
                 : Component.translatable("screen.justenoughstructures.tools.from_template", ref.template().toString(), ref.templatePos().toShortString());
         cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.LABEL_SOFT) + 2;
@@ -260,16 +189,9 @@ final class ToolsChests extends ToolsSection {
                 table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : table, buttons, null, 0, false) + 2;
 
         if (patch != null) {
-            boolean waiting = screen.waiting(PackToolsState.chestKey(patch.template(), patch.pos()));
-            Component changed = Component.translatable(waiting ? "screen.justenoughstructures.tools.changed_from_next" : "screen.justenoughstructures.container.changed_from",
-                    ToolsOverview.tableName(patch.original()));
-            Component undo = Component.translatable("screen.justenoughstructures.container.undo");
-            int undoW = ui.buttonWidth(undo);
-            int barH = ui.status(g, changed, x, cy, w - undoW - 4, 2);
-            g.fill(x + w - undoW - 4, cy, x + w, cy + barH, 0xFFF1DCAE);
-            ui.button(g, undo, x + w - undoW - 2, cy + (barH - ToolsUi.BUTTON) / 2, true, () -> screen.undoChest(patch.template(), patch.pos()),
-                    Component.translatable("screen.justenoughstructures.container.undo_hint"));
-            cy += Math.max(barH, ToolsUi.BUTTON) + 3;
+            Component changed = Component.translatable(waiting(patch.template(), patch.pos()) ? "screen.justenoughstructures.tools.changed_from_next"
+                    : "screen.justenoughstructures.container.changed_from", ToolsOverview.tableName(patch.original()));
+            cy = undoBar(g, ui, changed, x, cy, w, () -> screen.undoChest(patch.template(), patch.pos()));
         } else if (ref.structure() != null && waitingUndo(ref)) {
             cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.undone_next"), x, cy, w, 2) + 3;
         }
@@ -284,9 +206,8 @@ final class ToolsChests extends ToolsSection {
             roll = null;
             ResourceLocation id = ResourceLocation.tryParse(table);
             if (id != null) {
-                String wanted = key;
                 ClientRequests.loot(id, seed, Math.max(1, ref.size())).thenAccept(items -> {
-                    if (wanted.equals(rollFor)) {
+                    if (key.equals(rollFor)) {
                         roll = items;
                     }
                 });
@@ -317,11 +238,6 @@ final class ToolsChests extends ToolsSection {
         ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), gx + 2, sy + rows * SLOT + 4, gridW - 4, 20, table != null,
                 () -> seed = ThreadLocalRandom.current().nextLong());
         return cy + rows * SLOT + 40;
-    }
-
-    /** A container opened from the browser whose change was undone, waiting for the /reload that puts it back. */
-    private boolean waitingUndo(ChestRef ref) {
-        return ref.template() != null && screen.waiting(PackToolsState.chestKey(ref.template(), ref.templatePos()));
     }
 
     @Override

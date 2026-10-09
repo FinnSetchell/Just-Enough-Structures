@@ -19,7 +19,7 @@ import net.minecraft.world.item.Items;
  * Spawners: picking one in the browser to change, those changed so far, and for the one picked,
  * where it is, what kind of spawner it is, its mob and what it's changed from.
  */
-final class ToolsSpawners extends ToolsSection {
+final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawners.SpawnerRef> {
     private static final ItemStack SPAWNER = new ItemStack(Items.SPAWNER);
 
     /**
@@ -36,7 +36,7 @@ final class ToolsSpawners extends ToolsSection {
      * @param patchedFrom the mob it had before it was changed, when it had been in that layout, or null
      */
     record SpawnerRef(ResourceLocation structure, long seed, BlockPos pos, String mob, int others, ResourceLocation block,
-                      ResourceLocation template, BlockPos templatePos, String patchedFrom) {
+                      ResourceLocation template, BlockPos templatePos, String patchedFrom) implements Ref<SpawnerPatches.Patch> {
         static SpawnerRef of(SpawnerPatches.Patch patch) {
             return new SpawnerRef(null, 0, null, patch.mob(), 0, patch.block(), patch.template(), patch.pos(), null);
         }
@@ -62,144 +62,63 @@ final class ToolsSpawners extends ToolsSection {
             return patch != null ? patch.target() : block;
         }
 
-        /** Only spawners whose mob their template decides can be given another. */
-        boolean byCode() {
-            return template == null;
-        }
-
-        boolean same(SpawnerPatches.Patch patch) {
+        @Override
+        public boolean same(SpawnerPatches.Patch patch) {
             return template != null && template.equals(patch.template()) && templatePos.equals(patch.pos());
         }
     }
 
-    private final Scroller list = new Scroller();
-    private final Scroller detail = new Scroller();
-    /** Whether the list and what's picked were last shown one at a time, rather than side by side. */
-    private boolean single;
-    private SpawnerRef selected;
-
     ToolsSpawners(PackToolsScreen screen) {
-        super(screen);
+        super(screen, SpawnerRef.class);
     }
 
     @Override
-    String count() {
-        PackToolsState state = screen.state();
-        return state == null || state.spawners().isEmpty() ? "" : String.valueOf(state.spawners().size());
+    List<SpawnerPatches.Patch> patches(PackToolsState state) {
+        return state.spawners();
     }
 
     @Override
-    Object selection() {
-        return selected;
+    SpawnerRef refOf(SpawnerPatches.Patch patch) {
+        return SpawnerRef.of(patch);
     }
 
     @Override
-    void select(Object selection) {
-        selected = selection instanceof SpawnerRef ref ? ref : null;
-        detail.reset();
+    ResourceLocation templateOf(SpawnerPatches.Patch patch) {
+        return patch.template();
     }
 
     @Override
-    Object parse(String text) {
-        PackToolsState state = screen.state();
-        if (state == null) {
-            return null;
-        }
-        for (SpawnerPatches.Patch patch : state.spawners()) {
-            if (patch.template().toString().equals(text)) {
-                return SpawnerRef.of(patch);
-            }
-        }
-        return null;
+    BlockPos posOf(SpawnerPatches.Patch patch) {
+        return patch.pos();
     }
 
     @Override
-    boolean scroll(double mouseX, double mouseY, double delta) {
-        // Shown one at a time, only the one on show scrolls.
-        return (!single || selected == null) && list.scroll(mouseX, mouseY, delta)
-                || (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
-    }
-
-    /** The patch for the picked spawner, if it has one. */
-    private SpawnerPatches.Patch patchOf(SpawnerRef ref) {
-        if (ref == null || screen.state() == null) {
-            return null;
-        }
-        for (SpawnerPatches.Patch patch : screen.state().spawners()) {
-            if (ref.same(patch)) {
-                return patch;
-            }
-        }
-        return null;
+    String kind() {
+        return "spawner";
     }
 
     @Override
-    void render(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, int mouseX, int mouseY) {
-        single = oneAtATime(w);
-        if (single && selected != null) {
-            int cy = backToList(g, ui, x, y);
-            int dTop = detail.begin(g, ui, x, cy, w, y + h - cy);
-            int end = detail(g, ui, x, dTop, detail.width(), selected);
-            detail.end(g, ui, end - dTop);
-            return;
-        }
-        int leftW = single ? w : Math.max(130, Math.min(300, w * 38 / 100));
-        // As wide as the list, or as its label where that's wider, reaching over the column beside it.
-        Component pick = Component.translatable("screen.justenoughstructures.tools.pick_spawner");
-        int pickW = Math.min(w, Math.max(leftW, ui.buttonWidth(pick)));
-        ui.button(g, pick, x, y, pickW, 18, screen.browser() != null, screen::pickSpawner,
-                Component.translatable("screen.justenoughstructures.tools.pick_spawner_hint"));
-        int listTop = y + 22;
-        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
-        int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
-        int rw = list.width();
-        int cy = top + 2;
-        if (single) {
-            // No room beside the list, so what this is for goes above it.
-            cy = intro(g, x + 4, cy, rw - 8) + 6;
-        }
-        PackToolsState state = screen.state();
-        if (selected != null && selected.structure() != null && patchOf(selected) == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.from_browser").getString(), x + 4, cy, Gui.LABEL_SOFT);
-            cy += Gui.fineLine(font) + 2;
-            String name = Component.translatable("screen.justenoughstructures.tools.chest_name", StructureNames.structure(selected.structure()),
-                    blockName(selected.blockNow(null))).getString();
-            cy += row(g, ui, x + 1, cy, rw, Icon.item(mobIcon(selected.mobNow(null))), name, null, 0,
-                    mobName(selected.mobNow(null), selected.othersNow(null)).getString(), List.of(), null, 0, true) + 4;
-        }
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.changed_spawners").getString(), x + 4, cy, Gui.LABEL_SOFT);
-        cy += Gui.fineLine(font) + 2;
-        if (state.spawners().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.none_yet").getString(), x + 4, cy, Gui.LABEL_SOFT);
-            cy += Gui.fineLine(font) + 4;
-        }
-        for (SpawnerPatches.Patch patch : state.spawners()) {
-            SpawnerRef ref = SpawnerRef.of(patch);
-            boolean isSelected = selected != null && selected.same(patch);
-            String name = Component.translatable("screen.justenoughstructures.tools.chest_name", templateName(patch.template()),
-                    blockName(patch.target())).getString();
-            String detailText = changed(patch);
-            if (screen.waiting(PackToolsState.spawnerKey(patch.template(), patch.pos()))) {
-                detailText += " " + Component.translatable("screen.justenoughstructures.tools.after_reload_brackets").getString();
-            }
-            cy += row(g, ui, x + 1, cy, rw, Icon.item(mobIcon(patch.mob())), name, null, 0, detailText, List.of(),
-                    () -> screen.pick(ref), 0, isSelected);
-        }
-        list.end(g, ui, cy - top + 2);
-        if (single) {
-            return;
-        }
-
-        int dx = x + leftW + 6;
-        int dw = Math.min(w - leftW - 6, READABLE);
-        int dy = pickW > leftW ? listTop : y;
-        int dTop = detail.begin(g, ui, dx, dy, dw, y + h - dy);
-        int end = selected == null ? intro(g, dx, dTop + 4, detail.width()) : detail(g, ui, dx, dTop, detail.width(), selected);
-        detail.end(g, ui, end - dTop);
+    void pickInBrowser() {
+        screen.pickSpawner();
     }
 
-    /** What this section is for, while nothing's picked. Returns the y below it. */
-    private int intro(GuiGraphics g, int x, int y, int w) {
+    @Override
+    boolean waiting(ResourceLocation template, BlockPos pos) {
+        return screen.waiting(PackToolsState.spawnerKey(template, pos));
+    }
+
+    @Override
+    Line browserLine(SpawnerRef ref) {
+        return new Line(mobIcon(ref.mobNow(null)), blockName(ref.blockNow(null)), mobName(ref.mobNow(null), ref.othersNow(null)).getString());
+    }
+
+    @Override
+    Line patchLine(SpawnerPatches.Patch patch) {
+        return new Line(mobIcon(patch.mob()), blockName(patch.target()), changed(patch));
+    }
+
+    @Override
+    int intro(GuiGraphics g, int x, int y, int w) {
         int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro"), x, y, w, Gui.LABEL_SOFT);
         ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_more"), x, ty + 4, w, Gui.LABEL_SOFT);
         return TrialSpawners.exist()
@@ -249,8 +168,8 @@ final class ToolsSpawners extends ToolsSection {
         return others > 0 ? Component.translatable("screen.justenoughstructures.tools.mob_mix", name, others) : name;
     }
 
-    /** The picked spawner. Returns the y below it. */
-    private int detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, SpawnerRef ref) {
+    @Override
+    int detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, SpawnerRef ref) {
         SpawnerPatches.Patch patch = patchOf(ref);
         String mob = ref.mobNow(patch);
         int others = ref.othersNow(patch);
@@ -259,9 +178,7 @@ final class ToolsSpawners extends ToolsSection {
         Component block = blockName(blockNow);
         String name = ref.template() == null ? block.getString()
                 : Component.translatable("screen.justenoughstructures.tools.chest_in", block, templateName(ref.template())).getString();
-        String where = ref.structure() == null ? ref.template().toString()
-                : StructureNames.structure(ref.structure()) + " · " + StructureNames.mod(ref.structure().getNamespace());
-        int cy = y + row(g, ui, x, y, w, Icon.item(blockIcon(blockNow)), name, null, 0, where, List.of(), null, 0, false);
+        int cy = y + row(g, ui, x, y, w, Icon.item(blockIcon(blockNow)), name, null, 0, where(ref), List.of(), null, 0, false);
         Component from = ref.byCode() ? Component.translatable("screen.justenoughstructures.tools.spawner_by_code")
                 : Component.translatable("screen.justenoughstructures.tools.from_template", ref.template().toString(), ref.templatePos().toShortString());
         cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.LABEL_SOFT) + 2;
@@ -285,15 +202,8 @@ final class ToolsSpawners extends ToolsSection {
         cy += row(g, ui, x, cy, w, Icon.item(mobIcon(mob)), mobName(mob, others).getString(), null, 0, id, buttons, null, 0, false) + 2;
 
         if (patch != null) {
-            boolean waiting = screen.waiting(PackToolsState.spawnerKey(patch.template(), patch.pos()));
-            Component changed = Component.translatable(changedFromKey(patch, waiting), mobName(patch.original(), patch.others()));
-            Component undo = Component.translatable("screen.justenoughstructures.container.undo");
-            int undoW = ui.buttonWidth(undo);
-            int barH = ui.status(g, changed, x, cy, w - undoW - 4, 2);
-            g.fill(x + w - undoW - 4, cy, x + w, cy + barH, 0xFFF1DCAE);
-            ui.button(g, undo, x + w - undoW - 2, cy + (barH - ToolsUi.BUTTON) / 2, true, () -> screen.undoSpawner(patch.template(), patch.pos()),
-                    Component.translatable("screen.justenoughstructures.container.undo_hint"));
-            cy += Math.max(barH, ToolsUi.BUTTON) + 3;
+            Component changed = Component.translatable(changedFromKey(patch, waiting(patch.template(), patch.pos())), mobName(patch.original(), patch.others()));
+            cy = undoBar(g, ui, changed, x, cy, w, () -> screen.undoSpawner(patch.template(), patch.pos()));
         } else if (ref.structure() != null && waitingUndo(ref)) {
             cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.spawner_undone_next"), x, cy, w, 2) + 3;
         }
@@ -321,10 +231,5 @@ final class ToolsSpawners extends ToolsSection {
         }
         String was = TrialSpawners.isBlock(patch.block()) ? "was_trial" : "was_spawner";
         return waiting ? "screen.justenoughstructures.tools." + was + "_next" : "screen.justenoughstructures.spawner." + was;
-    }
-
-    /** A spawner clicked in the browser whose change was undone, waiting for the /reload that puts it back. */
-    private boolean waitingUndo(SpawnerRef ref) {
-        return ref.template() != null && screen.waiting(PackToolsState.spawnerKey(ref.template(), ref.templatePos()));
     }
 }
