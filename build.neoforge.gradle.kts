@@ -20,18 +20,9 @@ val nodeName: String = project.name
 version = property("mod_version").toString()
 base.archivesName = "${property("archives_base_name")}-neoforge-$mcBuild"
 
-// The mods JES links up with that have no build for this version and loader are left out: their
-// version is blank in stonecutter.properties.toml, this keeps their code out of the build, and
-// `//? if <name>` leaves out what refers to it.
+// Whether a mod JES links up with has a build for this version and loader.
 fun has(mod: String) = !sc.properties.getOrNull<String>("deps.$mod").isNullOrEmpty()
-val withoutIntegrations = buildList {
-    if (!has("jei")) add("**/compat/jei/**")
-    if (!has("emi")) add("**/compat/emi/**")
-    if (!has("rei")) addAll(listOf("**/compat/rei/**", "**/*ReiForgePlugin.java", "**/*ReiNeoForgePlugin.java"))
-    if (!has("cloth_config")) add("**/compat/cloth/**")
-    if (!has("explorers_compass")) addAll(listOf("**/compat/explorerscompass/**", "**/*ExplorersCompass.java"))
-    if (!has("modmenu") || !has("cloth_config")) add("**/fabric/JesModMenu.java")
-}
+val withoutIntegrations = integrationsToLeaveOut(::has)
 
 sourceSets.main {
     // Loader code sits in fabric/forge/neoforge packages; each loader compiles only its own.
