@@ -304,33 +304,17 @@ tasks {
         val properties = layout.buildDirectory.file("gametest/server.properties")
         val log = layout.buildDirectory.file("gametest/logs/latest.log")
         doFirst {
-            delete(world)
-            // A superflat world with seed 0 and no structures, as the tests run in on every loader.
-            properties.get().asFile.apply { parentFile.mkdirs() }
-                .writeText("level-type=minecraft:flat\nlevel-seed=0\ngenerate-structures=false\n")
+            prepareGameTestWorld(world.get().asFile, properties.get().asFile)
         }
-        // A test server that fails to start still exits cleanly, so this goes by what it logged.
         doLast {
-            val text = log.get().asFile.takeIf { it.exists() }?.readText().orEmpty()
-            if (!Regex("All \\d+ required tests passed").containsMatchIn(text)) {
-                throw GradleException("Not every game test passed, see ${log.get().asFile}")
-            }
+            requireGameTestsPassed(log.get().asFile)
         }
     }
 
     matching { it.name == "runGametestClient" }.configureEach {
         val dir = layout.buildDirectory.dir("autoshot")
         doFirst {
-            val root = dir.get().asFile
-            // The browser remembers its toggles in config, which would carry over from the last run.
-            delete(File(root, "saves"), File(root, "screenshots"), File(root, "config/$modId"))
-            root.mkdirs()
-            // Skip first-launch screens and keep the game running when the window isn't focused. No
-            // clouds, so the world behind the screen doesn't change from frame to frame.
-            File(root, "options.txt").writeText(
-                "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
-                    "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n"
-            )
+            prepareAutoshotFolder(dir.get().asFile, modId)
         }
     }
 
