@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.render;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.google.common.collect.Iterables;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -13,6 +14,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 //? if <26.2 {
@@ -663,39 +665,9 @@ public final class StructureViewport implements AutoCloseable {
         FeatureRenderDispatcher features = minecraft.gameRenderer.featureRenderDispatcher();
         CameraRenderState camera = cameraState();
         int slice = view.sliceY();
-
-        // Drawing something for the first time can load its textures and models, and doing that for
-        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
-        // they come in a few at a time, in the same order every frame.
-        long firstDraws = 0;
-        int index = 0;
-        for (BlockEntity be : view.blockEntities().values()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitBlockEntity(be, slice, partialTick, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        index = view.blockEntities().size();
-        for (Entity entity : view.entities()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitEntity(entity, slice, entities, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
+        drawParts(everything, be -> submitBlockEntity(be, slice, partialTick, pose, nodes, camera),
+                entity -> submitEntity(entity, slice, entities, pose, nodes, camera));
 
         if (groundY >= 0 && groundY < slice) {
             float gy = groundY + 0.002f;
@@ -762,39 +734,9 @@ public final class StructureViewport implements AutoCloseable {
         SubmitNodeStorage nodes = features.getSubmitNodeStorage();
         CameraRenderState camera = cameraState();
         int slice = view.sliceY();
-
-        // Drawing something for the first time can load its textures and models, and doing that for
-        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
-        // they come in a few at a time, in the same order every frame.
-        long firstDraws = 0;
-        int index = 0;
-        for (BlockEntity be : view.blockEntities().values()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitBlockEntity(be, slice, partialTick, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        index = view.blockEntities().size();
-        for (Entity entity : view.entities()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            submitEntity(entity, slice, entities, pose, nodes, camera);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
+        drawParts(everything, be -> submitBlockEntity(be, slice, partialTick, pose, nodes, camera),
+                entity -> submitEntity(entity, slice, entities, pose, nodes, camera));
         // What the game draws itself, like chests and mobs, goes into the preview too.
         GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
         GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
@@ -859,6 +801,33 @@ public final class StructureViewport implements AutoCloseable {
     *///?}
 
     /**
+     * Draws the view's block entities with {@code blockEntity}, then its entities with {@code entity}.
+     * Drawing something for the first time can load its textures and models, and doing that for every
+     * chest, banner and mob of a big structure in one frame froze the game for a moment, so unless it's
+     * {@code everything} they come in a few at a time, in the same order every frame.
+     */
+    private void drawParts(boolean everything, Consumer<BlockEntity> blockEntity, Consumer<Entity> entity) {
+        long firstDraws = 0;
+        int index = 0;
+        for (Object part : Iterables.concat(view.blockEntities().values(), view.entities())) {
+            boolean first = !everything && index++ >= firstDrawn;
+            if (first && firstDraws > FIRST_DRAWS_NANOS) {
+                return;
+            }
+            long started = first ? System.nanoTime() : 0;
+            if (part instanceof BlockEntity be) {
+                blockEntity.accept(be);
+            } else {
+                entity.accept((Entity) part);
+            }
+            if (first) {
+                firstDraws += System.nanoTime() - started;
+                firstDrawn++;
+            }
+        }
+    }
+
+    /**
      * Draws the finished structure from the default angle into a new square texture for the list.
      * Returns null while the mesh is still being built.
      */
@@ -903,41 +872,12 @@ public final class StructureViewport implements AutoCloseable {
         //?}
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         int slice = view.sliceY();
-
-        // Drawing something for the first time can load its textures and models, and doing that for
-        // every chest, banner and mob of a big structure in one frame froze the game for a moment, so
-        // they come in a few at a time, in the same order every frame.
-        long firstDraws = 0;
-        int index = 0;
-        for (BlockEntity be : view.blockEntities().values()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
-            drawBlockEntity(be, slice, partialTick, pose, buffers);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        entities.setRenderShadow(false);
-        index = view.blockEntities().size();
-        for (Entity entity : view.entities()) {
-            boolean first = !everything && index++ >= firstDrawn;
-            if (first && firstDraws > FIRST_DRAWS_NANOS) {
-                break;
-            }
-            long started = first ? System.nanoTime() : 0;
+        drawParts(everything, be -> drawBlockEntity(be, slice, partialTick, pose, buffers), entity -> {
+            entities.setRenderShadow(false);
             drawEntity(entity, slice, entities, pose, buffers);
-            if (first) {
-                firstDraws += System.nanoTime() - started;
-                firstDrawn++;
-            }
-        }
-        entities.setRenderShadow(true);
+            entities.setRenderShadow(true);
+        });
 
         if (groundY >= 0 && groundY < slice) {
             float gy = groundY + 0.002f;
