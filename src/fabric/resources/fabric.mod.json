@@ -50,5 +50,17 @@
     "explorerscompass": "*",
     "modmenu": "*",
     "cloth-config": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.github_releases": "https://github.com/FinnSetchell/Just-Enough-Structures/releases",
+        "modmenu.discord": "https://moogsmods.com/discord?r=ingame-jes",
+        "modmenu.kofi": "https://ko-fi.com/finndog",
+        "modmenu.curseforge": "https://www.curseforge.com/minecraft/mc-mods/just-enough-structures",
+        "modmenu.modrinth": "https://modrinth.com/mod/just-enough-structures"
+      },
+      "update_checker": true
+    }
   }
 }
