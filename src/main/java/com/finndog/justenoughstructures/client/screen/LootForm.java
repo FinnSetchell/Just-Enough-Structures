@@ -556,38 +556,25 @@ final class LootForm {
         JsonObject map = JsonPaths.object(draft(), path);
         List<String> keys = map == null ? List.of() : List.copyOf(map.keySet());
         LootOptions.Source properties = LootOptions.properties(block);
-        for (int i = 0; i <= keys.size(); i++) {
-            int index = i;
-            String label = i == 0 ? text("field.properties").getString() : "";
-            y = labelled(g, x, y, w, label, (cx, cw) -> {
-                if (index == keys.size()) {
-                    Component add = text("add");
-                    ui.link(g, add, cx + cw - Gui.fineWidth(font, add.getString()), y() + 3, true, () -> {
-                        List<LootOptions.Option> all = properties.list();
-                        String first = all.stream().map(LootOptions.Option::id).filter(p -> !keys.contains(p)).findFirst().orElse(null);
-                        if (first != null) {
-                            List<LootOptions.Option> values = LootOptions.values(block, first).list();
-                            set(at(path, first), new JsonPrimitive(values.isEmpty() ? "" : values.get(0).id()));
-                        }
-                    });
-                    return;
-                }
-                String key = keys.get(index);
-                String valuePath = at(path, key);
-                int half = (cw - 12) / 2;
-                choiceBox(g, cx, y(), half, path + "#key" + index, properties, key, false, picked -> renameKey(path, key, picked));
-                if (JsonPaths.get(draft(), valuePath) instanceof JsonObject) {
-                    range(g, cx + half + 4, y(), cw - half - 16, valuePath);
-                } else {
-                    choice(g, cx + half + 4, y(), cw - half - 16, valuePath, LootOptions.values(block, key), false);
-                }
-                removeX(g, cx + cw - 8, y(), () -> {
-                    JsonPaths.remove(draft(), valuePath);
-                    host.changed();
-                });
-            });
-        }
-        return y;
+        return listRows(g, x, y, w, text("field.properties").getString(), keys.size(), null, () -> {
+            List<LootOptions.Option> all = properties.list();
+            String first = all.stream().map(LootOptions.Option::id).filter(p -> !keys.contains(p)).findFirst().orElse(null);
+            if (first != null) {
+                List<LootOptions.Option> values = LootOptions.values(block, first).list();
+                set(at(path, first), new JsonPrimitive(values.isEmpty() ? "" : values.get(0).id()));
+            }
+        }, (index, cx, cw) -> {
+            String key = keys.get(index);
+            String valuePath = at(path, key);
+            int half = (cw - 12) / 2;
+            choiceBox(g, cx, y(), half, path + "#key" + index, properties, key, false, picked -> renameKey(path, key, picked));
+            if (JsonPaths.get(draft(), valuePath) instanceof JsonObject) {
+                range(g, cx + half + 4, y(), cw - half - 16, valuePath);
+            } else {
+                choice(g, cx + half + 4, y(), cw - half - 16, valuePath, LootOptions.values(block, key), false);
+            }
+            removeX(g, cx + cw - 8, y(), () -> remove(valuePath));
+        });
     }
 
     // ------------------------------------------------------------------ more kinds of field
@@ -646,57 +633,55 @@ final class LootForm {
 
     /** A list of numbers, like a chance for each enchantment level, each with an x, and a link to add one. */
     private int numberList(GuiGraphics g, int x, int y, int w, String key, String path) {
-        JsonArray items = JsonPaths.array(draft(), path);
-        int count = items == null ? 0 : items.size();
+        return listRows(g, x, y, w, text("field." + key).getString(), size(path), null, () -> append(path, JsonPaths.number(0)), (index, cx, cw) -> {
+            String itemPath = at(path, index);
+            Gui.fine(g, font, text("level", index).getString(), cx, y() + 3, Gui.LABEL_SOFT);
+            number(g, cx + 40, y(), 50, itemPath, Kind.NUMBER, "0");
+            removeX(g, cx + 96, y(), () -> remove(itemPath));
+        });
+    }
+
+    /** Lines of text, like lore: a box for each, an x to take it out, and a link to add another. */
+    private int textList(GuiGraphics g, int x, int y, int w, String key, String path) {
+        return listRows(g, x, y, w, text("field." + key).getString(), size(path), null, () -> append(path, new JsonPrimitive("")), (index, cx, cw) -> {
+            String itemPath = at(path, index);
+            textComponent(g, cx, y(), cw - 12, itemPath);
+            removeX(g, cx + cw - 8, y(), () -> remove(itemPath));
+        });
+    }
+
+    /** Draws one thing in a list, its {@code index} counted from 0, in the place of a row's control. */
+    private interface ListRow {
+        void draw(int index, int x, int w);
+    }
+
+    /**
+     * A row for each of a list's {@code count} things, drawn by {@code row}, with the list's label on the
+     * first, and then a row with a link to add another, which runs {@code add}. {@code empty}, if there
+     * is one, says beside that link what no things at all means. Returns the y below them.
+     */
+    private int listRows(GuiGraphics g, int x, int y, int w, String label, int count, Component empty, Runnable add, ListRow row) {
         for (int i = 0; i <= count; i++) {
             int index = i;
-            String itemPath = at(path, i);
-            String label = i == 0 ? text("field." + key).getString() : "";
-            y = labelled(g, x, y, w, label, (cx, cw) -> {
-                if (index == count) {
-                    Component add = text("add");
-                    ui.link(g, add, cx + cw - Gui.fineWidth(font, add.getString()), y() + 3, true, () -> {
-                        JsonPaths.append(draft(), path, JsonPaths.number(0));
-                        host.changed();
-                    });
+            y = labelled(g, x, y, w, i == 0 ? label : "", (cx, cw) -> {
+                if (index < count) {
+                    row.draw(index, cx, cw);
                     return;
                 }
-                Gui.fine(g, font, text("level", index).getString(), cx, y() + 3, Gui.LABEL_SOFT);
-                number(g, cx + 40, y(), 50, itemPath, Kind.NUMBER, "0");
-                removeX(g, cx + 96, y(), () -> {
-                    JsonPaths.remove(draft(), itemPath);
-                    host.changed();
-                });
+                if (count == 0 && empty != null) {
+                    Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.LABEL_SOFT);
+                }
+                Component link = text("add");
+                ui.link(g, link, cx + cw - Gui.fineWidth(font, link.getString()), y() + 3, true, add);
             });
         }
         return y;
     }
 
-    /** Lines of text, like lore: a box for each, an x to take it out, and a link to add another. */
-    private int textList(GuiGraphics g, int x, int y, int w, String key, String path) {
+    /** How many things are in the list at the path, none when there's no list. */
+    private int size(String path) {
         JsonArray items = JsonPaths.array(draft(), path);
-        int count = items == null ? 0 : items.size();
-        for (int i = 0; i <= count; i++) {
-            int index = i;
-            String itemPath = at(path, i);
-            String label = i == 0 ? text("field." + key).getString() : "";
-            y = labelled(g, x, y, w, label, (cx, cw) -> {
-                if (index == count) {
-                    Component add = text("add");
-                    ui.link(g, add, cx + cw - Gui.fineWidth(font, add.getString()), y() + 3, true, () -> {
-                        JsonPaths.append(draft(), path, new JsonPrimitive(""));
-                        host.changed();
-                    });
-                    return;
-                }
-                textComponent(g, cx, y(), cw - 12, itemPath);
-                removeX(g, cx + cw - 8, y(), () -> {
-                    JsonPaths.remove(draft(), itemPath);
-                    host.changed();
-                });
-            });
-        }
-        return y;
+        return items == null ? 0 : items.size();
     }
 
     private static String at(String path, Object part) {
@@ -717,18 +702,15 @@ final class LootForm {
 
     /** A heading with a count and a link to add one, then a card for each function or condition. */
     private int list(GuiGraphics g, int x, int y, int w, String key, String path, boolean functions) {
-        JsonArray items = JsonPaths.array(draft(), path);
-        int count = items == null ? 0 : items.size();
+        int count = size(path);
         y += 2;
         g.drawString(font, text("list." + key), x + 4, y + 1, ToolsUi.TEXT, false);
         String countText = count == 0 ? text("none").getString() : String.valueOf(count);
         Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.LABEL_SOFT);
         Component add = text(functions ? "add_function" : "add_condition");
         int addW = Gui.fineWidth(font, add.getString());
-        ui.link(g, add, x + w - 4 - addW, y + 2, true, () -> {
-            JsonPaths.append(draft(), path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance"));
-            host.changed();
-        });
+        ui.link(g, add, x + w - 4 - addW, y + 2, true,
+                () -> append(path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance")));
         y += font.lineHeight + 3;
         for (int i = 0; i < count; i++) {
             String itemPath = JsonPaths.join(path, i);
@@ -759,10 +741,7 @@ final class LootForm {
         int rx = x + w - 10;
         boolean over = ui.hovered(rx - 2, y + 2, 10, 12);
         g.drawString(font, remove, rx, y + 4, over ? 0xFFFFFF55 : 0xFF6A1010, false);
-        ui.spot(rx - 2, y + 2, 10, 12, () -> {
-            JsonPaths.remove(draft(), path);
-            host.changed();
-        });
+        ui.spot(rx - 2, y + 2, 10, 12, () -> remove(path));
         ui.tooltip(rx - 2, y + 2, 10, 12, text(kind.equals("function") ? "remove_function" : "remove_condition"));
         return y + 19;
     }
@@ -915,43 +894,22 @@ final class LootForm {
      * out, and a link to add another. {@code empty} says what no ids at all means.
      */
     private int idList(GuiGraphics g, int x, int y, int w, String key, String path, LootOptions.Source options, Component empty) {
-        JsonArray items = JsonPaths.array(draft(), path);
-        int count = items == null ? 0 : items.size();
-        int controlW = w - labelW - 4;
-        for (int i = 0; i <= count; i++) {
-            int index = i;
-            String itemPath = JsonPaths.join(path, i);
-            String label = i == 0 ? text("field." + key).getString() : "";
-            y = labelled(g, x, y, w, label, (cx, cw) -> {
-                if (index == count) {
-                    if (count == 0 && empty != null) {
-                        Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.LABEL_SOFT);
-                    }
-                    Component add = text("add");
-                    int addW = Gui.fineWidth(font, add.getString());
-                    ui.link(g, add, cx + cw - addW, y() + 3, true, () -> {
-                        JsonPaths.append(draft(), path, new JsonPrimitive(""));
-                        pendingEdit = itemPath;
-                        host.changed();
-                    });
-                    return;
+        int count = size(path);
+        return listRows(g, x, y, w, text("field." + key).getString(), count, empty, () -> {
+            pendingEdit = at(path, count);
+            append(path, new JsonPrimitive(""));
+        }, (index, cx, cw) -> {
+            String itemPath = at(path, index);
+            // Emptied, it's taken out of the list rather than left as an id that's nothing.
+            pickBox(g, cx, y(), cw - 12, itemPath, JsonPaths.string(draft(), itemPath, ""), options, text -> {
+                if (text.isBlank()) {
+                    remove(itemPath);
+                } else {
+                    commit(itemPath, Kind.TEXT, text);
                 }
-                // Emptied, it's taken out of the list rather than left as an id that's nothing.
-                pickBox(g, cx, y(), cw - 12, itemPath, JsonPaths.string(draft(), itemPath, ""), options, text -> {
-                    if (text.isBlank()) {
-                        JsonPaths.remove(draft(), itemPath);
-                        host.changed();
-                    } else {
-                        commit(itemPath, Kind.TEXT, text);
-                    }
-                });
-                removeX(g, cx + cw - 8, y(), () -> {
-                    JsonPaths.remove(draft(), itemPath);
-                    host.changed();
-                });
             });
-        }
-        return y;
+            removeX(g, cx + cw - 8, y(), () -> remove(itemPath));
+        });
     }
 
     /**
@@ -961,39 +919,26 @@ final class LootForm {
     private int idMap(GuiGraphics g, int x, int y, int w, String key, String path, LootOptions.Source options, double fallback) {
         JsonObject map = JsonPaths.object(draft(), path);
         List<String> keys = map == null ? List.of() : List.copyOf(map.keySet());
-        for (int i = 0; i <= keys.size(); i++) {
-            int index = i;
-            String label = i == 0 ? text("field." + key).getString() : "";
-            y = labelled(g, x, y, w, label, (cx, cw) -> {
-                if (index == keys.size()) {
-                    Component add = text("add");
-                    ui.link(g, add, cx + cw - Gui.fineWidth(font, add.getString()), y() + 3, true, () -> {
-                        JsonObject now = JsonPaths.object(draft(), path);
-                        if (now == null) {
-                            now = new JsonObject();
-                            JsonPaths.set(draft(), path, now);
-                        }
-                        if (!now.has("")) {
-                            now.add("", new JsonPrimitive(1));
-                        }
-                        pendingEdit = path + "#key" + now.keySet().stream().toList().indexOf("");
-                        host.changed();
-                    });
-                    return;
-                }
-                String id = keys.get(index);
-                int pickW = Math.max(40, (cw - 12) * 55 / 100);
-                pickBox(g, cx, y(), pickW, path + "#key" + index, id, options, text -> renameKey(path, id, text.trim()));
-                if (!id.isEmpty()) {
-                    provider(g, cx + pickW + 4, y(), cw - pickW - 16, JsonPaths.join(path, id), fallback);
-                }
-                removeX(g, cx + cw - 8, y(), () -> {
-                    JsonPaths.remove(draft(), JsonPaths.join(path, id));
-                    host.changed();
-                });
-            });
-        }
-        return y;
+        return listRows(g, x, y, w, text("field." + key).getString(), keys.size(), null, () -> {
+            JsonObject now = JsonPaths.object(draft(), path);
+            if (now == null) {
+                now = new JsonObject();
+                JsonPaths.set(draft(), path, now);
+            }
+            if (!now.has("")) {
+                now.add("", new JsonPrimitive(1));
+            }
+            pendingEdit = path + "#key" + now.keySet().stream().toList().indexOf("");
+            host.changed();
+        }, (index, cx, cw) -> {
+            String id = keys.get(index);
+            int pickW = Math.max(40, (cw - 12) * 55 / 100);
+            pickBox(g, cx, y(), pickW, path + "#key" + index, id, options, text -> renameKey(path, id, text.trim()));
+            if (!id.isEmpty()) {
+                provider(g, cx + pickW + 4, y(), cw - pickW - 16, at(path, id), fallback);
+            }
+            removeX(g, cx + cw - 8, y(), () -> remove(at(path, id)));
+        });
     }
 
     //? if >=1.21 {
@@ -1012,8 +957,7 @@ final class LootForm {
             int boxW = cw - addW - (current.isBlank() ? 0 : 12);
             pickBox(g, cx, y(), boxW, path, current, one, typed -> {
                 if (typed.isBlank()) {
-                    JsonPaths.remove(draft(), path);
-                    host.changed();
+                    remove(path);
                 } else {
                     commit(path, Kind.TEXT, typed);
                 }
@@ -1022,10 +966,7 @@ final class LootForm {
                 Gui.fine(g, font, empty.getString(), cx + 4, y() + 3, Gui.LABEL_SOFT);
             }
             if (!current.isBlank()) {
-                removeX(g, cx + boxW + 4, y(), () -> {
-                    JsonPaths.remove(draft(), path);
-                    host.changed();
-                });
+                removeX(g, cx + boxW + 4, y(), () -> remove(path));
             }
             if (listable) {
                 ui.link(g, add, cx + cw - addW + 6, y() + 3, true, () -> {
@@ -1089,15 +1030,11 @@ final class LootForm {
      * {@code fields}, with an x to take it out, and a link to add another made by {@code fresh}.
      */
     private int objectList(GuiGraphics g, int x, int y, int w, String key, String path, java.util.function.Supplier<JsonObject> fresh, ObjectFields fields) {
-        JsonArray items = JsonPaths.array(draft(), path);
-        int count = items == null ? 0 : items.size();
+        int count = size(path);
         y += 2;
         Gui.fineClipped(g, font, text("field." + key).getString(), x + 4, y + 1, w - 60, Gui.LABEL_SOFT);
         Component add = text("add");
-        ui.link(g, add, x + w - 4 - Gui.fineWidth(font, add.getString()), y + 1, true, () -> {
-            JsonPaths.append(draft(), path, fresh.get());
-            host.changed();
-        });
+        ui.link(g, add, x + w - 4 - Gui.fineWidth(font, add.getString()), y + 1, true, () -> append(path, fresh.get()));
         y += Gui.fineLine(font) + 4;
         for (int i = 0; i < count; i++) {
             String itemPath = JsonPaths.join(path, i);
@@ -1106,10 +1043,7 @@ final class LootForm {
             int cw = w - INDENT * 2;
             g.fill(cx, y, cx + cw, y + 12, 0xFFB0B0B0);
             Gui.fine(g, font, String.valueOf(i + 1), cx + 4, y + 2, Gui.LABEL_SOFT);
-            removeX(g, cx + cw - 9, y, () -> {
-                JsonPaths.remove(draft(), itemPath);
-                host.changed();
-            });
+            removeX(g, cx + cw - 9, y, () -> remove(itemPath));
             y = fields.draw(cx, y + 14, cw, itemPath);
             y = end(g, cx, top, y, cw) + 3;
         }
@@ -1278,6 +1212,16 @@ final class LootForm {
         host.changed();
     }
 
+    private void remove(String path) {
+        JsonPaths.remove(draft(), path);
+        host.changed();
+    }
+
+    private void append(String path, JsonElement value) {
+        JsonPaths.append(draft(), path, value);
+        host.changed();
+    }
+
     /** What was typed in a field, read back as the field's kind. Text that doesn't read as that is left out. */
     private void commit(String path, Kind kind, String text) {
         String trimmed = text.trim();
@@ -1327,8 +1271,7 @@ final class LootForm {
         if (value == null ? before == null : value.equals(before)) {
             return;
         }
-        JsonPaths.set(draft(), path, value);
-        host.changed();
+        set(path, value);
     }
 
     private static Component text(String key, Object... args) {
