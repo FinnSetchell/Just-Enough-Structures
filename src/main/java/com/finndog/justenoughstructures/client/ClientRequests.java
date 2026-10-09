@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Players;
+import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientState;
@@ -43,8 +44,8 @@ public final class ClientRequests {
     private static int nextRequestId = 1;
     private static CompletableFuture<List<StructureCatalog.Entry>> catalog;
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
-    /** First views asked for along with the copy the game kept, so what comes back is kept in its place. */
-    private static final Map<Integer, ResourceLocation> KEEPING = new HashMap<>();
+    /** Requests whose answer is kept for next time, so what comes back takes the place of any kept before. */
+    private static final Map<Integer, Keeping> KEEPING = new HashMap<>();
     private static int reloads;
     private static boolean indexWanted;
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
@@ -439,11 +440,44 @@ public final class ClientRequests {
         CompletableFuture<Codecs.CaptureReply> future = new CompletableFuture<>();
         CAPTURES.put(id, future);
         long kept = 0;
-        if (preview && seed == StructureCapture.defaultSeed(structure) && KeptPreviews.inUse()) {
-            KEEPING.put(id, structure);
-            kept = KeptPreviews.kept(structure);
+        if (seed == StructureCapture.defaultSeed(structure) && KeptPreviews.inUse()) {
+            KEEPING.put(id, new Keeping(structure, KeptPreviews.version(structure), !preview));
+            if (preview) {
+                kept = KeptPreviews.kept(structure);
+            }
         }
         requestCapture(id, structure, seed, preview, kept);
+        return future;
+    }
+
+    /**
+     * The lighter copy of a structure its list picture is drawn from. One the game kept, of the
+     * structure as the server has it now, is used without asking the server at all.
+     */
+    public static CompletableFuture<Codecs.CaptureReply> picture(ResourceLocation structure) {
+        String version = KeptPreviews.version(structure);
+        if (!KeptPreviews.hasPicture(structure, version)) {
+            JesLog.debug("The picture of {} is asked for from the server", structure);
+            return capture(structure, StructureCapture.defaultSeed(structure), false);
+        }
+        int id = nextRequestId++;
+        CompletableFuture<Codecs.CaptureReply> future = new CompletableFuture<>();
+        CAPTURES.put(id, future);
+        KEEPING.put(id, new Keeping(structure, version, true));
+        KeptPreviews.readPicture(structure, version, payload -> Minecraft.getInstance().execute(() -> {
+            // The player may have left while it was read.
+            if (CAPTURES.get(id) != future || future.isDone()) {
+                CAPTURES.remove(id, future);
+                KEEPING.remove(id);
+                return;
+            }
+            if (payload != null) {
+                JesLog.debug("The picture of {} is drawn from the copy kept from before", structure);
+                onCapture(id, payload, true);
+            } else {
+                requestCapture(id, structure, StructureCapture.defaultSeed(structure), false, 0);
+            }
+        }));
         return future;
     }
 
@@ -551,6 +585,7 @@ public final class ClientRequests {
             Thumbnails.onCatalog(fingerprint, entries);
             // A world played here saves its own first views, so they're only kept from other computers.
             KeptPreviews.use(fingerprint, !Minecraft.getInstance().hasSingleplayerServer());
+            KeptPreviews.structures(entries);
             if (catalog == null) {
                 catalog = new CompletableFuture<>();
             }
@@ -586,22 +621,24 @@ public final class ClientRequests {
     private static void onCapture(int requestId, byte[] compressed, boolean wasKept) {
         RegistryAccess registries = registries();
         CompletableFuture<Codecs.CaptureReply> future = CAPTURES.remove(requestId);
-        ResourceLocation keeping = KEEPING.remove(requestId);
+        Keeping keeping = KEEPING.remove(requestId);
         if (future == null || future.isDone()) {
             return;
         }
         CompletableFuture.supplyAsync(() -> {
                     Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(registries, Blobs.inflate(compressed)));
-                    if (keeping != null && !wasKept && reply.result().succeeded() && keeping.equals(reply.id())) {
-                        KeptPreviews.keep(keeping, compressed);
+                    if (keeping != null && reply.result().succeeded() && keeping.structure().equals(reply.id())) {
+                        keep(keeping, compressed, wasKept, reply, registries);
                     }
                     return reply;
                 }, Util.backgroundExecutor())
                 .whenCompleteAsync((reply, error) -> {
                     if (error != null) {
                         JesLog.errorOnce("capture-read", "Couldn't read a structure from the server", error);
-                        if (wasKept) {
-                            KeptPreviews.forget(keeping);
+                        if (wasKept && keeping != null && keeping.picture()) {
+                            KeptPreviews.forgetPicture(keeping.structure());
+                        } else if (wasKept && keeping != null) {
+                            KeptPreviews.forget(keeping.structure());
                         }
                         future.completeExceptionally(error);
                     } else {
@@ -611,17 +648,49 @@ public final class ClientRequests {
     }
 
     /**
+     * Keeps what came back for next time. A first view also gives the copy its list picture is drawn
+     * from, so that's never asked for. That's made once the preview's on its way, as for a big
+     * structure it takes a moment.
+     */
+    private static void keep(Keeping keeping, byte[] compressed, boolean wasKept, Codecs.CaptureReply reply, RegistryAccess registries) {
+        ResourceLocation structure = keeping.structure();
+        if (keeping.picture()) {
+            if (!wasKept) {
+                KeptPreviews.keepPicture(structure, keeping.version(), compressed);
+            }
+            return;
+        }
+        if (!wasKept) {
+            KeptPreviews.keep(structure, compressed);
+        }
+        if (keeping.version() == null || KeptPreviews.hasPicture(structure, keeping.version())) {
+            return;
+        }
+        Util.backgroundExecutor().execute(() -> {
+            try {
+                CaptureResult result = reply.result();
+                CaptureResult picture = CaptureResult.success(result.snapshot().forPicture(), result.attempts(), result.millis());
+                KeptPreviews.keepPicture(structure, keeping.version(),
+                        Blobs.deflate(Blobs.toBytes(registries, buf -> Codecs.writeCapture(buf, structure, reply.seed(), picture))));
+            } catch (RuntimeException e) {
+                JesLog.debug("Couldn't make the picture's copy of {}", structure, e);
+            }
+        });
+    }
+
+    /**
      * The server says the first view the game kept is the one it would send, so that's used instead.
      * If it's gone since, it's asked for after all.
      */
     private static void onSame(int requestId) {
-        ResourceLocation structure = KEEPING.get(requestId);
+        Keeping keeping = KEEPING.get(requestId);
         CompletableFuture<Codecs.CaptureReply> future = CAPTURES.get(requestId);
-        if (structure == null || future == null || future.isDone()) {
+        if (keeping == null || keeping.picture() || future == null || future.isDone()) {
             CAPTURES.remove(requestId);
             KEEPING.remove(requestId);
             return;
         }
+        ResourceLocation structure = keeping.structure();
         KeptPreviews.read(structure, payload -> Minecraft.getInstance().execute(() -> {
             // The player may have left, or moved on to another, while it was read.
             if (CAPTURES.get(requestId) != future || future.isDone()) {
@@ -710,6 +779,13 @@ public final class ClientRequests {
         FriendlyByteBuf buf = Blobs.buffer(registries());
         writer.accept(buf);
         sender.send(channel, buf);
+    }
+
+    /**
+     * A request whose answer is kept: the structure's first view, or with {@code picture} the copy its
+     * list picture is drawn from, and which version of the structure the server had when it was asked.
+     */
+    private record Keeping(ResourceLocation structure, String version, boolean picture) {
     }
 
     public interface ClientSender {

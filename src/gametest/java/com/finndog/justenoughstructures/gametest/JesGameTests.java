@@ -198,6 +198,11 @@ public final class JesGameTests {
         ServiceTests.keptPreviewsReadBack(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void keptPictureCopiesReadBack(GameTestHelper helper) {
+        ServiceTests.keptPictureCopiesReadBack(helper);
+    }
+
     // Needs the igloo to stay in the server's memory between asks, so no other test's /reload drops it.
     @GameTest(template = EMPTY_STRUCTURE, batch = "kept_previews", timeoutTicks = 1200)
     public void keptFirstViewsAreNotSentAgain(GameTestHelper helper) {

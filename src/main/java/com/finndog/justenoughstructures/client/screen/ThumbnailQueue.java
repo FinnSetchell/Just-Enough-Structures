@@ -1,6 +1,5 @@
 package com.finndog.justenoughstructures.client.screen;
 
-import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
@@ -54,7 +53,7 @@ final class ThumbnailQueue {
         waiting = true;
         current = id;
         // Laid out off the render thread, as the preview is.
-        ClientRequests.capture(id, StructureCapture.defaultSeed(id), false)
+        ClientRequests.picture(id)
                 .thenApplyAsync(reply -> reply.result().succeeded() ? new Made(new SnapshotView(reply.result().snapshot()), false)
                         : new Made(null, reply.result().temporary()), Util.backgroundExecutor())
                 .whenCompleteAsync((made, error) -> {

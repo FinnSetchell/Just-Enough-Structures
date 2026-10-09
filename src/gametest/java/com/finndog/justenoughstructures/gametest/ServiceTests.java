@@ -21,6 +21,7 @@ import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.google.common.hash.Hashing;
+import com.google.gson.JsonObject;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -497,7 +498,7 @@ public final class ServiceTests {
             KeptPreviews.keep(id, second);
             read = readKept(id);
             helper.assertTrue(Arrays.equals(read, second), "the changed view read back as " + Arrays.toString(read));
-            helper.assertTrue(keptFiles(dir, id).size() == 1, "the old view's file was left behind: " + keptFiles(dir, id));
+            helper.assertTrue(keptFiles(dir, id, ".bin").size() == 1, "the old view's file was left behind: " + keptFiles(dir, id, ".bin"));
 
             KeptPreviews.use(fingerprint, true);
             helper.assertTrue(KeptPreviews.inUse(), "the same server's list arriving again stopped its views being used");
@@ -515,13 +516,79 @@ public final class ServiceTests {
 
             KeptPreviews.use(fingerprint, true);
             waitForKept();
-            for (Path file : keptFiles(dir, id)) {
+            for (Path file : keptFiles(dir, id, ".bin")) {
                 byte[] bytes = Files.readAllBytes(file);
                 bytes[bytes.length - 1] ^= 1;
                 Files.write(file, bytes);
             }
             helper.assertTrue(readKept(id) == null, "a damaged view was read");
-            helper.assertTrue(KeptPreviews.kept(id) == 0 && keptFiles(dir, id).isEmpty(), "a damaged view wasn't forgotten");
+            helper.assertTrue(KeptPreviews.kept(id) == 0 && keptFiles(dir, id, ".bin").isEmpty(), "a damaged view wasn't forgotten");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't look in the kept previews' folder", e);
+        } finally {
+            KeptPreviews.use(null, false);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The copy a list picture is drawn from reads back while it's of the version of the structure
+     * asked for, and a newer version's takes its place. It sits beside the structure's first view
+     * without either replacing the other, and one that's damaged is forgotten. A structure's version
+     * changes with its definition and only then.
+     */
+    public static void keptPictureCopiesReadBack(GameTestHelper helper) {
+        ResourceLocation id = Ids.of("test", "tower");
+        byte[] view = {1, 2, 3};
+        byte[] picture = {4, 5};
+        byte[] newer = {6, 7, 8, 9};
+        String fingerprint = "game test " + System.nanoTime();
+        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint));
+        try {
+            KeptPreviews.use(fingerprint, true);
+            waitForKept();
+            helper.assertTrue(!KeptPreviews.hasPicture(id, "0a") && readKeptPicture(id, "0a") == null, "a new server's folder had a picture's copy in it");
+
+            KeptPreviews.keep(id, view);
+            KeptPreviews.keepPicture(id, "0a", picture);
+            helper.assertTrue(KeptPreviews.hasPicture(id, "0a") && !KeptPreviews.hasPicture(id, "0b"),
+                    "a kept picture's copy wasn't known straight away, or was taken for another version");
+            byte[] read = readKeptPicture(id, "0a");
+            helper.assertTrue(Arrays.equals(read, picture), "the picture's copy read back as " + Arrays.toString(read));
+            helper.assertTrue(readKeptPicture(id, "0b") == null, "a picture's copy of another version was read");
+            helper.assertTrue(Arrays.equals(readKept(id), view), "keeping a picture's copy replaced the first view");
+
+            KeptPreviews.keepPicture(id, "0b", newer);
+            read = readKeptPicture(id, "0b");
+            helper.assertTrue(Arrays.equals(read, newer) && !KeptPreviews.hasPicture(id, "0a"), "a newer version's copy didn't take the old one's place");
+            helper.assertTrue(keptFiles(dir, id, ".pic").size() == 1, "the old copy's file was left behind: " + keptFiles(dir, id, ".pic"));
+            helper.assertTrue(Arrays.equals(readKept(id), view), "a newer picture's copy replaced the first view");
+
+            KeptPreviews.use(null, false);
+            KeptPreviews.use(fingerprint, true);
+            waitForKept();
+            helper.assertTrue(KeptPreviews.hasPicture(id, "0b"), "the picture's copy wasn't found after joining again");
+
+            for (Path file : keptFiles(dir, id, ".pic")) {
+                byte[] bytes = Files.readAllBytes(file);
+                bytes[bytes.length - 1] ^= 1;
+                Files.write(file, bytes);
+            }
+            helper.assertTrue(readKeptPicture(id, "0b") == null, "a damaged picture's copy was read");
+            helper.assertTrue(!KeptPreviews.hasPicture(id, "0b") && keptFiles(dir, id, ".pic").isEmpty(), "a damaged picture's copy wasn't forgotten");
+            helper.assertTrue(Arrays.equals(readKept(id), view), "forgetting a damaged picture's copy took the first view with it");
+
+            List<StructureCatalog.Entry> entries = StructureCatalog.build(helper.getLevel().getServer());
+            StructureCatalog.Entry entry = entries.stream().filter(e -> e.definition() != null).findFirst().orElseThrow();
+            KeptPreviews.structures(entries);
+            String version = KeptPreviews.version(entry.id());
+            KeptPreviews.structures(StructureCatalog.build(helper.getLevel().getServer()));
+            helper.assertTrue(version != null && version.equals(KeptPreviews.version(entry.id())), "a structure's version changed when its definition didn't");
+            JsonObject changed = entry.definition().deepCopy();
+            changed.addProperty("changed", true);
+            KeptPreviews.structures(List.of(new StructureCatalog.Entry(entry.id(), entry.type(), changed, entry.sets(), entry.info(), entry.availability(),
+                    entry.dimensions())));
+            helper.assertTrue(!version.equals(KeptPreviews.version(entry.id())), "a structure's version didn't change with its definition");
         } catch (IOException e) {
             throw new AssertionError("couldn't look in the kept previews' folder", e);
         } finally {
@@ -545,11 +612,22 @@ public final class ServiceTests {
         }
     }
 
-    private static List<Path> keptFiles(Path dir, ResourceLocation id) throws IOException {
+    /** A structure's kept files of one kind: first views end in .bin, pictures' copies in .pic. */
+    private static List<Path> keptFiles(Path dir, ResourceLocation id, String ending) throws IOException {
         waitForKept();
         String stem = shortName(id.toString()) + ".";
         try (var files = Files.list(dir)) {
-            return files.filter(file -> file.getFileName().toString().startsWith(stem)).toList();
+            return files.filter(file -> file.getFileName().toString().startsWith(stem) && file.getFileName().toString().endsWith(ending)).toList();
+        }
+    }
+
+    private static byte[] readKeptPicture(ResourceLocation id, String version) {
+        CompletableFuture<byte[]> read = new CompletableFuture<>();
+        KeptPreviews.readPicture(id, version, read::complete);
+        try {
+            return read.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("reading a kept picture's copy took too long", e);
         }
     }
 

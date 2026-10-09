@@ -81,8 +81,9 @@ away for everyone, after a restart too. A dedicated server makes the rest in the
 loot scan is done, a structure at a time, and stops for any preview a player is waiting on. New
 layouts aren't saved. In a pack with 650 structures they came to about 34 MB, list pictures
 included. Players' games keep the first previews a server sends them in their own
-`.cache/justenoughstructures`, so a server only sends one again once it's changed. The folder is
-safe to delete.
+`.cache/justenoughstructures`, so a server only sends one again once it's changed. They keep what
+the list's pictures are drawn from there too, so a new GUI scale or resource pack redraws them
+without asking the server. The folder is safe to delete.
 
 ## Pack tools
 
