@@ -1,20 +1,14 @@
 package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.JesLog;
-import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
-import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -31,49 +25,18 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * removed is kept in the file's list of removed patches. Nothing here can stop a template loading.
  */
 public final class ContainerPatches {
-    private static final PatchFile FILE = new PatchFile("containers.json");
+    private static final PatchStore<Patch> STORE = new PatchStore<>("containers.json", "container", ContainerPatches::parse, ContainerPatches::toJson);
 
     /** Points the container at {@code pos} in {@code template}, a {@code block} with the table {@code original}, at {@code table}. */
-    public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, ResourceLocation table) {
+    public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, ResourceLocation table) implements PatchStore.Spot {
     }
-
-    private static volatile Map<ResourceLocation, List<Patch>> byTemplate;
-    /** Patches undone, by template and spot, for {@link #ownTable}. */
-    private static final Map<List<Object>, Patch> UNDONE = new ConcurrentHashMap<>();
 
     private ContainerPatches() {
     }
 
-    private static Map<ResourceLocation, List<Patch>> patches() {
-        if (!ServerConfig.get().containerChanges()) {
-            return Map.of();
-        }
-        Map<ResourceLocation, List<Patch>> loaded = byTemplate;
-        if (loaded == null) {
-            load();
-            loaded = byTemplate;
-        }
-        return loaded;
-    }
-
     /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
-    public static synchronized void load() {
-        Map<ResourceLocation, List<Patch>> out = new HashMap<>();
-        try {
-            for (JsonElement element : FILE.entries()) {
-                Patch patch = parse(element);
-                if (patch != null) {
-                    out.computeIfAbsent(patch.template(), id -> new ArrayList<>()).add(patch);
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            // Read on every /reload, so the same broken file is only worth one warning.
-            Path file = FILE.path();
-            JesLog.warnOnce("patches:" + file + "|" + e.getMessage(), "Couldn't read the container patches in {}, leaving containers as they are: {}",
-                    file, e.toString());
-            JesLog.debug("Couldn't read the container patches in {}", file, e);
-        }
-        byTemplate = out;
+    public static void load() {
+        STORE.load();
     }
 
     /**
@@ -82,7 +45,7 @@ public final class ContainerPatches {
      */
     public static Map<ResourceLocation, String> byTemplate() {
         Map<ResourceLocation, String> out = new TreeMap<>();
-        patches().forEach((template, list) -> {
+        STORE.patches().forEach((template, list) -> {
             List<String> lines = new ArrayList<>();
             list.forEach(patch -> lines.add(patch.pos().toShortString() + " " + patch.block() + " " + patch.table()));
             lines.sort(null);
@@ -92,38 +55,17 @@ public final class ContainerPatches {
     }
 
     /** Every patch saved, in the order they were saved, whether or not changed containers are in use. */
-    public static synchronized List<Patch> all() {
-        List<Patch> out = new ArrayList<>();
-        try {
-            for (JsonElement element : FILE.entries()) {
-                Patch patch = parse(element);
-                if (patch != null) {
-                    out.add(patch);
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            JesLog.debug("Couldn't read the container patches in {}", FILE.path(), e);
-        }
-        return out;
+    public static List<Patch> all() {
+        return STORE.all();
     }
 
     public static Patch find(ResourceLocation template, BlockPos pos) {
-        for (Patch patch : patches().getOrDefault(template, List.of())) {
-            if (patch.pos().equals(pos)) {
-                return patch;
-            }
-        }
-        return null;
+        return STORE.find(template, pos);
     }
 
     /** Changes the loot tables of patched containers in a template that's just been loaded. */
     public static void apply(ResourceLocation id, StructureTemplate template) {
-        List<Patch> patches;
-        try {
-            patches = patches().get(id);
-        } catch (RuntimeException e) {
-            return;
-        }
+        List<Patch> patches = STORE.forTemplate(id);
         if (patches == null) {
             return;
         }
@@ -162,38 +104,13 @@ public final class ContainerPatches {
     }
 
     /** Saves a patch, replacing any for the same container. It applies from the next /reload. */
-    public static synchronized Component save(Patch patch) {
-        try {
-            FILE.save(patch.template(), patch.pos(), toJson(patch));
-        } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save the container patch for {} in {}: {}", patch.pos(), patch.template(), e.toString());
-            JesLog.debug("Couldn't save the container patch for {} in {}", patch.pos(), patch.template(), e);
-            return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
-        }
-        load();
-        return Component.translatable("screen.justenoughstructures.container.saved");
+    public static Component save(Patch patch) {
+        return STORE.save(patch);
     }
 
     /** Stops patching a container. The patch moves to the file's list of removed ones rather than going. */
-    public static synchronized Component remove(ResourceLocation template, BlockPos pos) {
-        Patch removing = null;
-        for (Patch patch : all()) {
-            if (patch.template().equals(template) && patch.pos().equals(pos)) {
-                removing = patch;
-            }
-        }
-        try {
-            if (!FILE.remove(template, pos)) {
-                return Component.translatable("screen.justenoughstructures.container.none");
-            }
-        } catch (IOException | RuntimeException e) {
-            return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
-        }
-        if (removing != null) {
-            UNDONE.put(List.of(template, pos), removing);
-        }
-        load();
-        return Component.translatable("screen.justenoughstructures.container.removed");
+    public static Component remove(ResourceLocation template, BlockPos pos) {
+        return STORE.remove(template, pos);
     }
 
     /**
@@ -202,7 +119,7 @@ public final class ContainerPatches {
      * patch's, not its own.
      */
     public static String ownTable(ResourceLocation template, BlockPos pos, String loaded) {
-        Patch undone = UNDONE.get(List.of(template, pos));
+        Patch undone = STORE.undone(template, pos);
         return undone != null && loaded.equals(undone.table().toString()) ? undone.original() : loaded;
     }
 

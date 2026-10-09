@@ -2,24 +2,18 @@ package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
-import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
-import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -44,7 +38,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * ominous, keeping the rest of its settings.
  */
 public final class SpawnerPatches {
-    private static final PatchFile FILE = new PatchFile("spawners.json");
+    private static final PatchStore<Patch> STORE = new PatchStore<>("spawners.json", "spawner", SpawnerPatches::parse, SpawnerPatches::toJson);
     public static final ResourceLocation SPAWNER = Ids.of("minecraft", "spawner");
 
     /**
@@ -54,7 +48,7 @@ public final class SpawnerPatches {
      * {@code others} how many more it made.
      */
     public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, int others, String mob,
-                        ResourceLocation to) {
+                        ResourceLocation to) implements PatchStore.Spot {
         public Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, int others, String mob) {
             this(template, pos, block, original, others, mob, null);
         }
@@ -64,10 +58,6 @@ public final class SpawnerPatches {
             return to != null ? to : block;
         }
     }
-
-    private static volatile Map<ResourceLocation, List<Patch>> byTemplate;
-    /** Patches undone, by template and spot, for {@link #ownMob}. */
-    private static final Map<List<Object>, Patch> UNDONE = new ConcurrentHashMap<>();
 
     private SpawnerPatches() {
     }
@@ -127,51 +117,14 @@ public final class SpawnerPatches {
         return BuiltInRegistries.BLOCK.getKey(info.state().getBlock());
     }
 
-    private static Map<ResourceLocation, List<Patch>> patches() {
-        if (!ServerConfig.get().containerChanges()) {
-            return Map.of();
-        }
-        Map<ResourceLocation, List<Patch>> loaded = byTemplate;
-        if (loaded == null) {
-            load();
-            loaded = byTemplate;
-        }
-        return loaded;
-    }
-
     /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
-    public static synchronized void load() {
-        Map<ResourceLocation, List<Patch>> out = new HashMap<>();
-        try {
-            for (JsonElement element : FILE.entries()) {
-                Patch patch = parse(element);
-                if (patch != null) {
-                    out.computeIfAbsent(patch.template(), id -> new ArrayList<>()).add(patch);
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            Path file = FILE.path();
-            JesLog.warnOnce("spawner-patches:" + file + "|" + e.getMessage(), "Couldn't read the spawner patches in {}, leaving spawners as they are: {}",
-                    file, e.toString());
-            JesLog.debug("Couldn't read the spawner patches in {}", file, e);
-        }
-        byTemplate = out;
+    public static void load() {
+        STORE.load();
     }
 
     /** Every patch saved, in the order they were saved, whether or not changes are in use. */
-    public static synchronized List<Patch> all() {
-        List<Patch> out = new ArrayList<>();
-        try {
-            for (JsonElement element : FILE.entries()) {
-                Patch patch = parse(element);
-                if (patch != null) {
-                    out.add(patch);
-                }
-            }
-        } catch (IOException | RuntimeException e) {
-            JesLog.debug("Couldn't read the spawner patches in {}", FILE.path(), e);
-        }
-        return out;
+    public static List<Patch> all() {
+        return STORE.all();
     }
 
     /**
@@ -180,7 +133,7 @@ public final class SpawnerPatches {
      */
     public static Map<ResourceLocation, String> switchesByTemplate() {
         Map<ResourceLocation, String> out = new TreeMap<>();
-        patches().forEach((template, list) -> {
+        STORE.patches().forEach((template, list) -> {
             List<String> lines = new ArrayList<>();
             for (Patch patch : list) {
                 if (patch.to() != null) {
@@ -196,12 +149,7 @@ public final class SpawnerPatches {
     }
 
     public static Patch find(ResourceLocation template, BlockPos pos) {
-        for (Patch patch : patches().getOrDefault(template, List.of())) {
-            if (patch.pos().equals(pos)) {
-                return patch;
-            }
-        }
-        return null;
+        return STORE.find(template, pos);
     }
 
     /**
@@ -209,12 +157,7 @@ public final class SpawnerPatches {
      * trial spawner configs that are named rather than written in, and may be null.
      */
     public static void apply(ResourceLocation id, StructureTemplate template, ResourceManager resources) {
-        List<Patch> patches;
-        try {
-            patches = patches().get(id);
-        } catch (RuntimeException e) {
-            return;
-        }
+        List<Patch> patches = STORE.forTemplate(id);
         if (patches == null) {
             return;
         }
@@ -293,38 +236,13 @@ public final class SpawnerPatches {
     }
 
     /** Saves a patch, replacing any for the same spawner. It applies from the next /reload. */
-    public static synchronized Component save(Patch patch) {
-        try {
-            FILE.save(patch.template(), patch.pos(), toJson(patch));
-        } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save the spawner patch for {} in {}: {}", patch.pos(), patch.template(), e.toString());
-            JesLog.debug("Couldn't save the spawner patch for {} in {}", patch.pos(), patch.template(), e);
-            return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
-        }
-        load();
-        return Component.translatable("screen.justenoughstructures.spawner.saved");
+    public static Component save(Patch patch) {
+        return STORE.save(patch);
     }
 
     /** Stops patching a spawner. The patch moves to the file's list of removed ones rather than going. */
-    public static synchronized Component remove(ResourceLocation template, BlockPos pos) {
-        Patch removing = null;
-        for (Patch patch : all()) {
-            if (patch.template().equals(template) && patch.pos().equals(pos)) {
-                removing = patch;
-            }
-        }
-        try {
-            if (!FILE.remove(template, pos)) {
-                return Component.translatable("screen.justenoughstructures.spawner.none");
-            }
-        } catch (IOException | RuntimeException e) {
-            return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
-        }
-        if (removing != null) {
-            UNDONE.put(List.of(template, pos), removing);
-        }
-        load();
-        return Component.translatable("screen.justenoughstructures.spawner.removed");
+    public static Component remove(ResourceLocation template, BlockPos pos) {
+        return STORE.remove(template, pos);
     }
 
     /**
@@ -333,7 +251,7 @@ public final class SpawnerPatches {
      * is the patch's, not its own.
      */
     private static Patch undoneHere(ResourceLocation template, BlockPos pos, StructureTemplate.StructureBlockInfo loaded, ResourceManager resources) {
-        Patch undone = UNDONE.get(List.of(template, pos));
+        Patch undone = STORE.undone(template, pos);
         return undone != null && blockOf(loaded).equals(undone.target()) && Objects.equals(mobOf(loaded, resources), undone.mob()) ? undone : null;
     }
 
