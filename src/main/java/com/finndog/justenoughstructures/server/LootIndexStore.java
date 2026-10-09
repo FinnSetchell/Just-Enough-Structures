@@ -260,14 +260,7 @@ public final class LootIndexStore {
     private static void publish(MinecraftServer server) {
         LootIndex shown = visible(index);
         payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeIndex(buf, shown)));
-        for (UUID id : WAITING) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null) {
-                WAITING.remove(id);
-            } else {
-                JesServer.sendIndex(player, payload);
-            }
-        }
+        Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
         SavedPreviews.fill(server);
     }
 

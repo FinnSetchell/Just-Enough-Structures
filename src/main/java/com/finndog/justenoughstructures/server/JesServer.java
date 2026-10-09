@@ -138,14 +138,7 @@ public final class JesServer {
         // Saved first views wait for the loot index's fingerprint, as what they were made from may have changed.
         SavedPreviews.forget();
         LootIndexStore.refresh(server);
-        for (UUID id : BROWSING) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null) {
-                BROWSING.remove(id);
-            } else {
-                sendSettings(player, true, true);
-            }
-        }
+        Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, true));
     }
 
     /**
@@ -156,14 +149,7 @@ public final class JesServer {
     public static void structuresChanged(MinecraftServer server) {
         catalog = null;
         clearCaptures();
-        for (UUID id : BROWSING) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null) {
-                BROWSING.remove(id);
-            } else {
-                sendSettings(player, false, true);
-            }
-        }
+        Players.forEachOnline(server, BROWSING, player -> sendSettings(player, false, true));
     }
 
     /**
@@ -198,14 +184,7 @@ public final class JesServer {
             return;
         }
         catalog = null;
-        for (UUID id : BROWSING) {
-            ServerPlayer player = server.getPlayerList().getPlayer(id);
-            if (player == null) {
-                BROWSING.remove(id);
-            } else {
-                sendSettings(player, false, true);
-            }
-        }
+        Players.forEachOnline(server, BROWSING, player -> sendSettings(player, false, true));
     }
 
     /** Drops the captures kept to send again, along with any still being made from before. */

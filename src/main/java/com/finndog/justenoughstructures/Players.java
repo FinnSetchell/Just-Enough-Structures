@@ -1,12 +1,12 @@
 package com.finndog.justenoughstructures;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Consumer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-//? if >=1.21.2 {
-/*import java.util.Set;
-*///?}
 //? if >=26.1 {
 /*import net.minecraft.server.permissions.Permission;
 import net.minecraft.server.permissions.PermissionLevel;
@@ -27,6 +27,18 @@ public final class Players {
 
     public static MinecraftServer server(ServerPlayer player) {
         return level(player).getServer();
+    }
+
+    /** Runs {@code action} for each of these players who's still online, and forgets those who've left. */
+    public static void forEachOnline(MinecraftServer server, Set<UUID> players, Consumer<ServerPlayer> action) {
+        for (UUID id : players) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player == null) {
+                players.remove(id);
+            } else {
+                action.accept(player);
+            }
+        }
     }
 
     /**
