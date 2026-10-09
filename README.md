@@ -155,32 +155,14 @@ Explorer's Compass uses.
 - Fabric Loader and Fabric API, Forge, or NeoForge on 1.21.1, 26.1.2, 26.2 and 26.3
 - Installed on both the client and the server. In singleplayer that's just your game.
 
-## Building
+## Help
 
-The project uses [Stonecutter](https://stonecutter.kikugie.dev/), so each Minecraft version and
-loader is its own node under `versions/`.
+The best and fastest way to get replies is to join our [Discord server](https://moogsmods.com/discord?r=github-jes).
+Bugs and ideas can also go in [Issues](https://github.com/FinnSetchell/Just-Enough-Structures/issues).
 
-```
-./gradlew :1.20.1-fabric:build
-./gradlew :1.20.1-fabric:runGameTest
-./gradlew :1.20.1-fabric:runAutoshot
-```
+## Contributing
 
-The other nodes have the same three, as `:1.21.1-fabric:build`, `:1.20.1-forge:build`,
-`:1.21.1-neoforge:build`, `:26.1.2-fabric:build` and so on.
-The Forge 1.20.1 jar is reobfuscated, as Forge 1.20.1 runs on SRG names, and the Forge 1.21.1 jar
-carries MixinExtras, which that Forge doesn't ship. On Forge and NeoForge `runAutoshot` takes a list
-of structures but has no scripted clips.
-
-`runGameTest` generates every vanilla structure headlessly and checks the loot, the network format
-and that previews leave the world untouched. `runAutoshot` opens the browser in a throwaway world,
-saves a screenshot of a list of structures to `versions/1.20.1-fabric/build/autoshot/screenshots`
-and quits. Pick the structures with `-Pstructures=minecraft:igloo,mymod:tower` and add `-Pshow` to
-watch it. `-Pmode=open` and `-Pmode=showcase` play a scripted clip instead and save every frame, for
-making GIFs.
-
-Gradle needs Java 21 or newer to run, and Java 25 for the 26.x nodes' tasks. The Java each node
-compiles with is downloaded for you.
+How to build it, test it and send changes is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
