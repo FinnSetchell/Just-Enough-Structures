@@ -6,7 +6,6 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +62,7 @@ final class SpawnerPopup extends SidePopup {
      */
     boolean picking;
     private int scroll;
-    private final Map<Action, int[]> links = new EnumMap<>(Action.class);
+    private final PopupLinks<Action> links = new PopupLinks<>(Action.class);
 
     SpawnerPopup(StructureSnapshot.Spawner spawner, CompoundTag tag, Component title, int index, int count) {
         super(title, index, count);
@@ -284,32 +283,11 @@ final class SpawnerPopup extends SidePopup {
     private void toolsIcon(GuiGraphics g, int right, int top, int mouseX, int mouseY) {
         int left = right - ICON;
         boolean enabled = !overview();
-        boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
-        if (picking && enabled) {
-            ChestPopup.pointOut(g, left, top, ICON);
-        }
-        if (over) {
-            if (enabled) {
-                g.fill(left, top, right, top + ICON, 0xFF555555);
-                g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
-            }
+        if (ChestPopup.drawToolsIcon(g, SPAWNER, left, top, mouseX, mouseY, enabled, picking)) {
             hoveredTip = enabled ? List.of(Component.translatable("screen.justenoughstructures.tools.open_spawner")) : pickOne();
         }
-        Gui.push(g);
-        Gui.translate(g, left + 1, top + 1);
-        Gui.scale(g, 0.75f);
-        g.renderItem(SPAWNER, 0, 0);
-        Gui.pop(g);
-        Gui.push(g);
-        Gui.lift(g, 200);
-        Gui.blit(g, PackToolsScreen.WRENCH, right - 8, top + ICON - 8, 0, 0, 8, 8, 8, 8);
-        if (!enabled) {
-            // The panel's own grey over the spawner and wrench, so they show through faintly.
-            g.fill(left, top, right, top + ICON, 0xA0C6C6C6);
-        }
-        Gui.pop(g);
         if (enabled) {
-            links.put(Action.TOOLS, new int[]{left, top, ICON, ICON});
+            links.put(Action.TOOLS, left, top, ICON, ICON);
         }
     }
 
@@ -319,18 +297,11 @@ final class SpawnerPopup extends SidePopup {
 
     /** The link at a point, or null. */
     Action actionAt(double mouseX, double mouseY) {
-        for (Map.Entry<Action, int[]> e : links.entrySet()) {
-            int[] r = e.getValue();
-            if (mouseX >= r[0] && mouseX < r[0] + r[2] && mouseY >= r[1] && mouseY < r[1] + r[3]) {
-                return e.getKey();
-            }
-        }
-        return null;
+        return links.at(mouseX, mouseY);
     }
 
     /** The middle of a link, or null if it isn't shown. For the screenshot harness. */
     int[] linkCentre(Action action) {
-        int[] r = links.get(action);
-        return r == null ? null : new int[]{r[0] + r[2] / 2, r[1] + r[3] / 2};
+        return links.centre(action);
     }
 }

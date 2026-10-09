@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,7 +82,7 @@ final class ChestPopup {
     boolean picking;
     /** The block or entity it is, for the icon that opens it in Pack tools. */
     ItemStack icon = ItemStack.EMPTY;
-    private final Map<Action, int[]> links = new EnumMap<>(Action.class);
+    private final PopupLinks<Action> links = new PopupLinks<>(Action.class);
 
     private ChestPopup(StructureSnapshot.Container container, String table, Component title, int size, int index, int count, String kind, View view) {
         this.container = container;
@@ -403,23 +402,33 @@ final class ChestPopup {
         return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one"));
     }
 
-    /**
-     * An item with a small wrench on it, that opens something in Pack tools, or greyed out when it
-     * can't yet. {@code pointedOut} draws attention to it, as the one to use. Returns its left edge.
-     */
+    /** {@link #drawToolsIcon} at the left of {@code right}, as a link with {@code tip}. Returns its left edge. */
     private int toolsIcon(GuiGraphics g, Action action, ItemStack stack, int right, int top, int mouseX, int mouseY, boolean enabled,
                           boolean pointedOut, List<Component> tip) {
         int left = right - ICON;
+        if (drawToolsIcon(g, stack, left, top, mouseX, mouseY, enabled, pointedOut)) {
+            hoveredTip = tip;
+        }
+        if (enabled) {
+            links.put(action, left, top, ICON, ICON);
+        }
+        return left;
+    }
+
+    /**
+     * An item with a small wrench on it, that opens something in Pack tools, or greyed out when it
+     * can't yet. {@code pointedOut} draws attention to it, as the one to use. Returns whether the
+     * mouse is over it.
+     */
+    static boolean drawToolsIcon(GuiGraphics g, ItemStack stack, int left, int top, int mouseX, int mouseY, boolean enabled, boolean pointedOut) {
+        int right = left + ICON;
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + ICON;
         if (pointedOut && enabled) {
             pointOut(g, left, top, ICON);
         }
-        if (over) {
-            if (enabled) {
-                g.fill(left, top, right, top + ICON, 0xFF555555);
-                g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
-            }
-            hoveredTip = tip;
+        if (over && enabled) {
+            g.fill(left, top, right, top + ICON, 0xFF555555);
+            g.fill(left + 1, top + 1, right - 1, top + ICON - 1, 0x90FFFFFF);
         }
         Gui.push(g);
         Gui.translate(g, left + 1, top + 1);
@@ -434,10 +443,7 @@ final class ChestPopup {
             g.fill(left, top, right, top + ICON, 0xA0C6C6C6);
         }
         Gui.pop(g);
-        if (enabled) {
-            links.put(action, new int[]{left, top, ICON, ICON});
-        }
-        return left;
+        return over;
     }
 
     /**
@@ -465,7 +471,7 @@ final class ChestPopup {
         g.fill(left, top, right, top + TAB_HEIGHT, on ? 0xFF373737 : 0xFF8B8B8B);
         g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, on ? 0xFFFFFFFF : over ? 0xFFD6D6D6 : 0xFFC6C6C6);
         Gui.fine(g, font, text, left + 4, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.LABEL : 0xFF404040);
-        links.put(action, new int[]{left, top, w, TAB_HEIGHT});
+        links.put(action, left, top, w, TAB_HEIGHT);
         if (over && !on) {
             hoveredAction = action;
         }
@@ -487,18 +493,11 @@ final class ChestPopup {
 
     /** The middle of a tab, or null if it isn't shown. */
     int[] linkCentre(Action action) {
-        int[] r = links.get(action);
-        return r == null ? null : new int[]{r[0] + r[2] / 2, r[1] + r[3] / 2};
+        return links.centre(action);
     }
 
     /** The tab at a point, or null. */
     Action actionAt(double mouseX, double mouseY) {
-        for (Map.Entry<Action, int[]> e : links.entrySet()) {
-            int[] r = e.getValue();
-            if (mouseX >= r[0] && mouseX < r[0] + r[2] && mouseY >= r[1] && mouseY < r[1] + r[3]) {
-                return e.getKey();
-            }
-        }
-        return null;
+        return links.at(mouseX, mouseY);
     }
 }
