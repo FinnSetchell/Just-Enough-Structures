@@ -10,6 +10,8 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -158,13 +160,5 @@ final class EditorScenario {
 
     private static Screen browserBehind(Minecraft mc) {
         return mc.screen instanceof LootEditorScreen editor ? editor : mc.screen;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static LootEditorScreen editor(Minecraft mc) {
-        return mc.screen instanceof LootEditorScreen s ? s : null;
     }
 }

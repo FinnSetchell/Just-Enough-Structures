@@ -513,6 +513,44 @@ public final class Director {
         };
     }
 
+    /** Backspace {@code count} times, one every {@code framesPer} frames. */
+    public static Action erase(int count, int framesPer) {
+        return (d, frame) -> {
+            if (frame % framesPer == 0 && frame / framesPer < count) {
+                d.key(InputConstants.KEY_BACKSPACE);
+            }
+            return frame / framesPer >= count;
+        };
+    }
+
+    /** Plays actions one after another as one. */
+    public static Action chain(Action... actions) {
+        int[] at = {0};
+        int[] start = {0};
+        return (d, frame) -> {
+            if (frame == 0) {
+                at[0] = 0;
+                start[0] = 0;
+            }
+            if (at[0] < actions.length && actions[at[0]].step(d, frame - start[0])) {
+                at[0]++;
+                start[0] = frame + 1;
+            }
+            return at[0] >= actions.length;
+        };
+    }
+
+    /** Skips {@code action} if {@code when} holds as it starts. */
+    public static Action skipIf(BooleanSupplier when, Action action) {
+        boolean[] skip = new boolean[1];
+        return (d, frame) -> {
+            if (frame == 0) {
+                skip[0] = when.getAsBoolean();
+            }
+            return skip[0] || action.step(d, frame);
+        };
+    }
+
     public static Action wheel(double amount) {
         return (d, frame) -> {
             d.scroll(amount);

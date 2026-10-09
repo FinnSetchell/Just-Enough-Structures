@@ -6,6 +6,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressB
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -37,9 +38,5 @@ final class SpinScenario {
                 .then(pause(40))
                 .then(shoot("p04_over_later"));
         return d;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

@@ -7,6 +7,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -44,9 +45,5 @@ final class DetailsScenario {
                 .then(shoot("d03_details_bottom"))
                 .then(run(() -> mc.options.advancedItemTooltips = false));
         return d;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

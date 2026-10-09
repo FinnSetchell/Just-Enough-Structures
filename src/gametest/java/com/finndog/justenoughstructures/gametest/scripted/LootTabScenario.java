@@ -9,6 +9,8 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressK
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.orZero;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
@@ -57,13 +59,5 @@ final class LootTabScenario {
                 .then(pause(20))
                 .then(shoot("l06_table_popup_roll"));
         return d;
-    }
-
-    private static int[] orZero(int[] at) {
-        return at == null ? new int[]{0, 0} : at;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

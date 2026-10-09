@@ -10,13 +10,14 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tablePicker;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
-import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
-import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
@@ -49,15 +50,15 @@ final class ContainerScenario {
                 .then(pause(20))
                 .then(moveTo(() -> button(mc, "Change"), 10))
                 .then(click())
-                .then(until(() -> picker(mc) != null, 40))
-                .then(until(() -> picker(mc).ready(), 3600))
+                .then(until(() -> tablePicker(mc) != null, 40))
+                .then(until(() -> tablePicker(mc).ready(), 3600))
                 .then(pause(10))
                 .then(shoot("k02_picker"))
                 .then(type("igloo", 2))
-                .then(run(() -> picker(mc).pick(0)))
+                .then(run(() -> tablePicker(mc).pick(0)))
                 .then(pause(10))
                 .then(shoot("k03_picked"))
-                .then(run(() -> picker(mc).useIt()))
+                .then(run(() -> tablePicker(mc).useIt()))
                 .then(until(() -> tools(mc) != null && tools(mc).loaded(), 100))
                 .then(pause(30))
                 .then(shoot("k04_saved"))
@@ -93,10 +94,6 @@ final class ContainerScenario {
         return at != null ? at : new int[]{mc.getWindow().getGuiScaledWidth() / 2, mc.getWindow().getGuiScaledHeight() / 2};
     }
 
-    private static PackToolsScreen tools(Minecraft mc) {
-        return mc.screen instanceof PackToolsScreen s ? s : null;
-    }
-
     /** Where a popup link is, or the middle of the screen if it isn't shown, so a missing link shows up in the shot. */
     private static int[] link(Minecraft mc, String name) {
         int[] at = browser(mc) == null ? null : browser(mc).popupLink(name);
@@ -116,13 +113,5 @@ final class ContainerScenario {
         reloadsBefore[0] = ClientRequests.reloads();
         MinecraftServer server = mc.getSingleplayerServer();
         server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "reload"));
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static TablePickerScreen picker(Minecraft mc) {
-        return mc.screen instanceof TablePickerScreen s ? s : null;
     }
 }

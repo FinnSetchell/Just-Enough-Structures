@@ -10,11 +10,13 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tablePicker;
 
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
-import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
@@ -84,25 +86,13 @@ final class LootFixesScenario {
                 .then(pause(20))
                 .then(moveTo(() -> mc.screen instanceof PackToolsScreen tools && tools.buttonAt("Change") != null ? tools.buttonAt("Change") : new int[]{0, 0}, 8))
                 .then(click())
-                .then(until(() -> picker(mc) != null, 40))
+                .then(until(() -> tablePicker(mc) != null, 40))
                 .then(type("nosuchmod:chests/nothing_here", 1))
                 .then(pause(10))
                 .then(shoot("f05_typed_id"))
-                .then(run(() -> picker(mc).useIt()))
+                .then(run(() -> tablePicker(mc).useIt()))
                 .then(pause(30))
                 .then(shoot("f06_no_such_table"));
         return d;
-    }
-
-    private static TablePickerScreen picker(Minecraft mc) {
-        return mc.screen instanceof TablePickerScreen s ? s : null;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static LootEditorScreen editor(Minecraft mc) {
-        return mc.screen instanceof LootEditorScreen s ? s : null;
     }
 }

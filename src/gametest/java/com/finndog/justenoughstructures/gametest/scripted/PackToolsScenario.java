@@ -8,11 +8,14 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressB
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.skipIf;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.orZero;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
-import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
@@ -101,25 +104,6 @@ final class PackToolsScenario {
 
     /** Escape, if {@code when} holds as it comes up. */
     private static Director.Action escapeIf(BooleanSupplier when) {
-        Director.Action escape = pressKey(InputConstants.KEY_ESCAPE);
-        boolean[] skip = new boolean[1];
-        return (d, frame) -> {
-            if (frame == 0) {
-                skip[0] = !when.getAsBoolean();
-            }
-            return skip[0] || escape.step(d, frame);
-        };
-    }
-
-    private static int[] orZero(int[] at) {
-        return at == null ? new int[]{0, 0} : at;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static PackToolsScreen tools(Minecraft mc) {
-        return mc.screen instanceof PackToolsScreen s ? s : null;
+        return skipIf(() -> !when.getAsBoolean(), pressKey(InputConstants.KEY_ESCAPE));
     }
 }

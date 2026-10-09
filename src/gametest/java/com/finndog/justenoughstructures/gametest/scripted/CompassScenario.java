@@ -9,6 +9,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressK
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
@@ -74,10 +75,6 @@ final class CompassScenario {
                 .then(pause(20))
                 .then(shoot("c05_compass_searching"));
         return d;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 
     private static boolean onCompassScreen(Minecraft mc) {

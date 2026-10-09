@@ -1,6 +1,8 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
+import static com.finndog.justenoughstructures.gametest.scripted.Director.chain;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.erase;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
@@ -8,8 +10,18 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressK
 import static com.finndog.justenoughstructures.gametest.scripted.Director.record;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.skipIf;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Reflect.call;
+import static com.finndog.justenoughstructures.gametest.scripted.Reflect.get;
+import static com.finndog.justenoughstructures.gametest.scripted.Reflect.getInt;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.offset;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.ready;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tablePicker;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
@@ -21,14 +33,12 @@ import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
-import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -497,47 +507,6 @@ final class UpdateFlowScenario {
                 pause(24));
     }
 
-    /** Skips {@code action} if {@code when} holds as it starts. */
-    private static Director.Action skipIf(java.util.function.BooleanSupplier when, Director.Action action) {
-        boolean[] skip = new boolean[1];
-        return (d, frame) -> {
-            if (frame == 0) {
-                skip[0] = when.getAsBoolean();
-            }
-            return skip[0] || action.step(d, frame);
-        };
-    }
-
-    /** Plays actions one after another as one. */
-    private static Director.Action chain(Director.Action... actions) {
-        int[] at = {0};
-        int[] start = {0};
-        return (d, frame) -> {
-            if (frame == 0) {
-                at[0] = 0;
-                start[0] = 0;
-            }
-            while (at[0] < actions.length) {
-                if (actions[at[0]].step(d, frame - start[0])) {
-                    at[0]++;
-                    start[0] = frame + 1;
-                    return at[0] >= actions.length;
-                }
-                return false;
-            }
-            return true;
-        };
-    }
-
-    private static Director.Action erase(int count, int framesPer) {
-        return (d, frame) -> {
-            if (frame % framesPer == 0 && frame / framesPer < count) {
-                d.key(InputConstants.KEY_BACKSPACE);
-            }
-            return frame / framesPer >= count;
-        };
-    }
-
     // ------------------------------------------------------------------ where things are
 
     private static ResourceLocation structure() {
@@ -580,10 +549,6 @@ final class UpdateFlowScenario {
         return Component.translatable(key).getString();
     }
 
-    private static int[] offset(int[] p, int dx, int dy) {
-        return p == null ? null : new int[]{p[0] + dx, p[1] + dy};
-    }
-
     /** A point, or the middle of the screen if there isn't one, logged so a missing target shows up. */
     private static int[] orCentre(Minecraft mc, int[] p) {
         if (p != null) {
@@ -591,27 +556,6 @@ final class UpdateFlowScenario {
         }
         log("missing target on {}", mc.screen == null ? "no screen" : mc.screen.getClass().getSimpleName(), new Throwable());
         return new int[]{mc.getWindow().getGuiScaledWidth() / 2, mc.getWindow().getGuiScaledHeight() / 2};
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static PackToolsScreen tools(Minecraft mc) {
-        return mc.screen instanceof PackToolsScreen s ? s : null;
-    }
-
-    private static LootEditorScreen editor(Minecraft mc) {
-        return mc.screen instanceof LootEditorScreen s ? s : null;
-    }
-
-    private static TablePickerScreen tablePicker(Minecraft mc) {
-        return mc.screen instanceof TablePickerScreen s ? s : null;
-    }
-
-    private static boolean ready(Minecraft mc) {
-        JesScreen b = browser(mc);
-        return b != null && b.idle() && b.result() != null;
     }
 
     /** Where a block in the preview is drawn, or null. */
@@ -689,36 +633,5 @@ final class UpdateFlowScenario {
         int treeW = getInt(editor, "treeW");
         int contentTop = getInt(editor, "contentTop");
         return new int[]{treeX + treeW / 2, contentTop + 1 + TREE_ROW * (2 + entry) + TREE_ROW / 2};
-    }
-
-    // ------------------------------------------------------------------ reflection, for what the harness doesn't expose
-
-    private static Object get(Object target, String name) {
-        for (Class<?> c = target.getClass(); c != null; c = c.getSuperclass()) {
-            try {
-                Field f = c.getDeclaredField(name);
-                f.setAccessible(true);
-                return f.get(target);
-            } catch (NoSuchFieldException e) {
-                // Look further up.
-            } catch (IllegalAccessException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-        throw new IllegalStateException("No field " + name + " on " + target.getClass());
-    }
-
-    private static int getInt(Object target, String name) {
-        return ((Number) get(target, name)).intValue();
-    }
-
-    private static Object call(Object target, String name) {
-        try {
-            Method m = target.getClass().getDeclaredMethod(name);
-            m.setAccessible(true);
-            return m.invoke(target);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

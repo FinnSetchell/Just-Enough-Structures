@@ -7,6 +7,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressB
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.Nbt;
@@ -76,9 +77,5 @@ final class SpawnersScenario {
     private static boolean hasPool(CaptureResult result) {
         return result != null && result.succeeded() && result.snapshot().blockEntities().stream()
                 .anyMatch(tag -> Nbt.list(tag, SpawnerPools.TAG, Tag.TAG_COMPOUND).size() > 1);
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

@@ -10,6 +10,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressK
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.Gui;
@@ -97,9 +98,5 @@ final class BackScenario {
         *///?} else {
         mc.screen.keyPressed(InputConstants.KEY_BACKSPACE, 0, GLFW.GLFW_MOD_SHIFT);
         //?}
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

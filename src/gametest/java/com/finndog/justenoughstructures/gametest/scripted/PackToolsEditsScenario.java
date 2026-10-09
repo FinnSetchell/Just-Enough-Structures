@@ -9,10 +9,11 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressK
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
-import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -87,13 +88,5 @@ final class PackToolsEditsScenario {
     private static int[] at(Minecraft mc, String label) {
         int[] at = tools(mc) == null ? null : tools(mc).buttonAt(label);
         return at == null ? new int[]{0, 0} : at;
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
-    private static PackToolsScreen tools(Minecraft mc) {
-        return mc.screen instanceof PackToolsScreen s ? s : null;
     }
 }

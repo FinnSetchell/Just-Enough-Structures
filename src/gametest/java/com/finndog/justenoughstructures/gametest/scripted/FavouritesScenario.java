@@ -7,6 +7,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.pressB
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.ClientState;
@@ -62,9 +63,5 @@ final class FavouritesScenario {
 
     private static int[] star(Minecraft mc, ResourceLocation id) {
         return browser(mc).favouriteStar(id).orElse(new int[]{0, 0});
-    }
-
-    private static JesScreen browser(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
     }
 }

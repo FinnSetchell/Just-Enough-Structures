@@ -4,16 +4,17 @@ import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.dragBy;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.dragTo;
-import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
-import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.record;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
-import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.type;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
@@ -25,7 +26,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /** Scripts for the review screenshots and the showcase recordings. */
@@ -95,17 +95,13 @@ public final class Scenarios {
         return d;
     }
 
-    private static JesScreen screen(Minecraft mc) {
-        return mc.screen instanceof JesScreen s ? s : null;
-    }
-
     private static boolean idle(Minecraft mc) {
-        JesScreen s = screen(mc);
+        JesScreen s = browser(mc);
         return s != null && s.idle();
     }
 
     private static Supplier<int[]> at(Minecraft mc, Function<JesScreen, int[]> where) {
-        return () -> where.apply(screen(mc));
+        return () -> where.apply(browser(mc));
     }
 
     private static Supplier<int[]> offset(Supplier<int[]> base, int dx, int dy) {
@@ -127,8 +123,8 @@ public final class Scenarios {
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
-                .then(run(() -> screen(mc).setSpin(false)))
+                .then(until(() -> browser(mc) != null, 40))
+                .then(run(() -> browser(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 110), 10))
                 .then(pause(10))
@@ -156,18 +152,18 @@ public final class Scenarios {
                 .then(shoot("r05_search_item"))
                 .then(run(() -> erase(d, 12)))
                 .then(pause(2))
-                .then(moveTo(() -> screen(mc).structureRow(Ids.parse("desert_pyramid")).orElse(new int[]{0, 0}), 12))
+                .then(moveTo(() -> browser(mc).structureRow(Ids.parse("desert_pyramid")).orElse(new int[]{0, 0}), 12))
                 .then(click())
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 110), 8))
                 .then(pause(6))
                 .then(shoot("r06_desert_pyramid"))
-                .then(moveTo(() -> screen(mc).marker(CHEST).orElse(screen(mc).viewportCentre()), 10))
+                .then(moveTo(() -> browser(mc).marker(CHEST).orElse(browser(mc).viewportCentre()), 10))
                 .then(pause(6))
                 .then(shoot("r07_marker_hover"))
                 .then(click())
-                .then(until(() -> screen(mc).containerOpen(), 100))
-                .then(moveTo(() -> screen(mc).chestSlotWithItem().orElse(screen(mc).viewportCentre()), 10))
+                .then(until(() -> browser(mc).containerOpen(), 100))
+                .then(moveTo(() -> browser(mc).chestSlotWithItem().orElse(browser(mc).viewportCentre()), 10))
                 .then(pause(4))
                 .then(shoot("r08_chest_item"))
                 .then(click())
@@ -176,10 +172,10 @@ public final class Scenarios {
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(moveTo(at(mc, s -> s.tab("loot")), 10))
                 .then(click())
-                .then(until(() -> screen(mc).oddsRow(Items.DIAMOND).isPresent(), 100))
+                .then(until(() -> browser(mc).oddsRow(Items.DIAMOND).isPresent(), 100))
                 .then(pause(4))
                 .then(shoot("r10_loot_tab"))
-                .then(moveTo(() -> screen(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 10))
+                .then(moveTo(() -> browser(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 10))
                 .then(pause(4))
                 .then(shoot("r11_odds_hover"))
                 .then(moveTo(at(mc, s -> s.tab("blocks")), 10))
@@ -201,7 +197,7 @@ public final class Scenarios {
                 .then(dragBy(-60, 20, 12))
                 .then(pause(6))
                 .then(shoot("r15_zoomed"))
-                .then(moveTo(() -> screen(mc).structureRow(Ids.parse("ancient_city")).orElse(new int[]{0, 0}), 10))
+                .then(moveTo(() -> browser(mc).structureRow(Ids.parse("ancient_city")).orElse(new int[]{0, 0}), 10))
                 .then(click())
                 .then(pause(3))
                 .then(shoot("r16_generating"))
@@ -209,10 +205,10 @@ public final class Scenarios {
                 .then(moveTo(offset(viewport, 150, 110), 8))
                 .then(pause(6))
                 .then(shoot("r17_ancient_city"))
-                .then(run(() -> screen(mc).showDetails(true)))
+                .then(run(() -> browser(mc).showDetails(true)))
                 .then(pause(4))
                 .then(shoot("r17b_details"))
-                .then(run(() -> screen(mc).showDetails(false)))
+                .then(run(() -> browser(mc).showDetails(false)))
                 .then(moveTo(at(mc, s -> s.button("maximise")), 10))
                 .then(click())
                 .then(pause(8))
@@ -229,17 +225,17 @@ public final class Scenarios {
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
-                .then(until(() -> screen(mc) == null, 40))
+                .then(until(() -> browser(mc) == null, 40))
                 .then(run(() -> JesScreen.startOn(Ids.parse("mansion"))))
                 .then(pause(20))
                 .then(record("open"))
                 .then(pause(12))
                 .then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
-                .then(run(() -> screen(mc).setSpin(false)))
+                .then(until(() -> browser(mc) != null, 40))
+                .then(run(() -> browser(mc).setSpin(false)))
                 .then(moveTo(offset(viewport, 120, -120), 24))
                 .then(until(() -> idle(mc), 400))
                 .then(pause(12))
@@ -257,11 +253,11 @@ public final class Scenarios {
         JesScreen.startOn(Ids.parse("village_plains"));
         Director d = new Director(mc, null);
         d.then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(run(() -> JustEnoughStructures.LOGGER.info("Autoshot teleport from {}", mc.player.blockPosition())))
-                .then(run(() -> screen(mc).locateAndTeleport()))
-                .then(until(() -> screen(mc) == null, 2400))
+                .then(run(() -> browser(mc).locateAndTeleport()))
+                .then(until(() -> browser(mc) == null, 2400))
                 .then(pause(60))
                 .then(run(() -> {
                     BlockPos at = mc.player.blockPosition();
@@ -282,7 +278,7 @@ public final class Scenarios {
         Director d = new Director(mc, null);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
+                .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
                 .then(moveTo(offset(viewport, 150, 130), 2))
                 .then(record("spin"))
@@ -297,8 +293,8 @@ public final class Scenarios {
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         // Get everything loaded before recording, so it opens on a finished preview.
         d.then(pressBrowserKey())
-                .then(until(() -> screen(mc) != null, 40))
-                .then(run(() -> screen(mc).setSpin(false)))
+                .then(until(() -> browser(mc) != null, 40))
+                .then(run(() -> browser(mc).setSpin(false)))
                 .then(until(() -> idle(mc), 400))
                 .then(until(FoundIn::ready, 2400))
                 .then(moveTo(offset(viewport, 90, 70), 2))
@@ -310,7 +306,7 @@ public final class Scenarios {
                 .then(moveTo(at(mc, s -> s.sliderAt(1f)), 14))
                 .then(dragTo(at(mc, s -> s.sliderAt(0.5f)), 18, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(6))
-                .then(moveTo(() -> screen(mc).marker(CHEST).orElse(screen(mc).viewportCentre()), 14))
+                .then(moveTo(() -> browser(mc).marker(CHEST).orElse(browser(mc).viewportCentre()), 14))
                 .then(pause(4))
                 .then(click())
                 .then(pause(12))
@@ -321,7 +317,7 @@ public final class Scenarios {
                 .then(moveTo(at(mc, s -> s.tab("loot")), 14))
                 .then(click())
                 .then(pause(6))
-                .then(moveTo(() -> screen(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 16))
+                .then(moveTo(() -> browser(mc).oddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 16))
                 .then(pause(4))
                 .then(click())
                 .then(pause(14));
