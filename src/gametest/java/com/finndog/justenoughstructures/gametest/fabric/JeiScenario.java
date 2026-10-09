@@ -23,7 +23,7 @@ final class JeiScenario {
     }
 
     static Director build(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pause(40))
                 .then(pressKey(InputConstants.KEY_E))
                 .then(until(() -> mc.screen != null, 40))

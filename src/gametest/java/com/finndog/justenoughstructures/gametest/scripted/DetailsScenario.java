@@ -24,7 +24,7 @@ final class DetailsScenario {
     static Director build(Minecraft mc) {
         String requested = System.getProperty("jes.autoshot.structures", "");
         JesScreen.startOn(Ids.parse(requested.isBlank() ? "betterdeserttemples:desert_temple" : requested.split(",")[0].trim()));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))

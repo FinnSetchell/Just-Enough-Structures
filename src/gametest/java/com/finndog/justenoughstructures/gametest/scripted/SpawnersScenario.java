@@ -30,7 +30,7 @@ final class SpawnersScenario {
     static Director build(Minecraft mc) {
         String requested = System.getProperty("jes.autoshot.structures", "");
         JesScreen.startOn(Ids.parse(requested.isBlank() ? "repurposed_structures:stronghold_nether" : requested.split(",")[0].trim()));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         int[] tries = {0};
         CaptureResult[] checked = new CaptureResult[1];
         long[] deadline = {0};

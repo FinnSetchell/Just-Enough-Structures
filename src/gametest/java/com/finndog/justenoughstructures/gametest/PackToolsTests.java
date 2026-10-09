@@ -154,7 +154,6 @@ public final class PackToolsTests {
         helper.succeed();
     }
 
-    /** The editor's roll of an edit not saved yet fills a chest from it; one the game can't load fills nothing. */
     /**
      * An upload unpacks to no more than a loot table could ever need, and what a player had sent goes
      * when they leave, so a half-sent upload can't be finished afterwards.
@@ -185,6 +184,7 @@ public final class PackToolsTests {
         helper.succeed();
     }
 
+    /** The editor's roll of an edit not saved yet fills a chest from it; one the game can't load fills nothing. */
     public static void draftsRollIntoAChest(GameTestHelper helper) {
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();

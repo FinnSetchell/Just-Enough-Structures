@@ -45,7 +45,7 @@ final class ViewerScenario {
         Supplier<int[]> firstRow = JesReiPlugin::firstRow;
         *///?}
         String name = emi ? "emi" : "rei";
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pause(40))
                 .then(pressKey(InputConstants.KEY_E))
                 .then(until(() -> mc.screen != null, 40))

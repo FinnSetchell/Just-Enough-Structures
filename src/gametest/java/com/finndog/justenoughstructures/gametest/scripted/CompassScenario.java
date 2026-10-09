@@ -38,7 +38,7 @@ final class CompassScenario {
             throw new UnsupportedOperationException("needs Explorer's Compass");
         }
         JesScreen.startOn(Ids.parse("desert_pyramid"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(run(() -> giveCompass(mc)))
                 .then(pause(20))
                 .then(pressBrowserKey())

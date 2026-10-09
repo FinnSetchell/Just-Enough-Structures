@@ -1,13 +1,12 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.finndog.justenoughstructures.gametest.Gallery;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -19,6 +18,8 @@ import net.minecraft.client.gui.GuiGraphics;
  */
 public final class ScriptRun {
     private enum Step { START, WAIT_WORLD, SCRIPT, DONE }
+
+    private static final Map<Class<?>, Method> GRAPHICS = new HashMap<>();
 
     private Step step = Step.START;
     private int stepTicks;
@@ -104,6 +105,28 @@ public final class ScriptRun {
         }
     }
 
+    /**
+     * What a loader's drawing event draws with, found by what its getter returns rather than by its
+     * name, so the same code works whatever a loader's version calls it. 26.1's new name for that
+     * class is put in by a text replacement everywhere, which a getter still called by the old name
+     * wouldn't survive.
+     */
+    public static GuiGraphics graphics(Object event) {
+        Method getter = GRAPHICS.computeIfAbsent(event.getClass(), type -> {
+            for (Method method : type.getMethods()) {
+                if (method.getParameterCount() == 0 && method.getReturnType() == GuiGraphics.class) {
+                    return method;
+                }
+            }
+            throw new IllegalStateException("Nothing to draw with on " + type);
+        });
+        try {
+            return (GuiGraphics) getter.invoke(event);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private void go(Step next) {
         step = next;
         stepTicks = 0;
@@ -111,12 +134,7 @@ public final class ScriptRun {
 
     private void finish(Minecraft mc) {
         go(Step.DONE);
-        try {
-            Files.createDirectories(out);
-            Files.writeString(out.resolve("summary.json"), new GsonBuilder().setPrettyPrinting().create().toJson(summary), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Couldn't write the autoshot summary", e);
-        }
+        Gallery.writeSummary(out, summary);
         mc.stop();
     }
 }

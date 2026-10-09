@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.JesClient;
+import com.finndog.justenoughstructures.gametest.Gallery;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.io.File;
 import java.lang.reflect.Method;
@@ -16,7 +17,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.Screenshot;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import net.minecraft.client.gui.GuiGraphics;
 //? if >=26.1 {
@@ -82,14 +82,10 @@ public final class Director {
     private static Method charTyped;
     private static Method keyPress;
 
-    public Director(Minecraft mc, String recordTo) {
+    public Director(Minecraft mc) {
         this.mc = mc;
-        this.recordTo = recordTo;
         this.cursorX = mc.getWindow().getGuiScaledWidth() / 2.0;
         this.cursorY = mc.getWindow().getGuiScaledHeight() / 2.0;
-        if (recordTo != null) {
-            new File(mc.gameDirectory, "screenshots/" + recordTo).mkdirs();
-        }
     }
 
     public Director then(Action action) {
@@ -292,13 +288,7 @@ public final class Director {
     }
 
     private void grab(String file) {
-        //? if >=26.1 {
-        /*Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), 1, m -> {
-        });
-        *///?} else {
-        Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), m -> {
-        });
-        //?}
+        Gallery.grab(mc, file);
     }
 
     private long window() {

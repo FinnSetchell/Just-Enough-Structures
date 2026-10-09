@@ -16,7 +16,7 @@ final class ConfigScenario {
     }
 
     static Director build(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pause(20))
                 .then(run(() -> mc.setScreen(new JesModMenu().getModConfigScreenFactory().create(null))))
                 .then(pause(20))

@@ -25,7 +25,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
@@ -38,7 +37,7 @@ final class EditorScenario {
 
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 400))
@@ -92,7 +91,7 @@ final class EditorScenario {
                 // An override made from a version of the table the mod has since changed.
                 .then(run(() -> flaggedOverride(mc)))
                 .then(pause(20))
-                .then(run(() -> mc.setScreen(new LootEditorScreen(browserBehind(mc), TABLE, "Desert Pyramid"))))
+                .then(run(() -> mc.setScreen(new LootEditorScreen(mc.screen, TABLE, "Desert Pyramid"))))
                 .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
                 .then(pause(40))
                 .then(shoot("e05_editor_flagged"))
@@ -156,9 +155,5 @@ final class EditorScenario {
                 throw new UncheckedIOException(e);
             }
         });
-    }
-
-    private static Screen browserBehind(Minecraft mc) {
-        return mc.screen instanceof LootEditorScreen editor ? editor : mc.screen;
     }
 }

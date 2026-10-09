@@ -84,7 +84,7 @@ public final class Scenarios {
      * starts with nothing open, and one that fails is logged and left for the next.
      */
     private static Director suite(Minecraft mc, String modes) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.showCursor = false;
         for (String mode : modes.split(",")) {
             String name = mode.trim();
@@ -120,7 +120,7 @@ public final class Scenarios {
     /** A tour of every part of the screen, one screenshot per state, for reviewing the UI. */
     private static Director review(Minecraft mc) {
         JesScreen.startOn(Ids.parse("village_plains"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -222,7 +222,7 @@ public final class Scenarios {
     private static Director open(Minecraft mc) {
         // Open and close it once first, so the recording isn't of a cold server.
         JesScreen.startOn(Ids.parse("igloo"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -251,7 +251,7 @@ public final class Scenarios {
      */
     private static Director teleport(Minecraft mc) {
         JesScreen.startOn(Ids.parse("village_plains"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> idle(mc), 400))
@@ -268,14 +268,10 @@ public final class Scenarios {
         return d;
     }
 
-    /**
-     * JEI with the plugin: the inventory with JEI's item list, then the structures diamonds are found
-     * in, once the loot index has arrived. With every dev mod installed the index takes a few minutes.
-     */
     /** A few seconds of a desert pyramid turning on its own, to check the loot markers keep up with it. */
     private static Director spin(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -289,7 +285,7 @@ public final class Scenarios {
     /** About ten seconds showing off the main features on a desert pyramid. */
     private static Director showcase(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Supplier<int[]> viewport = at(mc, JesScreen::viewportCentre);
         // Get everything loaded before recording, so it opens on a finished preview.
         d.then(pressBrowserKey())

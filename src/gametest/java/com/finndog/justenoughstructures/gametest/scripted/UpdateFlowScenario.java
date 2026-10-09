@@ -166,7 +166,7 @@ final class UpdateFlowScenario {
     // ------------------------------------------------------------------ before the update
 
     static Director before(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Picks p = new Picks();
         open(mc, d);
         // Saved now as well as at the end, so the containers are known even if a later step goes wrong.
@@ -250,7 +250,7 @@ final class UpdateFlowScenario {
     // ------------------------------------------------------------------ after the update
 
     static Director after(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Picks p = Picks.load(mc);
         open(mc, d);
 
@@ -338,7 +338,7 @@ final class UpdateFlowScenario {
 
     /** After the update again, taking the mod's table instead of merging: "update_after_mods". */
     static Director afterUseMods(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         Picks p = Picks.load(mc);
         open(mc, d);
         d.then(record("u6_use_mods"))

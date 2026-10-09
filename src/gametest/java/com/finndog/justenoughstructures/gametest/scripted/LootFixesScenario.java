@@ -40,7 +40,7 @@ final class LootFixesScenario {
 
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("village_plains"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         // The browser, to open the editors over and to come back to.
         JesScreen[] opened = new JesScreen[1];
         d.then(pressBrowserKey())

@@ -28,7 +28,7 @@ final class LootTabScenario {
 
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))

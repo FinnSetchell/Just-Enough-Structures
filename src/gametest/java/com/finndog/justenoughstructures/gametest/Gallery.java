@@ -405,11 +405,16 @@ public final class Gallery {
     }
 
     private static void shoot(Minecraft mc, String file) {
+        grab(mc, file + ".png");
+    }
+
+    /** Saves what's on screen to {@code file} in the screenshots folder. */
+    public static void grab(Minecraft mc, String file) {
         //? if >=26.1 {
-        /*Screenshot.grab(mc.gameDirectory, file + ".png", mc.getMainRenderTarget(), 1, message -> {
+        /*Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), 1, message -> {
         });
         *///?} else {
-        Screenshot.grab(mc.gameDirectory, file + ".png", mc.getMainRenderTarget(), message -> {
+        Screenshot.grab(mc.gameDirectory, file, mc.getMainRenderTarget(), message -> {
         });
         //?}
     }
@@ -440,10 +445,11 @@ public final class Gallery {
         }
         summary.add(row);
         // Written as it goes, so a long run that dies part way still says how far it got.
-        writeSummary();
+        writeSummary(out, summary);
     }
 
-    private void writeSummary() {
+    /** What a run found, as summary.json in {@code out}. */
+    public static void writeSummary(Path out, JsonArray summary) {
         try {
             Files.createDirectories(out);
             Files.writeString(out.resolve("summary.json"), new GsonBuilder().setPrettyPrinting().create().toJson(summary), StandardCharsets.UTF_8);
@@ -454,7 +460,7 @@ public final class Gallery {
 
     private void finish(Minecraft mc) {
         go(Step.DONE);
-        writeSummary();
+        writeSummary(out, summary);
         mc.stop();
     }
 
@@ -509,11 +515,11 @@ public final class Gallery {
 
     /** Sets the window up and makes a superflat world; with {@code structures} it gets villages, for trying locate and teleport. */
     public static void startWorld(Minecraft mc, boolean hide, boolean structures) {
-        //? if >=26.1 {
-        /*if (hide) {
-            GLFW.glfwHideWindow(mc.getWindow().handle());
+        if (hide) {
+            hideWindow(mc);
         }
-        mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
+        //? if >=26.1 {
+        /*mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
         mc.resizeGui();
         // The sun is stopped once the world is open, as its rules can't be set before.
         LevelSettings settings = new LevelSettings("JES autoshot", GameType.CREATIVE,
@@ -521,9 +527,6 @@ public final class Gallery {
         mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, structures, false),
                 registries -> registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions(), mc.screen);
         *///?} else {
-        if (hide) {
-            GLFW.glfwHideWindow(mc.getWindow().getWindow());
-        }
         mc.options.guiScale().set(Integer.getInteger("jes.autoshot.gui", 2));
         mc.resizeDisplay();
         // Stop the sun moving, so the world behind the screen stays still between shots.

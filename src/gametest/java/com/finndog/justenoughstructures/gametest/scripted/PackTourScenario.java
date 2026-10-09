@@ -50,7 +50,7 @@ final class PackTourScenario {
     }
 
     static Director build(Minecraft mc) {
-        Director d = new Director(mc, null);
+        Director d = new Director(mc);
         List<ResourceLocation> picks = new ArrayList<>();
         d.then(run(() -> {
                     ClientState.spin = true;
