@@ -174,6 +174,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void savedFirstViewsReadBack(GameTestHelper helper) {
+        ServiceTests.savedFirstViewsReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void onlyFirstViewsAreSaved(GameTestHelper helper) {
+        ServiceTests.onlyFirstViewsAreSaved(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void filesAreWrittenSafely(GameTestHelper helper) {
         ServiceTests.filesAreWrittenSafely(helper);
     }

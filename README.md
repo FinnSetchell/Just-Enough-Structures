@@ -74,7 +74,13 @@ lot of structure mods, and up to about twenty in the very biggest modpacks. It r
 background and is saved in `.cache/justenoughstructures`, so it's only done again when mods, their
 versions or datapacks change. A dedicated server starts it on its own after starting up; in
 singleplayer it waits until something needs it. The pictures in the structure list are saved there
-too. The folder is safe to delete.
+too.
+
+Each structure's first preview is saved there as well, so once it's been made it opens straight
+away for everyone, after a restart too. A dedicated server makes the rest in the background once the
+loot scan is done, a structure at a time, and stops for any preview a player is waiting on. New
+layouts aren't saved. In a pack with 650 structures they all came to about 25 MB. The folder is safe
+to delete.
 
 ## Pack tools
 

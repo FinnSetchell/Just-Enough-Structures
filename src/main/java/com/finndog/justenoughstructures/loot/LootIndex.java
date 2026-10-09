@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import net.minecraft.core.Holder;
@@ -75,10 +76,17 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                      AtomicInteger failed) {
+        return scan(server, ids, progress, cancelled, failed, (id, firstView) -> {
+        });
+    }
+
+    /** The same, handing each structure's first view, made with its first seed, to {@code firstViews} as it goes. */
+    public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                     AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews) {
         // How the containers and spawners changed in the browser stand now, which the templates are loaded with.
         Map<ResourceLocation, String> patches = templatePatches();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
-        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches));
+        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews));
     }
 
     /**
@@ -136,7 +144,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
-                                             AtomicInteger failed, Map<ResourceLocation, String> patches) {
+                                             AtomicInteger failed, Map<ResourceLocation, String> patches,
+                                             BiConsumer<ResourceLocation, CaptureResult> firstViews) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
         Set<ResourceLocation> retry = new TreeSet<>();
@@ -144,7 +153,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         PoolScan scan = new PoolScan(server);
         int done = 0;
         for (ResourceLocation id : ids) {
-            Found found = scanOne(server, registry, scan, id, cancelled);
+            Found found = scanOne(server, registry, scan, id, cancelled, firstViews);
             if (found == null) {
                 return null;
             }
@@ -159,7 +168,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         // Those that failed for a reason that may have passed by now get one more go. Any that fail
         // that way again are kept to try another time.
         for (ResourceLocation id : List.copyOf(retry)) {
-            Found again = scanOne(server, registry, scan, id, cancelled);
+            Found again = scanOne(server, registry, scan, id, cancelled, firstViews);
             if (again == null) {
                 return null;
             }
@@ -194,7 +203,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     /** Reads a structure's pools and generates it. Null if cancelled. */
-    private static Found scanOne(MinecraftServer server, Registry<Structure> registry, PoolScan scan, ResourceLocation id, BooleanSupplier cancelled) {
+    private static Found scanOne(MinecraftServer server, Registry<Structure> registry, PoolScan scan, ResourceLocation id, BooleanSupplier cancelled,
+                                 BiConsumer<ResourceLocation, CaptureResult> firstViews) {
         if (cancelled.getAsBoolean()) {
             return null;
         }
@@ -232,6 +242,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     break;
                 }
                 generated = true;
+                if (i == 0) {
+                    firstViews.accept(id, result);
+                }
                 int before = found.size();
                 for (StructureSnapshot.Container c : result.snapshot().containers()) {
                     ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());

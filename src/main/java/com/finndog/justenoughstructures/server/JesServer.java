@@ -22,6 +22,7 @@ import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.mojang.datafixers.util.Pair;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -143,6 +144,8 @@ public final class JesServer {
         }
         invalidate();
         PackToolsServer.reloaded();
+        // Saved first views wait for the loot index's fingerprint, as what they were made from may have changed.
+        SavedPreviews.forget();
         LootIndexStore.refresh(server);
         for (UUID id : BROWSING) {
             ServerPlayer player = server.getPlayerList().getPlayer(id);
@@ -199,6 +202,7 @@ public final class JesServer {
      * saved pictures still hold. Server thread only.
      */
     static void fingerprintKnown(MinecraftServer server, String fingerprint) {
+        SavedPreviews.use(server, fingerprint);
         if (catalog == null || Objects.equals(catalogFingerprint, fingerprint)) {
             return;
         }
@@ -240,6 +244,7 @@ public final class JesServer {
         Uploads.clear();
         RequestLimits.clear();
         LootIndexStore.stop();
+        SavedPreviews.forget();
         BROWSING.clear();
         LATEST_PREVIEW.clear();
         QUEUED.clear();
@@ -654,13 +659,7 @@ public final class JesServer {
             cached = CAPTURE_CACHE.get(key);
         }
         if (cached != null) {
-            if (maySend(player, cached)) {
-                sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, cached);
-            } else {
-                CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
-                sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                        Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
-            }
+            sendCapture(player, requestId, structure, seed, cached);
             return;
         }
 
@@ -688,6 +687,35 @@ public final class JesServer {
         BooleanSupplier unwanted = preview
                 ? () -> !server.isRunning() || !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))
                 : () -> !server.isRunning() || !BROWSING.contains(playerId);
+        // A first view is usually saved already. It's read on a thread of its own, so it never waits
+        // behind a structure someone else is having made.
+        Path saved = seed == StructureCapture.defaultSeed(structure) ? SavedPreviews.current() : null;
+        Runnable build = () -> make(server, player, playerId, requestId, structure, seed, preview, key, generation, unwanted, queued, saved);
+        if (saved == null) {
+            build.run();
+            return;
+        }
+        SavedPreviews.load(saved, structure, payload -> {
+            if (payload == null) {
+                build.run();
+                return;
+            }
+            if (!preview) {
+                queued.decrementAndGet();
+            }
+            cache(key, payload, generation);
+            server.execute(() -> {
+                ServerPlayer target = server.getPlayerList().getPlayer(playerId);
+                if (target != null) {
+                    sendCapture(target, requestId, structure, seed, payload);
+                }
+            });
+        });
+    }
+
+    /** Has a capture made on the thread for previews or the one for the list's pictures, and sends it. */
+    private static void make(MinecraftServer server, ServerPlayer player, UUID playerId, int requestId, ResourceLocation structure, long seed,
+                             boolean preview, String key, int generation, BooleanSupplier unwanted, AtomicInteger queued, Path saved) {
         (preview ? PREVIEWS : PICTURES).execute(() -> {
             byte[] payload;
             try {
@@ -708,6 +736,9 @@ public final class JesServer {
                 payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply)));
                 if (reply.succeeded()) {
                     cache(key, payload, generation);
+                    if (saved != null) {
+                        SavedPreviews.save(saved, structure, payload);
+                    }
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
@@ -731,6 +762,17 @@ public final class JesServer {
                 }
             });
         });
+    }
+
+    /** Sends a capture that's ready, unless the player is asking for them far faster than the browser does. */
+    private static void sendCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, byte[] payload) {
+        if (maySend(player, payload)) {
+            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, payload);
+        } else {
+            CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
+            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
+                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
+        }
     }
 
     /**

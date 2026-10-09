@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -103,6 +104,11 @@ public final class LootIndexStore {
      */
     public static String knownFingerprint() {
         return checking ? null : fingerprint;
+    }
+
+    /** Whether the index is built and up to date, so nothing's generating structures for it. Server thread only. */
+    public static boolean ready() {
+        return !checking && !building && index != null;
     }
 
     /** When the server has started and after /reload: checks whether the index still holds. */
@@ -209,7 +215,9 @@ public final class LootIndexStore {
         inBackground(server, generation, () -> {
             long started = System.nanoTime();
             AtomicInteger failed = new AtomicInteger();
-            StructureScan scanned = LootIndex.scan(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed);
+            // It makes every structure's first view on the way, which is saved for players.
+            StructureScan scanned = LootIndex.scan(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed,
+                    (id, firstView) -> SavedPreviews.offer(server, id, StructureCapture.defaultSeed(id), firstView));
             if (scanned == null) {
                 JesLog.debug("Stopped building the loot index after {} of {} structures, as {}", done, ids.size(),
                         server.isRunning() ? "the server's data was reloaded" : "the server is stopping");
@@ -267,6 +275,7 @@ public final class LootIndexStore {
                 JesServer.sendIndex(player, payload);
             }
         }
+        SavedPreviews.fill(server);
     }
 
     /** The index without the structures the server hides, and without loot tables only they use. */

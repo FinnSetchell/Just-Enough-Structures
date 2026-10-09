@@ -20,17 +20,21 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.RequestLimits;
+import com.finndog.justenoughstructures.server.SavedPreviews;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -341,6 +345,61 @@ public final class ServiceTests {
             throw new AssertionError("couldn't use a temporary folder", e);
         }
         helper.succeed();
+    }
+
+    /** Saved first views read back as they were saved, and a missing or damaged one reads as nothing. */
+    public static void savedFirstViewsReadBack(GameTestHelper helper) {
+        ResourceLocation id = Ids.of("test", "tower");
+        byte[] view = {1, 2, 3, 4, 5};
+        try {
+            Path dir = Files.createTempDirectory("jes-previews");
+            SavedPreviews.save(dir, id, view);
+            byte[] read = readSaved(dir, id);
+            helper.assertTrue(Arrays.equals(read, view), "the saved view read back as " + Arrays.toString(read));
+            helper.assertTrue(readSaved(dir, Ids.of("test", "never_saved")) == null, "a view that was never saved was read");
+            try (var files = Files.list(dir)) {
+                for (Path file : files.toList()) {
+                    Files.write(file, new byte[]{9, 9});
+                }
+            }
+            helper.assertTrue(readSaved(dir, id) == null, "a damaged file was read as a view");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary folder", e);
+        }
+        helper.succeed();
+    }
+
+    /** Only a structure's first layout is saved, made with its first seed, as that's the one players see first. */
+    public static void onlyFirstViewsAreSaved(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation igloo = Ids.of("minecraft", "igloo");
+        long first = StructureCapture.defaultSeed(igloo);
+        CaptureResult result = StructureCapture.capture(server, igloo, first);
+        helper.assertTrue(result.succeeded(), "the igloo didn't generate: " + result.error());
+        try {
+            Path saved = Files.createTempDirectory("jes-previews");
+            SavedPreviews.offer(saved, server, igloo, first, result);
+            byte[] view = readSaved(saved, igloo);
+            helper.assertTrue(view != null, "the igloo's first view wasn't saved");
+            long seed = Codecs.readCapture(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(view))).seed();
+            helper.assertTrue(seed == first, "the saved view was made with seed " + seed + " rather than the first");
+            Path other = Files.createTempDirectory("jes-previews");
+            SavedPreviews.offer(other, server, igloo, first + 1, result);
+            helper.assertTrue(readSaved(other, igloo) == null, "a new layout was saved");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary folder", e);
+        }
+        helper.succeed();
+    }
+
+    private static byte[] readSaved(Path dir, ResourceLocation id) {
+        CompletableFuture<byte[]> read = new CompletableFuture<>();
+        SavedPreviews.load(dir, id, read::complete);
+        try {
+            return read.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("reading a saved view took too long", e);
+        }
     }
 
     /** The fingerprint that says whether a saved index still holds comes out the same each time. */
