@@ -52,8 +52,6 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int SEEDS = 4;
-    /** How often to look again while waiting for memory to free up. */
-    private static final long MEMORY_WAIT_MILLIS = 5_000L;
 
     /**
      * Captures every structure and reads every loot table they use. {@code progress} gets the number
@@ -228,7 +226,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         boolean generated = false;
         boolean tryAgain = false;
         for (int i = 0; i < seeds; i++) {
-            if (cancelled.getAsBoolean() || !waitForMemory(cancelled)) {
+            if (cancelled.getAsBoolean() || !Memory.waitUntilFree(cancelled, () -> JesLog.warnOnce("loot-index-memory",
+                    "The loot index is waiting for the server to have more memory free before it generates more structures"))) {
                 return null;
             }
             try {
@@ -275,26 +274,6 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
         }
         return new Found(found, placed, generated, tryAgain);
-    }
-
-    /**
-     * Waits while the server is short on memory, as a structure can need hundreds of megabytes while
-     * it generates, and running out could take the server down with it. False if cancelled meanwhile.
-     */
-    private static boolean waitForMemory(BooleanSupplier cancelled) {
-        while (Memory.low()) {
-            JesLog.warnOnce("loot-index-memory", "The loot index is waiting for the server to have more memory free before it generates more structures");
-            if (cancelled.getAsBoolean()) {
-                return false;
-            }
-            try {
-                Thread.sleep(MEMORY_WAIT_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        return true;
     }
 
     /** Every item a table can ever give, found by reading the table rather than rolling it. */

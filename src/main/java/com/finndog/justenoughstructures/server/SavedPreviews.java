@@ -1,9 +1,10 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.CacheFiles;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Memory;
-import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -12,31 +13,20 @@ import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.packs.resources.Resource;
 
 /**
  * Each structure's first view, kept on disk just as players are sent it, so it's there straight away
@@ -51,25 +41,16 @@ public final class SavedPreviews {
     private static final int MAGIC = 0x4A455331;
     /** What else decides how a structure looks, besides the loot index's sources: its biomes, and its notes file. */
     private static final List<String> SOURCES = List.of("worldgen/biome", "tags/worldgen/biome", "justenoughstructures/structures");
-    private static final long MEMORY_WAIT_MILLIS = 5_000L;
 
     // Reading and saving get a thread of their own, so a saved view never waits behind a structure being made.
-    private static final ExecutorService DISK = thread("Just Enough Structures saved previews");
-    private static final ExecutorService FILLER = thread("Just Enough Structures filling saved previews");
+    private static final ExecutorService DISK = Threads.single("Just Enough Structures saved previews");
+    private static final ExecutorService FILLER = Threads.single("Just Enough Structures filling saved previews");
     private static final AtomicInteger GENERATION = new AtomicInteger();
     private static volatile Path folder;
     // The generation the filler last started for, so it's only started once for each.
     private static int filled = -1;
 
     private SavedPreviews() {
-    }
-
-    private static ExecutorService thread(String name) {
-        return Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, name);
-            t.setDaemon(true);
-            return t;
-        });
     }
 
     /** Stops using saved views until the next {@link #use}, as after a /reload the setup may have changed. */
@@ -100,8 +81,7 @@ public final class SavedPreviews {
             Path dir = root().resolve(key);
             try {
                 Files.createDirectories(dir);
-                // Marks it as recently used, so it's kept over older ones.
-                Files.setLastModifiedTime(dir, FileTime.fromMillis(System.currentTimeMillis()));
+                CacheFiles.markUsed(dir);
             } catch (IOException e) {
                 JesLog.debug("Couldn't make the saved previews folder {}", dir, e);
                 return;
@@ -177,7 +157,7 @@ public final class SavedPreviews {
             long started = System.nanoTime();
             int made = 0;
             for (ResourceLocation id : ids) {
-                if (cancelled.getAsBoolean() || !waitForMemory(cancelled)) {
+                if (cancelled.getAsBoolean() || !Memory.waitUntilFree(cancelled)) {
                     return;
                 }
                 if (saved(dir, id)) {
@@ -242,14 +222,7 @@ public final class SavedPreviews {
                     hasher.putBytes(Files.readAllBytes(file));
                 }
             }
-            for (String source : SOURCES) {
-                for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(server.getResourceManager().listResources(source, path -> true)).entrySet()) {
-                    hasher.putString(file.getKey().toString(), StandardCharsets.UTF_8);
-                    try (InputStream in = file.getValue().open()) {
-                        hasher.putBytes(in.readAllBytes());
-                    }
-                }
-            }
+            LootIndexStore.hashFiles(hasher, server.getResourceManager(), SOURCES, null);
             return hasher.hash().toString().substring(0, 24);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't work out where to save first views, so they won't be", e);
@@ -271,11 +244,8 @@ public final class SavedPreviews {
         if (!Files.exists(file)) {
             return null;
         }
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(Files.readAllBytes(file)))) {
-            if (in.readInt() != MAGIC || !in.readUTF().equals(id.toString())) {
-                return null;
-            }
-            return in.readAllBytes();
+        try {
+            return CacheFiles.read(file, MAGIC, id);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't read the saved first view of {}", id, e);
             return null;
@@ -284,14 +254,8 @@ public final class SavedPreviews {
 
     private static void write(Path dir, ResourceLocation id, boolean picture, byte[] payload) {
         try {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream(payload.length + 64);
-            try (DataOutputStream out = new DataOutputStream(bytes)) {
-                out.writeInt(MAGIC);
-                out.writeUTF(id.toString());
-                out.write(payload);
-            }
             Files.createDirectories(dir);
-            SafeFiles.write(file(dir, id, picture), bytes.toByteArray());
+            CacheFiles.write(file(dir, id, picture), MAGIC, id, payload);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't save the first view of {}", id, e);
         }
@@ -299,41 +263,10 @@ public final class SavedPreviews {
 
     /** Deletes all but the few most recently used folders. */
     private static void tidy(Path keep) {
-        try (Stream<Path> list = Files.list(root())) {
-            List<Path> folders = list.filter(Files::isDirectory)
-                    .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
-                    .toList();
-            for (Path old : folders.subList(Math.min(KEPT_FOLDERS, folders.size()), folders.size())) {
-                if (!old.equals(keep)) {
-                    delete(old);
-                }
-            }
+        try {
+            CacheFiles.keepNewest(root(), Files::isDirectory, KEPT_FOLDERS, keep);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't tidy the saved previews", e);
         }
-    }
-
-    private static void delete(Path dir) throws IOException {
-        try (Stream<Path> files = Files.walk(dir)) {
-            for (Path path : files.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
-            }
-        }
-    }
-
-    /** Waits while the server is short on memory, as the loot index does. False if cancelled meanwhile. */
-    private static boolean waitForMemory(BooleanSupplier cancelled) {
-        while (Memory.low()) {
-            if (cancelled.getAsBoolean()) {
-                return false;
-            }
-            try {
-                Thread.sleep(MEMORY_WAIT_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        return true;
     }
 }

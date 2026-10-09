@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -50,7 +51,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.registries.Registries;
@@ -78,18 +78,10 @@ public final class JesServer {
     // server thread. A thread for the structures players are looking at and one for the list's
     // pictures keep a busy screen from flooding the server with work. Only one capture runs at a time
     // either way, and a picture stops for a preview that's waiting, to be made again after it.
-    private static final ExecutorService PREVIEWS = captureThread("Just Enough Structures capture");
-    private static final ExecutorService PICTURES = captureThread("Just Enough Structures pictures");
+    private static final ExecutorService PREVIEWS = Threads.single("Just Enough Structures capture");
+    private static final ExecutorService PICTURES = Threads.single("Just Enough Structures pictures");
     /** Each player's newest preview, so ones they've already moved on from stop. */
     private static final Map<UUID, Integer> LATEST_PREVIEW = new ConcurrentHashMap<>();
-
-    private static ExecutorService captureThread(String name) {
-        return Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, name);
-            t.setDaemon(true);
-            return t;
-        });
-    }
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
     /** Captures already sent, newest use last, kept to {@link #CACHED_CAPTURES} and {@link #CACHE_BYTES}. */

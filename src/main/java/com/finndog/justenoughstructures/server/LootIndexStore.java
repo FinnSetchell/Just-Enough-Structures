@@ -1,10 +1,12 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.CacheFiles;
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
@@ -18,9 +20,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +29,8 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
@@ -70,12 +68,7 @@ public final class LootIndexStore {
             "worldgen/processor_list");
 
     // The index captures every structure, so it gets its own thread and never holds up previews.
-    private static final ExecutorService WORKER = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Just Enough Structures loot index");
-        t.setDaemon(true);
-        t.setPriority(Thread.MIN_PRIORITY);
-        return t;
-    });
+    private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
     private static final AtomicInteger GENERATION = new AtomicInteger();
     // Players who've asked for the index. They're sent the new one whenever it changes.
     private static final Set<UUID> WAITING = ConcurrentHashMap.newKeySet();
@@ -314,20 +307,8 @@ public final class LootIndexStore {
             hasher.putString(FORMAT + "|" + game + "|", StandardCharsets.UTF_8);
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) ->
                     hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
-            ResourceManager resources = server.getResourceManager();
             Map<String, HashCode> files = JesLog.enabled() ? new HashMap<>() : null;
-            for (String source : SOURCES) {
-                for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(resources.listResources(source, path -> true)).entrySet()) {
-                    hasher.putString(file.getKey().toString(), StandardCharsets.UTF_8);
-                    try (InputStream in = file.getValue().open()) {
-                        byte[] bytes = in.readAllBytes();
-                        hasher.putBytes(bytes);
-                        if (files != null) {
-                            files.put(file.getKey().toString(), Hashing.murmur3_128().hashBytes(bytes));
-                        }
-                    }
-                }
-            }
+            hashFiles(hasher, server.getResourceManager(), SOURCES, files);
             if (files != null) {
                 logChanges(files);
             }
@@ -335,6 +316,26 @@ public final class LootIndexStore {
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't fingerprint the loot index's sources, so it won't be saved", e);
             return null;
+        }
+    }
+
+    /**
+     * Hashes the name and bytes of every file in these folders of the server's data, from every mod
+     * and datapack, in the same order each time. Each file's own hash goes in {@code files} too, unless
+     * it's null.
+     */
+    static void hashFiles(Hasher hasher, ResourceManager resources, List<String> sources, Map<String, HashCode> files) throws IOException {
+        for (String source : sources) {
+            for (Map.Entry<ResourceLocation, Resource> file : new TreeMap<>(resources.listResources(source, path -> true)).entrySet()) {
+                hasher.putString(file.getKey().toString(), StandardCharsets.UTF_8);
+                try (InputStream in = file.getValue().open()) {
+                    byte[] bytes = in.readAllBytes();
+                    hasher.putBytes(bytes);
+                    if (files != null) {
+                        files.put(file.getKey().toString(), Hashing.murmur3_128().hashBytes(bytes));
+                    }
+                }
+            }
         }
     }
 
@@ -369,8 +370,7 @@ public final class LootIndexStore {
         }
         try {
             StructureScan saved = Codecs.readScan(Blobs.fromBytes(RegistryAccess.EMPTY, Blobs.inflate(Files.readAllBytes(file))));
-            // Marks it as recently used, so it's kept over older ones.
-            Files.setLastModifiedTime(file, FileTime.fromMillis(System.currentTimeMillis()));
+            CacheFiles.markUsed(file);
             return saved;
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't read the saved loot index {}, building it again", file, e);
@@ -382,16 +382,9 @@ public final class LootIndexStore {
     public static void write(Path dir, String key, StructureScan saved) {
         try {
             Files.createDirectories(dir);
-            SafeFiles.write(dir.resolve(key + ".bin"), Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
-            List<Path> files;
-            try (Stream<Path> list = Files.list(dir)) {
-                files = list.filter(p -> p.toString().endsWith(".bin"))
-                        .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
-                        .toList();
-            }
-            for (Path old : files.subList(Math.min(KEPT_FILES, files.size()), files.size())) {
-                Files.deleteIfExists(old);
-            }
+            Path file = dir.resolve(key + ".bin");
+            SafeFiles.write(file, Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
+            CacheFiles.keepNewest(dir, p -> p.toString().endsWith(".bin"), KEPT_FILES, file);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't save the loot index to {}", dir, e);
         }

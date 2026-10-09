@@ -1,28 +1,22 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.CacheFiles;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
-import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.google.common.hash.Hashing;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import net.minecraft.resources.ResourceLocation;
@@ -40,11 +34,7 @@ public final class KeptPreviews {
     private static final int KEPT_FOLDERS = 3;
     private static final int MAGIC = 0x4A45534B;
 
-    private static final ExecutorService DISK = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "Just Enough Structures kept previews");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final ExecutorService DISK = Threads.single("Just Enough Structures kept previews");
     private static final Object LOCK = new Object();
     /** Each kept first view, by the start of its file's name. */
     private static final Map<String, Copy> VIEWS = new HashMap<>();
@@ -115,8 +105,7 @@ public final class KeptPreviews {
             Map<String, Copy> pictures = new HashMap<>();
             try {
                 Files.createDirectories(dir);
-                // Marks it as recently used, so it's kept over older ones.
-                Files.setLastModifiedTime(dir, FileTime.fromMillis(System.currentTimeMillis()));
+                CacheFiles.markUsed(dir);
                 try (Stream<Path> files = Files.list(dir)) {
                     for (Path file : files.toList()) {
                         String[] parts = file.getFileName().toString().split("\\.");
@@ -249,7 +238,7 @@ public final class KeptPreviews {
                 if (before != null) {
                     Files.deleteIfExists(kind.file(dir, stem, before));
                 }
-                write(kind.file(dir, stem, copy), id, payload);
+                CacheFiles.write(kind.file(dir, stem, copy), MAGIC, id, payload);
             } catch (IOException | RuntimeException e) {
                 JesLog.debug("Couldn't keep the {} of {}", kind.what, id, e);
                 forget(kind, dir, stem, copy);
@@ -301,22 +290,9 @@ public final class KeptPreviews {
         }
     }
 
-    private static void write(Path file, ResourceLocation id, byte[] payload) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream(payload.length + 64);
-        try (DataOutputStream out = new DataOutputStream(bytes)) {
-            out.writeInt(MAGIC);
-            out.writeUTF(id.toString());
-            out.write(payload);
-        }
-        SafeFiles.write(file, bytes.toByteArray());
-    }
-
     private static byte[] read(Path file, ResourceLocation id) {
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(Files.readAllBytes(file)))) {
-            if (in.readInt() != MAGIC || !in.readUTF().equals(id.toString())) {
-                return null;
-            }
-            return in.readAllBytes();
+        try {
+            return CacheFiles.read(file, MAGIC, id);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't read the kept structure in {}", file, e);
             return null;
@@ -334,19 +310,8 @@ public final class KeptPreviews {
 
     /** Deletes all but the few most recently used folders. */
     private static void tidy(Path keep) {
-        try (Stream<Path> list = Files.list(root())) {
-            List<Path> folders = list.filter(Files::isDirectory)
-                    .sorted(Comparator.comparing((Path p) -> p.toFile().lastModified()).reversed())
-                    .toList();
-            for (Path old : folders.subList(Math.min(KEPT_FOLDERS, folders.size()), folders.size())) {
-                if (!old.equals(keep)) {
-                    try (Stream<Path> files = Files.walk(old)) {
-                        for (Path path : files.sorted(Comparator.reverseOrder()).toList()) {
-                            Files.deleteIfExists(path);
-                        }
-                    }
-                }
-            }
+        try {
+            CacheFiles.keepNewest(root(), Files::isDirectory, KEPT_FOLDERS, keep);
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't tidy the kept previews", e);
         }
