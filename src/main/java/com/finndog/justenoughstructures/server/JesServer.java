@@ -653,7 +653,7 @@ public final class JesServer {
         if (ServerConfig.hides(structure)) {
             CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
+                    Codecs.packCapture(player.level().registryAccess(), structure, seed, hidden));
             return;
         }
         String key = cacheKey(structure, seed, !preview);
@@ -673,7 +673,7 @@ public final class JesServer {
             queued.decrementAndGet();
             CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
+                    Codecs.packCapture(player.level().registryAccess(), structure, seed, busy));
             return;
         }
 
@@ -753,17 +753,17 @@ public final class JesServer {
                     }
                     payload = preview ? full : picture;
                 } else {
-                    payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply))));
+                    payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, reply));
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
-                payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed))));
+                payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
             } catch (OutOfMemoryError e) {
                 // Whatever the capture had is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
                 CaptureResult failed = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
-                payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed))));
+                payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
             } finally {
                 if (!preview) {
                     queued.decrementAndGet();
@@ -811,7 +811,7 @@ public final class JesServer {
         } else {
             CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
-                    Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, busy))));
+                    Codecs.packCapture(player.level().registryAccess(), structure, seed, busy));
         }
     }
 

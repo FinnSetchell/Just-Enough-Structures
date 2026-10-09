@@ -234,7 +234,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
                 continue;
             }
             CaptureResult sent = JesServer.forPlayers(id, result);
-            int bytes = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, sent))).length;
+            int bytes = Codecs.packCapture(server.registryAccess(), id, seed, sent).length;
             List<ResourceLocation> tables = result.snapshot().containers().stream()
                     .map(StructureSnapshot.Container::lootTable)
                     .filter(Objects::nonNull)
@@ -596,9 +596,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
         /** What a small capture answer says: only failures and the very smallest structures are this small. */
         private Outcome outcomeOf(byte[] compressed) {
             try {
-                FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
-                buf.writeBytes(Blobs.inflate(compressed));
-                CaptureResult result = Codecs.readCapture(buf).result();
+                CaptureResult result = Codecs.unpackCapture(server.registryAccess(), compressed).result();
                 if (result.succeeded()) {
                     return Outcome.OK;
                 }

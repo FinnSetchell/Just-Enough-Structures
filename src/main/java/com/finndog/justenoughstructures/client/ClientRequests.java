@@ -625,7 +625,7 @@ public final class ClientRequests {
             return;
         }
         CompletableFuture.supplyAsync(() -> {
-                    Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(registries, Blobs.inflate(compressed)));
+                    Codecs.CaptureReply reply = Codecs.unpackCapture(registries, compressed);
                     if (keeping != null && reply.result().succeeded() && keeping.structure().equals(reply.id())) {
                         keep(keeping, compressed, wasKept, reply, registries);
                     }
@@ -670,7 +670,7 @@ public final class ClientRequests {
                 CaptureResult result = reply.result();
                 CaptureResult picture = CaptureResult.success(result.snapshot().forPicture(), result.attempts(), result.millis());
                 KeptPreviews.keepPicture(structure, keeping.version(),
-                        Blobs.deflate(Blobs.toBytes(registries, buf -> Codecs.writeCapture(buf, structure, reply.seed(), picture))));
+                        Codecs.packCapture(registries, structure, reply.seed(), picture));
             } catch (RuntimeException e) {
                 JesLog.debug("Couldn't make the picture's copy of {}", structure, e);
             }

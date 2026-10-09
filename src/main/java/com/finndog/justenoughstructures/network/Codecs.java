@@ -31,6 +31,7 @@ import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -323,6 +324,16 @@ public final class Codecs {
             result = buf.readBoolean() ? CaptureResult.temporaryFailure(reason, attempts, millis) : CaptureResult.failure(reason, attempts, millis);
         }
         return new CaptureReply(id, seed, result);
+    }
+
+    /** A capture as it's sent and saved: written, then packed small. */
+    public static byte[] packCapture(RegistryAccess registries, ResourceLocation id, long seed, CaptureResult result) {
+        return Blobs.deflate(Blobs.toBytes(registries, buf -> writeCapture(buf, id, seed, result)));
+    }
+
+    /** A capture as it arrives: unpacked, then read. */
+    public static CaptureReply unpackCapture(RegistryAccess registries, byte[] packed) {
+        return readCapture(Blobs.fromBytes(registries, Blobs.inflate(packed)));
     }
 
     public static void writeSnapshot(FriendlyByteBuf buf, StructureSnapshot s) {

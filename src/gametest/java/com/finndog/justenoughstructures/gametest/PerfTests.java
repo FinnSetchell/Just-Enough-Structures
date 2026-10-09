@@ -5,7 +5,6 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
-import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,7 +55,7 @@ public final class PerfTests {
                 continue;
             }
             long seed = StructureCapture.defaultSeed(id);
-            int bytes = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, result))).length;
+            int bytes = Codecs.packCapture(server.registryAccess(), id, seed, result).length;
             rows.add(new Row(id, true, result.snapshot().blockCount(), result.snapshot().containers().size(), millis, bytes, ""));
         }
         long captureMillis = (System.nanoTime() - started) / 1_000_000;

@@ -7,7 +7,6 @@ import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
-import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -207,13 +206,13 @@ public final class SavedPreviews {
     /** A structure's capture as players are sent it for its preview. */
     static byte[] payloadOf(MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
         CaptureResult sent = JesServer.forPlayers(id, result);
-        return Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, sent)));
+        return Codecs.packCapture(server.registryAccess(), id, seed, sent);
     }
 
     /** A structure's capture as players are sent it for its list picture: see {@link StructureSnapshot#forPicture()}. */
     static byte[] pictureOf(MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
         CaptureResult picture = CaptureResult.success(result.snapshot().forPicture(), result.attempts(), result.millis());
-        return Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, picture)));
+        return Codecs.packCapture(server.registryAccess(), id, seed, picture);
     }
 
     private static void saveBoth(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {

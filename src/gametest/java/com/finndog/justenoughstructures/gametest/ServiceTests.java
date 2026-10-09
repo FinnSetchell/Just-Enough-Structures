@@ -163,8 +163,8 @@ public final class ServiceTests {
         ResourceLocation id = Ids.parse("desert_pyramid");
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), id, CaptureTests.SEED);
         helper.assertTrue(result.succeeded(), "desert_pyramid did not capture");
-        byte[] wire = Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, CaptureTests.SEED, result)));
-        Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(wire)));
+        byte[] wire = Codecs.packCapture(helper.getLevel().registryAccess(), id, CaptureTests.SEED, result);
+        Codecs.CaptureReply reply = Codecs.unpackCapture(helper.getLevel().registryAccess(), wire);
 
         StructureSnapshot a = result.snapshot();
         StructureSnapshot b = reply.result().snapshot();
@@ -231,8 +231,8 @@ public final class ServiceTests {
 
     private static StructureSnapshot throughTheWire(GameTestHelper helper, StructureSnapshot sent) {
         CaptureResult result = CaptureResult.success(sent, List.of(), 0);
-        byte[] wire = Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, sent.structureId(), sent.seed(), result)));
-        return Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(wire))).result().snapshot();
+        byte[] wire = Codecs.packCapture(helper.getLevel().registryAccess(), sent.structureId(), sent.seed(), result);
+        return Codecs.unpackCapture(helper.getLevel().registryAccess(), wire).result().snapshot();
     }
 
     /** A failure reads back as it was sent, along with whether it may work another time. */
@@ -242,8 +242,7 @@ public final class ServiceTests {
                 List.of(Component.translatable("screen.justenoughstructures.attempt.no_start", "LAND")), 12);
         CaptureResult shortOfMemory = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
         for (CaptureResult failed : List.of(crashed, shortOfMemory)) {
-            Codecs.CaptureReply reply = Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(
-                    Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, id, 5, failed))))));
+            Codecs.CaptureReply reply = Codecs.unpackCapture(helper.getLevel().registryAccess(), Codecs.packCapture(helper.getLevel().registryAccess(), id, 5, failed));
             helper.assertFalse(reply.result().succeeded(), "a failure came back as a success");
             helper.assertTrue(failed.reason().equals(reply.result().reason()), "the error message changed");
             helper.assertTrue(reply.result().attempts().equals(failed.attempts()), "the attempts changed");
@@ -452,7 +451,7 @@ public final class ServiceTests {
             byte[] view = readSaved(saved, igloo, false);
             helper.assertTrue(view != null, "the igloo's first view wasn't saved");
             helper.assertTrue(readSaved(saved, igloo, true) != null, "the igloo's list picture wasn't saved");
-            long seed = Codecs.readCapture(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(view))).seed();
+            long seed = Codecs.unpackCapture(server.registryAccess(), view).seed();
             helper.assertTrue(seed == first, "the saved view was made with seed " + seed + " rather than the first");
             Path other = Files.createTempDirectory("jes-previews");
             SavedPreviews.offer(other, server, igloo, first + 1, result);
