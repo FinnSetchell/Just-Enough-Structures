@@ -94,7 +94,7 @@ public final class JesServer {
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
     /** Captures already sent, newest use last, kept to {@link #CACHED_CAPTURES} and {@link #CACHE_BYTES}. */
-    private static final Map<String, byte[]> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true);
+    private static final Map<String, Ready> CAPTURE_CACHE = new LinkedHashMap<>(16, 0.75f, true);
     /** Goes up whenever the kept captures are dropped, so one started before isn't kept after. */
     private static int captureGeneration;
     /** A few big structures can be megabytes each, so the cache is limited by size as well as count. */
@@ -645,7 +645,11 @@ public final class JesServer {
         return hidesLootLocations(structure) ? result.withoutLoot() : result;
     }
 
-    public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, boolean preview) {
+    /**
+     * {@code kept} is the {@link Blobs#hash} of the first view the player's game kept from before, or 0, so
+     * it's only sent again if it's changed.
+     */
+    public static void onRequestCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, boolean preview, long kept) {
         MinecraftServer server = Players.server(player);
         if (ServerConfig.hides(structure)) {
             CaptureResult hidden = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.hidden"), List.of(), 0);
@@ -654,12 +658,12 @@ public final class JesServer {
             return;
         }
         String key = cacheKey(structure, seed, !preview);
-        byte[] cached;
+        Ready cached;
         synchronized (CAPTURE_CACHE) {
             cached = CAPTURE_CACHE.get(key);
         }
         if (cached != null) {
-            sendCapture(player, requestId, structure, seed, cached);
+            sendCapture(player, requestId, structure, seed, cached, kept);
             return;
         }
 
@@ -690,7 +694,7 @@ public final class JesServer {
         // A first view is usually saved already. It's read on a thread of its own, so it never waits
         // behind a structure someone else is having made.
         Path saved = seed == StructureCapture.defaultSeed(structure) ? SavedPreviews.current() : null;
-        Runnable build = () -> make(server, player, playerId, requestId, structure, seed, preview, key, generation, unwanted, queued, saved);
+        Runnable build = () -> make(server, player, playerId, requestId, structure, seed, preview, key, generation, unwanted, queued, saved, kept);
         if (saved == null) {
             build.run();
             return;
@@ -703,11 +707,12 @@ public final class JesServer {
             if (!preview) {
                 queued.decrementAndGet();
             }
-            cache(key, payload, generation);
+            Ready ready = Ready.of(payload);
+            cache(key, ready, generation);
             server.execute(() -> {
                 ServerPlayer target = server.getPlayerList().getPlayer(playerId);
                 if (target != null) {
-                    sendCapture(target, requestId, structure, seed, payload);
+                    sendCapture(target, requestId, structure, seed, ready, kept);
                 }
             });
         });
@@ -715,9 +720,9 @@ public final class JesServer {
 
     /** Has a capture made on the thread for previews or the one for the list's pictures, and sends it. */
     private static void make(MinecraftServer server, ServerPlayer player, UUID playerId, int requestId, ResourceLocation structure, long seed,
-                             boolean preview, String key, int generation, BooleanSupplier unwanted, AtomicInteger queued, Path saved) {
+                             boolean preview, String key, int generation, BooleanSupplier unwanted, AtomicInteger queued, Path saved, long kept) {
         (preview ? PREVIEWS : PICTURES).execute(() -> {
-            byte[] payload;
+            Ready payload;
             try {
                 CaptureResult result;
                 if (unwanted.getAsBoolean()) {
@@ -735,8 +740,8 @@ public final class JesServer {
                 if (reply.succeeded()) {
                     // A first view is made into both the preview and the list picture, whichever was asked for.
                     boolean first = seed == StructureCapture.defaultSeed(structure);
-                    byte[] full = preview || first ? SavedPreviews.payloadOf(server, structure, seed, reply) : null;
-                    byte[] picture = !preview || first ? SavedPreviews.pictureOf(server, structure, seed, reply) : null;
+                    Ready full = preview || first ? Ready.of(SavedPreviews.payloadOf(server, structure, seed, reply)) : null;
+                    Ready picture = !preview || first ? Ready.of(SavedPreviews.pictureOf(server, structure, seed, reply)) : null;
                     if (full != null) {
                         cache(cacheKey(structure, seed, false), full, generation);
                     }
@@ -744,32 +749,37 @@ public final class JesServer {
                         cache(cacheKey(structure, seed, true), picture, generation);
                     }
                     if (saved != null && first) {
-                        SavedPreviews.save(saved, structure, false, full);
-                        SavedPreviews.save(saved, structure, true, picture);
+                        SavedPreviews.save(saved, structure, false, full.payload());
+                        SavedPreviews.save(saved, structure, true, picture.payload());
                     }
                     payload = preview ? full : picture;
                 } else {
-                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply)));
+                    payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply))));
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
-                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed)));
+                payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed))));
             } catch (OutOfMemoryError e) {
                 // Whatever the capture had is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
                 CaptureResult failed = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
-                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed)));
+                payload = Ready.of(Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, failed))));
             } finally {
                 if (!preview) {
                     queued.decrementAndGet();
                 }
             }
-            byte[] done = payload;
+            Ready done = payload;
             server.execute(() -> {
                 ServerPlayer target = server.getPlayerList().getPlayer(playerId);
-                if (target != null) {
-                    sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, done);
+                if (target == null) {
+                    return;
+                }
+                if (done.hash() == kept) {
+                    sendBlob(target, JesNetwork.KIND_SAME, requestId, new byte[0]);
+                } else {
+                    sendBlob(target, JesNetwork.KIND_CAPTURE, requestId, done.payload());
                 }
             });
         });
@@ -780,10 +790,25 @@ public final class JesServer {
         return structure + "@" + seed + (picture ? "#picture" : "");
     }
 
-    /** Sends a capture that's ready, unless the player is asking for them far faster than the browser does. */
-    private static void sendCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, byte[] payload) {
-        if (maySend(player, payload)) {
-            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, payload);
+    /**
+     * A capture ready to send, with its {@link Blobs#hash} to tell whether a player's game kept the
+     * same one. Worked out once, off the server thread, as a big structure takes a few milliseconds.
+     */
+    private record Ready(byte[] payload, long hash) {
+        static Ready of(byte[] payload) {
+            return new Ready(payload, Blobs.hash(payload));
+        }
+    }
+
+    /**
+     * Sends a capture that's ready, unless the player's game kept the same one from before, which it's
+     * told to use instead, or the player is asking for them far faster than the browser does.
+     */
+    private static void sendCapture(ServerPlayer player, int requestId, ResourceLocation structure, long seed, Ready ready, long kept) {
+        if (ready.hash() == kept) {
+            sendBlob(player, JesNetwork.KIND_SAME, requestId, new byte[0]);
+        } else if (maySend(player, ready.payload())) {
+            sendBlob(player, JesNetwork.KIND_CAPTURE, requestId, ready.payload());
         } else {
             CaptureResult busy = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.too_many"), List.of(), 0);
             sendBlob(player, JesNetwork.KIND_CAPTURE, requestId,
@@ -796,23 +821,23 @@ public final class JesServer {
      * or they take too much room. One bigger than the whole limit isn't kept, nor one started before
      * the kept ones were last dropped, as it may be from before a /reload.
      */
-    private static void cache(String key, byte[] payload, int generation) {
-        if (payload.length > CACHE_BYTES) {
+    private static void cache(String key, Ready ready, int generation) {
+        if (ready.payload().length > CACHE_BYTES) {
             return;
         }
         synchronized (CAPTURE_CACHE) {
             if (generation != captureGeneration) {
                 return;
             }
-            byte[] old = CAPTURE_CACHE.put(key, payload);
-            cachedBytes += payload.length - (old == null ? 0 : old.length);
-            Iterator<Map.Entry<String, byte[]>> eldest = CAPTURE_CACHE.entrySet().iterator();
+            Ready old = CAPTURE_CACHE.put(key, ready);
+            cachedBytes += ready.payload().length - (old == null ? 0 : old.payload().length);
+            Iterator<Map.Entry<String, Ready>> eldest = CAPTURE_CACHE.entrySet().iterator();
             while ((cachedBytes > CACHE_BYTES || CAPTURE_CACHE.size() > CACHED_CAPTURES) && eldest.hasNext()) {
-                Map.Entry<String, byte[]> entry = eldest.next();
+                Map.Entry<String, Ready> entry = eldest.next();
                 if (entry.getKey().equals(key)) {
                     break;
                 }
-                cachedBytes -= entry.getValue().length;
+                cachedBytes -= entry.getValue().payload().length;
                 eldest.remove();
             }
         }

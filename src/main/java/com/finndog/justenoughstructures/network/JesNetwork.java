@@ -20,7 +20,7 @@ public final class JesNetwork {
      * channel's name, so a client and a server on different versions don't hear each other at all,
      * rather than misreading what they hear.
      */
-    public static final int PROTOCOL = 6;
+    public static final int PROTOCOL = 7;
 
     public static final ResourceLocation REQUEST_CATALOG = channel("request_catalog");
     public static final ResourceLocation REQUEST_CAPTURE = channel("request_capture");
@@ -73,6 +73,8 @@ public final class JesNetwork {
     public static final int KIND_TOOLS = 6;
     /** An upload: an edited loot table to fill one container from, answered like {@link #LOOT}. */
     public static final int KIND_DRAFT_ROLL = 7;
+    /** The answer to a capture request when the copy the player's game kept is still the one it would be sent. */
+    public static final int KIND_SAME = 8;
 
     /** What {@link #TABLE_ACTION} asks for. */
     public static final int ACTION_KEEP = 0;
@@ -101,6 +103,11 @@ public final class JesNetwork {
 
     public static void setServerSender(ServerSender sender) {
         serverSender = sender;
+    }
+
+    /** What sends to players now, for a test to put back after standing in for it. */
+    public static ServerSender serverSender() {
+        return serverSender;
     }
 
     public static void setServerCanSend(BiPredicate<ServerPlayer, ResourceLocation> canSend) {

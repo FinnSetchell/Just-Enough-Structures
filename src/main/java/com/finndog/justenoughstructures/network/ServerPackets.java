@@ -36,7 +36,8 @@ public final class ServerPackets {
             ResourceLocation structure = buf.readResourceLocation();
             long seed = buf.readLong();
             boolean preview = buf.readBoolean();
-            server.execute(() -> JesServer.onRequestCapture(player, requestId, structure, seed, preview));
+            long kept = buf.readLong();
+            server.execute(() -> JesServer.onRequestCapture(player, requestId, structure, seed, preview, kept));
         });
 
         on(JesNetwork.REQUEST_LOOT, (server, player, buf) -> {

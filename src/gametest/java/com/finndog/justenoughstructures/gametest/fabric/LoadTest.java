@@ -502,7 +502,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
             sim.waiting.put(requestId, new Req(kind, id, now));
             phase.asked(kind);
             boolean preview = kind != Kind.PICTURE;
-            server.execute(() -> JesServer.onRequestCapture(sim.player, requestId, id, seed, preview));
+            server.execute(() -> JesServer.onRequestCapture(sim.player, requestId, id, seed, preview, 0L));
             return requestId;
         }
 

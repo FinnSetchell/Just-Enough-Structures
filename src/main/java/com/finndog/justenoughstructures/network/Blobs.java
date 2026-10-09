@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.network;
 
+import com.google.common.hash.Hashing;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.io.ByteArrayOutputStream;
@@ -108,6 +109,15 @@ public final class Blobs {
         } finally {
             inflater.end();
         }
+    }
+
+    /**
+     * A short name for some bytes, the same on the client and the server, which is how a preview kept
+     * by a player's game is matched with what the server would send. Never 0, which means nothing kept.
+     */
+    public static long hash(byte[] bytes) {
+        long hash = Hashing.murmur3_128().hashBytes(bytes).asLong();
+        return hash == 0 ? 1 : hash;
     }
 
     public static List<byte[]> split(byte[] data) {

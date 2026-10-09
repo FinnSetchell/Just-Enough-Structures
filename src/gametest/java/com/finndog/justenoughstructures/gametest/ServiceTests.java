@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.capture.CaptureResult;
@@ -10,6 +11,7 @@ import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.client.KeptPreviews;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
@@ -17,12 +19,17 @@ import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
+import com.finndog.justenoughstructures.network.JesNetwork;
+import com.google.common.hash.Hashing;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +37,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -464,6 +472,138 @@ public final class ServiceTests {
         } catch (Exception e) {
             throw new AssertionError("reading a saved view took too long", e);
         }
+    }
+
+    /**
+     * A first view the player's game kept reads back as it was sent and is replaced by a newer one.
+     * It's still there after leaving and joining again, and forgotten once damaged. Each server's
+     * are kept apart, and none are used when told not to keep any.
+     */
+    public static void keptPreviewsReadBack(GameTestHelper helper) {
+        ResourceLocation id = Ids.of("test", "tower");
+        byte[] first = {1, 2, 3, 4, 5};
+        byte[] second = {6, 7, 8};
+        String fingerprint = "game test " + System.nanoTime();
+        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint));
+        try {
+            KeptPreviews.use(fingerprint, true);
+            waitForKept();
+            helper.assertTrue(KeptPreviews.inUse() && KeptPreviews.kept(id) == 0, "a new server's folder wasn't used, or had a view in it");
+
+            KeptPreviews.keep(id, first);
+            helper.assertTrue(KeptPreviews.kept(id) == Blobs.hash(first), "a kept view wasn't known straight away");
+            byte[] read = readKept(id);
+            helper.assertTrue(Arrays.equals(read, first), "the kept view read back as " + Arrays.toString(read));
+            KeptPreviews.keep(id, second);
+            read = readKept(id);
+            helper.assertTrue(Arrays.equals(read, second), "the changed view read back as " + Arrays.toString(read));
+            helper.assertTrue(keptFiles(dir, id).size() == 1, "the old view's file was left behind: " + keptFiles(dir, id));
+
+            KeptPreviews.use(fingerprint, true);
+            helper.assertTrue(KeptPreviews.inUse(), "the same server's list arriving again stopped its views being used");
+            KeptPreviews.use(null, false);
+            helper.assertTrue(!KeptPreviews.inUse() && KeptPreviews.kept(id) == 0, "a view was still used after leaving");
+            KeptPreviews.use(fingerprint, true);
+            waitForKept();
+            helper.assertTrue(KeptPreviews.kept(id) == Blobs.hash(second), "the kept view wasn't found after joining again");
+
+            KeptPreviews.use("another " + fingerprint, true);
+            waitForKept();
+            helper.assertTrue(KeptPreviews.inUse() && KeptPreviews.kept(id) == 0, "another server's view was used");
+            KeptPreviews.use(fingerprint, false);
+            helper.assertTrue(!KeptPreviews.inUse() && KeptPreviews.kept(id) == 0, "a view was used when none were to be kept");
+
+            KeptPreviews.use(fingerprint, true);
+            waitForKept();
+            for (Path file : keptFiles(dir, id)) {
+                byte[] bytes = Files.readAllBytes(file);
+                bytes[bytes.length - 1] ^= 1;
+                Files.write(file, bytes);
+            }
+            helper.assertTrue(readKept(id) == null, "a damaged view was read");
+            helper.assertTrue(KeptPreviews.kept(id) == 0 && keptFiles(dir, id).isEmpty(), "a damaged view wasn't forgotten");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't look in the kept previews' folder", e);
+        } finally {
+            KeptPreviews.use(null, false);
+        }
+        helper.succeed();
+    }
+
+    /** Waits for everything handed to the kept previews' thread so far. */
+    private static void waitForKept() {
+        readKept(Ids.of("test", "nothing"));
+    }
+
+    private static byte[] readKept(ResourceLocation id) {
+        CompletableFuture<byte[]> read = new CompletableFuture<>();
+        KeptPreviews.read(id, read::complete);
+        try {
+            return read.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("reading a kept view took too long", e);
+        }
+    }
+
+    private static List<Path> keptFiles(Path dir, ResourceLocation id) throws IOException {
+        waitForKept();
+        String stem = shortName(id.toString()) + ".";
+        try (var files = Files.list(dir)) {
+            return files.filter(file -> file.getFileName().toString().startsWith(stem)).toList();
+        }
+    }
+
+    /** How kept previews name their folders and files. */
+    private static String shortName(String text) {
+        return Hashing.sha256().hashString(text, StandardCharsets.UTF_8).toString().substring(0, 24);
+    }
+
+    /**
+     * Asked for a first view the player's game kept, the server only says it's the same, and sends
+     * one that's changed since in full.
+     */
+    public static void keptFirstViewsAreNotSentAgain(GameTestHelper helper) {
+        ServerPlayer player = TestPlayers.mock(helper);
+        ResourceLocation igloo = Ids.of("minecraft", "igloo");
+        long seed = StructureCapture.defaultSeed(igloo);
+        record Answer(int kind, byte[] bytes) {
+        }
+        Map<Integer, Answer> answers = new ConcurrentHashMap<>();
+        Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender((target, channel, buf) -> {
+            if (target != player || !channel.equals(JesNetwork.TRANSFER)) {
+                before.send(target, channel, buf);
+                return;
+            }
+            Blobs.Part part = Blobs.Part.read(buf);
+            ByteArrayOutputStream bytes = parts.computeIfAbsent(part.transferId(), transfer -> new ByteArrayOutputStream());
+            bytes.writeBytes(part.data());
+            if (part.index() == part.count() - 1) {
+                parts.remove(part.transferId());
+                answers.put(part.requestId(), new Answer(part.kind(), bytes.toByteArray()));
+            }
+        });
+        JesServer.onRequestCapture(player, 1, igloo, seed, true, 0);
+        boolean[] askedAgain = new boolean[1];
+        helper.succeedWhen(() -> {
+            Answer whole = answers.get(1);
+            helper.assertTrue(whole != null, "the igloo hasn't been sent yet");
+            if (!askedAgain[0]) {
+                askedAgain[0] = true;
+                helper.assertTrue(whole.kind() == JesNetwork.KIND_CAPTURE && whole.bytes().length > 0, "the igloo was sent as " + whole.kind());
+                JesServer.onRequestCapture(player, 2, igloo, seed, true, Blobs.hash(whole.bytes()));
+                JesServer.onRequestCapture(player, 3, igloo, seed, true, Blobs.hash(whole.bytes()) ^ 1);
+            }
+            Answer same = answers.get(2);
+            Answer changed = answers.get(3);
+            helper.assertTrue(same != null && changed != null, "the igloo hasn't been answered again yet");
+            JesNetwork.setServerSender(before);
+            helper.assertTrue(same.kind() == JesNetwork.KIND_SAME && same.bytes().length == 0,
+                    "the kept igloo was answered with " + same.bytes().length + " bytes of kind " + same.kind());
+            helper.assertTrue(changed.kind() == JesNetwork.KIND_CAPTURE && Arrays.equals(changed.bytes(), whole.bytes()),
+                    "an igloo kept from before it changed wasn't sent again in full");
+        });
     }
 
     /** The fingerprint that says whether a saved index still holds comes out the same each time. */
