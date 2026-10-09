@@ -66,6 +66,11 @@ and that previews leave the world untouched. CI runs it on every node.
 `-Pmode=showcase` play a scripted clip instead and save every frame. Clips play on Fabric, NeoForge
 and Forge 1.20.1.
 
+On Fabric, `runLoadTest` starts a dedicated server where crowds of simulated players use the browser,
+and writes how it held up to `versions/<node>/build/loadtest/report.md`. `-Pplayers=30,60,100` sets the
+crowds and `-Pminutes=3` how long each browses. Like any dev server it needs an accepted `eula.txt` in
+that folder.
+
 ## Where things are
 
 - `src/main/java` - all the Java. Loader code goes in a `fabric`, `forge` or `neoforge` package, and

@@ -260,6 +260,20 @@ loom {
             findProperty("join")?.let { programArgs("--quickPlayMultiplayer", it.toString()) }
             findProperty("username")?.let { programArgs("--username", it.toString()) }
         }
+        // Starts a dedicated server, times a build of every structure, then lets crowds of simulated
+        // players use the browser and writes how the server held up to build/loadtest/report.md
+        // before stopping. -Pplayers=30,60,100 picks the crowds and -Pminutes=3 how long each browses.
+        // Like any dev server it needs an accepted eula.txt in build/loadtest.
+        register("loadTest") {
+            server()
+            configName = "Fabric Load Test"
+            source(gametest)
+            runDir("build/loadtest")
+            vmArg("-Xmx4G")
+            vmArg("-Djes.loadtest=${findProperty("players") ?: "30,60,100"}")
+            vmArg("-Djes.loadtest.minutes=${findProperty("minutes") ?: 3}")
+            programArgs("nogui")
+        }
     }
 
     mods {
@@ -394,6 +408,21 @@ tasks {
             File(root, "options.txt").writeText(
                 "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
                     "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n"
+            )
+        }
+    }
+
+    // A flat world without structures, as previews are built apart from it, and offline, as its
+    // players are simulated. The loot index saved beside it is kept, so it's only built once.
+    named("runLoadTest") {
+        val dir = layout.buildDirectory.dir("loadtest")
+        doFirst {
+            val root = dir.get().asFile
+            delete(File(root, "world"))
+            root.mkdirs()
+            File(root, "server.properties").writeText(
+                "online-mode=false\nlevel-type=minecraft\\:flat\ngenerate-structures=false\nspawn-protection=0\n" +
+                    "max-players=200\nview-distance=6\nsimulation-distance=6\nserver-port=25599\nmotd=JES load test\n"
             )
         }
     }
