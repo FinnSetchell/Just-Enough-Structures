@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.CaptureResult;
@@ -189,7 +190,7 @@ public final class SettingsTests {
             helper.assertTrue(PackToolsAccess.allowed(player(helper, steve, "Steve_Renamed")), "Steve lost access after a rename");
             helper.assertFalse(PackToolsAccess.allowed(player(helper, other, "Alex")), "a player who isn't listed was let in");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             helper.assertTrue(PackToolsAccess.allowed(player(helper, other, "Alex")), "permission level 0 didn't let everyone in");
 
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.NONE));

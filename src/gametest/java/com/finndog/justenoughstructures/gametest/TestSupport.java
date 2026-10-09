@@ -5,6 +5,8 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
+import com.finndog.justenoughstructures.server.ServerConfig;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -24,6 +26,19 @@ public final class TestSupport {
             """;
 
     private TestSupport() {
+    }
+
+    /**
+     * The server's usual settings, with Pack tools open to players of {@code level}: 0 lets everyone
+     * use it, 4 only operators, and a test's mock player isn't one.
+     */
+    public static ServerConfig.Settings packToolsFor(int level) {
+        return packToolsFor(level, true);
+    }
+
+    /** The same, with changes to containers and spawners used or not. */
+    public static ServerConfig.Settings packToolsFor(int level, boolean containerChanges) {
+        return new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(level), containerChanges);
     }
 
     /** A translated message's key, or what anything else says. */

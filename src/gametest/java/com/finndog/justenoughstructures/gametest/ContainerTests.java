@@ -5,6 +5,7 @@ import static com.finndog.justenoughstructures.gametest.TestSupport.copy;
 import static com.finndog.justenoughstructures.gametest.TestSupport.expect;
 import static com.finndog.justenoughstructures.gametest.TestSupport.firstBlock;
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
 
 import com.finndog.justenoughstructures.Ids;
@@ -165,10 +166,10 @@ public final class ContainerTests {
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
+            ServerConfig.set(packToolsFor(4));
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), IGLOO), "no_permission");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             expect(helper, JesServer.patchContainer(player, Ids.of("justenoughstructures", "no/such/template"), chest.pos(), IGLOO), "no_template");
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos().above(60), IGLOO), "not_there");
             ResourceLocation fresh = Ids.of("justenoughstructures", "chests/made_in_a_test");
@@ -207,7 +208,7 @@ public final class ContainerTests {
         freshFolder();
         try {
             ContainerPatches.save(new ContainerPatches.Patch(TOWER, chest.pos(), block, original, IGLOO));
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0), false));
+            ServerConfig.set(packToolsFor(0, false));
             StructureTemplate off = copy(tower);
             ContainerPatches.apply(TOWER, off);
             helper.assertTrue(original.equals(tableAt(off, chest.pos())), "a change was used with changes turned off");
@@ -216,7 +217,7 @@ public final class ContainerTests {
             ServerConfig.Settings reread = ServerConfig.parse(ServerConfig.render(ServerConfig.get()), "the test");
             helper.assertFalse(reread.containerChanges(), "the switch didn't survive being written to the file and read back");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0), true));
+            ServerConfig.set(packToolsFor(0, true));
             StructureTemplate on = copy(tower);
             ContainerPatches.apply(TOWER, on);
             helper.assertTrue(IGLOO.toString().equals(tableAt(on, chest.pos())), "the kept change wasn't used once turned back on");
@@ -362,7 +363,7 @@ public final class ContainerTests {
         StructureSnapshot.Source source = before.source();
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings settings = ServerConfig.get();
-        ServerConfig.Settings open = new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0));
+        ServerConfig.Settings open = packToolsFor(0);
         ServerConfig.set(open);
         Component saved = JesServer.patchContainer(player, source.template(), source.pos(), IGLOO);
         ServerConfig.set(settings);

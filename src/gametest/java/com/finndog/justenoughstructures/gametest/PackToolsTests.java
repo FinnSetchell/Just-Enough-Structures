@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
@@ -132,7 +133,7 @@ public final class PackToolsTests {
         ServerConfig.Settings before = ServerConfig.get();
         LootOverrides.setFolder(temp("jes-overrides"));
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             String waiting = PackToolsState.tableKey(IGLOO_TABLE);
             Component saved = JesServer.saveTable(player, IGLOO_TABLE, DIAMONDS_ONLY);
             helper.assertTrue(key(saved).endsWith("override.saved"), "saving got " + saved.getString());
@@ -189,14 +190,14 @@ public final class PackToolsTests {
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings before = ServerConfig.get();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             List<ItemStack> items = JesServer.draftRoll(player, new Codecs.DraftRoll(new Codecs.Draft(IGLOO_TABLE, DIAMONDS_ONLY), 42L, 27));
             helper.assertTrue(items.size() == 27, "a chest has 27 slots, got " + items.size());
             helper.assertTrue(items.stream().anyMatch(stack -> stack.is(Items.DIAMOND)), "a table of only diamonds rolled no diamond: " + items);
             List<ItemStack> broken = JesServer.draftRoll(player, new Codecs.DraftRoll(new Codecs.Draft(IGLOO_TABLE, "{\"pools\": [}"), 42L, 27));
             helper.assertTrue(broken.size() == 27 && broken.stream().allMatch(ItemStack::isEmpty), "an edit that doesn't load filled the chest");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
+            ServerConfig.set(packToolsFor(4));
             List<ItemStack> refused = JesServer.draftRoll(player, new Codecs.DraftRoll(new Codecs.Draft(IGLOO_TABLE, DIAMONDS_ONLY), 42L, 27));
             helper.assertTrue(refused.stream().allMatch(ItemStack::isEmpty), "a player who can't use Pack tools rolled an edit");
         } finally {

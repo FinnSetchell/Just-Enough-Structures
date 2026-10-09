@@ -5,6 +5,7 @@ import static com.finndog.justenoughstructures.gametest.TestSupport.copy;
 import static com.finndog.justenoughstructures.gametest.TestSupport.expect;
 import static com.finndog.justenoughstructures.gametest.TestSupport.firstBlock;
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
 
 import com.finndog.justenoughstructures.Ids;
@@ -217,10 +218,10 @@ public final class SpawnerTests {
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
+            ServerConfig.set(packToolsFor(4));
             expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK), "no_permission");
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             expect(helper, JesServer.patchSpawner(player, Ids.of("justenoughstructures", "no/such/template"), pos, HUSK), "no_template");
             expect(helper, JesServer.patchSpawner(player, BASIN, pos.above(60), HUSK), "spawner.not_there");
             for (String notMob : List.of("minecraft:no_such_mob", "minecraft:armor_stand", "minecraft:item", "minecraft:player", "Not An Id!")) {
@@ -235,9 +236,9 @@ public final class SpawnerTests {
             helper.assertTrue(patch != null && HUSK.equals(patch.mob()) && MAGMA_CUBE.equals(patch.original()),
                     "the second change lost the first mob, got " + patch);
 
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0), false));
+            ServerConfig.set(packToolsFor(0, false));
             expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK), "spawner.turned_off");
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
 
             expect(helper, JesServer.unpatchSpawner(player, BASIN, pos), "spawner.removed");
             expect(helper, JesServer.unpatchSpawner(player, BASIN, pos), "spawner.none");
@@ -263,7 +264,7 @@ public final class SpawnerTests {
         ServerConfig.Settings before = ServerConfig.get();
         freshFolder();
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK, Ids.parse("chest")), "spawner.cant_become");
             if (!TrialSpawners.exist()) {
                 expect(helper, JesServer.patchSpawner(player, BASIN, pos, HUSK, TrialSpawners.BLOCK), "spawner.cant_become");
@@ -399,7 +400,7 @@ public final class SpawnerTests {
         StructureSnapshot.Source source = before.source();
         ServerPlayer player = TestPlayers.mock(helper);
         ServerConfig.Settings settings = ServerConfig.get();
-        ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+        ServerConfig.set(packToolsFor(0));
         Component saved = JesServer.patchSpawner(player, source.template(), source.pos(), HUSK);
         ServerConfig.set(settings);
         if (!key(saved).endsWith("spawner.saved")) {
@@ -417,7 +418,7 @@ public final class SpawnerTests {
                 seen[0] = at(capture(server, BASTION, seed), source);
                 SpawnerPatches.remove(source.template(), source.pos());
                 // Changed again before the /reload that undoes it, while the loaded template still has the husk.
-                ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+                ServerConfig.set(packToolsFor(0));
                 JesServer.patchSpawner(player, source.template(), source.pos(), "minecraft:zombie");
                 ServerConfig.set(settings);
                 again[0] = SpawnerPatches.find(source.template(), source.pos());

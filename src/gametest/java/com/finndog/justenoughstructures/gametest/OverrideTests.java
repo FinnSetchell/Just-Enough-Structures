@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
+import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
 
 import com.finndog.justenoughstructures.Folders;
@@ -25,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -382,9 +382,9 @@ public final class OverrideTests {
         AtomicReference<JesServer.DraftOdds> broken = new AtomicReference<>();
         // Who may edit is checked as the draft comes in. The rolling can finish a few ticks later.
         try {
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
+            ServerConfig.set(packToolsFor(4));
             JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY, refused::set);
-            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, true, ServerConfig.PackTools.level(0)));
+            ServerConfig.set(packToolsFor(0));
             JesServer.draftOdds(player, IGLOO, DIAMONDS_ONLY, rolled::set);
             JesServer.draftOdds(player, IGLOO, "{ not json", broken::set);
         } finally {
