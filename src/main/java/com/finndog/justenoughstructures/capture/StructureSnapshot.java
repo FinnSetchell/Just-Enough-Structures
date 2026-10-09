@@ -3,7 +3,11 @@ package com.finndog.justenoughstructures.capture;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -21,6 +25,8 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class StructureSnapshot {
     public static final int MAX_SIZE = 1024;
+    /** The most blocks along a list picture's longest side. A picture is a couple of hundred pixels across, so more wouldn't show. */
+    public static final int PICTURE_MOST = 96;
     private static final String VAULT = "minecraft:vault";
     private static final String VAULT_DEFAULT_TABLE = "minecraft:chests/trial_chambers/reward";
 
@@ -160,6 +166,56 @@ public final class StructureSnapshot {
     public StructureSnapshot withoutLoot() {
         return new StructureSnapshot(structureId, seed, terrain, origin, size, palette, positions, states,
                 withoutLoot(blockEntities), withoutLoot(entities), pieceCount);
+    }
+
+    /**
+     * A lighter copy for a list picture, which never shows what's saved in containers. A structure
+     * longer than {@link #PICTURE_MOST} blocks is drawn with fewer, bigger blocks instead, as a picture
+     * is only a couple of hundred pixels across: each takes the block found most in its cube, leaving
+     * out air so thin walls stay. Its block entities and entities go too, as they'd no longer sit on
+     * the blocks they belong to.
+     */
+    public StructureSnapshot forPicture() {
+        int longest = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
+        int step = (longest + PICTURE_MOST - 1) / PICTURE_MOST;
+        if (step <= 1) {
+            return withoutLoot();
+        }
+        // How many of each block are in each cube, then the commonest for each.
+        Long2IntOpenHashMap counts = new Long2IntOpenHashMap();
+        for (int i = 0; i < positions.length; i++) {
+            if (palette.get(states[i]).isAir()) {
+                continue;
+            }
+            int p = positions[i];
+            int cell = pack(unpackX(p) / step, unpackY(p) / step, unpackZ(p) / step);
+            counts.addTo(((long) cell << 32) | states[i], 1);
+        }
+        Int2LongOpenHashMap best = new Int2LongOpenHashMap();
+        for (Long2IntMap.Entry entry : counts.long2IntEntrySet()) {
+            int cell = (int) (entry.getLongKey() >>> 32);
+            long candidate = ((long) entry.getIntValue() << 32) | (int) entry.getLongKey();
+            long current = best.getOrDefault(cell, -1L);
+            // The most of, and on a tie the one first in the palette, so it comes out the same every time.
+            if (current < 0 || (candidate >>> 32) > (current >>> 32) || ((candidate >>> 32) == (current >>> 32) && (int) candidate < (int) current)) {
+                best.put(cell, candidate);
+            }
+        }
+        int[] cells = best.keySet().toIntArray();
+        Arrays.sort(cells);
+        List<BlockState> used = new ArrayList<>();
+        Int2IntOpenHashMap remap = new Int2IntOpenHashMap();
+        int[] cellStates = new int[cells.length];
+        for (int i = 0; i < cells.length; i++) {
+            int state = (int) best.get(cells[i]);
+            if (!remap.containsKey(state)) {
+                remap.put(state, used.size());
+                used.add(palette.get(state));
+            }
+            cellStates[i] = remap.get(state);
+        }
+        Vec3i smaller = new Vec3i((size.getX() + step - 1) / step, (size.getY() + step - 1) / step, (size.getZ() + step - 1) / step);
+        return new StructureSnapshot(structureId, seed, terrain, origin, smaller, used, cells, cellStates, List.of(), List.of(), pieceCount);
     }
 
     private static List<CompoundTag> withoutLoot(List<CompoundTag> tags) {

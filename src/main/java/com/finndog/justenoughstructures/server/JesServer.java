@@ -653,7 +653,7 @@ public final class JesServer {
                     Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, hidden))));
             return;
         }
-        String key = structure + "@" + seed;
+        String key = cacheKey(structure, seed, !preview);
         byte[] cached;
         synchronized (CAPTURE_CACHE) {
             cached = CAPTURE_CACHE.get(key);
@@ -695,7 +695,7 @@ public final class JesServer {
             build.run();
             return;
         }
-        SavedPreviews.load(saved, structure, payload -> {
+        SavedPreviews.load(saved, structure, !preview, payload -> {
             if (payload == null) {
                 build.run();
                 return;
@@ -725,20 +725,31 @@ public final class JesServer {
                 } else if (Memory.low()) {
                     result = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
                 } else {
-                    CaptureResult captured = preview ? StructureCapture.capture(server, structure, seed, unwanted)
+                    result = preview ? StructureCapture.capture(server, structure, seed, unwanted)
                             : StructureCapture.captureInBackground(server, structure, seed, unwanted);
-                    result = captured == null ? null : forPlayers(structure, captured);
                 }
                 // Nobody wants it any more. Only a player who's moved on to another preview is still
                 // there to be told.
                 CaptureResult reply = result != null ? result
                         : CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.superseded"), List.of(), 0);
-                payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply)));
                 if (reply.succeeded()) {
-                    cache(key, payload, generation);
-                    if (saved != null) {
-                        SavedPreviews.save(saved, structure, payload);
+                    // A first view is made into both the preview and the list picture, whichever was asked for.
+                    boolean first = seed == StructureCapture.defaultSeed(structure);
+                    byte[] full = preview || first ? SavedPreviews.payloadOf(server, structure, seed, reply) : null;
+                    byte[] picture = !preview || first ? SavedPreviews.pictureOf(server, structure, seed, reply) : null;
+                    if (full != null) {
+                        cache(cacheKey(structure, seed, false), full, generation);
                     }
+                    if (picture != null) {
+                        cache(cacheKey(structure, seed, true), picture, generation);
+                    }
+                    if (saved != null && first) {
+                        SavedPreviews.save(saved, structure, false, full);
+                        SavedPreviews.save(saved, structure, true, picture);
+                    }
+                    payload = preview ? full : picture;
+                } else {
+                    payload = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> Codecs.writeCapture(buf, structure, seed, reply)));
                 }
             } catch (RuntimeException e) {
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
@@ -762,6 +773,11 @@ public final class JesServer {
                 }
             });
         });
+    }
+
+    /** What a capture is kept under in memory: its structure and seed, and whether it's the version for a list picture. */
+    private static String cacheKey(ResourceLocation structure, long seed, boolean picture) {
+        return structure + "@" + seed + (picture ? "#picture" : "");
     }
 
     /** Sends a capture that's ready, unless the player is asking for them far faster than the browser does. */

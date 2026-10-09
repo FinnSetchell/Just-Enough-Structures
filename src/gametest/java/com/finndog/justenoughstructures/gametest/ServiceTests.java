@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.SandboxTerrain;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.catalog.Availability;
@@ -20,6 +21,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +40,7 @@ import com.finndog.justenoughstructures.server.SavedPreviews;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 //? if >=26.1 {
@@ -54,6 +57,8 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Tests for the catalog, the wire format and loot rolls. */
@@ -351,18 +356,22 @@ public final class ServiceTests {
     public static void savedFirstViewsReadBack(GameTestHelper helper) {
         ResourceLocation id = Ids.of("test", "tower");
         byte[] view = {1, 2, 3, 4, 5};
+        byte[] picture = {6, 7};
         try {
             Path dir = Files.createTempDirectory("jes-previews");
-            SavedPreviews.save(dir, id, view);
-            byte[] read = readSaved(dir, id);
+            SavedPreviews.save(dir, id, false, view);
+            SavedPreviews.save(dir, id, true, picture);
+            byte[] read = readSaved(dir, id, false);
             helper.assertTrue(Arrays.equals(read, view), "the saved view read back as " + Arrays.toString(read));
-            helper.assertTrue(readSaved(dir, Ids.of("test", "never_saved")) == null, "a view that was never saved was read");
+            byte[] readPicture = readSaved(dir, id, true);
+            helper.assertTrue(Arrays.equals(readPicture, picture), "the saved list picture read back as " + Arrays.toString(readPicture));
+            helper.assertTrue(readSaved(dir, Ids.of("test", "never_saved"), false) == null, "a view that was never saved was read");
             try (var files = Files.list(dir)) {
                 for (Path file : files.toList()) {
                     Files.write(file, new byte[]{9, 9});
                 }
             }
-            helper.assertTrue(readSaved(dir, id) == null, "a damaged file was read as a view");
+            helper.assertTrue(readSaved(dir, id, false) == null, "a damaged file was read as a view");
         } catch (IOException e) {
             throw new AssertionError("couldn't use a temporary folder", e);
         }
@@ -379,22 +388,77 @@ public final class ServiceTests {
         try {
             Path saved = Files.createTempDirectory("jes-previews");
             SavedPreviews.offer(saved, server, igloo, first, result);
-            byte[] view = readSaved(saved, igloo);
+            byte[] view = readSaved(saved, igloo, false);
             helper.assertTrue(view != null, "the igloo's first view wasn't saved");
+            helper.assertTrue(readSaved(saved, igloo, true) != null, "the igloo's list picture wasn't saved");
             long seed = Codecs.readCapture(Blobs.fromBytes(server.registryAccess(), Blobs.inflate(view))).seed();
             helper.assertTrue(seed == first, "the saved view was made with seed " + seed + " rather than the first");
             Path other = Files.createTempDirectory("jes-previews");
             SavedPreviews.offer(other, server, igloo, first + 1, result);
-            helper.assertTrue(readSaved(other, igloo) == null, "a new layout was saved");
+            helper.assertTrue(readSaved(other, igloo, false) == null && readSaved(other, igloo, true) == null, "a new layout was saved");
         } catch (IOException e) {
             throw new AssertionError("couldn't use a temporary folder", e);
         }
         helper.succeed();
     }
 
-    private static byte[] readSaved(Path dir, ResourceLocation id) {
+    /**
+     * A list picture of a structure too long to show block for block uses one block for each cube, the
+     * one found most in it, leaving out air so thin walls stay, and nothing else.
+     */
+    public static void bigStructuresPicturesUseBiggerBlocks(GameTestHelper helper) {
+        // A line of stone 200 long, with planks on top of it in the middle and air beside it.
+        List<BlockState> palette = List.of(Blocks.STONE.defaultBlockState(), Blocks.OAK_PLANKS.defaultBlockState(), Blocks.AIR.defaultBlockState());
+        List<Integer> positions = new ArrayList<>();
+        List<Integer> states = new ArrayList<>();
+        for (int x = 0; x < 200; x++) {
+            positions.add(StructureSnapshot.pack(x, 0, 0));
+            states.add(0);
+            positions.add(StructureSnapshot.pack(x, 0, 1));
+            states.add(2);
+        }
+        positions.add(StructureSnapshot.pack(100, 1, 0));
+        states.add(1);
+        positions.add(StructureSnapshot.pack(101, 1, 0));
+        states.add(1);
+        StructureSnapshot line = new StructureSnapshot(Ids.of("test", "line"), 1L, SandboxTerrain.LAND, BlockPos.ZERO, new Vec3i(200, 2, 2),
+                palette, positions.stream().mapToInt(Integer::intValue).toArray(), states.stream().mapToInt(Integer::intValue).toArray(),
+                List.of(), List.of(), 1);
+        StructureSnapshot picture = line.forPicture();
+        helper.assertTrue(picture.size().equals(new Vec3i(67, 1, 1)), "the picture's size is " + picture.size());
+        helper.assertTrue(picture.blockCount() == 67, "the picture has " + picture.blockCount() + " blocks, expected 67");
+        for (int i = 0; i < picture.blockCount(); i++) {
+            helper.assertTrue(picture.state(i).is(Blocks.STONE), "block " + i + " of the picture is " + picture.state(i));
+        }
+        helper.succeed();
+    }
+
+    /** A big structure's list picture fits in the picture's limit and is lighter, and a small one's keeps every block. */
+    public static void picturesAreLighter(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation city = Ids.of("minecraft", "ancient_city");
+        CaptureResult big = StructureCapture.capture(server, city, StructureCapture.defaultSeed(city));
+        helper.assertTrue(big.succeeded(), "the ancient city didn't generate: " + big.error());
+        StructureSnapshot whole = big.snapshot();
+        StructureSnapshot picture = whole.forPicture();
+        Vec3i size = picture.size();
+        helper.assertTrue(Math.max(size.getX(), Math.max(size.getY(), size.getZ())) <= StructureSnapshot.PICTURE_MOST,
+                "the ancient city's picture is " + size + " blocks");
+        helper.assertTrue(picture.blockCount() < whole.blockCount() && picture.blockEntities().isEmpty() && picture.entities().isEmpty(),
+                "the ancient city's picture has " + picture.blockCount() + " of its " + whole.blockCount() + " blocks and "
+                        + picture.blockEntities().size() + " block entities");
+        ResourceLocation igloo = Ids.of("minecraft", "igloo");
+        CaptureResult small = StructureCapture.capture(server, igloo, StructureCapture.defaultSeed(igloo));
+        helper.assertTrue(small.succeeded(), "the igloo didn't generate: " + small.error());
+        StructureSnapshot iglooPicture = small.snapshot().forPicture();
+        helper.assertTrue(iglooPicture.blockCount() == small.snapshot().blockCount(), "the igloo's picture lost blocks");
+        helper.assertTrue(iglooPicture.containers().stream().allMatch(c -> c.lootTable() == null), "the igloo's picture says where its loot is");
+        helper.succeed();
+    }
+
+    private static byte[] readSaved(Path dir, ResourceLocation id, boolean picture) {
         CompletableFuture<byte[]> read = new CompletableFuture<>();
-        SavedPreviews.load(dir, id, read::complete);
+        SavedPreviews.load(dir, id, picture, read::complete);
         try {
             return read.get(10, TimeUnit.SECONDS);
         } catch (Exception e) {

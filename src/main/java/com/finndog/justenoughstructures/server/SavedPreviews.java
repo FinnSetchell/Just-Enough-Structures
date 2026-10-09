@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Memory;
 import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
+import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
@@ -40,13 +41,13 @@ import net.minecraft.server.packs.resources.Resource;
 
 /**
  * Each structure's first view, kept on disk just as players are sent it, so it's there straight away
- * for everyone and after a restart. Only the first layout is kept: New layout makes a fresh one each
- * time. There's a folder for each setup, so a view is never shown for mods, datapacks, Pack tools
+ * for everyone and after a restart, with the lighter version list pictures are drawn from. Only the
+ * first layout is kept: New layout makes a fresh one each time. There's a folder for each setup, so a view is never shown for mods, datapacks, Pack tools
  * changes or a world it wasn't made with, and only the few most recently used folders are kept.
  */
 public final class SavedPreviews {
     /** Goes up whenever what's saved changes shape, so old folders are never read. */
-    private static final String FORMAT = "1";
+    private static final String FORMAT = "2";
     private static final int KEPT_FOLDERS = 3;
     private static final int MAGIC = 0x4A455331;
     /** What else decides how a structure looks, besides the loot index's sources: its biomes, and its notes file. */
@@ -126,14 +127,17 @@ public final class SavedPreviews {
         return folder;
     }
 
-    /** Reads a structure's saved first view on the saved previews' thread, and hands it, or null if there isn't one, to {@code then} there. */
-    public static void load(Path dir, ResourceLocation id, Consumer<byte[]> then) {
-        DISK.execute(() -> then.accept(read(dir, id)));
+    /**
+     * Reads a structure's saved first view, or with {@code picture} the version for its list picture,
+     * on the saved previews' thread, and hands it, or null if there isn't one, to {@code then} there.
+     */
+    public static void load(Path dir, ResourceLocation id, boolean picture, Consumer<byte[]> then) {
+        DISK.execute(() -> then.accept(read(dir, id, picture)));
     }
 
-    /** Saves a structure's first view, as players are sent it. */
-    public static void save(Path dir, ResourceLocation id, byte[] payload) {
-        DISK.execute(() -> write(dir, id, payload));
+    /** Saves a structure's first view, or the version for its list picture, as players are sent it. */
+    public static void save(Path dir, ResourceLocation id, boolean picture, byte[] payload) {
+        DISK.execute(() -> write(dir, id, picture, payload));
     }
 
     /** A structure as the loot index made it, which is its first view when made with its first seed: saved, so it's ready before anyone asks. */
@@ -143,11 +147,11 @@ public final class SavedPreviews {
 
     /** The same, into a given folder. */
     public static void offer(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
-        if (dir == null || seed != StructureCapture.defaultSeed(id) || !result.succeeded() || ServerConfig.hides(id) || Files.exists(file(dir, id))) {
+        if (dir == null || seed != StructureCapture.defaultSeed(id) || !result.succeeded() || ServerConfig.hides(id) || saved(dir, id)) {
             return;
         }
         try {
-            write(dir, id, payloadOf(server, id, seed, result));
+            saveBoth(dir, server, id, seed, result);
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't save the first view of {}", id, e);
         }
@@ -177,7 +181,7 @@ public final class SavedPreviews {
                 if (cancelled.getAsBoolean() || !waitForMemory(cancelled)) {
                     return;
                 }
-                if (Files.exists(file(dir, id))) {
+                if (saved(dir, id)) {
                     continue;
                 }
                 long seed = StructureCapture.defaultSeed(id);
@@ -187,7 +191,7 @@ public final class SavedPreviews {
                         return;
                     }
                     if (result.succeeded()) {
-                        write(dir, id, payloadOf(server, id, seed, result));
+                        saveBoth(dir, server, id, seed, result);
                         made++;
                     }
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -200,10 +204,26 @@ public final class SavedPreviews {
         });
     }
 
-    /** A structure's capture as players are sent it. */
+    /** A structure's capture as players are sent it for its preview. */
     static byte[] payloadOf(MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
         CaptureResult sent = JesServer.forPlayers(id, result);
         return Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, sent)));
+    }
+
+    /** A structure's capture as players are sent it for its list picture: see {@link StructureSnapshot#forPicture()}. */
+    static byte[] pictureOf(MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
+        CaptureResult picture = CaptureResult.success(result.snapshot().forPicture(), result.attempts(), result.millis());
+        return Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeCapture(buf, id, seed, picture)));
+    }
+
+    private static void saveBoth(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
+        write(dir, id, false, payloadOf(server, id, seed, result));
+        write(dir, id, true, pictureOf(server, id, seed, result));
+    }
+
+    /** Whether both of a structure's saved versions are there. */
+    private static boolean saved(Path dir, ResourceLocation id) {
+        return Files.exists(file(dir, id, false)) && Files.exists(file(dir, id, true));
     }
 
     /**
@@ -242,12 +262,13 @@ public final class SavedPreviews {
         return JustEnoughStructures.cacheDir().resolve("previews");
     }
 
-    private static Path file(Path dir, ResourceLocation id) {
-        return dir.resolve(Hashing.sha256().hashString(id.toString(), StandardCharsets.UTF_8).toString().substring(0, 24) + ".bin");
+    private static Path file(Path dir, ResourceLocation id, boolean picture) {
+        return dir.resolve(Hashing.sha256().hashString(id.toString(), StandardCharsets.UTF_8).toString().substring(0, 24)
+                + (picture ? ".picture.bin" : ".bin"));
     }
 
-    private static byte[] read(Path dir, ResourceLocation id) {
-        Path file = file(dir, id);
+    private static byte[] read(Path dir, ResourceLocation id, boolean picture) {
+        Path file = file(dir, id, picture);
         if (!Files.exists(file)) {
             return null;
         }
@@ -262,7 +283,7 @@ public final class SavedPreviews {
         }
     }
 
-    private static void write(Path dir, ResourceLocation id, byte[] payload) {
+    private static void write(Path dir, ResourceLocation id, boolean picture, byte[] payload) {
         try {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream(payload.length + 64);
             try (DataOutputStream out = new DataOutputStream(bytes)) {
@@ -271,7 +292,7 @@ public final class SavedPreviews {
                 out.write(payload);
             }
             Files.createDirectories(dir);
-            SafeFiles.write(file(dir, id), bytes.toByteArray());
+            SafeFiles.write(file(dir, id, picture), bytes.toByteArray());
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't save the first view of {}", id, e);
         }

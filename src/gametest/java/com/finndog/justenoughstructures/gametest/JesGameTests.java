@@ -184,6 +184,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void bigStructuresPicturesUseBiggerBlocks(GameTestHelper helper) {
+        ServiceTests.bigStructuresPicturesUseBiggerBlocks(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void picturesAreLighter(GameTestHelper helper) {
+        ServiceTests.picturesAreLighter(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void filesAreWrittenSafely(GameTestHelper helper) {
         ServiceTests.filesAreWrittenSafely(helper);
     }
