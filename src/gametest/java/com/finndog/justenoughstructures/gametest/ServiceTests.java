@@ -23,6 +23,7 @@ import com.finndog.justenoughstructures.network.JesNetwork;
 import com.google.common.hash.Hashing;
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import io.netty.handler.codec.DecoderException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -181,6 +182,57 @@ public final class ServiceTests {
         helper.assertTrue(a.entities().equals(b.entities()), "entities changed on the way through");
         helper.assertTrue(a.containers().equals(b.containers()), "containers changed on the way through");
         helper.succeed();
+    }
+
+    /**
+     * Blocks read back in the order they were sent, whatever it is: scattered back and forth through
+     * their box, or a list picture's copy of a structure big enough for bigger blocks. One whose size
+     * makes no sense is turned away rather than misread.
+     */
+    public static void snapshotsInAnyOrderSurviveTheWire(GameTestHelper helper) {
+        List<BlockState> palette = List.of(Blocks.STONE.defaultBlockState(), Blocks.OAK_PLANKS.defaultBlockState(), Blocks.GLASS.defaultBlockState());
+        int[] positions = {StructureSnapshot.pack(4, 2, 3), StructureSnapshot.pack(0, 0, 0), StructureSnapshot.pack(9, 4, 6),
+                StructureSnapshot.pack(1, 0, 0), StructureSnapshot.pack(0, 4, 0), StructureSnapshot.pack(9, 0, 6), StructureSnapshot.pack(5, 3, 1)};
+        int[] states = {2, 0, 1, 1, 0, 2, 1};
+        StructureSnapshot scattered = new StructureSnapshot(Ids.of("test", "scattered"), 3L, SandboxTerrain.LAND, BlockPos.ZERO, new Vec3i(10, 5, 7),
+                palette, positions, states, List.of(), List.of(), 1);
+        List<Integer> line = new ArrayList<>();
+        List<Integer> lineStates = new ArrayList<>();
+        for (int x = 0; x < 300; x++) {
+            for (int y = 0; y < 3; y++) {
+                line.add(StructureSnapshot.pack(x, y, x % 4));
+                lineStates.add((x + y) % 3);
+            }
+        }
+        StructureSnapshot picture = new StructureSnapshot(Ids.of("test", "line"), 4L, SandboxTerrain.LAND, BlockPos.ZERO, new Vec3i(300, 3, 4), palette,
+                line.stream().mapToInt(Integer::intValue).toArray(), lineStates.stream().mapToInt(Integer::intValue).toArray(), List.of(), List.of(), 1)
+                .forPicture();
+        for (StructureSnapshot sent : List.of(scattered, picture)) {
+            StructureSnapshot back = throughTheWire(helper, sent);
+            helper.assertTrue(back.size().equals(sent.size()) && back.blockCount() == sent.blockCount(), sent.structureId() + " came back a different size");
+            for (int i = 0; i < sent.blockCount(); i++) {
+                if (back.packedPosition(i) != sent.packedPosition(i) || back.state(i) != sent.state(i)) {
+                    helper.fail("block " + i + " of " + sent.structureId() + " changed on the way through");
+                    return;
+                }
+            }
+        }
+        StructureSnapshot flat = new StructureSnapshot(Ids.of("test", "flat"), 5L, SandboxTerrain.LAND, BlockPos.ZERO, new Vec3i(0, 1, 1), palette,
+                new int[0], new int[0], List.of(), List.of(), 1);
+        try {
+            throughTheWire(helper, flat);
+            helper.fail("a structure with no width was read");
+            return;
+        } catch (DecoderException e) {
+            // Turned away, as it should be.
+        }
+        helper.succeed();
+    }
+
+    private static StructureSnapshot throughTheWire(GameTestHelper helper, StructureSnapshot sent) {
+        CaptureResult result = CaptureResult.success(sent, List.of(), 0);
+        byte[] wire = Blobs.deflate(Blobs.toBytes(helper.getLevel().registryAccess(), buf -> Codecs.writeCapture(buf, sent.structureId(), sent.seed(), result)));
+        return Codecs.readCapture(Blobs.fromBytes(helper.getLevel().registryAccess(), Blobs.inflate(wire))).result().snapshot();
     }
 
     /** A failure reads back as it was sent, along with whether it may work another time. */
@@ -485,7 +537,7 @@ public final class ServiceTests {
         byte[] first = {1, 2, 3, 4, 5};
         byte[] second = {6, 7, 8};
         String fingerprint = "game test " + System.nanoTime();
-        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint));
+        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint + "|" + JesNetwork.PROTOCOL));
         try {
             KeptPreviews.use(fingerprint, true);
             waitForKept();
@@ -543,7 +595,7 @@ public final class ServiceTests {
         byte[] picture = {4, 5};
         byte[] newer = {6, 7, 8, 9};
         String fingerprint = "game test " + System.nanoTime();
-        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint));
+        Path dir = JustEnoughStructures.cacheDir().resolve("kept-previews").resolve(shortName(fingerprint + "|" + JesNetwork.PROTOCOL));
         try {
             KeptPreviews.use(fingerprint, true);
             waitForKept();

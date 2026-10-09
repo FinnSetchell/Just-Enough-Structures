@@ -174,6 +174,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void snapshotsInAnyOrderSurviveTheWire(GameTestHelper helper) {
+        ServiceTests.snapshotsInAnyOrderSurviveTheWire(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void savedFirstViewsReadBack(GameTestHelper helper) {
         ServiceTests.savedFirstViewsReadBack(helper);
     }

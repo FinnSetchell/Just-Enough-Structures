@@ -4,10 +4,10 @@ import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -78,6 +78,11 @@ public final class StructureSnapshot {
 
     public static int unpackZ(int packed) {
         return (packed >> 20) & 1023;
+    }
+
+    /** Where a block comes in the order a capture keeps them: a layer at a time, then a row at a time. */
+    private static int captureOrder(int packed) {
+        return unpackY(packed) << 20 | unpackZ(packed) << 10 | unpackX(packed);
     }
 
     public ResourceLocation structureId() {
@@ -202,7 +207,8 @@ public final class StructureSnapshot {
             }
         }
         int[] cells = best.keySet().toIntArray();
-        Arrays.sort(cells);
+        // In the order a capture keeps its blocks, which is also the one they're sent in most cheaply.
+        IntArrays.quickSort(cells, (a, b) -> Integer.compare(captureOrder(a), captureOrder(b)));
         List<BlockState> used = new ArrayList<>();
         Int2IntOpenHashMap remap = new Int2IntOpenHashMap();
         int[] cellStates = new int[cells.length];

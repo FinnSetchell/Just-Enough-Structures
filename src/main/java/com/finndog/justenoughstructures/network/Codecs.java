@@ -18,6 +18,7 @@ import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.netty.handler.codec.DecoderException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -339,9 +340,19 @@ public final class Codecs {
         for (BlockState state : s.palette()) {
             buf.writeNbt(NbtUtils.writeBlockState(state));
         }
-        buf.writeVarInt(s.blockCount());
-        for (int i = 0; i < s.blockCount(); i++) {
-            buf.writeVarInt(s.packedPosition(i));
+        // Each block's place goes as how far on it is from the one before, counting through the box a
+        // row at a time and a layer at a time, the order blocks are kept in, so most are 1. The blocks
+        // follow on their own, where runs of the same one are common. Both pack down far smaller than
+        // a position and a block each.
+        int count = s.blockCount();
+        buf.writeVarInt(count);
+        long previous = -1;
+        for (int i = 0; i < count; i++) {
+            long at = cellIndex(s.size(), s.packedPosition(i));
+            buf.writeVarLong(zigzag(at - previous));
+            previous = at;
+        }
+        for (int i = 0; i < count; i++) {
             buf.writeVarInt(s.paletteIndex(i));
         }
 
@@ -368,18 +379,57 @@ public final class Codecs {
         for (int i = 0; i < paletteSize; i++) {
             palette.add(NbtUtils.readBlockState(Regs.getter(BuiltInRegistries.BLOCK), buf.readNbt()));
         }
+        if (Math.min(size.getX(), Math.min(size.getY(), size.getZ())) < 1
+                || Math.max(size.getX(), Math.max(size.getY(), size.getZ())) > StructureSnapshot.MAX_SIZE) {
+            throw new DecoderException("A structure's size is out of range: " + size);
+        }
+        long cells = (long) size.getX() * size.getY() * size.getZ();
         int count = buf.readVarInt();
+        if (count < 0 || count > cells) {
+            throw new DecoderException("A structure says it has " + count + " blocks in " + cells + " places");
+        }
         int[] positions = new int[count];
         int[] states = new int[count];
+        long at = -1;
         for (int i = 0; i < count; i++) {
-            positions[i] = buf.readVarInt();
+            at += unzigzag(buf.readVarLong());
+            if (at < 0 || at >= cells) {
+                throw new DecoderException("A structure's block is outside it");
+            }
+            positions[i] = packedPosition(size, at);
+        }
+        for (int i = 0; i < count; i++) {
             states[i] = buf.readVarInt();
+            if (states[i] < 0 || states[i] >= paletteSize) {
+                throw new DecoderException("A structure's block isn't in its palette");
+            }
         }
 
         CompoundTag extra = readAnySizeNbt(buf);
         List<CompoundTag> blockEntities = compounds(Nbt.list(extra, "BlockEntities", Tag.TAG_COMPOUND));
         List<CompoundTag> entities = compounds(Nbt.list(extra, "Entities", Tag.TAG_COMPOUND));
         return new StructureSnapshot(id, seed, terrain, origin, size, palette, positions, states, blockEntities, entities, pieces);
+    }
+
+    /** Where a block comes counting through its structure's box a row at a time and a layer at a time. */
+    private static long cellIndex(Vec3i size, int packed) {
+        return ((long) StructureSnapshot.unpackY(packed) * size.getZ() + StructureSnapshot.unpackZ(packed)) * size.getX()
+                + StructureSnapshot.unpackX(packed);
+    }
+
+    private static int packedPosition(Vec3i size, long cell) {
+        int x = (int) (cell % size.getX());
+        long rest = cell / size.getX();
+        return StructureSnapshot.pack(x, (int) (rest / size.getZ()), (int) (rest % size.getZ()));
+    }
+
+    /** A step that can go backwards, as a small number either way: 0, -1, 1, -2, 2 become 0, 1, 2, 3, 4. */
+    private static long zigzag(long step) {
+        return (step << 1) ^ (step >> 63);
+    }
+
+    private static long unzigzag(long stored) {
+        return (stored >>> 1) ^ -(stored & 1);
     }
 
     // ------------------------------------------------------------------ loot

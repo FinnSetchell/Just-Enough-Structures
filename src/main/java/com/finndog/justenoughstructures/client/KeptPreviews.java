@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.JesNetwork;
 import com.google.common.hash.Hashing;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,8 +33,8 @@ import net.minecraft.resources.ResourceLocation;
  * it has changed, the new one takes the old one's place. So is the lighter copy its list picture is
  * drawn from, so the picture can be drawn again, at a new GUI scale or with other resource packs,
  * without asking the server at all, for as long as the server has that version of the structure. Each
- * server's are kept in a folder named after its fingerprint, and only the few most recently used
- * folders are kept.
+ * server's are kept in a folder named after its fingerprint and the way structures are sent, and only
+ * the few most recently used folders are kept.
  */
 public final class KeptPreviews {
     private static final int KEPT_FOLDERS = 3;
@@ -69,7 +70,8 @@ public final class KeptPreviews {
      * or keeps none, without a fingerprint or with {@code keep} false.
      */
     public static void use(String fingerprint, boolean keep) {
-        Path dir = fingerprint == null || !keep ? null : root().resolve(name(fingerprint));
+        // A version of the mod that sends structures another way starts afresh, though its fingerprint may be the same.
+        Path dir = fingerprint == null || !keep ? null : root().resolve(name(fingerprint + "|" + JesNetwork.PROTOCOL));
         int now;
         synchronized (LOCK) {
             if (Objects.equals(dir, wanted)) {
