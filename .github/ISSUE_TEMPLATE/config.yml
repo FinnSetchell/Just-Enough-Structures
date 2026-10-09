@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord server
+    url: https://moogsmods.com/discord?r=github-jes
+    about: The best and fastest way to get replies. For questions and help, please use Discord rather than opening an issue.
+  - name: Ko-fi
+    url: https://ko-fi.com/finndog
+    about: Support development with a one-time tip or monthly subscription.

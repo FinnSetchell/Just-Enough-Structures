@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest something new for the browser or Pack tools, or a mod for it to work with.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an idea! All feedback is appreciated. Describe your idea below and I'll take a look.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's your idea?
+      description: A clear, short description of what you'd like added or changed.
+      placeholder: "It would be great if the browser could..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why?
+      description: What would it help with, or what's missing without it?
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Examples or screenshots
+      description: Pictures, links, or other mods that do something like it.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I've searched existing issues for similar suggestions.
+          required: true
+        - label: This is a feature request, not a bug report.
+          required: true

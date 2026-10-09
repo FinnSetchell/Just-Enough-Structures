@@ -1,0 +1,104 @@
+name: Bug report
+description: The browser shows something wrong, the game crashes, or something else is broken.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out as much of this as you can. It makes finding the problem much faster.
+
+  - type: input
+    id: mc-version
+    attributes:
+      label: Minecraft version
+      description: e.g. 1.20.1, 1.21.1, 26.3
+      placeholder: "1.21.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: loader
+    attributes:
+      label: Mod loader
+      options:
+        - Fabric
+        - Forge
+        - NeoForge
+    validations:
+      required: true
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Just Enough Structures version
+      description: Find it in the mod's filename or your mods list.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - Singleplayer
+        - On a server
+        - Both
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots help a lot.
+    validations:
+      required: true
+
+  - type: input
+    id: structure
+    attributes:
+      label: Structure
+      description: If it happens with one structure, which one. The browser shows its id with advanced tooltips on (F3+H).
+      placeholder: "minecraft:ancient_city"
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: A numbered list of steps. The more specific, the better.
+      placeholder: |
+        1. Open the browser with K
+        2. Pick the ancient city
+        3. Open the Loot tab
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Crash report or log
+      description: Upload your `latest.log` or crash report to https://mclo.gs and paste the link here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other installed mods
+      description: The modpack and its version, or the mods that might matter, structure, worldgen and loot mods especially.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I've searched existing issues for this bug.
+          required: true
+        - label: I'm running the latest version of Just Enough Structures for my Minecraft version.
+          required: true
