@@ -262,14 +262,16 @@ loom {
         }
         // Starts a dedicated server, times a build of every structure, then lets crowds of simulated
         // players use the browser and writes how the server held up to build/loadtest/report.md
-        // before stopping. -Pplayers=30,60,100 picks the crowds and -Pminutes=3 how long each browses.
+        // before stopping. -Pplayers=30,60,100 picks the crowds, -Pminutes=3 how long each browses and
+        // -Pheap=8G the server's memory.
         // Like any dev server it needs an accepted eula.txt in build/loadtest.
         register("loadTest") {
             server()
             configName = "Fabric Load Test"
             source(gametest)
             runDir("build/loadtest")
-            vmArg("-Xmx4G")
+            // A big modpack's server needs more than the 4 GB the first runs had: the dev mods take 3 of it.
+            vmArg("-Xmx${findProperty("heap") ?: "8G"}")
             vmArg("-Djes.loadtest=${findProperty("players") ?: "30,60,100"}")
             vmArg("-Djes.loadtest.minutes=${findProperty("minutes") ?: 3}")
             programArgs("nogui")

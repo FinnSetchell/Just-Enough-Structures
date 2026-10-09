@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
+import com.finndog.justenoughstructures.server.SavedPreviews;
 import com.mojang.authlib.GameProfile;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -39,6 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.entity.FakePlayer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -105,6 +107,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
         try {
             say("Waiting for the loot index");
             waitForIndex();
+            report.saved = waitForSavedPreviews();
             RECORDER.install(server);
             report.survey = buildEveryStructure(server);
             report.odds = rollEveryTable(server, report.survey);
@@ -153,6 +156,56 @@ public final class LoadTest implements DedicatedServerModInitializer {
                 said = System.nanoTime();
             }
             Thread.sleep(1000);
+        }
+    }
+
+    /** Waits for every first view to be saved, then says how many there are, how much room they take and how long they took. */
+    private static String waitForSavedPreviews() throws InterruptedException {
+        long started = System.nanoTime();
+        long count = -1;
+        long changed = started;
+        while (true) {
+            Path dir = SavedPreviews.current();
+            long now = System.nanoTime();
+            if (dir == null) {
+                if (now - started > seconds(60)) {
+                    return "not in use";
+                }
+            } else {
+                long files = savedFiles(dir).count();
+                if (files != count) {
+                    count = files;
+                    changed = now;
+                    say("Saved first views: " + files);
+                } else if (now - changed > seconds(10) && !filling()) {
+                    long bytes = savedFiles(dir).mapToLong(file -> file.toFile().length()).sum();
+                    return String.format(Locale.ROOT, "%d, taking %.1f MB, all saved %d s after the loot index was ready",
+                            count, bytes / 1048576.0, (changed - started) / 1_000_000_000L);
+                }
+            }
+            Thread.sleep(2000);
+        }
+    }
+
+    /** Whether the thread that fills in the saved first views is making one, rather than waiting for work. */
+    private static boolean filling() {
+        for (Map.Entry<Thread, StackTraceElement[]> thread : Thread.getAllStackTraces().entrySet()) {
+            if (thread.getKey().getName().equals("Just Enough Structures filling saved previews")) {
+                for (StackTraceElement frame : thread.getValue()) {
+                    if (frame.getClassName().startsWith("com.finndog.justenoughstructures")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static Stream<Path> savedFiles(Path dir) {
+        try (Stream<Path> files = Files.list(dir)) {
+            return files.filter(file -> file.toString().endsWith(".bin")).toList().stream();
+        } catch (IOException e) {
+            return Stream.empty();
         }
     }
 
@@ -675,6 +728,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
     private static final class Report {
         final MinecraftServer server;
         final String crowds;
+        String saved = "not in use";
         List<Built> survey = List.of();
         List<Rolled> odds = List.of();
         final List<Phase> phases = new ArrayList<>();
@@ -697,6 +751,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
                     .append(System.getProperty("os.name")).append(", Java ").append(System.getProperty("java.version")).append('\n');
             md.append("- Crowds: ").append(crowds).append(", each browsing for ").append(System.getProperty("jes.loadtest.minutes", "3"))
                     .append(" minutes\n");
+            md.append("- Saved first views: ").append(saved).append('\n');
             if (failure != null) {
                 md.append("\n**The test stopped early:** ").append(failure).append("\n");
             }
