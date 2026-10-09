@@ -1,27 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### Added
-- Trial spawners show on the Mobs tab, with the mobs they spawn and what they spawn once ominous
-- Pack tools can give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
-- The Loot tab shows what's in vaults and what trial spawners drop when beaten, like trial keys, and item search finds them too
-- The mod has its own icon in mod lists
-
-### Fixed
-- More structures can be previewed, like Better End's End City, Supplementaries' galleon, Mowzie's Mobs' monastery and umvuthana grove, Ice and Fire's dragon caves, the Undergarden's catacombs and camps, Formations Nether's structures, and Twilight Forest's troll cave on 1.20.1
-- The structure you click on no longer waits behind a big one being built for the list's pictures or for item search
-- Structures from mods' own dimensions, like the Twilight Forest, now say the right dimension on the Info tab, and finding one names it properly
-- A structure too big for the memory left now says so, rather than that it found nowhere to generate, and can still generate in your world later
-- Item search's list no longer jumps around while it works out each structure's chance
-- Small grey text is easier to read at bigger GUI scales
-- Loot table edits that use another mod's enchantments or the like now work as soon as the world loads
-- Bees and other mobs now show in previews with C2ME installed
-- A broken block or mob from another mod no longer crashes the game from the browser; it's left out of the preview
-- List pictures now update when a mod or datapack changes a structure, and one the server couldn't make for a moment is tried again
-- Item search no longer misses structures that couldn't be generated while the server was short on memory
-- An older Explorer's Compass no longer crashes the game; the compass button turns off instead
-
 ## [0.1.0] - Unreleased
 
 First release.
@@ -46,6 +24,7 @@ First release.
   - Rare items stand out, and hovering an item shows how many usually come and from which containers
   - Loot tables the structure uses in its other layouts open in a popup of their own
   - Enchantments and potions an item can come with are listed too
+  - It also shows what's in vaults and what trial spawners drop when beaten, like trial keys, and item search finds them too
 - Search for an item to find the structures whose loot can give it, with the best chance first
   - Item search finds loot in every piece a structure can have
 - The Blocks tab is a material list you can copy
@@ -55,6 +34,7 @@ First release.
 - Click a spawner to see every mob it can spawn, each one's chance and how often it spawns, with arrows to the other spawners like it
 - The Mobs tab shows what a structure places, its spawners and what keeps spawning there
   - Spawners that get a random mob list every mob they could have, with each one's chance
+  - Trial spawners show the mobs they spawn, and what they spawn once ominous
   - Things that aren't mobs, like item frames, armor stands and minecarts, show their item, modded ones included
 - With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, even in another dimension, and Ctrl-clicking it takes you there
 - The list fills in with small pictures of each structure as you scroll
@@ -78,6 +58,7 @@ First release.
   - When a mod updates a table you've edited, you can see what changed, merge it in, keep yours, or switch to the mod's
   - Pick a chest in the browser to switch it to a different loot table, or a brand new one, and undo it later
   - Pick a spawner in the browser to give it a different mob, including modded ones, or leave it empty, and undo it later
+  - Give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
   - Hide structures or whole mods, keep where a structure's loot is a secret, and write notes for players on its Info tab
   - Choose who can locate, teleport and use Pack tools, and what players see, without leaving the game
   - It's there in singleplayer with cheats on, and on a server for players given its permission, listed by name, or with a permission level
