@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -93,18 +94,14 @@ public final class ClientRequests {
     /** Forget everything tied to the current connection. */
     public static void reset() {
         catalog = null;
-        CAPTURES.values().forEach(f -> f.cancel(false));
-        LOOT.values().forEach(f -> f.cancel(false));
-        ODDS.values().forEach(f -> f.cancel(false));
-        CAPTURES.clear();
+        cancelAll(CAPTURES);
         KEEPING.clear();
-        LOOT.clear();
-        ODDS.clear();
+        cancelAll(LOOT);
+        cancelAll(ODDS);
         ODDS_WAITING.forEach(e -> e.getValue().cancel(false));
         ODDS_WAITING.clear();
         ODDS_BY_TABLE.clear();
-        LOCATES.values().forEach(f -> f.cancel(false));
-        LOCATES.clear();
+        cancelAll(LOCATES);
         TRANSFERS.clear();
         Thumbnails.clear();
         KeptPreviews.use(null, false);
@@ -121,10 +118,8 @@ public final class ClientRequests {
         compassSearch = false;
         packTools = false;
         overrides = Map.of();
-        TABLES.values().forEach(f -> f.cancel(false));
-        TABLES.clear();
-        EDITS.values().forEach(f -> f.cancel(false));
-        EDITS.clear();
+        cancelAll(TABLES);
+        cancelAll(EDITS);
         if (tools != null) {
             tools.cancel(false);
         }
@@ -170,15 +165,10 @@ public final class ClientRequests {
     }
 
     private static CompletableFuture<EditReply> toolsAction(int action, Consumer<FriendlyByteBuf> payload) {
-        int requestId = nextRequestId++;
-        CompletableFuture<EditReply> future = new CompletableFuture<>();
-        EDITS.put(requestId, future);
-        send(JesNetwork.TOOLS_ACTION, buf -> {
-            buf.writeVarInt(requestId);
+        return ask(EDITS, JesNetwork.TOOLS_ACTION, buf -> {
             buf.writeVarInt(action);
             payload.accept(buf);
         });
-        return future;
     }
 
     /** How many times the list of structures has changed since joining, after a /reload or Pack tools, so the browser knows to ask again. */
@@ -223,14 +213,7 @@ public final class ClientRequests {
 
     /** A loot table for the editor: as it is now, as the mods have it, and whether it's overridden. */
     public static CompletableFuture<Codecs.TableReply> table(ResourceLocation id) {
-        int requestId = nextRequestId++;
-        CompletableFuture<Codecs.TableReply> future = new CompletableFuture<>();
-        TABLES.put(requestId, future);
-        send(JesNetwork.REQUEST_TABLE, buf -> {
-            buf.writeVarInt(requestId);
-            buf.writeResourceLocation(id);
-        });
-        return future;
+        return ask(TABLES, JesNetwork.REQUEST_TABLE, buf -> buf.writeResourceLocation(id));
     }
 
     /** Rolls an edit that isn't saved yet. */
@@ -245,24 +228,15 @@ public final class ClientRequests {
 
     /** Keeps an override whose original changed, or turns one off. */
     public static CompletableFuture<EditReply> tableAction(ResourceLocation id, int action) {
-        int requestId = nextRequestId++;
-        CompletableFuture<EditReply> future = new CompletableFuture<>();
-        EDITS.put(requestId, future);
-        send(JesNetwork.TABLE_ACTION, buf -> {
-            buf.writeVarInt(requestId);
+        return ask(EDITS, JesNetwork.TABLE_ACTION, buf -> {
             buf.writeResourceLocation(id);
             buf.writeVarInt(action);
         });
-        return future;
     }
 
     /** Points a container in a template at another loot table, or with a null table, back at its own. */
     public static CompletableFuture<EditReply> containerAction(ResourceLocation template, BlockPos pos, ResourceLocation table) {
-        int requestId = nextRequestId++;
-        CompletableFuture<EditReply> future = new CompletableFuture<>();
-        EDITS.put(requestId, future);
-        send(JesNetwork.CONTAINER_ACTION, buf -> {
-            buf.writeVarInt(requestId);
+        return ask(EDITS, JesNetwork.CONTAINER_ACTION, buf -> {
             buf.writeResourceLocation(template);
             buf.writeBlockPos(pos);
             buf.writeBoolean(table != null);
@@ -270,7 +244,6 @@ public final class ClientRequests {
                 buf.writeResourceLocation(table);
             }
         });
-        return future;
     }
 
     /** Takes a spawner in a template back to how it was. */
@@ -283,11 +256,7 @@ public final class ClientRequests {
      * or a trial spawner. With a null mob, it goes back to how it was.
      */
     public static CompletableFuture<EditReply> spawnerAction(ResourceLocation template, BlockPos pos, String mob, ResourceLocation block) {
-        int requestId = nextRequestId++;
-        CompletableFuture<EditReply> future = new CompletableFuture<>();
-        EDITS.put(requestId, future);
-        send(JesNetwork.SPAWNER_ACTION, buf -> {
-            buf.writeVarInt(requestId);
+        return ask(EDITS, JesNetwork.SPAWNER_ACTION, buf -> {
             buf.writeResourceLocation(template);
             buf.writeBlockPos(pos);
             buf.writeBoolean(mob != null);
@@ -296,24 +265,15 @@ public final class ClientRequests {
                 buf.writeResourceLocation(block);
             }
         });
-        return future;
     }
 
     /** Fills a container of {@code size} slots from an edit that isn't saved yet, as {@link #loot} does from a saved table. */
     public static CompletableFuture<List<ItemStack>> draftRoll(ResourceLocation id, String json, long seed, int size) {
-        int requestId = nextRequestId++;
-        CompletableFuture<List<ItemStack>> future = new CompletableFuture<>();
-        LOOT.put(requestId, future);
-        sendUpload(JesNetwork.KIND_DRAFT_ROLL, requestId, buf -> Codecs.writeDraftRoll(buf, id, json, seed, size));
-        return future;
+        return ask(LOOT, requestId -> sendUpload(JesNetwork.KIND_DRAFT_ROLL, requestId, buf -> Codecs.writeDraftRoll(buf, id, json, seed, size)));
     }
 
     private static CompletableFuture<EditReply> upload(int kind, ResourceLocation id, String json) {
-        int requestId = nextRequestId++;
-        CompletableFuture<EditReply> future = new CompletableFuture<>();
-        EDITS.put(requestId, future);
-        sendUpload(kind, requestId, buf -> Codecs.writeDraft(buf, id, json));
-        return future;
+        return ask(EDITS, requestId -> sendUpload(kind, requestId, buf -> Codecs.writeDraft(buf, id, json)));
     }
 
     /** Something bigger than one packet, sent in parts. */
@@ -328,10 +288,7 @@ public final class ClientRequests {
     }
 
     public static void onEditReply(int requestId, Component message, LootOdds odds) {
-        CompletableFuture<EditReply> future = EDITS.remove(requestId);
-        if (future != null) {
-            future.complete(new EditReply(message, odds));
-        }
+        answer(EDITS, requestId, new EditReply(message, odds));
     }
 
     /** Whether the server can set a held structure compass searching. */
@@ -341,14 +298,7 @@ public final class ClientRequests {
 
     /** Asks the server to set the held compass searching for the structure. Answers like a locate. */
     public static CompletableFuture<Component> pointCompass(ResourceLocation structure) {
-        int id = nextRequestId++;
-        CompletableFuture<Component> future = new CompletableFuture<>();
-        LOCATES.put(id, future);
-        send(JesNetwork.REQUEST_COMPASS, buf -> {
-            buf.writeVarInt(id);
-            buf.writeResourceLocation(structure);
-        });
-        return future;
+        return ask(LOCATES, JesNetwork.REQUEST_COMPASS, buf -> buf.writeResourceLocation(structure));
     }
 
     public static boolean canLocate() {
@@ -435,18 +385,16 @@ public final class ClientRequests {
      * it's changed.
      */
     public static CompletableFuture<Codecs.CaptureReply> capture(ResourceLocation structure, long seed, boolean preview) {
-        int id = nextRequestId++;
-        CompletableFuture<Codecs.CaptureReply> future = new CompletableFuture<>();
-        CAPTURES.put(id, future);
-        long kept = 0;
-        if (seed == StructureCapture.defaultSeed(structure) && KeptPreviews.inUse()) {
-            KEEPING.put(id, new Keeping(structure, KeptPreviews.version(structure), !preview));
-            if (preview) {
-                kept = KeptPreviews.kept(structure);
+        return ask(CAPTURES, id -> {
+            long kept = 0;
+            if (seed == StructureCapture.defaultSeed(structure) && KeptPreviews.inUse()) {
+                KEEPING.put(id, new Keeping(structure, KeptPreviews.version(structure), !preview));
+                if (preview) {
+                    kept = KeptPreviews.kept(structure);
+                }
             }
-        }
-        requestCapture(id, structure, seed, preview, kept);
-        return future;
+            requestCapture(id, structure, seed, preview, kept);
+        });
     }
 
     /**
@@ -491,36 +439,23 @@ public final class ClientRequests {
     }
 
     public static CompletableFuture<List<ItemStack>> loot(ResourceLocation table, long seed, int size) {
-        int id = nextRequestId++;
-        CompletableFuture<List<ItemStack>> future = new CompletableFuture<>();
-        LOOT.put(id, future);
-        send(JesNetwork.REQUEST_LOOT, buf -> {
-            buf.writeVarInt(id);
+        return ask(LOOT, JesNetwork.REQUEST_LOOT, buf -> {
             buf.writeResourceLocation(table);
             buf.writeLong(seed);
             buf.writeVarInt(size);
         });
-        return future;
     }
 
     /** Finds the nearest one, and with {@code teleport} also takes the player there. */
     public static CompletableFuture<Component> locate(ResourceLocation structure, boolean teleport) {
-        int id = nextRequestId++;
-        CompletableFuture<Component> future = new CompletableFuture<>();
-        LOCATES.put(id, future);
-        send(JesNetwork.REQUEST_LOCATE, buf -> {
-            buf.writeVarInt(id);
+        return ask(LOCATES, JesNetwork.REQUEST_LOCATE, buf -> {
             buf.writeResourceLocation(structure);
             buf.writeBoolean(teleport);
         });
-        return future;
     }
 
     public static void onLocate(int requestId, Component reply) {
-        CompletableFuture<Component> future = LOCATES.remove(requestId);
-        if (future != null) {
-            future.complete(reply);
-        }
+        answer(LOCATES, requestId, reply);
     }
 
     /** Odds for a loot table, asked for once per connection and shared by everything that wants them. */
@@ -750,17 +685,11 @@ public final class ClientRequests {
     }
 
     public static void onLoot(int requestId, List<ItemStack> items) {
-        CompletableFuture<List<ItemStack>> future = LOOT.remove(requestId);
-        if (future != null) {
-            future.complete(items);
-        }
+        answer(LOOT, requestId, items);
     }
 
     public static void onOdds(int requestId, LootOdds odds) {
-        CompletableFuture<LootOdds> future = ODDS.remove(requestId);
-        if (future != null) {
-            future.complete(odds);
-        }
+        answer(ODDS, requestId, odds);
         sendWaitingOdds();
     }
 
@@ -768,6 +697,40 @@ public final class ClientRequests {
     private static RegistryAccess registries() {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         return connection != null ? connection.registryAccess() : RegistryAccess.EMPTY;
+    }
+
+    /**
+     * Starts a request whose answer comes back with its id, which {@code send} sends: the future that
+     * answer completes, kept in {@code waiting} till then.
+     */
+    private static <T> CompletableFuture<T> ask(Map<Integer, CompletableFuture<T>> waiting, IntConsumer send) {
+        int requestId = nextRequestId++;
+        CompletableFuture<T> future = new CompletableFuture<>();
+        waiting.put(requestId, future);
+        send.accept(requestId);
+        return future;
+    }
+
+    /** The same, sent on {@code channel} as the request's id and then {@code payload}. */
+    private static <T> CompletableFuture<T> ask(Map<Integer, CompletableFuture<T>> waiting, ResourceLocation channel, Consumer<FriendlyByteBuf> payload) {
+        return ask(waiting, requestId -> send(channel, buf -> {
+            buf.writeVarInt(requestId);
+            payload.accept(buf);
+        }));
+    }
+
+    /** Completes the request with this id, if it's still waiting. */
+    private static <T> void answer(Map<Integer, CompletableFuture<T>> waiting, int requestId, T reply) {
+        CompletableFuture<T> future = waiting.remove(requestId);
+        if (future != null) {
+            future.complete(reply);
+        }
+    }
+
+    /** Gives up on every request still waiting in {@code waiting}. */
+    private static void cancelAll(Map<Integer, ? extends CompletableFuture<?>> waiting) {
+        waiting.values().forEach(future -> future.cancel(false));
+        waiting.clear();
     }
 
     private static void send(ResourceLocation channel, Consumer<FriendlyByteBuf> writer) {
