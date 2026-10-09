@@ -339,7 +339,7 @@ final class ToolsLoot extends ToolsSection {
         }
         cy += (used.isEmpty() ? 0 : ui.chipHeight()) + 6;
 
-        Gui.band(g, font, Component.translatable("screen.justenoughstructures.tools.chance_each").getString(), x, cy, w, 13);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, cy, w, 13);
         cy += 15;
         if (!table.equals(oddsFor)) {
             oddsFor = table;
@@ -357,7 +357,7 @@ final class ToolsLoot extends ToolsSection {
             Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, oy + 2, Gui.LABEL_SOFT);
             oy += 14;
         } else if (odds.rows().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.gives_nothing").getString(), x + 2, oy + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.always_empty").getString(), x + 2, oy + 2, Gui.LABEL_SOFT);
             oy += 14;
         } else {
             List<LootOdds.Row> rows = OddsList.sorted(odds, false);

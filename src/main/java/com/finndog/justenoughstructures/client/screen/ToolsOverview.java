@@ -148,7 +148,7 @@ final class ToolsOverview extends ToolsSection {
         List<RowButton> buttons = List.of(
                 RowButton.of("tools.open", () -> screen.go(PackToolsScreen.Section.SPAWNERS, ToolsSpawners.SpawnerRef.of(patch))),
                 new RowButton(Component.translatable("screen.justenoughstructures.container.undo"), () -> screen.undoSpawner(patch.template(), patch.pos()),
-                        Component.translatable("screen.justenoughstructures.spawner.undo_hint")));
+                        Component.translatable("screen.justenoughstructures.container.undo_hint")));
         return row(g, ui, x, y, w, Icon.item(ToolsSpawners.mobIcon(patch.mob())), name,
                 waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.CHANGED,
                 ToolsSpawners.changed(patch), buttons, null, 0, false);

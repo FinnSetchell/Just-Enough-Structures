@@ -1224,14 +1224,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Every item's chance in a container, from rolling the edit as it stands. */
     private void renderOdds(GuiGraphics g) {
         int x = oddsX;
-        Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.preview").getString(), x, contentTop, oddsW, 13);
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
             Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, BAD);
             return;
         }
         if (preview == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.editor.rolling").getString(), x + 2, top + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, top + 2, Gui.LABEL_SOFT);
             return;
         }
         int start = oddsScroll.begin(g, ui, x, top, oddsW, contentBottom - top);
@@ -1257,7 +1257,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             y += 20;
         }
         if (previewing) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.editor.rolling").getString(), x + 2, y + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, y + 2, Gui.LABEL_SOFT);
             y += 12;
         }
         oddsScroll.end(g, ui, y - start);

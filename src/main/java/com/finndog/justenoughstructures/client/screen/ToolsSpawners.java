@@ -292,7 +292,7 @@ final class ToolsSpawners extends ToolsSection {
             int barH = ui.status(g, changed, x, cy, w - undoW - 4, 2);
             g.fill(x + w - undoW - 4, cy, x + w, cy + barH, 0xFFF1DCAE);
             ui.button(g, undo, x + w - undoW - 2, cy + (barH - ToolsUi.BUTTON) / 2, true, () -> screen.undoSpawner(patch.template(), patch.pos()),
-                    Component.translatable("screen.justenoughstructures.spawner.undo_hint"));
+                    Component.translatable("screen.justenoughstructures.container.undo_hint"));
             cy += Math.max(barH, ToolsUi.BUTTON) + 3;
         } else if (ref.structure() != null && waitingUndo(ref)) {
             cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.spawner_undone_next"), x, cy, w, 2) + 3;

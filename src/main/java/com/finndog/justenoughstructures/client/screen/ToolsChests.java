@@ -177,7 +177,7 @@ final class ToolsChests extends ToolsSection {
             String name = Component.translatable("screen.justenoughstructures.tools.chest_name", StructureNames.structure(selected.structure()),
                     selected.title()).getString();
             cy += row(g, ui, x + 1, cy, rw, Icon.item(icon(selected.block())), name, null, 0,
-                    selected.table() == null ? Component.translatable("screen.justenoughstructures.popup_saved_items").getString()
+                    selected.table() == null ? Component.translatable("screen.justenoughstructures.prefilled").getString()
                             : StructureNames.lootTable(selected.table()), List.of(), null, 0, true) + 4;
         }
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.changed_chests").getString(), x + 4, cy, Gui.LABEL_SOFT);
@@ -257,7 +257,7 @@ final class ToolsChests extends ToolsSection {
         }
         cy += row(g, ui, x, cy, w, Icon.item(CHEST), table == null ? Component.translatable("screen.justenoughstructures.tools.no_table").getString()
                         : StructureNames.lootTable(table), editedMark(status), status == null ? 0 : markColour(status),
-                table == null ? Component.translatable("screen.justenoughstructures.popup_saved_items").getString() : table, buttons, null, 0, false) + 2;
+                table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : table, buttons, null, 0, false) + 2;
 
         if (patch != null) {
             boolean waiting = screen.waiting(PackToolsState.chestKey(patch.template(), patch.pos()));
