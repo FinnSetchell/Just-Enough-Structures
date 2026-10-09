@@ -172,15 +172,16 @@ public final class LoadTest implements DedicatedServerModInitializer {
                     return "not in use";
                 }
             } else {
-                long files = savedFiles(dir).count();
+                long files = savedFiles(dir).filter(file -> !file.toString().endsWith(".picture.bin")).count();
                 if (files != count) {
                     count = files;
                     changed = now;
                     say("Saved first views: " + files);
                 } else if (now - changed > seconds(10) && !filling()) {
                     long bytes = savedFiles(dir).mapToLong(file -> file.toFile().length()).sum();
-                    return String.format(Locale.ROOT, "%d, taking %.1f MB, all saved %d s after the loot index was ready",
-                            count, bytes / 1048576.0, (changed - started) / 1_000_000_000L);
+                    long pictures = savedFiles(dir).filter(file -> file.toString().endsWith(".picture.bin")).mapToLong(file -> file.toFile().length()).sum();
+                    return String.format(Locale.ROOT, "%d, taking %.1f MB with their list pictures (%.1f MB of it), all saved %d s after the loot index was ready",
+                            count, bytes / 1048576.0, pictures / 1048576.0, (changed - started) / 1_000_000_000L);
                 }
             }
             Thread.sleep(2000);
