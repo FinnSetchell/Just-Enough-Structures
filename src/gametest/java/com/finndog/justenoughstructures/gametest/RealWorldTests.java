@@ -138,8 +138,9 @@ public final class RealWorldTests {
     /** Whether work handed to the server comes back, giving up after a while. */
     private static boolean cameBack(CompletableFuture<Boolean> work) {
         try {
-            // Long enough for a server held up by other tests' captures.
-            return Boolean.TRUE.equals(work.get(30, TimeUnit.SECONDS));
+            // Long enough for a server held up by other tests' captures, which on a busy machine has
+            // been over half a minute.
+            return Boolean.TRUE.equals(work.get(3, TimeUnit.MINUTES));
         } catch (ExecutionException | TimeoutException e) {
             return false;
         } catch (InterruptedException e) {
