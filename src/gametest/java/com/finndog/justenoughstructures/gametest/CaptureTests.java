@@ -355,6 +355,9 @@ public final class CaptureTests {
      */
     public static void worldRandomIsTheCapturesWhilePlacing(GameTestHelper helper) {
         Thread serverThread = Thread.currentThread();
+        // One that isn't a world's is left alone: every world draws from its own as it's made, before
+        // anything has marked it.
+        new CheckedThreadLocalRandom(2L, () -> serverThread).nextInt();
         CheckedThreadLocalRandom c2me = new CheckedThreadLocalRandom(1L, () -> serverThread);
         ((LevelRandom) c2me).justenoughstructures$markLevelRandom();
         ExecutorService pool = Executors.newSingleThreadExecutor();
