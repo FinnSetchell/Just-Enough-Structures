@@ -43,6 +43,7 @@ First release.
 - Text cut short to fit shows in full when you hover over it
 - Every screen fits small and very large windows at any GUI scale
 - With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
+- In Mod Menu, JES links to its Discord, CurseForge and Modrinth pages, and tells you when there's an update
 - Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
 - With JEI, EMI or REI installed, looking up how to get an item also lists the structures it's found in, and clicking one opens it in the browser
 - With Explorer's Compass installed, you can jump between the compass and the browser
@@ -52,6 +53,10 @@ First release.
   - The Info tab shows what the compass in your hand has found
 - Item search and the Found in structures pages are ready straight away after the first time, as the loot scan is saved and only redone when mods or datapacks change
 - The structure list keeps its pictures between sessions
+- Each structure's first preview is saved once it's made, so it opens straight away for everyone, even after a restart
+  - A server makes them all in the background, so they're ready before anyone asks
+  - Your game keeps the ones a server sends you, so they aren't downloaded again unless the structure changes
+  - The list's pictures are kept the same way, so changing GUI scale or resource packs redraws them without downloading anything
 - Pack tools, from a button beside the details' tabs, keeps everything a modpack maker or server owner changes in one place
   - Edit any loot table in a form for every pool, entry, function and condition, with every box listing what it can be set to as you type, and see one possible roll and every item's chance as you go
   - Edits are saved to the config folder and used from the next /reload, so they ship with a modpack, and Reload now puts everything waiting in use
