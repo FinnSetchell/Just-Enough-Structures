@@ -17,6 +17,7 @@
     "ServerLevelMixin",
     "SinglePoolElementAccessor",
     "StructureTemplateAccessor",
+    "StructureTemplateManagerAccessor",
     "StructureTemplateManagerMixin",
     "StructureTemplateMixin",
     "StructureTemplatePaletteMixin",

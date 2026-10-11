@@ -5,15 +5,18 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.LevelRandom;
+import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.mixin.StructureTemplateManagerAccessor;
 import com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -41,8 +44,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.StructureBlockEntity;
+import net.minecraft.world.level.block.state.properties.StructureMode;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -435,6 +442,167 @@ public final class CaptureTests {
             }
         }
         return null;
+    }
+
+    /**
+     * The game holds on to every saved piece it loads, for as long as the world is open. Captures
+     * load every piece of every structure in time, so once those come to more than there's room for,
+     * the game is made to forget the oldest again. With no room at all, a capture leaves nothing
+     * behind. With the usual room, a previewed structure's pieces are still there for its next layout.
+     */
+    public static void capturesLeaveFewPiecesLoaded(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Map<ResourceLocation, ?> loaded = ((StructureTemplateManagerAccessor) server.getStructureManager()).justenoughstructures$loaded();
+        ResourceLocation outpost = Ids.parse("pillager_outpost");
+        // The loot index captures too, and can load an outpost piece between a capture here ending and
+        // its pieces being counted. That can't happen three times running.
+        String problem = "never ran";
+        for (int attempt = 0; attempt < 3; attempt++) {
+            long usual = LoadedPieces.leaveLoaded(0);
+            long afterBackground;
+            CaptureResult background;
+            try {
+                // The outpost pieces other tests loaded themselves are the game's to keep, so they go first.
+                loaded.keySet().removeIf(CaptureTests::ofTheOutpost);
+                background = StructureCapture.captureInBackground(server, outpost, SEED);
+                afterBackground = loaded.keySet().stream().filter(CaptureTests::ofTheOutpost).count();
+            } finally {
+                LoadedPieces.leaveLoaded(usual);
+            }
+            if (background == null || !background.succeeded()) {
+                problem = "the outpost didn't capture in the background";
+                continue;
+            }
+            if (afterBackground > 0) {
+                problem = afterBackground + " outpost pieces were still loaded after a capture with no room to leave any";
+                continue;
+            }
+            StructureCapture.capture(server, outpost, SEED);
+            if (loaded.keySet().stream().noneMatch(CaptureTests::ofTheOutpost)) {
+                problem = "the previewed outpost's pieces weren't kept for its next layout";
+                continue;
+            }
+            helper.succeed();
+            return;
+        }
+        helper.fail(problem);
+    }
+
+    private static boolean ofTheOutpost(ResourceLocation piece) {
+        return piece.getPath().startsWith("pillager_outpost/");
+    }
+
+    /**
+     * A structure block set off by redstone saves over a piece in memory alone, with nothing written
+     * to disk. That one is the player's work, so it stays however little room there is, where the
+     * same piece untouched is forgotten.
+     */
+    public static void piecesSavedOverStayLoaded(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        StructureTemplateManager templates = server.getStructureManager();
+        Map<ResourceLocation, Optional<StructureTemplate>> loaded = ((StructureTemplateManagerAccessor) templates).justenoughstructures$loaded();
+        // A piece no structure is built from, so no capture going on beside this wants it.
+        ResourceLocation piece = Ids.parse("fossil/skull_1");
+        BlockPos at = helper.absolutePos(new BlockPos(0, 1, 0));
+        String problem = null;
+        long usual = LoadedPieces.leaveLoaded(0);
+        try {
+            templates.remove(piece);
+            LoadedPieces.during(server, () -> templates.get(piece));
+            if (loaded.containsKey(piece)) {
+                problem = "a piece loaded for this mod was still held with no room to leave any";
+            }
+            LoadedPieces.leaveLoaded(usual);
+            StructureTemplate asLoaded = LoadedPieces.during(server, () -> templates.get(piece)).orElse(null);
+            if (problem == null && (asLoaded == null || !loaded.containsKey(piece))) {
+                problem = "the piece wasn't loaded and kept with room for it";
+            }
+            level.setBlockAndUpdate(at, Blocks.STRUCTURE_BLOCK.defaultBlockState());
+            if (problem == null && level.getBlockEntity(at) instanceof StructureBlockEntity block) {
+                block.setMode(StructureMode.SAVE);
+                block.setStructureName(piece);
+                block.setStructureSize(new Vec3i(1, 1, 1));
+                // As redstone does it: into memory, and not to disk.
+                if (!block.saveStructure(false)) {
+                    problem = "the structure block didn't save over the piece";
+                }
+            } else if (problem == null) {
+                problem = "no structure block to save with";
+            }
+            LoadedPieces.leaveLoaded(0);
+            LoadedPieces.during(server, () -> null);
+            Optional<StructureTemplate> now = loaded.get(piece);
+            if (problem == null && (now == null || now.orElse(null) != asLoaded || !new Vec3i(1, 1, 1).equals(asLoaded.getSize()))) {
+                problem = "a piece a structure block had saved over in memory was forgotten";
+            }
+        } finally {
+            LoadedPieces.leaveLoaded(usual);
+            // The real one is loaded again the next time anything wants it.
+            templates.remove(piece);
+            level.setBlockAndUpdate(at, Blocks.AIR.defaultBlockState());
+        }
+        if (problem != null) {
+            helper.fail(problem);
+            return;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The game keeps its pieces locked while it loads one, and a piece loaded for this mod is noted
+     * as it loads. So nothing may be forgotten with the notes held: a capture ending just as the loot
+     * index loads a piece would have each waiting on the other, and the server stopped for good. Here
+     * one thread is stopped in the middle of loading a piece while another lets go of that same one.
+     */
+    public static void forgettingDoesntWaitOnALoad(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureTemplateManager templates = server.getStructureManager();
+        ResourceLocation piece = Ids.parse("fossil/skull_2");
+        // Noted as loaded for this mod, then taken from the game, so the next to want it loads it again.
+        templates.remove(piece);
+        StructureTemplate first = LoadedPieces.during(server, () -> templates.get(piece)).orElse(null);
+        if (first == null) {
+            helper.fail("the piece didn't load");
+            return;
+        }
+        templates.remove(piece);
+        HeldLoads.Hold hold = HeldLoads.hold(piece);
+        Thread loading = new Thread(() -> LoadedPieces.during(server, () -> templates.get(piece)), "jes-test-loading");
+        Thread forgetting = new Thread(() -> {
+            long usual = LoadedPieces.leaveLoaded(0);
+            try {
+                LoadedPieces.during(server, () -> null);
+            } finally {
+                LoadedPieces.leaveLoaded(usual);
+            }
+        }, "jes-test-forgetting");
+        loading.setDaemon(true);
+        forgetting.setDaemon(true);
+        try {
+            loading.start();
+            if (!hold.started(10)) {
+                helper.fail("the piece never started loading");
+                return;
+            }
+            forgetting.start();
+            // Time to get as far as the game's lock, if it's going to wait on it.
+            forgetting.join(2000);
+            hold.letGo();
+            loading.join(20_000);
+            forgetting.join(20_000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            helper.fail("interrupted");
+            return;
+        } finally {
+            hold.letGo();
+        }
+        if (loading.isAlive() || forgetting.isAlive()) {
+            helper.fail("loading a piece and forgetting one are each waiting on the other");
+            return;
+        }
+        helper.succeed();
     }
 
     public static void unknownStructureFailsCleanly(GameTestHelper helper) {

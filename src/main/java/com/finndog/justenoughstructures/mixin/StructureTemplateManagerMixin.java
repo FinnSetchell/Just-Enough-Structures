@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.mixin;
 
+import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
@@ -16,7 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Points containers in a template at the loot tables devs chose, and gives spawners their mobs, as the
- * template is loaded. One that couldn't be loaded is noted for the capture that asked for it.
+ * template is loaded. One that couldn't be loaded is noted for the capture that asked for it, and one
+ * that could is noted too, to be forgotten again once this mod is done with it.
  */
 @Mixin(StructureTemplateManager.class)
 public abstract class StructureTemplateManagerMixin {
@@ -27,6 +29,7 @@ public abstract class StructureTemplateManagerMixin {
             StructureCapture.couldntLoad(id);
             return;
         }
+        LoadedPieces.loaded((StructureTemplateManager) (Object) this, id, template.get());
         ContainerPatches.apply(id, template.get());
         // The server's resources, for trial spawner configs that are named rather than written in.
         MinecraftServer server = JesServer.running();

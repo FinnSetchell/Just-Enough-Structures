@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Memory;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
@@ -203,6 +204,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     /** Reads a structure's pools and generates it. Null if cancelled. */
     private static Found scanOne(MinecraftServer server, Registry<Structure> registry, PoolScan scan, ResourceLocation id, BooleanSupplier cancelled,
                                  BiConsumer<ResourceLocation, CaptureResult> firstViews) {
+        // One stretch of work, so the pieces read for its pools are still loaded when it's generated from them.
+        return LoadedPieces.during(server, () -> readAndGenerate(server, registry, scan, id, cancelled, firstViews));
+    }
+
+    private static Found readAndGenerate(MinecraftServer server, Registry<Structure> registry, PoolScan scan, ResourceLocation id, BooleanSupplier cancelled,
+                                         BiConsumer<ResourceLocation, CaptureResult> firstViews) {
         if (cancelled.getAsBoolean()) {
             return null;
         }

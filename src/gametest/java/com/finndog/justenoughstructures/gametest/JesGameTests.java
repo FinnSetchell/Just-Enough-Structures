@@ -123,6 +123,21 @@ public final class JesGameTests {
         CaptureTests.unknownStructureFailsCleanly(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void capturesLeaveFewPiecesLoaded(GameTestHelper helper) {
+        CaptureTests.capturesLeaveFewPiecesLoaded(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void piecesSavedOverStayLoaded(GameTestHelper helper) {
+        CaptureTests.piecesSavedOverStayLoaded(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void forgettingDoesntWaitOnALoad(GameTestHelper helper) {
+        CaptureTests.forgettingDoesntWaitOnALoad(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void catalogListsEveryVanillaStructure(GameTestHelper helper) {
         ServiceTests.catalogListsEveryVanillaStructure(helper);

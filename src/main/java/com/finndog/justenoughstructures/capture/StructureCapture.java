@@ -178,6 +178,7 @@ public final class StructureCapture {
                 return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.interrupted"), List.of(), 0);
             }
             NOT_LOADED.set(new HashSet<>());
+            LoadedPieces.begin();
             UNWANTED.set(unwanted);
             JesLog.ranOutOfMemory();
             boolean outOfMemory = false;
@@ -205,8 +206,13 @@ public final class StructureCapture {
                     NOT_LOADED.get().forEach(server.getStructureManager()::remove);
                 }
                 NOT_LOADED.remove();
-                UNWANTED.remove();
-                LOCK.unlock();
+                try {
+                    // And the ones it did load aren't all left with the game for the rest of the session.
+                    LoadedPieces.end(server);
+                } finally {
+                    UNWANTED.remove();
+                    LOCK.unlock();
+                }
             }
         } finally {
             if (foreground) {

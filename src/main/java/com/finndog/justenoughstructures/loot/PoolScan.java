@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -124,7 +125,8 @@ final class PoolScan {
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> next = new HashSet<>();
         try {
-            StructureTemplate template = server.getStructureManager().get(id).orElse(null);
+            // Noted as loaded for this mod, as the scan goes through every piece any pool names.
+            StructureTemplate template = LoadedPieces.during(server, () -> server.getStructureManager().get(id).orElse(null));
             if (template != null) {
                 nbt(template.save(new CompoundTag()), "", tables, next);
             }
