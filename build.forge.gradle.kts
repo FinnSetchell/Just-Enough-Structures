@@ -313,6 +313,7 @@ tasks {
     // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
     register<Jar>("gametestJar") {
         from(gametest.output)
+        exclude(standInsToLeaveOut)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }

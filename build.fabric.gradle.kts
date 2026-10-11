@@ -286,12 +286,14 @@ loom {
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
         from(gametest.output)
+        exclude(standInsToLeaveOut)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }
 } else {
     val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
         from(gametest.output)
+        exclude(standInsToLeaveOut)
         filesMatching("justenoughstructures_gametest.mixins.json") {
             filter { line -> if (line.trim().removeSuffix(",").removeSurrounding("\"").endsWith("Mixin")) "" else line }
         }
@@ -300,8 +302,9 @@ if (loomx.isUnobfuscated) {
     }
     tasks.register<net.fabricmc.loom.task.RemapJarTask>("gametestJar") {
         inputFile = gametestDevJar.flatMap { it.archiveFile }
-        // The test mod reaches the game through the mod's own classes, which remapping has to see.
-        classpath.from(sourceSets.main.get().output)
+        // The test mod reaches the game through the mod's own classes, which remapping has to see. It
+        // has to see the stand-ins too, though the jar leaves them out, to rename the calls made on them.
+        classpath.from(sourceSets.main.get().output, gametest.output.classesDirs)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }

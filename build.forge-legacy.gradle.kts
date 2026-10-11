@@ -173,6 +173,7 @@ dependencies {
 // script can run against a release build in a launcher instance. Never shipped.
 val gametestJar = tasks.register<Jar>("gametestJar") {
     from(gametest.output)
+    exclude(standInsToLeaveOut)
     archiveClassifier = "gametest"
     destinationDirectory = layout.buildDirectory.dir("devlibs")
 }
@@ -184,7 +185,9 @@ tasks.register<net.neoforged.moddevgradle.legacyforge.tasks.RemapJar>("reobfGame
     archiveBaseName = base.archivesName
     archiveVersion = version.toString()
     archiveClassifier = "gametest"
-    libraries.from(gametest.compileClasspath)
+    // The test classes too, for the stand-ins the jar leaves out: the calls made on those can't be
+    // renamed without seeing what they extend.
+    libraries.from(gametest.compileClasspath, gametest.output.classesDirs)
     obfuscation.configureNamedToSrgOperation(remapOperation)
 }
 
