@@ -3,25 +3,34 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
+import com.finndog.justenoughstructures.mixin.StructureTemplateManagerAccessor;
 import com.finndog.justenoughstructures.network.Codecs;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
  * A diagnostic rather than a check: captures every structure the game has, vanilla and modded,
  * then builds the loot index, and writes how long each took and how big it came out to
  * perf.csv in the game test folder. Only runs with -Pperf, since with a lot of structure mods
- * installed it takes minutes.
+ * installed it takes minutes. With -Pperf=index_first the loot index is built before the captures
+ * rather than after, as it is in a world just opened: with none of the saved pieces loaded yet.
+ * It ends by logging what the game is left holding: the heap in use after a collection, and the
+ * saved pieces still loaded.
  */
 public final class PerfTests {
     private PerfTests() {
@@ -38,6 +47,19 @@ public final class PerfTests {
         MinecraftServer server = helper.getLevel().getServer();
         List<ResourceLocation> ids = server.registryAccess().registryOrThrow(Registries.STRUCTURE).keySet().stream()
                 .sorted(Comparator.comparing(ResourceLocation::toString)).toList();
+        boolean indexFirst = "index_first".equals(System.getProperty("jes.perf.order"));
+        // -Pperf_room: how many blocks of saved pieces are left loaded, to see what each amount costs.
+        String room = System.getProperty("jes.perf.room", "");
+        if (!room.isEmpty()) {
+            LoadedPieces.leaveLoaded("all".equals(room) ? Long.MAX_VALUE : Long.parseLong(room));
+        }
+        LootIndex index = null;
+        long indexMillis = 0;
+        if (indexFirst) {
+            long indexStarted = System.nanoTime();
+            index = LootIndex.build(server, done -> { }, () -> false);
+            indexMillis = (System.nanoTime() - indexStarted) / 1_000_000;
+        }
         List<Row> rows = new ArrayList<>();
         long started = System.nanoTime();
         for (ResourceLocation id : ids) {
@@ -60,9 +82,11 @@ public final class PerfTests {
         }
         long captureMillis = (System.nanoTime() - started) / 1_000_000;
 
-        long indexStarted = System.nanoTime();
-        LootIndex index = LootIndex.build(server, done -> { }, () -> false);
-        long indexMillis = (System.nanoTime() - indexStarted) / 1_000_000;
+        if (!indexFirst) {
+            long indexStarted = System.nanoTime();
+            index = LootIndex.build(server, done -> { }, () -> false);
+            indexMillis = (System.nanoTime() - indexStarted) / 1_000_000;
+        }
 
         StringBuilder csv = new StringBuilder("structure,ok,blocks,containers,millis,bytes,error\n");
         for (Row r : rows) {
@@ -78,13 +102,27 @@ public final class PerfTests {
         }
 
         long failed = rows.stream().filter(r -> !r.ok()).count();
-        JustEnoughStructures.LOGGER.info("Perf: captured {} structures in {} ms ({} failed), loot index in {} ms ({} tables); details in {}",
-                rows.size(), captureMillis, failed, indexMillis, index == null ? 0 : index.itemsByTable().size(), out);
+        JustEnoughStructures.LOGGER.info("Perf: captured {} structures in {} ms ({} failed), loot index in {} ms ({} tables) built {} the captures; details in {}",
+                rows.size(), captureMillis, failed, indexMillis, index == null ? 0 : index.itemsByTable().size(), indexFirst ? "before" : "after", out);
         rows.stream().sorted(Comparator.comparingLong(Row::millis).reversed()).limit(10).forEach(r ->
                 JesLog.debug("Perf: slow   {} ms  {} ({} blocks, {} KB)", r.millis(), r.id(), r.blocks(), r.bytes() / 1024));
         rows.stream().sorted(Comparator.comparingInt(Row::bytes).reversed()).limit(10).forEach(r ->
                 JesLog.debug("Perf: big    {} KB  {} ({} blocks, {} ms)", r.bytes() / 1024, r.id(), r.blocks(), r.millis()));
         rows.stream().filter(r -> !r.ok()).forEach(r -> JesLog.debug("Perf: failed {}: {}", r.id(), r.error()));
+        long blocks = 0;
+        int pieces = 0;
+        for (Optional<StructureTemplate> piece : ((StructureTemplateManagerAccessor) server.getStructureManager()).justenoughstructures$loaded().values()) {
+            if (piece.isPresent()) {
+                pieces++;
+                for (StructureTemplate.Palette set : ((StructureTemplateAccessor) piece.get()).justenoughstructures$palettes()) {
+                    blocks += set.blocks().size();
+                }
+            }
+        }
+        System.gc();
+        JustEnoughStructures.LOGGER.info("Perf: {} MB of heap in use after a collection, {} blocks in {} loaded pieces, room for {}",
+                ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() >> 20, blocks, pieces, room.isEmpty() ? "usual" : room);
+        LoadedPieces.leaveLoaded(-1);
         // With every installed structure placed, this is where one drawing from the real world's random shows up.
         helper.assertTrue(RealRandoms.places() == 0, RealRandoms.places() + " places drew from a real world's random during captures, see the log");
         helper.succeed();

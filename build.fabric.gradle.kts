@@ -227,6 +227,10 @@ loom {
             vmArg("-Dfabric-api.gametest.report-file=${layout.buildDirectory.get().asFile}/gametest/report.xml")
             // -Pperf also captures every installed structure and times it, into build/gametest/perf.csv.
             vmArg("-Djes.perf=${hasProperty("perf")}")
+            // -Pperf=index_first builds the loot index first, as in a world just opened.
+            vmArg("-Djes.perf.order=${findProperty("perf") ?: ""}")
+            // -Pperf_room=16000000 leaves that many blocks of saved pieces loaded, or all of them with =all.
+            vmArg("-Djes.perf.room=${findProperty("perf_room") ?: ""}")
             // The mod's own debug log, in build/gametest/logs.
             vmArg("-Djustenoughstructures.debug=true")
         }
