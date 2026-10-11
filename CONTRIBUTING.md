@@ -63,8 +63,7 @@ and that previews leave the world untouched. CI runs it on every node.
 `runAutoshot` opens the browser in a throwaway world, saves a screenshot of a list of structures to
 `versions/<node>/build/autoshot/screenshots` and quits. Pick the structures with
 `-Pstructures=minecraft:igloo,mymod:tower` and add `-Pshow` to watch it. `-Pmode=open` and
-`-Pmode=showcase` play a scripted clip instead and save every frame. Clips play on Fabric, NeoForge
-and Forge 1.20.1.
+`-Pmode=showcase` play a scripted clip instead and save every frame.
 
 On Fabric, `runLoadTest` starts a dedicated server where crowds of simulated players use the browser,
 and writes how it held up to `versions/<node>/build/loadtest/report.md`. `-Pplayers=30,60,100` sets the
