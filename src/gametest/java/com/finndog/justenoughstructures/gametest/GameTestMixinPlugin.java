@@ -45,5 +45,8 @@ public final class GameTestMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+        if (mixinClassName.endsWith(".ThrowingShapesMixin")) {
+            ThrowingShapes.hooked = true;
+        }
     }
 }

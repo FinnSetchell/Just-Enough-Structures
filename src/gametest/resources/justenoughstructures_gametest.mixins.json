@@ -6,7 +6,8 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "LegacyRandomSourceMixin",
-    "NearMiddleRegionMixin"
+    "NearMiddleRegionMixin",
+    "ThrowingShapesMixin"
   ],
   "injectors": {
     "defaultRequire": 1

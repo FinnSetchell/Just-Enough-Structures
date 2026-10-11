@@ -31,6 +31,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
 import org.joml.Matrix4f;
 //? if >=1.21 {
 /*import org.joml.Matrix4fStack;
@@ -54,7 +55,6 @@ import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.fog.FogRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Quaternionf;
 import org.lwjgl.system.MemoryStack;
@@ -105,7 +105,10 @@ public final class StructureViewport implements AutoCloseable {
     private SnapshotView view;
     private SnapshotMesh mesh;
     private TextureTarget target;
-    /** Block entities and entities in this view whose renderer threw. Skipped from then on, as it would throw every frame. */
+    /**
+     * Block entities and entities in this view whose renderer threw, and blocks that failed when asked
+     * for a shape. Skipped from then on, as they would throw every frame.
+     */
     private final Set<Object> failed = Collections.newSetFromMap(new IdentityHashMap<>());
     /** How many of the view's block entities, then its entities, have been drawn at least once. */
     private int firstDrawn;
@@ -236,14 +239,28 @@ public final class StructureViewport implements AutoCloseable {
             if (pos.getY() >= slice || pos.equals(target)) {
                 return null;
             }
-            BlockState state = view.rawState(pos.getX(), pos.getY(), pos.getZ());
-            //? if >=1.21.2 {
-            /*return state.isSolidRender() ? Boolean.TRUE : null;
-            *///?} else {
-            return state.isSolidRender(view, pos) ? Boolean.TRUE : null;
-            //?}
+            return solid(view.rawState(pos.getX(), pos.getY(), pos.getZ()), pos) ? Boolean.TRUE : null;
         }, ctx -> null);
         return hit != null;
+    }
+
+    // Before 1.21.2 a block is asked, with the world it's in, and another mod's can fail on being
+    // handed the preview's stand-in for a real one. It then counts as not in the way.
+    private boolean solid(BlockState state, BlockPos pos) {
+        if (failed.contains(state.getBlock())) {
+            return false;
+        }
+        try {
+            //? if >=1.21.2 {
+            /*return state.isSolidRender();
+            *///?} else {
+            return state.isSolidRender(view, pos);
+            //?}
+        } catch (RuntimeException | LinkageError e) {
+            failed.add(state.getBlock());
+            RenderFailures.shapeFailed(state.getBlock(), e);
+            return false;
+        }
     }
 
     /** Moves the camera smoothly, over a fraction of a second, to where {@code to} has it. */
@@ -1005,7 +1022,7 @@ public final class StructureViewport implements AutoCloseable {
             if (state.isAir()) {
                 return null;
             }
-            return view.clipWithInteractionOverride(from, to, pos, state.getShape(view, pos), state);
+            return clip(from, to, pos, state);
         }, ctx -> null);
         double blockDistance = blockHit == null ? Double.MAX_VALUE : blockHit.getLocation().distanceToSqr(from);
 
@@ -1029,6 +1046,24 @@ public final class StructureViewport implements AutoCloseable {
             return Optional.of(new Hit(pos, view.getBlockState(pos), null));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Where the line from the mouse meets a block. The block is asked for its shapes with the
+     * preview's stand-in for a world, and another mod's can fail on that. This is asked while the
+     * screen is being drawn, where a failure would end the game, so such a block is taken for a whole
+     * cube from then on.
+     */
+    private BlockHitResult clip(Vec3 from, Vec3 to, BlockPos pos, BlockState state) {
+        if (!failed.contains(state.getBlock())) {
+            try {
+                return view.clipWithInteractionOverride(from, to, pos, state.getShape(view, pos), state);
+            } catch (RuntimeException | LinkageError e) {
+                failed.add(state.getBlock());
+                RenderFailures.shapeFailed(state.getBlock(), e);
+            }
+        }
+        return Shapes.block().clip(from, to, pos);
     }
 
     @Override

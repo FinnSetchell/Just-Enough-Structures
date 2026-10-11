@@ -60,6 +60,7 @@ public final class Scenarios {
             case "spawners" -> SpawnersScenario.build(mc);
             case "back" -> BackScenario.build(mc);
             case "hover_spin" -> SpinScenario.build(mc);
+            case "hover" -> HoverScenario.build(mc);
             case "highlight" -> HighlightScenario.build(mc);
             case "loot_tab" -> LootTabScenario.build(mc);
             case "pack_tools" -> PackToolsScenario.build(mc);

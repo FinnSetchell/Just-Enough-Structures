@@ -17,4 +17,12 @@ final class RenderFailures {
     static void failed(String what, Object kind, Throwable e) {
         JesLog.warnOnce("render:" + what + "|" + kind + "|" + e.getClass().getName(), "{} failed for {} in a preview, so it's left out", what, kind, e);
     }
+
+    /**
+     * Notes a block failing when asked for a shape, which a preview asks with its stand-in for a world.
+     * Nothing is left out for it: the preview makes do with a guess.
+     */
+    static void shapeFailed(Object block, Throwable e) {
+        JesLog.warnOnce("shape:" + block + "|" + e.getClass().getName(), "{} failed when asked for its shape in a preview, so the preview guesses it", block, e);
+    }
 }
