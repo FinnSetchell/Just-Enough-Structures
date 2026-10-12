@@ -16,7 +16,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
@@ -30,7 +33,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * installed it takes minutes. With -Pperf=index_first the loot index is built before the captures
  * rather than after, as it is in a world just opened: with none of the saved pieces loaded yet.
  * It ends by logging what the game is left holding: the heap in use after a collection, and the
- * saved pieces still loaded.
+ * saved pieces still loaded. How much memory building the loot index went through is logged too,
+ * and the index itself is written to perf-index.txt, for comparing one build's with another's.
  */
 public final class PerfTests {
     private PerfTests() {
@@ -55,9 +59,12 @@ public final class PerfTests {
         }
         LootIndex index = null;
         long indexMillis = 0;
+        long indexBytes = 0;
         if (indexFirst) {
             long indexStarted = System.nanoTime();
+            long before = allocated();
             index = LootIndex.build(server, done -> { }, () -> false);
+            indexBytes = allocated() - before;
             indexMillis = (System.nanoTime() - indexStarted) / 1_000_000;
         }
         List<Row> rows = new ArrayList<>();
@@ -84,7 +91,9 @@ public final class PerfTests {
 
         if (!indexFirst) {
             long indexStarted = System.nanoTime();
+            long before = allocated();
             index = LootIndex.build(server, done -> { }, () -> false);
+            indexBytes = allocated() - before;
             indexMillis = (System.nanoTime() - indexStarted) / 1_000_000;
         }
 
@@ -96,6 +105,7 @@ public final class PerfTests {
         Path out = Path.of("perf.csv").toAbsolutePath();
         try {
             Files.writeString(out, csv);
+            Files.writeString(Path.of("perf-index.txt"), written(index));
         } catch (IOException e) {
             helper.fail("couldn't write " + out + ": " + e);
             return;
@@ -109,6 +119,7 @@ public final class PerfTests {
         rows.stream().sorted(Comparator.comparingInt(Row::bytes).reversed()).limit(10).forEach(r ->
                 JesLog.debug("Perf: big    {} KB  {} ({} blocks, {} ms)", r.bytes() / 1024, r.id(), r.blocks(), r.millis()));
         rows.stream().filter(r -> !r.ok()).forEach(r -> JesLog.debug("Perf: failed {}: {}", r.id(), r.error()));
+        JustEnoughStructures.LOGGER.info("Perf: the loot index went through {} MB of memory on its thread", indexBytes >> 20);
         long blocks = 0;
         int pieces = 0;
         for (Optional<StructureTemplate> piece : ((StructureTemplateManagerAccessor) server.getStructureManager()).justenoughstructures$loaded().values()) {
@@ -126,5 +137,24 @@ public final class PerfTests {
         // With every installed structure placed, this is where one drawing from the real world's random shows up.
         helper.assertTrue(RealRandoms.places() == 0, RealRandoms.places() + " places drew from a real world's random during captures, see the log");
         helper.succeed();
+    }
+
+    /** What this thread has asked for in memory so far, in bytes. Nought where Java doesn't keep count. */
+    private static long allocated() {
+        return ManagementFactory.getThreadMXBean() instanceof com.sun.management.ThreadMXBean threads
+                ? threads.getThreadAllocatedBytes(Thread.currentThread().getId()) : 0;
+    }
+
+    /** The loot index as lines in a fixed order: each structure with its tables, then each table with its items. */
+    private static String written(LootIndex index) {
+        StringBuilder text = new StringBuilder();
+        if (index != null) {
+            for (Map<ResourceLocation, Set<ResourceLocation>> part : List.of(index.tablesByStructure(), index.itemsByTable())) {
+                part.entrySet().stream().sorted(Comparator.comparing(e -> e.getKey().toString())).forEach(e -> text.append(e.getKey()).append(':')
+                        .append(e.getValue().stream().map(ResourceLocation::toString).sorted().collect(Collectors.joining(" ", " ", "\n"))));
+                text.append('\n');
+            }
+        }
+        return text.toString();
     }
 }
