@@ -116,6 +116,12 @@ public final class Gallery {
     private final boolean reload;
     /** Whether the run joins the server the game was started with, by --quickPlayMultiplayer, instead of making a world. */
     private final boolean joins;
+    /**
+     * How long to stand in the world before the browser is first opened, in ticks. A big pack goes on
+     * loading for minutes after the world is joined, and a run that measures what the browser costs
+     * wants that over first.
+     */
+    private final int settleTicks;
     private int inWorldTicks;
     private ResourceManager resourcesBefore;
 
@@ -132,6 +138,7 @@ public final class Gallery {
         perMod = Integer.getInteger("jes.autoshot.per.mod", 0);
         reload = Boolean.getBoolean("jes.autoshot.reload");
         joins = Boolean.getBoolean("jes.autoshot.join");
+        settleTicks = Integer.getInteger("jes.autoshot.wait", 0) * 20;
         this.out = out;
         spread();
     }
@@ -231,7 +238,11 @@ public final class Gallery {
                 blockedTicks = closeJoinScreen(mc, blockedTicks);
                 inWorldTicks = mc.player != null && mc.level != null ? inWorldTicks + 1 : 0;
                 // On a server, long enough after joining for the notices that pop up then to go, as they'd cover the shots.
-                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40 && (!joins || inWorldTicks > 300)) {
+                if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40 && inWorldTicks > settleTicks
+                        && (!joins || inWorldTicks > 300)) {
+                    if (settleTicks > 0) {
+                        JustEnoughStructures.LOGGER.info("Autoshot stood in the world for {} s before opening the browser", inWorldTicks / 20);
+                    }
                     //? if >=26.1 {
                     /*stopTheSun(mc);
                     *///?}
