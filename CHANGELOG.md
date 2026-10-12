@@ -42,6 +42,7 @@ First release.
 - The browser remembers how you left it, like whether the preview fills the screen
 - Text cut short to fit shows in full when you hover over it
 - Every screen fits small and very large windows at any GUI scale
+- Resource packs that restyle Minecraft's menus now restyle the structure browser too
 - With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
 - In Mod Menu, JES links to its Discord, CurseForge and Modrinth pages, and tells you when there's an update
 - Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
