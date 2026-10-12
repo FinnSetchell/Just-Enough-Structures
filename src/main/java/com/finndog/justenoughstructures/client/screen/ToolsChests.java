@@ -145,7 +145,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
 
     @Override
     int intro(GuiGraphics g, int x, int y, int w) {
-        return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro"), x, y, w, Gui.LABEL_SOFT);
+        return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.chests_intro"), x, y, w, Gui.labelSoft());
     }
 
     private static ItemStack icon(String block) {
@@ -168,7 +168,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
         int cy = y + row(g, ui, x, y, w, Icon.item(icon(ref.block())), name, null, 0, where(ref), show, null, 0, false);
         Component from = ref.byCode() ? Component.translatable("screen.justenoughstructures.tools.by_code")
                 : Component.translatable("screen.justenoughstructures.tools.from_template", ref.template().toString(), ref.templatePos().toShortString());
-        cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.LABEL_SOFT) + 2;
+        cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.labelSoft()) + 2;
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.loot_table"), x, cy + 2, w);
         LootOverrides.Status status = table == null ? null : screen.state().overrides().get(ResourceLocation.tryParse(table));
@@ -196,7 +196,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
             cy += ui.status(g, Component.translatable("screen.justenoughstructures.tools.undone_next"), x, cy, w, ToolsUi.STATUS_CHANGED) + 3;
         }
         if (ref.byCode()) {
-            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.code_note"), x, cy, w, Gui.LABEL_SOFT) + 3;
+            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.code_note"), x, cy, w, Gui.labelSoft()) + 3;
         }
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.one_roll"), x, cy + 2, w);
@@ -233,7 +233,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
             }
         }
         if (table != null && roll == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), gx + 6, sy + 4, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), gx + 6, sy + 4, Gui.labelSoft());
         }
         ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), gx + 2, sy + rows * SLOT + 4, gridW - 4, 20, table != null,
                 () -> seed = ThreadLocalRandom.current().nextLong());

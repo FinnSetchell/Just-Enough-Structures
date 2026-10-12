@@ -59,9 +59,17 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** The least height the form keeps when one possible roll goes under it; with less, there's no roll. */
     private static final int LEAST_FORM = 170;
     private static final int SLOT = 18;
-    private static final int GOOD = 0xFF2E7D1F;
-    private static final int BAD = 0xFFB02020;
-    private static final int WARN = 0xFF9A6200;
+    private static int good() {
+        return Gui.ink(0xFF2E7D1F, Gui.GOOD_ON_DARK);
+    }
+
+    private static int bad() {
+        return Gui.ink(0xFFB02020, Gui.BAD_ON_DARK);
+    }
+
+    private static int warn() {
+        return Gui.ink(0xFF9A6200, Gui.WARN_ON_DARK);
+    }
     private static final long PREVIEW_DELAY = 400;
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     /** Where a new table starts: a chest table with one pool and nothing in it yet. */
@@ -224,7 +232,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     @Override
     public void changed() {
         dirty = true;
-        if (message != null && messageColour == BAD) {
+        if (message != null && messageColour == bad()) {
             message = null;
         }
         // Whatever was picked may be gone, like a removed pool.
@@ -443,7 +451,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.revert"), b -> {
                 commitEditing();
                 startFrom(view.original(), false);
-                note(Component.translatable("screen.justenoughstructures.editor.reverted"), WARN);
+                note(Component.translatable("screen.justenoughstructures.editor.reverted"), warn());
                 rebuildWidgets();
             }).bounds(x, y, buttonWidth("revert"), 20)
                     .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.revert_hint"))).build());
@@ -467,7 +475,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (raw) {
             JsonObject parsed = parseObject(json());
             if (parsed == null) {
-                note(Component.translatable("screen.justenoughstructures.editor.fix_json"), BAD);
+                note(Component.translatable("screen.justenoughstructures.editor.fix_json"), bad());
                 return;
             }
             draft = parsed;
@@ -490,7 +498,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         JsonElement theirs = parseObject(view.original());
         JsonElement mine = parseObject(json());
         if (base == null || theirs == null || mine == null) {
-            note(Component.translatable("screen.justenoughstructures.editor.no_base"), WARN);
+            note(Component.translatable("screen.justenoughstructures.editor.no_base"), warn());
             return;
         }
         JsonMerge.Result result = JsonMerge.merge(base, mine, theirs);
@@ -503,7 +511,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             case 1 -> Component.translatable("screen.justenoughstructures.editor.merged_conflict");
             default -> Component.translatable("screen.justenoughstructures.editor.merged_conflicts", result.conflicts());
         };
-        note(merged, result.conflicts() == 0 ? GOOD : WARN);
+        note(merged, result.conflicts() == 0 ? good() : warn());
         rebuildWidgets();
     }
 
@@ -564,7 +572,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         commitEditing();
         Component problem = unsaveable();
         if (problem != null) {
-            note(problem, BAD);
+            note(problem, bad());
             return;
         }
         String json = json();
@@ -572,7 +580,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         ClientRequests.saveTable(savedAs, json).thenAccept(reply -> {
             boolean saved = reply.message() != null && reply.message().getContents() instanceof TranslatableContents t
                     && t.getKey().endsWith("override.saved");
-            note(reply.message(), saved ? GOOD : BAD);
+            note(reply.message(), saved ? good() : bad());
             if (saved) {
                 dirty = false;
                 if (onSaved != null) {
@@ -580,7 +588,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 }
                 if (thenReload) {
                     ClientRequests.reloadServer();
-                    note(Component.translatable("screen.justenoughstructures.editor.saved_reloaded"), GOOD);
+                    note(Component.translatable("screen.justenoughstructures.editor.saved_reloaded"), good());
                 }
                 refresh();
             }
@@ -589,7 +597,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     private void tableAction(int action) {
         ClientRequests.tableAction(tableId, action).thenAccept(reply -> {
-            note(reply.message(), GOOD);
+            note(reply.message(), good());
             if (action == JesNetwork.ACTION_REMOVE) {
                 draft = null;
                 rawText = null;
@@ -850,9 +858,9 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         header(g);
 
         if (loadProblem != null) {
-            Gui.wrapped(g, font, loadProblem, treeX, contentTop + 4, width - PAD * 2 - 16, BAD);
+            Gui.wrapped(g, font, loadProblem, treeX, contentTop + 4, width - PAD * 2 - 16, bad());
         } else if (view == null) {
-            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.editor.loading"), treeX, contentTop + 4, width - PAD * 2 - 16, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.editor.loading"), treeX, contentTop + 4, width - PAD * 2 - 16, Gui.labelSoft());
         } else if (!raw && draft != null) {
             renderTree(g);
             renderForm(g);
@@ -924,14 +932,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         String unsaved = dirty && view != null ? Component.translatable("screen.justenoughstructures.editor.unsaved").getString() : null;
         int markRoom = unsaved == null ? 0 : Gui.fineWidth(font, unsaved) + 8;
         String shownTitle = Gui.clip(font, headerTitle().getString(), right - textX - markRoom);
-        Gui.drawClipped(g, font, headerTitle().getString(), textX, TOP + 6, right - textX - markRoom, Gui.LABEL, false);
+        Gui.drawClipped(g, font, headerTitle().getString(), textX, TOP + 6, right - textX - markRoom, Gui.label(), false);
         if (unsaved != null) {
-            Gui.fine(g, font, unsaved, textX + font.width(shownTitle) + 8, TOP + 7, WARN);
+            Gui.fine(g, font, unsaved, textX + font.width(shownTitle) + 8, TOP + 7, warn());
         }
         if (idBox != null) {
-            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.id"), textX, TOP + 19, Gui.LABEL_SOFT, false);
+            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.id"), textX, TOP + 19, Gui.labelSoft(), false);
         } else {
-            Gui.fine(g, font, tableId.toString(), textX, TOP + 17, Gui.LABEL_SOFT);
+            Gui.fine(g, font, tableId.toString(), textX, TOP + 17, Gui.labelSoft());
         }
         if (view == null) {
             return;
@@ -942,7 +950,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         int colour = message != null ? messageColour : statusColour();
         if (idProblem != null) {
             status = idProblem;
-            colour = BAD;
+            colour = bad();
         }
         g.fill(PAD + 6 + inset, barY, width - PAD - 6 - inset, barY + 13, ToolsUi.statusColours(statusKind())[0]);
         int actionsLeft = right;
@@ -999,7 +1007,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     /** The table, its pools and their entries, to pick one to change, with ways to add more. */
     private void renderTree(GuiGraphics g) {
-        Gui.inset(g, treeX, contentTop, treeW, contentBottom - contentTop, Gui.PANEL);
+        Gui.inset(g, treeX, contentTop, treeW, contentBottom - contentTop, Gui.Tone.PANEL);
         int top = treeScroll.begin(g, ui, treeX + 1, contentTop + 1, treeW - 2, contentBottom - contentTop - 2);
         int w = treeScroll.width();
         int x = treeX + 1;
@@ -1055,7 +1063,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (selected) {
             g.fill(x, y, x + w, y + TREE_ROW, 0xFF9D9D9D);
         } else if (ui.hovered(x, y, w, TREE_ROW)) {
-            g.fill(x, y, x + w, y + TREE_ROW, Gui.ROW_HOVER);
+            g.fill(x, y, x + w, y + TREE_ROW, Gui.rowHover());
         }
         ui.spot(x, y, w, TREE_ROW, pick);
         int textX = x + 3 + indent;
@@ -1067,8 +1075,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             detail = shortDetail;
         }
         int detailW = Gui.fineWidth(font, detail);
-        Gui.drawClipped(g, font, name, textX, y + 5, x + w - 6 - detailW - textX, selected ? 0xFFFFFFFF : Gui.LABEL, selected);
-        Gui.fine(g, font, detail, x + w - 3 - detailW, y + 6, selected ? 0xFFEEEEEE : Gui.LABEL_SOFT);
+        Gui.drawClipped(g, font, name, textX, y + 5, x + w - 6 - detailW - textX, selected ? 0xFFFFFFFF : Gui.label(), selected);
+        Gui.fine(g, font, detail, x + w - 3 - detailW, y + 6, selected ? 0xFFEEEEEE : Gui.labelSoft());
         return y + TREE_ROW;
     }
 
@@ -1185,10 +1193,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         int y = rollTop;
         Gui.panel(g, x - 2, y, gridW + 4, rollHeight());
         Component title = Component.translatable("screen.justenoughstructures.tools.one_roll");
-        g.drawString(font, title, x + 4, y + 5, Gui.LABEL, false);
+        g.drawString(font, title, x + 4, y + 5, Gui.label(), false);
         String changes = Component.translatable("screen.justenoughstructures.editor.with_changes").getString();
         if (dirty && font.width(title) + Gui.fineWidth(font, changes) + 14 <= gridW) {
-            Gui.fine(g, font, changes, x + gridW - 4 - Gui.fineWidth(font, changes), y + 6, Gui.LABEL_SOFT);
+            Gui.fine(g, font, changes, x + gridW - 4 - Gui.fineWidth(font, changes), y + 6, Gui.labelSoft());
         }
         int sy = y + 16;
         for (int i = 0; i < 27; i++) {
@@ -1218,11 +1226,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
-            Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, BAD);
+            Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, bad());
             return;
         }
         if (preview == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, top + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, top + 2, Gui.labelSoft());
             return;
         }
         int start = oddsScroll.begin(g, ui, x, top, oddsW, contentBottom - top);
@@ -1244,11 +1252,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             y += OddsList.ROW;
         }
         if (rows.isEmpty()) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + 2, y + 2, w - 4, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + 2, y + 2, w - 4, Gui.labelSoft());
             y += 20;
         }
         if (previewing) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, y + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, y + 2, Gui.labelSoft());
             y += 12;
         }
         oddsScroll.end(g, ui, y - start);
@@ -1527,7 +1535,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             y = (height - h) / 2;
             g.fill(0, 0, width, height, 0x88000000);
             Gui.panel(g, x, y, w, h);
-            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.pick_item"), x + 8, y + 8, Gui.LABEL, false);
+            g.drawString(font, Component.translatable("screen.justenoughstructures.editor.pick_item"), x + 8, y + 8, Gui.label(), false);
             Component cancel = Component.translatable("gui.cancel");
             int cancelW = ui.buttonWidth(cancel);
             boolean overCancel = mouseX >= x + w - 8 - cancelW && mouseX < x + w - 8 && mouseY >= y + 5 && mouseY < y + 19;
@@ -1541,7 +1549,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             gridTop = y + 44;
             gridH = h - 44 - 18;
             columns = Math.max(1, (w - 18) / SLOT);
-            Gui.inset(g, x + 7, gridTop - 1, columns * SLOT + 2, gridH + 2, Gui.PANEL);
+            Gui.inset(g, x + 7, gridTop - 1, columns * SLOT + 2, gridH + 2, Gui.Tone.PANEL);
             int rows = (shown.size() + columns - 1) / columns;
             scroll = Math.max(0, Math.min(scroll, Math.max(0, rows * SLOT - gridH)));
             hovered = null;
@@ -1563,7 +1571,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             Gui.endScissor(g);
             Gui.scrollbar(g, x + w - 6, gridTop, gridH, scroll, Math.max(0, rows * SLOT - gridH));
             String count = Component.translatable("screen.justenoughstructures.editor.items_count", shown.size()).getString();
-            Gui.fine(g, font, count, x + 8, y + h - 13, Gui.LABEL_SOFT);
+            Gui.fine(g, font, count, x + 8, y + h - 13, Gui.labelSoft());
         }
 
         void click(double mouseX, double mouseY) {

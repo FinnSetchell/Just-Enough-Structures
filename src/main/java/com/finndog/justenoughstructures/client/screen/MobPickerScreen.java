@@ -128,10 +128,10 @@ public final class MobPickerScreen extends PickerScreen<String> {
     @Override
     protected void drawRow(GuiGraphics g, String id, int left, int y, int right) {
         g.renderItem(ToolsSpawners.mobIcon(id), left + 5, y + 3);
-        Gui.fitted(g, font, name(id), left + 25, y + 3, right - left - 33, Gui.LABEL);
+        Gui.fitted(g, font, name(id), left + 25, y + 3, right - left - 33, Gui.label());
         String detail = id.isEmpty() ? Component.translatable("screen.justenoughstructures.hover_spawns_nothing").getString()
                 : id + " · " + StructureNames.mod(ResourceLocation.tryParse(id).getNamespace());
-        Gui.fineClipped(g, font, detail, left + 25, y + 13, right - left - 33, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, detail, left + 25, y + 13, right - left - 33, Gui.labelSoft());
     }
 
     /** A word about the mob picked when it isn't a monster: spawners still check where it would normally spawn. */

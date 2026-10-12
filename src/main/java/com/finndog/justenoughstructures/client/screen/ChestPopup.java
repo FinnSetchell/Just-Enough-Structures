@@ -279,7 +279,7 @@ final class ChestPopup {
         String of = indexText();
         if (of != null) {
             right -= font.width(of);
-            g.drawString(font, of, right, y + 6, Gui.LABEL_SOFT, false);
+            g.drawString(font, of, right, y + 6, Gui.labelSoft(), false);
             right -= 4;
         }
         if (hasTabs()) {
@@ -287,14 +287,14 @@ final class ChestPopup {
             right = tab(g, font, Action.ROLL, "popup_roll", view == View.ROLL, right - 3, mouseX, mouseY);
         }
         if (header > 17 && titleBelow(font)) {
-            Gui.drawClipped(g, font, title.getString(), x + 8, y + 6 + font.lineHeight + 1, WIDTH - 16, Gui.LABEL, false);
+            Gui.drawClipped(g, font, title.getString(), x + 8, y + 6 + font.lineHeight + 1, WIDTH - 16, Gui.label(), false);
         } else if (header > 17) {
             List<FormattedCharSequence> lines = font.split(title, titleRoom(font));
             for (int i = 0; i < Math.min(2, lines.size()); i++) {
-                g.drawString(font, lines.get(i), x + 8, y + 6 + i * (font.lineHeight + 1), Gui.LABEL, false);
+                g.drawString(font, lines.get(i), x + 8, y + 6 + i * (font.lineHeight + 1), Gui.label(), false);
             }
         } else {
-            g.drawString(font, title, x + 8, y + 6, Gui.LABEL, false);
+            g.drawString(font, title, x + 8, y + 6, Gui.label(), false);
         }
 
         ItemStack hovered = view == View.ROLL ? renderSlots(g, font, mouseX, mouseY, y + header) : renderOdds(g, font, mouseX, mouseY, y + header, body);
@@ -303,7 +303,7 @@ final class ChestPopup {
         Gui.panel(g, x, infoTop, WIDTH, infoHeight(font));
         int cy = infoTop + 5;
         int labelY = showsIcons() ? cy + (ICON - Gui.fineLine(font)) / 2 : cy;
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, labelY, Gui.LABEL_SOFT);
+        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.field.loot_table").getString(), x + 7, labelY, Gui.labelSoft());
         int iconRight = x + WIDTH - 7;
         if (showsIcons()) {
             // Pack tools' shortcuts: the table, and the container itself, each with a wrench on it.
@@ -321,14 +321,14 @@ final class ChestPopup {
         cy += labelRow(font);
         String tableName = table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
         int mark = packTools ? editedMark(g, font, table, x + WIDTH - 7, cy + 1) : 0;
-        Gui.drawClipped(g, font, tableName, x + 7, cy, WIDTH - 14 - mark, 0xFF202020, false);
+        Gui.drawClipped(g, font, tableName, x + 7, cy, WIDTH - 14 - mark, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
         cy += font.lineHeight + 1;
         if (Gui.advanced() && table != null) {
-            Gui.fineClipped(g, font, table, x + 7, cy, WIDTH - 14, 0xFF555555);
+            Gui.fineClipped(g, font, table, x + 7, cy, WIDTH - 14, Gui.labelSoftSmall());
             cy += Gui.fineLine(font) + 1;
         }
         for (FormattedCharSequence line : noteLines(font)) {
-            Gui.scaled(g, font, line, x + 7, cy, Gui.LABEL_SOFT, Gui.fineScale());
+            Gui.scaled(g, font, line, x + 7, cy, Gui.labelSoft(), Gui.fineScale());
             cy += Gui.fineLine(font) + 1;
         }
         return hovered;
@@ -340,7 +340,7 @@ final class ChestPopup {
             int sx = x + 8 + (slot % 9) * 18;
             int sy = bodyTop + 1 + (slot / 9) * 18;
             if (slot >= size) {
-                g.fill(sx - 1, sy - 1, sx + 17, sy + 17, 0xFF8B8B8B);
+                Gui.tone(g, sx - 1, sy - 1, sx + 17, sy + 17, Gui.Tone.SLOT);
                 continue;
             }
             ItemStack stack = items != null && slot < items.size() ? items.get(slot) : ItemStack.EMPTY;
@@ -366,13 +366,13 @@ final class ChestPopup {
         int left = x + 7;
         int right = x + WIDTH - 7;
         int bottom = top + body - 2;
-        Gui.inset(g, left, top - 1, right - left, body, 0xFFB9B9B9);
+        Gui.inset(g, left, top - 1, right - left, body, Gui.Tone.WELL);
         if (odds == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), left + 4, top + 4, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), left + 4, top + 4, Gui.labelSoft());
             return ItemStack.EMPTY;
         }
         if (odds.rows().isEmpty()) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), left + 4, top + 4, right - left - 8, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), left + 4, top + 4, right - left - 8, Gui.labelSoft());
             return ItemStack.EMPTY;
         }
         ItemStack hovered = ItemStack.EMPTY;
@@ -468,9 +468,12 @@ final class ChestPopup {
         int left = right - w;
         int top = y + 4;
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + TAB_HEIGHT;
-        g.fill(left, top, right, top + TAB_HEIGHT, on ? 0xFF373737 : 0xFF8B8B8B);
-        g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, on ? 0xFFFFFFFF : over ? 0xFFD6D6D6 : 0xFFC6C6C6);
-        Gui.fine(g, font, text, left + 4, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.LABEL : 0xFF404040);
+        Gui.tone(g, left, top, right, top + TAB_HEIGHT, on ? Gui.Tone.SLOT_DARK : Gui.Tone.SLOT);
+        Gui.tone(g, left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, on ? Gui.Tone.LIGHT : Gui.Tone.PANEL);
+        if (over && !on) {
+            g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, 0x48FFFFFF);
+        }
+        Gui.fine(g, font, text, left + 4, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.label() : 0xFF404040);
         links.put(action, left, top, w, TAB_HEIGHT);
         if (over && !on) {
             hoveredAction = action;

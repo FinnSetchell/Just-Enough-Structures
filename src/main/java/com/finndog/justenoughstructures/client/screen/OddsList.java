@@ -32,7 +32,9 @@ final class OddsList {
     static final int ROW = 20;
     /** Below this chance an item counts as rare and stands out. */
     static final float RARE_BELOW = 0.1f;
-    static final int RARE = 0xFF8A5A00;
+    static int rare() {
+        return Gui.ink(0xFF8A5A00, Gui.WARN_ON_DARK);
+    }
     private static final int RARE_BAR = 0xFFC08A20;
 
     private OddsList() {
@@ -93,18 +95,18 @@ final class OddsList {
                         int detailRoom) {
         boolean rare = chance < RARE_BELOW;
         if (hovered) {
-            g.fill(x, y, right, y + ROW, Gui.ROW_HOVER);
+            g.fill(x, y, right, y + ROW, Gui.rowHover());
         }
         Gui.slot(g, x + 2, y);
         g.renderItem(stack, x + 3, y + 1);
         int textX = x + 24;
-        Gui.fitted(g, font, name, textX, y + 1, right - 2 - textX, rare ? RARE : Gui.LABEL);
+        Gui.fitted(g, font, name, textX, y + 1, right - 2 - textX, rare ? rare() : Gui.label());
         int lineY = y + 11;
         String pct = percent(chance);
         int pctX = right - 2 - font.width(pct);
-        g.drawString(font, pct, pctX, lineY, rare ? RARE : Gui.LABEL, false);
+        g.drawString(font, pct, pctX, lineY, rare ? rare() : Gui.label(), false);
         int detailY = lineY + (font.lineHeight - 1 - Gui.fineLine(font)) / 2;
-        Gui.fineClipped(g, font, detail, textX, detailY, pctX - 4 - textX, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, detail, textX, detailY, pctX - 4 - textX, Gui.labelSoft());
         int barLeft = textX + (detailRoom >= 0 ? detailRoom : Gui.fineWidth(font, detail)) + 4;
         int barRight = pctX - 4;
         if (barRight - barLeft >= 4) {

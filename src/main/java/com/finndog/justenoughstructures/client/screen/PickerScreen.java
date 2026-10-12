@@ -26,7 +26,6 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     /** The widest the list gets. */
     private static final int MOST_WIDTH = 640;
     /** The note on the choice in use now. */
-    private static final int NOW = 0xFF2E7D1F;
 
     protected final Screen parent;
     /** Where the picker's own text is in the lang file: "picker" or "mob_picker". */
@@ -226,13 +225,13 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         int left = left();
         int right = right();
         int w = right - left;
-        Gui.drawClipped(g, font, title.getString(), left + 2, TOP + 8, w, Gui.LABEL, false);
+        Gui.drawClipped(g, font, title.getString(), left + 2, TOP + 8, w, Gui.label(), false);
         String from = Component.translatable("screen.justenoughstructures.picker.from", template().toString()).getString();
-        Gui.fineClipped(g, font, from, left + 2, TOP + 21, w, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, from, left + 2, TOP + 21, w, Gui.labelSoft());
 
-        Gui.inset(g, left, listTop(), w, listBottom() - listTop(), Gui.PANEL);
+        Gui.inset(g, left, listTop(), w, listBottom() - listTop(), Gui.Tone.PANEL);
         if (shown.isEmpty()) {
-            Gui.wrapped(g, font, nothingShown(), left + 4, listTop() + 4, w - 8, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, nothingShown(), left + 4, listTop() + 4, w - 8, Gui.labelSoft());
         }
         Gui.scissor(g, left + 1, listTop() + 1, right - 1, listBottom() - 1);
         int y = listTop() + 2 - (int) scroll;
@@ -247,13 +246,13 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
                 boolean over = mouseX >= left + 2 && mouseX < rowRight - 2 && mouseY >= y && mouseY < y + ROW - 1 && mouseY < listBottom();
                 Gui.card(g, left + 2, y, rowRight - left - 4, ROW - 1);
                 if (selected || over) {
-                    g.fill(left + 3, y + 1, rowRight - 3, y + ROW - 2, selected ? Gui.ROW_SELECTED : Gui.ROW_HOVER);
+                    g.fill(left + 3, y + 1, rowRight - 3, y + ROW - 2, selected ? Gui.rowSelected() : Gui.rowHover());
                 }
                 String now = inUseNow(choice) ? Component.translatable("screen.justenoughstructures.picker.now").getString() : "";
                 int nowWidth = now.isEmpty() ? 0 : Gui.fineWidth(font, now) + 4;
                 drawRow(g, choice, left, y, rowRight - nowWidth);
                 if (!now.isEmpty()) {
-                    Gui.fine(g, font, now, rowRight - 6 - nowWidth + 4, y + 8, NOW);
+                    Gui.fine(g, font, now, rowRight - 6 - nowWidth + 4, y + 8, Gui.ink(0xFF2E7D1F, Gui.GOOD_ON_DARK));
                 }
             }
             y += ROW;
@@ -262,7 +261,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         Gui.scrollbar(g, right - 4, listTop(), listBottom() - listTop(), scroll, Math.max(0, shown.size() * ROW - (listBottom() - listTop() - 4)));
         Component note = note();
         if (note != null) {
-            Gui.drawClipped(g, font, note.getString(), left + 2, listBottom() + 3, w, Gui.LABEL_SOFT, false);
+            Gui.drawClipped(g, font, note.getString(), left + 2, listBottom() + 3, w, Gui.labelSoft(), false);
         }
         if (problem != null) {
             // Over the top of the list, where it's seen, until something else is picked.

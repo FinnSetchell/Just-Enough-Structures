@@ -2172,7 +2172,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     private StructureViewport.Hit renderViewport(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        Gui.inset(g, viewX - 1, viewY - 1, viewW + 2, viewH + 2, Gui.SLOT_DARK);
+        Gui.inset(g, viewX - 1, viewY - 1, viewW + 2, viewH + 2, Gui.Tone.SLOT_DARK);
         g.fillGradient(viewX, viewY, viewX + viewW, viewY + viewH, Gui.VIEW_TOP, Gui.VIEW_BOTTOM);
         markerRects.clear();
 

@@ -88,7 +88,7 @@ final class FoundInPopup {
         Gui.panel(g, x, y, WIDTH, height());
         Gui.slot(g, x + 7, y + 6);
         g.renderItem(item, x + 8, y + 7);
-        Gui.drawClipped(g, font, item.getHoverName().getString(), x + 30, y + 7, WIDTH - 40, Gui.LABEL, false);
+        Gui.drawClipped(g, font, item.getHoverName().getString(), x + 30, y + 7, WIDTH - 40, Gui.label(), false);
 
         List<Row> list = rows();
         int top = y + 30;
@@ -97,38 +97,38 @@ final class FoundInPopup {
             Component text = rows != null ? Component.translatable("screen.justenoughstructures.found_in_working", known(), rows.size())
                     : progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
                     : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
-            Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.labelSoft());
             return;
         }
         Gui.smallClipped(g, font, Component.translatable("screen.justenoughstructures.found_in_chance", list.size()).getString(), x + 30, y + 17,
-                WIDTH - 38, Gui.LABEL_SOFT);
-        Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, 0xFFB9B9B9);
+                WIDTH - 38, Gui.labelSoft());
+        Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, Gui.Tone.WELL);
         if (list.isEmpty()) {
-            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.labelSoft());
         }
         for (int i = 0; i < VISIBLE_ROWS && scroll + i < list.size(); i++) {
             Row row = list.get(scroll + i);
             int ry = top + i * ROW;
             boolean hovered = mouseX >= x + 7 && mouseX < x + WIDTH - 7 && mouseY >= ry && mouseY < ry + ROW;
             if (hovered) {
-                g.fill(x + 7, ry, x + WIDTH - 7, ry + ROW, Gui.ROW_HOVER);
+                g.fill(x + 7, ry, x + WIDTH - 7, ry + ROW, Gui.rowHover());
             }
             if (!Thumbnails.draw(g, row.structure(), x + 9, ry + 2, 18)) {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
             double chance = chance(row);
             String pct = FoundIn.percent(chance);
-            Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), 0xFF202020);
-            g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, 0xFF202020, false);
+            Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), Gui.ink(0xFF202020, Gui.VANILLA_LABEL));
+            g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
             // Which of its loot tables, unless that only repeats the structure's name.
             String name = StructureNames.structure(row.structure());
             String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct()
                     .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
-            Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40, Gui.LABEL_SOFT);
+            Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40, Gui.labelSoft());
         }
         if (list.size() > VISIBLE_ROWS) {
             String more = Component.translatable("screen.justenoughstructures.found_in_range", scroll + 1, Math.min(list.size(), scroll + VISIBLE_ROWS), list.size()).getString();
-            Gui.small(g, font, more, x + WIDTH - 8 - Gui.smallWidth(font, more), y + height() - 11, Gui.LABEL_SOFT);
+            Gui.small(g, font, more, x + WIDTH - 8 - Gui.smallWidth(font, more), y + height() - 11, Gui.labelSoft());
         }
     }
 

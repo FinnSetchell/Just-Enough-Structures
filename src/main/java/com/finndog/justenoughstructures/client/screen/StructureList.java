@@ -229,7 +229,7 @@ final class StructureList {
                 message = progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
                         : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
             }
-            Gui.wrapped(g, font, message, x + 5, y + 5, width - 10, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, message, x + 5, y + 5, width - 10, Gui.labelSoft());
             return;
         }
         boolean scrolls = contentHeight > height;
@@ -259,16 +259,16 @@ final class StructureList {
             }
             boolean isSelected = row.entry() != null && row.entry().id().equals(selected);
             if (isSelected) {
-                g.fill(x, top, rowRight, top + ROW, Gui.ROW_SELECTED);
+                g.fill(x, top, rowRight, top + ROW, Gui.rowSelected());
             } else if (over) {
-                g.fill(x, top, rowRight, top + ROW, Gui.ROW_HOVER);
+                g.fill(x, top, rowRight, top + ROW, Gui.rowHover());
             }
             Gui.slot(g, x, top);
             if (row.item() != null) {
                 g.renderItem(new ItemStack(row.item()), x + 1, top + 1);
                 String count = Component.translatable("screen.justenoughstructures.times", row.count()).getString();
-                Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 26 - font.width(count), Gui.LABEL);
-                g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.LABEL_SOFT, false);
+                Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 26 - font.width(count), Gui.label());
+                g.drawString(font, count, rowRight - 3 - font.width(count), top + 5, Gui.labelSoft(), false);
                 continue;
             }
             if (!Thumbnails.draw(g, row.entry().id(), x + 1, top + 1, 16)) {
@@ -284,7 +284,7 @@ final class StructureList {
             }
             // Greyed when it won't turn up in new worlds, as the Info tab explains: a darker grey on
             // the picked row, whose own darker background the usual grey would sink into.
-            int colour = row.entry().availability().generates() ? Gui.LABEL : isSelected ? 0xFF4A4A4A : Gui.LABEL_SOFT;
+            int colour = row.entry().availability().generates() ? Gui.label() : isSelected ? Gui.ink(0xFF4A4A4A, 0xFFC8C8C8) : Gui.labelSoft();
             Gui.fitted(g, font, row.name(), x + 21, top + 5, rowRight - x - 24 - (showStar ? 10 : 0), colour);
         }
         Gui.endScissor(g);

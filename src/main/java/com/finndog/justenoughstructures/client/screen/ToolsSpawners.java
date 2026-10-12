@@ -119,10 +119,10 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
 
     @Override
     int intro(GuiGraphics g, int x, int y, int w) {
-        int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro"), x, y, w, Gui.LABEL_SOFT);
-        ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_more"), x, ty + 4, w, Gui.LABEL_SOFT);
+        int ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro"), x, y, w, Gui.labelSoft());
+        ty = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_more"), x, ty + 4, w, Gui.labelSoft());
         return TrialSpawners.exist()
-                ? Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_trial"), x, ty + 4, w, Gui.LABEL_SOFT)
+                ? Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.spawners_intro_trial"), x, ty + 4, w, Gui.labelSoft())
                 : ty;
     }
 
@@ -181,7 +181,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
         int cy = y + row(g, ui, x, y, w, Icon.item(blockIcon(blockNow)), name, null, 0, where(ref), List.of(), null, 0, false);
         Component from = ref.byCode() ? Component.translatable("screen.justenoughstructures.tools.spawner_by_code")
                 : Component.translatable("screen.justenoughstructures.tools.from_template", ref.template().toString(), ref.templatePos().toShortString());
-        cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.LABEL_SOFT) + 2;
+        cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.labelSoft()) + 2;
 
         if (!ref.byCode() && TrialSpawners.exist()) {
             // Made the other kind with the mob it has now. Back to what it was in its template, with its own mob, is undoing it.
@@ -219,7 +219,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
             }
         }
         for (Component note : notes) {
-            cy = Gui.fineWrapped(g, font, note, x, cy, w, Gui.LABEL_SOFT) + 3;
+            cy = Gui.fineWrapped(g, font, note, x, cy, w, Gui.labelSoft()) + 3;
         }
         return cy;
     }

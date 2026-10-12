@@ -133,15 +133,15 @@ final class SpawnerPopup extends SidePopup {
             boolean wasTrial = spawner.source().block().equals(TrialSpawners.BLOCK);
             String key = wasTrial == kind.trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
             Component note = Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(changedFrom));
-            font.split(note, width).forEach(line -> lines.add(new Line(line, ToolsUi.CHANGED)));
+            font.split(note, width).forEach(line -> lines.add(new Line(line, ToolsUi.changed())));
         }
         if (kind.trial() && kind.sameOminous() && !kind.mobs().isEmpty()) {
             Component note = Component.translatable(kind.gear().isEmpty() ? "screen.justenoughstructures.spawner.ominous_same"
                     : "screen.justenoughstructures.spawner.ominous_same_gear");
-            font.split(note, width).forEach(line -> lines.add(new Line(line, Gui.LABEL_SOFT)));
+            font.split(note, width).forEach(line -> lines.add(new Line(line, Gui.labelSoft())));
         }
         if (timing != null) {
-            font.split(timing, width).forEach(line -> lines.add(new Line(line, Gui.LABEL_SOFT)));
+            font.split(timing, width).forEach(line -> lines.add(new Line(line, Gui.labelSoft())));
         }
         return lines;
     }
@@ -202,16 +202,16 @@ final class SpawnerPopup extends SidePopup {
         Gui.panel(g, x, infoTop, WIDTH, infoHeight(font));
         int cy = infoTop + 5;
         Gui.fine(g, font, Component.translatable("screen.justenoughstructures.spawner.spawns").getString(), x + 7,
-                cy + (ICON - Gui.fineLine(font)) / 2, Gui.LABEL_SOFT);
+                cy + (ICON - Gui.fineLine(font)) / 2, Gui.labelSoft());
         int iconRight = x + WIDTH - 7;
         if (packTools || picking) {
             toolsIcon(g, iconRight, cy, mouseX, mouseY);
         }
         cy += ICON + 2;
-        Gui.drawClipped(g, font, summary().getString(), x + 7, cy, WIDTH - 14, 0xFF202020, false);
+        Gui.drawClipped(g, font, summary().getString(), x + 7, cy, WIDTH - 14, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
         cy += font.lineHeight + 1;
         if (Gui.advanced() && kind.type() == SpawnerKind.Type.MOB && !kind.mob().isEmpty()) {
-            Gui.fineClipped(g, font, kind.mob(), x + 7, cy, WIDTH - 14, 0xFF555555);
+            Gui.fineClipped(g, font, kind.mob(), x + 7, cy, WIDTH - 14, Gui.labelSoftSmall());
             cy += Gui.fineLine(font) + 1;
         }
         for (Line line : notes(font)) {
@@ -226,9 +226,9 @@ final class SpawnerPopup extends SidePopup {
         int left = x + 7;
         int right = x + WIDTH - 7;
         int bottom = top + body - 2;
-        Gui.inset(g, left, top - 1, right - left, body, 0xFFB9B9B9);
+        Gui.inset(g, left, top - 1, right - left, body, Gui.Tone.WELL);
         if (rows.isEmpty()) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.hover_spawns_nothing"), left + 4, top + 4, right - left - 8, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.hover_spawns_nothing"), left + 4, top + 4, right - left - 8, Gui.labelSoft());
             return;
         }
         // A list that scrolls says so with a bar down its side, and its rows make room for it.
@@ -239,7 +239,7 @@ final class SpawnerPopup extends SidePopup {
         for (Row row : rows) {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 if (row.mob() == null) {
-                    Gui.fineClipped(g, font, row.text().getString(), left + 4, cy + (OddsList.ROW - Gui.fineLine(font)) / 2 + 1, rowRight - left - 8, Gui.LABEL_SOFT);
+                    Gui.fineClipped(g, font, row.text().getString(), left + 4, cy + (OddsList.ROW - Gui.fineLine(font)) / 2 + 1, rowRight - left - 8, Gui.labelSoft());
                 } else {
                     renderRow(g, font, row, left, rowRight, cy, top, bottom, mouseX, mouseY);
                 }

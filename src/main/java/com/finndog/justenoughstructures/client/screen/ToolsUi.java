@@ -14,10 +14,25 @@ import net.minecraft.network.chat.Component;
 final class ToolsUi {
     static final int BUTTON = 14;
     static final int TEXT = 0xFF404040;
-    static final int GOOD = 0xFF2E5B1D;
-    static final int CHANGED = 0xFF9A6200;
-    static final int BAD = 0xFFB02020;
-    static final int LINK = 0xFF3A55A0;
+    static int good() {
+        return Gui.ink(0xFF2E5B1D, Gui.GOOD_ON_DARK);
+    }
+
+    static int changed() {
+        return Gui.ink(0xFF9A6200, Gui.WARN_ON_DARK);
+    }
+
+    static int bad() {
+        return Gui.ink(0xFFB02020, Gui.BAD_ON_DARK);
+    }
+
+    static int link() {
+        return Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
+    }
+
+    private static int linkHovered() {
+        return Gui.ink(0xFF2040C0, Gui.LINK_HOVER_ON_DARK);
+    }
     static final int SELECTED = 0xFF4B5280;
     /** The kinds of {@link #status} bar, by how what it says stands. */
     static final int STATUS_PLAIN = 0;
@@ -181,12 +196,12 @@ final class ToolsUi {
         int h = fine ? Gui.fineLine(font) : font.lineHeight;
         boolean over = hovered(x, y - 1, w, h + 2);
         if (fine) {
-            Gui.fine(g, font, text, x, y, over ? 0xFF2040C0 : LINK);
+            Gui.fine(g, font, text, x, y, over ? linkHovered() : link());
         } else {
-            g.drawString(font, text, x, y, over ? 0xFF2040C0 : LINK, false);
+            g.drawString(font, text, x, y, over ? linkHovered() : link(), false);
         }
         if (over) {
-            g.fill(x, y + h, x + w, y + h + 1, 0xFF2040C0);
+            g.fill(x, y + h, x + w, y + h + 1, linkHovered());
         }
         spot(x, y - 1, w, h + 2, action, text);
         tooltip(x, y - 1, w, h + 2, tip);

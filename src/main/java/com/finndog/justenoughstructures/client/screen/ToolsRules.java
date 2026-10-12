@@ -88,7 +88,7 @@ final class ToolsRules extends ToolsSection {
         int cx = x + 2;
         List<String> players = s.packTools().players();
         if (players.isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.nobody_listed").getString(), cx, cy + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.nobody_listed").getString(), cx, cy + 2, Gui.labelSoft());
         }
         for (String player : players) {
             String label = player + "  x";
@@ -177,7 +177,7 @@ final class ToolsRules extends ToolsSection {
         Gui.drawClipped(g, font, label.getString(), x + 2, y + 5, w - 4, ToolsUi.TEXT, false);
         int room = under ? w - 4 : w - 12 - font.width(label);
         String shown = Gui.fineClip(font, text, room);
-        Gui.fineClipped(g, font, text, x + w - 2 - Gui.fineWidth(font, shown), under ? y + 15 : y + 6, room, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, text, x + w - 2 - Gui.fineWidth(font, shown), under ? y + 15 : y + 6, room, Gui.labelSoft());
         int h = under ? LINE + Gui.fineLine(font) + 3 : LINE;
         hint(ui, x, y, w, h - 1, key);
         g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
@@ -218,7 +218,7 @@ final class ToolsRules extends ToolsSection {
         ui.toggle(g, textX - 21, cy + 4, on, flip);
         if (!noteText.isEmpty()) {
             int noteX = Math.max(x + 2, textX - 26 - Gui.fineWidth(font, noteText));
-            Gui.fineClipped(g, font, noteText, noteX, cy + 6, textX - 26 - noteX, ToolsUi.CHANGED);
+            Gui.fineClipped(g, font, noteText, noteX, cy + 6, textX - 26 - noteX, ToolsUi.changed());
         }
         g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
         return y + h;

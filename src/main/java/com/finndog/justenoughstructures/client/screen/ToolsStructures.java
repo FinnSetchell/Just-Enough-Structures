@@ -239,7 +239,7 @@ final class ToolsStructures extends ToolsSection {
         }
         int leftW = listWidth(w);
         int listTop = y + 19;
-        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
+        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.Tone.PANEL);
 
         // Grouped by mod, each mod's name with a switch for all of it.
         TreeMap<String, List<StructureCatalog.Entry>> byMod = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -274,7 +274,7 @@ final class ToolsStructures extends ToolsSection {
             }
         }
         if (byMod.isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_match").getString(), x + 4, cy + 4, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_match").getString(), x + 4, cy + 4, Gui.labelSoft());
             cy += 16;
         }
         list.end(g, ui, cy - top);
@@ -288,7 +288,7 @@ final class ToolsStructures extends ToolsSection {
     private void showDetail(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, StructureCatalog.Entry entry, ServerConfig.Settings settings,
                             PackToolsState state) {
         if (entry == null) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_structure"), x, y + 4, w, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.tools.pick_structure"), x, y + 4, w, Gui.labelSoft());
             if (notesBox != null) {
                 notesBox.visible = false;
             }
@@ -303,7 +303,7 @@ final class ToolsStructures extends ToolsSection {
         if (isSelected) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, 0xFF9D9D9D);
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
-            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.ROW_HOVER);
+            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
         ui.spot(x, y, w, LIST_ROW - 1, () -> screen.pick(e.id()));
         Icon.structure(e.id()).draw(g, x + 2, y + 1);
@@ -319,7 +319,7 @@ final class ToolsStructures extends ToolsSection {
         for (int i = marks.size() - 1; i >= 0; i--) {
             String mark = Component.translatable("screen.justenoughstructures.tools.mark." + marks.get(i)).getString();
             right -= Gui.fineWidth(font, mark);
-            Gui.fine(g, font, mark, right, y + 7, isSelected ? 0xFFFFFFFF : marks.get(i).equals("notes") ? ToolsUi.GOOD : ToolsUi.CHANGED);
+            Gui.fine(g, font, mark, right, y + 7, isSelected ? 0xFFFFFFFF : marks.get(i).equals("notes") ? ToolsUi.good() : ToolsUi.changed());
             right -= 4;
         }
         String name = StructureNames.structure(e.id());
@@ -391,12 +391,12 @@ final class ToolsStructures extends ToolsSection {
             }
             ClientRequests.saveStructure(id, text, !info.hideLootLocations()).thenAccept(reply -> screen.replied(reply, "tools.structure_saved"));
         }, Component.translatable("screen.justenoughstructures.tools.secret_hint"));
-        Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.notes").getString(), x + 5, labelY, w - 10, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.notes").getString(), x + 5, labelY, w - 10, Gui.labelSoft());
         placeNotes(g, x + 5, notesY, w - 10, viewTop, viewBottom);
         ui.button(g, save, x + w - 5 - saveW, saveY, notesChanged, this::saveNotes);
         int sy = saveY + 3;
         for (FormattedCharSequence line : statusLines) {
-            Gui.scaled(g, font, line, x + 5, sy, notesChanged ? ToolsUi.CHANGED : Gui.LABEL_SOFT, Gui.fineScale());
+            Gui.scaled(g, font, line, x + 5, sy, notesChanged ? ToolsUi.changed() : Gui.labelSoft(), Gui.fineScale());
             sy += lineH;
         }
         return y + boxH;
@@ -479,7 +479,7 @@ final class ToolsStructures extends ToolsSection {
                 y += 14;
                 continue;
             }
-            Gui.fine(g, font, r[0], x + 2, y, Gui.LABEL_SOFT);
+            Gui.fine(g, font, r[0], x + 2, y, Gui.labelSoft());
             Gui.fineClipped(g, font, r[1], x + labelW + 8, y, w - labelW - 10, ToolsUi.TEXT);
             y += line;
         }

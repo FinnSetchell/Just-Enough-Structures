@@ -95,7 +95,7 @@ final class MobPopup extends SidePopup {
                 int sx = x + 8 + slot * 18;
                 int sy = y + 18;
                 if (slot >= items.size()) {
-                    g.fill(sx - 1, sy - 1, sx + 17, sy + 17, 0xFF8B8B8B);
+                    Gui.tone(g, sx - 1, sy - 1, sx + 17, sy + 17, Gui.Tone.SLOT);
                     continue;
                 }
                 ItemStack stack = items.get(slot);
@@ -114,11 +114,11 @@ final class MobPopup extends SidePopup {
         Gui.panel(g, x, infoTop, WIDTH, infoHeight(font));
         int cy = infoTop + 5;
         for (Component line : details) {
-            Gui.drawClipped(g, font, line.getString(), x + 7, cy, WIDTH - 14, 0xFF202020, false);
+            Gui.drawClipped(g, font, line.getString(), x + 7, cy, WIDTH - 14, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
             cy += font.lineHeight + 1;
         }
         if (Gui.advanced()) {
-            Gui.fineClipped(g, font, BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString(), x + 7, cy, WIDTH - 14, 0xFF555555);
+            Gui.fineClipped(g, font, BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString(), x + 7, cy, WIDTH - 14, Gui.labelSoftSmall());
         }
         return hovered;
     }

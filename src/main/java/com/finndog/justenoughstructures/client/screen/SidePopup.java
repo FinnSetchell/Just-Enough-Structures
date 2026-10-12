@@ -71,9 +71,9 @@ abstract class SidePopup {
             // Room for the widest it can say, so the title doesn't move as the arrows step.
             int all = font.width(Component.translatable("screen.justenoughstructures.container_all", count).getString());
             int last = font.width(Component.translatable("screen.justenoughstructures.container_index", count, count).getString());
-            g.drawString(font, of, right - font.width(of), y + 6, Gui.LABEL_SOFT, false);
+            g.drawString(font, of, right - font.width(of), y + 6, Gui.labelSoft(), false);
             right -= Math.max(all, last) + 4;
         }
-        Gui.drawClipped(g, font, title.getString(), x + 8, y + 6, right - x - 8, Gui.LABEL, false);
+        Gui.drawClipped(g, font, title.getString(), x + 8, y + 6, right - x - 8, Gui.label(), false);
     }
 }

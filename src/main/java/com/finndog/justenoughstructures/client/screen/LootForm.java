@@ -84,7 +84,7 @@ final class LootForm {
         }
         String poolPath = JsonPaths.join("pools", pool);
         if (JsonPaths.object(draft(), poolPath) == null) {
-            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.pick_something"), x, y + 2, w, Gui.LABEL_SOFT);
+            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.pick_something"), x, y + 2, w, Gui.labelSoft());
         }
         if (entry < 0) {
             return poolCard(g, x, y, w, pool, poolPath);
@@ -163,7 +163,7 @@ final class LootForm {
         if (composite) {
             JsonArray children = JsonPaths.array(draft(), JsonPaths.join(path, "children"));
             y = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.children", children == null ? 0 : children.size()),
-                    x + 4, y + 1, w - 8, Gui.LABEL_SOFT) + 2;
+                    x + 4, y + 1, w - 8, Gui.labelSoft()) + 2;
         } else {
             y = row(g, x, y, w, "weight", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "weight"), Kind.INT, "1"));
             y = row(g, x, y, w, "quality", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "quality"), Kind.INT, "0"));
@@ -348,7 +348,7 @@ final class LootForm {
             default -> y = generic(g, x, y, w, path, List.of("function", "conditions"));
         }
         if (y == before) {
-            Gui.fine(g, font, text("nothing_to_set").getString(), x + 4, y + 1, Gui.LABEL_SOFT);
+            Gui.fine(g, font, text("nothing_to_set").getString(), x + 4, y + 1, Gui.labelSoft());
             y += Gui.fineLine(font) + 4;
         }
         y = list(g, x, y, w, "conditions", JsonPaths.join(path, "conditions"), false);
@@ -427,7 +427,7 @@ final class LootForm {
             default -> y = generic(g, x, y, w, path, List.of("condition"));
         }
         if (y == before) {
-            Gui.fine(g, font, text("nothing_to_set").getString(), x + 4, y + 1, Gui.LABEL_SOFT);
+            Gui.fine(g, font, text("nothing_to_set").getString(), x + 4, y + 1, Gui.labelSoft());
             y += Gui.fineLine(font) + 4;
         }
         return end(g, x, top, y, w);
@@ -623,11 +623,11 @@ final class LootForm {
         String from = text("range_from").getString();
         String to = text("range_to").getString();
         int each = Math.max(14, Math.min(60, (w - Gui.fineWidth(font, from) - Gui.fineWidth(font, to) - 10) / 2));
-        Gui.fine(g, font, from, x, y + 4, Gui.LABEL_SOFT);
+        Gui.fine(g, font, from, x, y + 4, Gui.labelSoft());
         int fx = x + Gui.fineWidth(font, from) + 3;
         number(g, fx, y, each, at(path, "min"), Kind.NUMBER, "");
         int tx = fx + each + 4;
-        Gui.fine(g, font, to, tx, y + 4, Gui.LABEL_SOFT);
+        Gui.fine(g, font, to, tx, y + 4, Gui.labelSoft());
         number(g, tx + Gui.fineWidth(font, to) + 3, y, each, at(path, "max"), Kind.NUMBER, "");
     }
 
@@ -635,7 +635,7 @@ final class LootForm {
     private int numberList(GuiGraphics g, int x, int y, int w, String key, String path) {
         return listRows(g, x, y, w, text("field." + key).getString(), size(path), null, () -> append(path, JsonPaths.number(0)), (index, cx, cw) -> {
             String itemPath = at(path, index);
-            Gui.fine(g, font, text("level", index).getString(), cx, y() + 3, Gui.LABEL_SOFT);
+            Gui.fine(g, font, text("level", index).getString(), cx, y() + 3, Gui.labelSoft());
             number(g, cx + 40, y(), 50, itemPath, Kind.NUMBER, "0");
             removeX(g, cx + 96, y(), () -> remove(itemPath));
         });
@@ -669,7 +669,7 @@ final class LootForm {
                     return;
                 }
                 if (count == 0 && empty != null) {
-                    Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.LABEL_SOFT);
+                    Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.labelSoft());
                 }
                 Component link = text("add");
                 ui.link(g, link, cx + cw - Gui.fineWidth(font, link.getString()), y() + 3, true, add);
@@ -706,7 +706,7 @@ final class LootForm {
         y += 2;
         g.drawString(font, text("list." + key), x + 4, y + 1, ToolsUi.TEXT, false);
         String countText = count == 0 ? text("none").getString() : String.valueOf(count);
-        Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.LABEL_SOFT);
+        Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.labelSoft());
         Component add = text(functions ? "add_function" : "add_condition");
         int addW = Gui.fineWidth(font, add.getString());
         ui.link(g, add, x + w - 4 - addW, y + 2, true,
@@ -772,14 +772,14 @@ final class LootForm {
     }
 
     private int labelled(GuiGraphics g, int x, int y, int w, String label, Control control) {
-        Gui.fineClipped(g, font, label, x + 4, y + (FIELD - Gui.fineLine(font)) / 2 + 1, labelW - 8, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, label, x + 4, y + (FIELD - Gui.fineLine(font)) / 2 + 1, labelW - 8, Gui.labelSoft());
         rowY = y;
         control.draw(x + labelW, w - labelW - 4);
         return y + FIELD + GAP;
     }
 
     private void soft(GuiGraphics g, int x, String text) {
-        g.drawString(font, text, x, rowY + 3, Gui.LABEL_SOFT, false);
+        g.drawString(font, text, x, rowY + 3, Gui.labelSoft(), false);
     }
 
     // ------------------------------------------------------------------ controls
@@ -963,7 +963,7 @@ final class LootForm {
                 }
             });
             if (current.isBlank() && empty != null && !path.equals(host.editing())) {
-                Gui.fine(g, font, empty.getString(), cx + 4, y() + 3, Gui.LABEL_SOFT);
+                Gui.fine(g, font, empty.getString(), cx + 4, y() + 3, Gui.labelSoft());
             }
             if (!current.isBlank()) {
                 removeX(g, cx + boxW + 4, y(), () -> remove(path));
@@ -1032,7 +1032,7 @@ final class LootForm {
     private int objectList(GuiGraphics g, int x, int y, int w, String key, String path, java.util.function.Supplier<JsonObject> fresh, ObjectFields fields) {
         int count = size(path);
         y += 2;
-        Gui.fineClipped(g, font, text("field." + key).getString(), x + 4, y + 1, w - 60, Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, text("field." + key).getString(), x + 4, y + 1, w - 60, Gui.labelSoft());
         Component add = text("add");
         ui.link(g, add, x + w - 4 - Gui.fineWidth(font, add.getString()), y + 1, true, () -> append(path, fresh.get()));
         y += Gui.fineLine(font) + 4;
@@ -1042,7 +1042,7 @@ final class LootForm {
             int cx = x + INDENT;
             int cw = w - INDENT * 2;
             g.fill(cx, y, cx + cw, y + 12, 0xFFB0B0B0);
-            Gui.fine(g, font, String.valueOf(i + 1), cx + 4, y + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, String.valueOf(i + 1), cx + 4, y + 2, Gui.labelSoft());
             removeX(g, cx + cw - 9, y, () -> remove(itemPath));
             y = fields.draw(cx, y + 14, cw, itemPath);
             y = end(g, cx, top, y, cw) + 3;
@@ -1110,19 +1110,19 @@ final class LootForm {
             case "uniform" -> {
                 int words = Gui.fineWidth(font, text("range_from").getString()) + Gui.fineWidth(font, text("range_to").getString());
                 int each = Math.max(14, Math.min(60, (rest - words - 10) / 2));
-                Gui.fine(g, font, text("range_from").getString(), fx, y + 4, Gui.LABEL_SOFT);
+                Gui.fine(g, font, text("range_from").getString(), fx, y + 4, Gui.labelSoft());
                 int from = fx + Gui.fineWidth(font, text("range_from").getString()) + 3;
                 number(g, from, y, each, JsonPaths.join(path, "min"), Kind.NUMBER, "0");
                 int toX = from + each + 4;
-                Gui.fine(g, font, text("range_to").getString(), toX, y + 4, Gui.LABEL_SOFT);
+                Gui.fine(g, font, text("range_to").getString(), toX, y + 4, Gui.labelSoft());
                 number(g, toX + Gui.fineWidth(font, text("range_to").getString()) + 3, y, each, JsonPaths.join(path, "max"), Kind.NUMBER, "0");
             }
             case "binomial" -> {
                 int each = Math.max(14, Math.min(60, (rest - 20) / 2));
-                Gui.fine(g, font, "n", fx, y + 4, Gui.LABEL_SOFT);
+                Gui.fine(g, font, "n", fx, y + 4, Gui.labelSoft());
                 number(g, fx + 8, y, each, JsonPaths.join(path, "n"), Kind.INT, "1");
                 int pX = fx + 8 + each + 4;
-                Gui.fine(g, font, "p", pX, y + 4, Gui.LABEL_SOFT);
+                Gui.fine(g, font, "p", pX, y + 4, Gui.labelSoft());
                 number(g, pX + 8, y, each, JsonPaths.join(path, "p"), Kind.NUMBER, "0.5");
             }
             default -> {

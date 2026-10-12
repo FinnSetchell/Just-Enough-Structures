@@ -201,11 +201,11 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
         int left = PAD + 6;
         int column = (width - PAD * 2 - 18) / 2;
         int right = left + column + 6;
-        Gui.drawClipped(g, font, title.getString(), left, TOP + 8, width - PAD * 2 - 16, Gui.LABEL, false);
+        Gui.drawClipped(g, font, title.getString(), left, TOP + 8, width - PAD * 2 - 16, Gui.label(), false);
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.diff.theirs").getString(), left, TOP + 18, column, 12);
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.diff.yours").getString(), right, TOP + 18, column, 12);
-        Gui.inset(g, left, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
-        Gui.inset(g, right, top(), column, bottom() - top(), Gui.PANEL_LIGHT);
+        Gui.inset(g, left, top(), column, bottom() - top(), Gui.Tone.LIGHT);
+        Gui.inset(g, right, top(), column, bottom() - top(), Gui.Tone.LIGHT);
         Gui.scissor(g, left, top() + 1, right + column, bottom() - 1);
         int y = top() + 2 - (int) scroll;
         for (Row row : rows) {
@@ -221,10 +221,10 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
                     g.fill(right + 1, y, right + column - 1, y + LINE, ADDED);
                 }
                 if (row.left() != null) {
-                    Gui.drawClipped(g, font, row.left(), left + 3, y + 1, column - 6, Gui.LABEL, false);
+                    Gui.drawClipped(g, font, row.left(), left + 3, y + 1, column - 6, Gui.label(), false);
                 }
                 if (row.right() != null) {
-                    Gui.drawClipped(g, font, row.right(), right + 3, y + 1, column - 6, Gui.LABEL, false);
+                    Gui.drawClipped(g, font, row.right(), right + 3, y + 1, column - 6, Gui.label(), false);
                 }
             }
             y += LINE;

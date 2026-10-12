@@ -129,8 +129,8 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
     protected void drawRow(GuiGraphics g, ResourceLocation id, int left, int y, int right) {
         String name = id.equals(typed) ? Component.translatable("screen.justenoughstructures.picker.typed", id.toString()).getString()
                 : StructureNames.lootTable(id.toString());
-        Gui.fitted(g, font, name, left + 6, y + 3, right - left - 14, Gui.LABEL);
-        Gui.fineClipped(g, font, id.toString(), left + 6, y + 13, right - left - 14, Gui.LABEL_SOFT);
+        Gui.fitted(g, font, name, left + 6, y + 3, right - left - 14, Gui.label());
+        Gui.fineClipped(g, font, id.toString(), left + 6, y + 13, right - left - 14, Gui.labelSoft());
     }
 
     /** Opens the editor on a new table, named as typed or after the container's template. Save it, then pick it here. */

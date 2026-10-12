@@ -147,7 +147,7 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
         ui.button(g, pick, x, y, pickW, 18, screen.browser() != null, this::pickInBrowser,
                 Component.translatable("screen.justenoughstructures.tools.pick_" + kind() + "_hint"));
         int listTop = y + 22;
-        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
+        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.Tone.PANEL);
         int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
         int rw = list.width();
         int cy = top + 2;
@@ -157,17 +157,17 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
         }
         PackToolsState state = screen.state();
         if (selected != null && selected.structure() != null && patchOf(selected) == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.from_browser").getString(), x + 4, cy, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.from_browser").getString(), x + 4, cy, Gui.labelSoft());
             cy += Gui.fineLine(font) + 2;
             Line line = browserLine(selected);
             String name = Component.translatable("screen.justenoughstructures.tools.chest_name", StructureNames.structure(selected.structure()), line.what())
                     .getString();
             cy += row(g, ui, x + 1, cy, rw, Icon.item(line.icon()), name, null, 0, line.detail(), List.of(), null, 0, true) + 4;
         }
-        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.changed_" + kind() + "s").getString(), x + 4, cy, Gui.LABEL_SOFT);
+        Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.changed_" + kind() + "s").getString(), x + 4, cy, Gui.labelSoft());
         cy += Gui.fineLine(font) + 2;
         if (patches(state).isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.none_yet").getString(), x + 4, cy, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.none_yet").getString(), x + 4, cy, Gui.labelSoft());
             cy += Gui.fineLine(font) + 4;
         }
         for (P patch : patches(state)) {

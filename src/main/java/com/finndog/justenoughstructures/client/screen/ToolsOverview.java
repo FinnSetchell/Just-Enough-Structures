@@ -85,14 +85,14 @@ final class ToolsOverview extends ToolsSection {
 
         cy = ui.heading(g, Component.translatable("screen.justenoughstructures.tools.recent"), x, cy, cw);
         if (state.overrides().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_tables").getString(), x + 2, cy, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_tables").getString(), x + 2, cy, Gui.labelSoft());
             cy += Gui.fineLine(font) + 4;
         }
         for (Map.Entry<ResourceLocation, LootOverrides.Status> e : state.overrides().entrySet()) {
             cy += tableRow(g, ui, x, cy, cw, e.getKey(), e.getValue());
         }
         if (state.patches().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_chests").getString(), x + 2, cy, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.no_chests").getString(), x + 2, cy, Gui.labelSoft());
             cy += Gui.fineLine(font) + 4;
         }
         for (ContainerPatches.Patch patch : state.patches()) {
@@ -120,7 +120,7 @@ final class ToolsOverview extends ToolsSection {
             mark = Component.translatable("screen.justenoughstructures.tools.after_reload");
         }
         return row(g, ui, x, y, w, Icon.item(CHEST), StructureNames.lootTable(table.toString()), mark,
-                screen.waiting(PackToolsState.tableKey(table)) ? ToolsUi.CHANGED : markColour(status),
+                screen.waiting(PackToolsState.tableKey(table)) ? ToolsUi.changed() : markColour(status),
                 table + " · " + usedBy(table), buttons, null, 0, false);
     }
 
@@ -136,7 +136,7 @@ final class ToolsOverview extends ToolsSection {
                 new RowButton(Component.translatable("screen.justenoughstructures.container.undo"), () -> screen.undoChest(patch.template(), patch.pos()),
                         Component.translatable("screen.justenoughstructures.container.undo_hint")));
         return row(g, ui, x, y, w, Icon.item(new net.minecraft.world.item.ItemStack(Regs.value(BuiltInRegistries.BLOCK, patch.block()))), name,
-                waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.CHANGED, detail, buttons, null, 0, false);
+                waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.changed(), detail, buttons, null, 0, false);
     }
 
     /** A changed spawner: where it is, what it made and makes now, and a way to open or undo it. */
@@ -149,7 +149,7 @@ final class ToolsOverview extends ToolsSection {
                 new RowButton(Component.translatable("screen.justenoughstructures.container.undo"), () -> screen.undoSpawner(patch.template(), patch.pos()),
                         Component.translatable("screen.justenoughstructures.container.undo_hint")));
         return row(g, ui, x, y, w, Icon.item(ToolsSpawners.mobIcon(patch.mob())), name,
-                waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.CHANGED,
+                waiting ? Component.translatable("screen.justenoughstructures.tools.after_reload") : null, ToolsUi.changed(),
                 ToolsSpawners.changed(patch), buttons, null, 0, false);
     }
 

@@ -53,7 +53,7 @@ public final class FoundInRow {
         }
         int textWidth = chanceX - 26;
         g.drawString(font, Gui.clip(font, StructureNames.structure(recipe.structure()), textWidth), 22, 3, text, false);
-        Gui.small(g, font, Gui.clipSmall(font, StructureNames.mod(recipe.structure().getNamespace()), textWidth), 22, 14, Gui.LABEL_SOFT);
+        Gui.small(g, font, Gui.clipSmall(font, StructureNames.mod(recipe.structure().getNamespace()), textWidth), 22, 14, Gui.labelSoft());
         g.drawString(font, chance, chanceX, 8, text, false);
     }
 

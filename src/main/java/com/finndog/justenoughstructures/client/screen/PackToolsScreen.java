@@ -381,14 +381,14 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         String status = Component.translatable(waiting > 0 ? "screen.justenoughstructures.tools.waiting" : "screen.justenoughstructures.tools.applied",
                 waiting).getString();
         right -= Gui.fineWidth(font, status);
-        Gui.fine(g, font, status, right, rowY + 3, waiting > 0 ? ToolsUi.CHANGED : Gui.LABEL_SOFT);
+        Gui.fine(g, font, status, right, rowY + 3, waiting > 0 ? ToolsUi.changed() : Gui.labelSoft());
         if (message != null && Util.getMillis() > messageUntil) {
             message = null;
         }
         if (message != null) {
             int x = PAD + 26 + font.width(title);
             String text = Gui.fineClip(font, message.getString(), right - 8 - x);
-            Gui.fine(g, font, text, x, rowY + 3, messageGood ? ToolsUi.GOOD : ToolsUi.BAD);
+            Gui.fine(g, font, text, x, rowY + 3, messageGood ? ToolsUi.good() : ToolsUi.bad());
             ui.tooltip(x, rowY, Gui.fineWidth(font, text), 10, message);
         }
 
@@ -408,7 +408,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         g.fill(contentX - 5, TOP + 20, contentX - 4, height - PAD - 4, 0xFF8B8B8B);
 
         if (state == null) {
-            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.tools.loading"), contentX, contentY + 2, contentW, Gui.LABEL_SOFT);
+            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.tools.loading"), contentX, contentY + 2, contentW, Gui.labelSoft());
         } else {
             current().render(g, ui, contentX, contentY, contentW, contentH, mouseX, mouseY);
         }

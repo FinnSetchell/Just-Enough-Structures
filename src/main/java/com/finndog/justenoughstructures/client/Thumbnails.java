@@ -228,7 +228,7 @@ public final class Thumbnails {
     }
 
     // Alpha is the top byte whichever way round the colours are, which is all halve() needs to know.
-    private static int pixel(NativeImage image, int x, int y) {
+    public static int pixel(NativeImage image, int x, int y) {
         //? if >=26.1 {
         /*return image.getPixel(x, y);
         *///?} else {

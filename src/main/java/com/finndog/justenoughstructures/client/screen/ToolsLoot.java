@@ -215,7 +215,7 @@ final class ToolsLoot extends ToolsSection {
         ui.link(g, newLink, linkX, newBesideSearch(leftW) ? y + 4 : fy + 2, true, screen::newTable);
 
         int listTop = fy + ui.chipHeight() + 4;
-        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.PANEL);
+        Gui.inset(g, x, listTop, leftW, y + h - listTop, Gui.Tone.PANEL);
         List<ResourceLocation> tables = shown();
         int top = list.begin(g, ui, x + 1, listTop + 1, leftW - 2, y + h - listTop - 2);
         int rw = list.width();
@@ -232,7 +232,7 @@ final class ToolsLoot extends ToolsSection {
         if (tables.isEmpty()) {
             Component none = Component.translatable(FoundIn.ready() || filter != Filter.USED ? "screen.justenoughstructures.tools.no_match"
                     : "screen.justenoughstructures.indexing");
-            Gui.fineWrapped(g, font, none, x + 4, ry + 3, rw - 8, Gui.LABEL_SOFT);
+            Gui.fineWrapped(g, font, none, x + 4, ry + 3, rw - 8, Gui.labelSoft());
             ry += 20;
         }
         list.end(g, ui, ry - top);
@@ -252,7 +252,7 @@ final class ToolsLoot extends ToolsSection {
         if (isSelected) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, 0xFF9D9D9D);
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
-            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.ROW_HOVER);
+            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
         ui.spot(x, y, w, LIST_ROW - 1, () -> screen.pick(table));
         Component mark = editedMark(status);
@@ -262,7 +262,7 @@ final class ToolsLoot extends ToolsSection {
         if (!markText.isEmpty()) {
             Gui.fine(g, font, markText, x + w - 3 - Gui.fineWidth(font, markText), y + 2, isSelected ? 0xFFFFFFFF : markColour(status));
         }
-        Gui.fineClipped(g, font, table.toString(), x + 3, y + 11, w - 6, isSelected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
+        Gui.fineClipped(g, font, table.toString(), x + 3, y + 11, w - 6, isSelected ? 0xFFDDDDDD : Gui.labelSoft());
         g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, 0xFFB0B0B0);
     }
 
@@ -310,7 +310,7 @@ final class ToolsLoot extends ToolsSection {
         // Where it's used, each opening that structure in the browser on this table.
         Set<ResourceLocation> used = FoundIn.structuresUsing(table);
         Gui.fineClipped(g, font, Component.translatable(used.isEmpty() ? "screen.justenoughstructures.tools.used_in_none"
-                : "screen.justenoughstructures.tools.used_in").getString(), x, cy, w, Gui.LABEL_SOFT);
+                : "screen.justenoughstructures.tools.used_in").getString(), x, cy, w, Gui.labelSoft());
         cy += Gui.fineLine(font) + 2;
         int cx = x;
         int count = 0;
@@ -318,7 +318,7 @@ final class ToolsLoot extends ToolsSection {
         sorted.sort(Comparator.comparing(StructureNames::structure));
         for (ResourceLocation structure : sorted) {
             if (count == 14) {
-                Gui.fine(g, font, Component.translatable("screen.justenoughstructures.and_more", sorted.size() - 14).getString(), cx, cy + 2, Gui.LABEL_SOFT);
+                Gui.fine(g, font, Component.translatable("screen.justenoughstructures.and_more", sorted.size() - 14).getString(), cx, cy + 2, Gui.labelSoft());
                 break;
             }
             String name = StructureNames.structure(structure);
@@ -348,10 +348,10 @@ final class ToolsLoot extends ToolsSection {
         int ow = detail.width();
         int oy = top;
         if (odds == null) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, oy + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, oy + 2, Gui.labelSoft());
             oy += 14;
         } else if (odds.rows().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.always_empty").getString(), x + 2, oy + 2, Gui.LABEL_SOFT);
+            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.always_empty").getString(), x + 2, oy + 2, Gui.labelSoft());
             oy += 14;
         } else {
             List<LootOdds.Row> rows = OddsList.sorted(odds, false);

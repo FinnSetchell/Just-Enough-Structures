@@ -2,6 +2,10 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.client.Thumbnails;
+import com.mojang.blaze3d.platform.NativeImage;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -13,6 +17,7 @@ import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.FormattedCharSequence;
 //? if >=26.1 {
 /*import net.minecraft.client.input.MouseButtonEvent;
@@ -44,21 +49,144 @@ public final class Gui {
         g.blitNineSliced(WIDGETS, x, y, w, h, 20, 4, 200, 20, 0, 46 + state * 20);
         //?}
     }
+    /**
+     * The vanilla chest's texture. Frames here are cut from it rather than filled in, so a resource
+     * pack that restyles the chest restyles them with it, and without one they're pixel for pixel
+     * the vanilla container frame.
+     */
+    private static final ResourceLocation CHEST = Ids.parse("textures/gui/container/generic_54.png");
+    /** The part of that texture the chest takes up. */
+    private static final int CHEST_W = 176;
+    private static final int CHEST_H = 222;
+    /** How much of the chest's frame each corner of a panel takes: all there is of it before the slots begin. */
+    private static final int CORNER = 7;
+    /** A row of the plain strip between the chest's slots and the inventory's, where its sides are frame and nothing else. */
+    private static final int PLAIN = 133;
+    /** Where the chest's first slot is. */
+    private static final int SLOT_U = 7;
+    private static final int SLOT_V = 17;
+
+    /**
+     * The colours frames are made of. Each is a pixel of the chest's texture rather than a colour of
+     * its own, so it's whatever a resource pack has made of the chest.
+     */
+    enum Tone {
+        /** The frame's outline. */
+        EDGE(0, PLAIN, 0),
+        /** The lit side of the frame, and of a slot. */
+        LIGHT(1, PLAIN, 0),
+        PANEL(4, PLAIN, 0),
+        /** The frame's shaded side. */
+        DARK(CHEST_W - 3, PLAIN, 0),
+        SLOT(SLOT_U + 9, SLOT_V + 9, 0),
+        /** A slot's shaded side. */
+        SLOT_DARK(SLOT_U, SLOT_V, 0),
+        /** The well behind a list: the panel, a little darker. */
+        WELL(4, PLAIN, 0x11000000);
+
+        private final int u;
+        private final int v;
+        /** See-through black that goes over it, or 0. */
+        private final int over;
+
+        Tone(int u, int v, int over) {
+            this.u = u;
+            this.v = v;
+            this.over = over;
+        }
+    }
+
+    // See-through black and white that make the greys of a card and of a thumb's grip out of the
+    // panel's own, whatever that is. Over the vanilla panel they come to the greys JEI uses.
+    private static final int CARD_OUTLINE = 0x3A000000;
+    private static final int CARD_LIGHT = 0x50FFFFFF;
+    private static final int CARD_DARK = 0x18000000;
+    private static final int GRIP = 0x4C000000;
+
     static final int PANEL = 0xFFC6C6C6;
-    static final int PANEL_LIGHT = 0xFFFFFFFF;
-    static final int PANEL_DARK = 0xFF555555;
     static final int EDGE = 0xFF000000;
-    static final int SLOT = 0xFF8B8B8B;
-    static final int SLOT_DARK = 0xFF373737;
-    /** Body text, as in JEI's recipe layouts. */
-    public static final int LABEL = 0xFF000000;
+    /**
+     * Vanilla's own label colour. A resource pack with dark panels changes text of exactly this colour
+     * to one that shows on them, so it's what body text is drawn in over a dark panel.
+     */
+    static final int VANILLA_LABEL = 0xFF404040;
+    /** A panel whose red, green and blue come to less than this on average is a dark one. */
+    private static final int DARK_BELOW = 100;
+    /** Whether the chest's texture was a dark one when it was last looked at. */
+    private static boolean dark;
+    /** The game's list of the resource packs in use as it was then. The game makes a new list each time resources load. */
+    private static Object packsThen;
+    private static long lookedAt;
+
+    /**
+     * Whether panels are dark, as a resource pack with a dark look makes them, going by the chest
+     * texture's own panel colour. Text and row highlights made for a light panel can't be seen on one.
+     *
+     * <p>The texture is looked at again when the game's list of packs is a new one, which it is after
+     * every reload, rather than by listening for reloads: NeoForge closes the game's list of reload
+     * listeners once it has started, and on 26.2 adding one after that throws.
+     */
+    static boolean darkPanel() {
+        Minecraft mc = Minecraft.getInstance();
+        Object packs = mc.getResourcePackRepository().getSelectedPacks();
+        // Not while packs are still loading, when the texture could be the old one, and not more than
+        // once a second whatever the list does.
+        if (packs != packsThen && mc.getOverlay() == null && System.currentTimeMillis() - lookedAt > 1000) {
+            packsThen = packs;
+            lookedAt = System.currentTimeMillis();
+            dark = isDark(mc.getResourceManager());
+        }
+        return dark;
+    }
+
+    private static boolean isDark(ResourceManager resources) {
+        try (InputStream in = resources.open(CHEST); NativeImage chest = NativeImage.read(in)) {
+            // A pack's texture may be finer than vanilla's 256 pixels.
+            int pixel = Thumbnails.pixel(chest, Tone.PANEL.u * chest.getWidth() / 256, Tone.PANEL.v * chest.getHeight() / 256);
+            // The colours come one to a byte, whichever way round they are.
+            return ((pixel & 0xFF) + (pixel >> 8 & 0xFF) + (pixel >> 16 & 0xFF)) / 3 < DARK_BELOW;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Body text: black as in JEI's recipe layouts, or over a dark panel vanilla's label colour. */
+    public static int label() {
+        return darkPanel() ? VANILLA_LABEL : 0xFF000000;
+    }
+
     /** Secondary text, as JEI's cook times and other recipe details. */
-    public static final int LABEL_SOFT = 0xFF808080;
+    public static int labelSoft() {
+        return darkPanel() ? 0xFFA8A8A8 : 0xFF808080;
+    }
+
     /** The same, drawn smaller, as vanilla's dark grey. */
-    static final int LABEL_SOFT_SMALL = 0xFF555555;
-    /** Row highlights: JEI's slot highlight, and a darker one for what's picked. */
-    static final int ROW_HOVER = 0x80FFFFFF;
-    static final int ROW_SELECTED = 0x40000000;
+    static int labelSoftSmall() {
+        return darkPanel() ? 0xFFA8A8A8 : 0xFF555555;
+    }
+
+    // What coloured text is drawn in over a dark panel, where the colours made for a light one can't be read.
+    static final int GOOD_ON_DARK = 0xFF7FD46A;
+    static final int BAD_ON_DARK = 0xFFFF6B6B;
+    static final int WARN_ON_DARK = 0xFFE6A93C;
+    static final int LINK_ON_DARK = 0xFF8FB4FF;
+    static final int LINK_HOVER_ON_DARK = 0xFFC4D7FF;
+
+    /** A colour for a light panel, or the one that stands in for it over a dark panel. */
+    static int ink(int onLight, int onDark) {
+        return darkPanel() ? onDark : onLight;
+    }
+
+    /** The highlight of a row under the mouse: JEI's slot highlight, fainter over a dark panel. */
+    static int rowHover() {
+        return darkPanel() ? 0x30FFFFFF : 0x80FFFFFF;
+    }
+
+    /** The darker highlight of the row that's picked, darker still over a dark panel. */
+    static int rowSelected() {
+        return darkPanel() ? 0x70000000 : 0x40000000;
+    }
+
     /** The translucent strip behind white titles in JEI's title and page rows. */
     static final int BAND = 0x44000000;
     static final int VIEW_TOP = 0xFF6E7C90;
@@ -69,35 +197,51 @@ public final class Gui {
     private Gui() {
     }
 
-    /** The vanilla container frame, corner pixels and all, which is also JEI's panel. */
+    /** Fills an area with a {@link Tone}. */
+    static void tone(GuiGraphics g, int x1, int y1, int x2, int y2, Tone tone) {
+        if (x2 <= x1 || y2 <= y1) {
+            return;
+        }
+        stretch(g, x1, y1, x2 - x1, y2 - y1, tone.u, tone.v, 1, 1);
+        if (tone.over != 0) {
+            g.fill(x1, y1, x2, y2, tone.over);
+        }
+    }
+
+    /** Part of the chest's texture, the same size on screen as in the texture. */
+    private static void piece(GuiGraphics g, int x, int y, int u, int v, int w, int h) {
+        blit(g, CHEST, x, y, u, v, w, h);
+    }
+
+    /** Part of the chest's texture, stretched over an area. */
+    private static void stretch(GuiGraphics g, int x, int y, int w, int h, int u, int v, int uw, int vh) {
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        //? if >=26.1 {
+        /*g.blit(RenderPipelines.GUI_TEXTURED, CHEST, x, y, (float) u, (float) v, w, h, uw, vh, 256, 256);
+        *///?} else {
+        g.blit(CHEST, x, y, w, h, (float) u, (float) v, uw, vh, 256, 256);
+        //?}
+    }
+
+    /**
+     * The vanilla container frame, which is also JEI's panel: the chest's own corners, with a line of
+     * each of its sides drawn out between them.
+     */
     static void panel(GuiGraphics g, int x, int y, int w, int h) {
+        int c = Math.min(CORNER, Math.min(w, h) / 2);
         int r = x + w;
         int b = y + h;
-        g.fill(x + 3, y + 3, r - 3, b - 3, PANEL);
-        // Top edge and its corners.
-        g.fill(x + 2, y, r - 3, y + 1, EDGE);
-        g.fill(x + 1, y + 1, x + 2, y + 2, EDGE);
-        g.fill(x + 2, y + 1, r - 3, y + 2, PANEL_LIGHT);
-        g.fill(r - 3, y + 1, r - 2, y + 2, EDGE);
-        g.fill(x, y + 2, x + 1, y + 3, EDGE);
-        g.fill(x + 1, y + 2, r - 3, y + 3, PANEL_LIGHT);
-        g.fill(r - 3, y + 2, r - 2, y + 3, PANEL);
-        g.fill(r - 2, y + 2, r - 1, y + 3, EDGE);
-        // Sides.
-        g.fill(x, y + 3, x + 1, b - 3, EDGE);
-        g.fill(x + 1, y + 3, x + 3, b - 3, PANEL_LIGHT);
-        g.fill(x + 3, y + 3, x + 4, y + 4, PANEL_LIGHT);
-        g.fill(r - 1, y + 3, r, b - 2, EDGE);
-        g.fill(r - 3, y + 3, r - 1, b - 3, PANEL_DARK);
-        g.fill(r - 4, b - 4, r - 3, b - 3, PANEL_DARK);
-        // Bottom edge and its corners.
-        g.fill(x + 1, b - 3, x + 2, b - 2, EDGE);
-        g.fill(x + 2, b - 3, x + 3, b - 2, PANEL);
-        g.fill(x + 3, b - 3, r - 1, b - 2, PANEL_DARK);
-        g.fill(x + 2, b - 2, x + 3, b - 1, EDGE);
-        g.fill(x + 3, b - 2, r - 2, b - 1, PANEL_DARK);
-        g.fill(r - 2, b - 2, r - 1, b - 1, EDGE);
-        g.fill(x + 3, b - 1, r - 2, b, EDGE);
+        tone(g, x + c, y + c, r - c, b - c, Tone.PANEL);
+        stretch(g, x + c, y, w - 2 * c, c, CORNER, 0, 1, c);
+        stretch(g, x + c, b - c, w - 2 * c, c, CORNER, CHEST_H - c, 1, c);
+        stretch(g, x, y + c, c, h - 2 * c, 0, PLAIN, c, 1);
+        stretch(g, r - c, y + c, c, h - 2 * c, CHEST_W - c, PLAIN, c, 1);
+        piece(g, x, y, 0, 0, c, c);
+        piece(g, r - c, y, CHEST_W - c, 0, c, c);
+        piece(g, x, b - c, 0, CHEST_H - c, c, c);
+        piece(g, r - c, b - c, CHEST_W - c, CHEST_H - c, c, c);
     }
 
     /**
@@ -106,31 +250,31 @@ public final class Gui {
      */
     static void tab(GuiGraphics g, int x, int y, boolean selected) {
         int r = x + 24;
-        int fill = selected ? PANEL : SLOT;
+        Tone fill = selected ? Tone.PANEL : Tone.SLOT;
         int bottom = y + 21;
-        g.fill(x + 3, y + 3, r - 3, bottom, fill);
-        g.fill(x + 2, y, r - 3, y + 1, EDGE);
-        g.fill(x + 1, y + 1, x + 2, y + 2, EDGE);
-        g.fill(x + 2, y + 1, r - 3, y + 2, PANEL_LIGHT);
-        g.fill(r - 3, y + 1, r - 2, y + 2, EDGE);
-        g.fill(x, y + 2, x + 1, y + 3, EDGE);
-        g.fill(x + 1, y + 2, r - 3, y + 3, PANEL_LIGHT);
-        g.fill(r - 3, y + 2, r - 2, y + 3, fill);
-        g.fill(r - 2, y + 2, r - 1, y + 3, EDGE);
-        g.fill(x, y + 3, x + 1, bottom, EDGE);
-        g.fill(x + 1, y + 3, x + 3, bottom, PANEL_LIGHT);
-        g.fill(x + 3, y + 3, x + 4, y + 4, PANEL_LIGHT);
-        g.fill(r - 1, y + 3, r, bottom, EDGE);
-        g.fill(r - 3, y + 3, r - 1, bottom, PANEL_DARK);
+        tone(g, x + 3, y + 3, r - 3, bottom, fill);
+        tone(g, x + 2, y, r - 3, y + 1, Tone.EDGE);
+        tone(g, x + 1, y + 1, x + 2, y + 2, Tone.EDGE);
+        tone(g, x + 2, y + 1, r - 3, y + 2, Tone.LIGHT);
+        tone(g, r - 3, y + 1, r - 2, y + 2, Tone.EDGE);
+        tone(g, x, y + 2, x + 1, y + 3, Tone.EDGE);
+        tone(g, x + 1, y + 2, r - 3, y + 3, Tone.LIGHT);
+        tone(g, r - 3, y + 2, r - 2, y + 3, fill);
+        tone(g, r - 2, y + 2, r - 1, y + 3, Tone.EDGE);
+        tone(g, x, y + 3, x + 1, bottom, Tone.EDGE);
+        tone(g, x + 1, y + 3, x + 3, bottom, Tone.LIGHT);
+        tone(g, x + 3, y + 3, x + 4, y + 4, Tone.LIGHT);
+        tone(g, r - 1, y + 3, r, bottom, Tone.EDGE);
+        tone(g, r - 3, y + 3, r - 1, bottom, Tone.DARK);
         if (selected) {
             // Run on into the panel, over its top edge, so the two read as one piece.
-            g.fill(x, bottom, x + 1, bottom + 1, EDGE);
-            g.fill(x + 1, bottom, x + 3, bottom + 3, PANEL_LIGHT);
-            g.fill(x + 3, bottom, r - 1, bottom + 3, PANEL);
-            g.fill(r - 1, bottom, r, bottom + 1, EDGE);
-            g.fill(r - 1, bottom + 1, r, bottom + 3, PANEL_LIGHT);
+            tone(g, x, bottom, x + 1, bottom + 1, Tone.EDGE);
+            tone(g, x + 1, bottom, x + 3, bottom + 3, Tone.LIGHT);
+            tone(g, x + 3, bottom, r - 1, bottom + 3, Tone.PANEL);
+            tone(g, r - 1, bottom, r, bottom + 1, Tone.EDGE);
+            tone(g, r - 1, bottom + 1, r, bottom + 3, Tone.LIGHT);
         } else {
-            g.fill(x, bottom, r, bottom + 1, EDGE);
+            tone(g, x, bottom, r, bottom + 1, Tone.EDGE);
         }
     }
 
@@ -138,28 +282,40 @@ public final class Gui {
     static void card(GuiGraphics g, int x, int y, int w, int h) {
         int r = x + w;
         int b = y + h;
-        g.fill(x + 1, y, r - 1, y + 1, 0xFF999999);
-        g.fill(x + 1, b - 1, r - 1, b, 0xFF999999);
-        g.fill(x, y + 1, x + 1, b - 1, 0xFF999999);
-        g.fill(r - 1, y + 1, r, b - 1, 0xFF999999);
-        g.fill(x + 1, y + 1, r - 1, b - 1, PANEL);
-        g.fill(x + 1, y + 1, r - 2, y + 2, 0xFFD8D8D8);
-        g.fill(x + 1, y + 1, x + 2, b - 2, 0xFFD8D8D8);
-        g.fill(x + 2, b - 2, r - 1, b - 1, 0xFFB3B3B3);
-        g.fill(r - 2, y + 2, r - 1, b - 1, 0xFFB3B3B3);
+        tone(g, x + 1, y, r - 1, y + 1, Tone.PANEL);
+        tone(g, x, y + 1, r, b - 1, Tone.PANEL);
+        tone(g, x + 1, b - 1, r - 1, b, Tone.PANEL);
+        g.fill(x + 1, y, r - 1, y + 1, CARD_OUTLINE);
+        g.fill(x + 1, b - 1, r - 1, b, CARD_OUTLINE);
+        g.fill(x, y + 1, x + 1, b - 1, CARD_OUTLINE);
+        g.fill(r - 1, y + 1, r, b - 1, CARD_OUTLINE);
+        g.fill(x + 1, y + 1, r - 2, y + 2, CARD_LIGHT);
+        g.fill(x + 1, y + 2, x + 2, b - 2, CARD_LIGHT);
+        g.fill(x + 2, b - 2, r - 1, b - 1, CARD_DARK);
+        g.fill(r - 2, y + 2, r - 1, b - 2, CARD_DARK);
     }
 
-    /** A sunken area: a vanilla slot stretched to any size, used for one well behind a group of slots. */
-    static void inset(GuiGraphics g, int x, int y, int w, int h, int fill) {
-        g.fill(x, y, x + w, y + h, SLOT_DARK);
-        g.fill(x + 1, y + 1, x + w, y + h, PANEL_LIGHT);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
-        g.fill(x + w - 1, y, x + w, y + 1, SLOT);
-        g.fill(x, y + h - 1, x + 1, y + h, SLOT);
+    /**
+     * A sunken area: a vanilla slot's edges drawn out to any size around a {@link Tone}, used for one
+     * well behind a group of slots.
+     */
+    static void inset(GuiGraphics g, int x, int y, int w, int h, Tone fill) {
+        int r = x + w - 1;
+        int b = y + h - 1;
+        tone(g, x + 1, y + 1, r, b, fill);
+        stretch(g, x + 1, y, w - 2, 1, SLOT_U + 1, SLOT_V, 1, 1);
+        stretch(g, x + 1, b, w - 2, 1, SLOT_U + 1, SLOT_V + 17, 1, 1);
+        stretch(g, x, y + 1, 1, h - 2, SLOT_U, SLOT_V + 1, 1, 1);
+        stretch(g, r, y + 1, 1, h - 2, SLOT_U + 17, SLOT_V + 1, 1, 1);
+        piece(g, x, y, SLOT_U, SLOT_V, 1, 1);
+        piece(g, r, y, SLOT_U + 17, SLOT_V, 1, 1);
+        piece(g, x, b, SLOT_U, SLOT_V + 17, 1, 1);
+        piece(g, r, b, SLOT_U + 17, SLOT_V + 17, 1, 1);
     }
 
+    /** A vanilla slot: the chest's first. */
     static void slot(GuiGraphics g, int x, int y) {
-        inset(g, x, y, 18, 18, SLOT);
+        piece(g, x, y, SLOT_U, SLOT_V, 18, 18);
     }
 
     /** JEI's title and page rows: white text with a shadow, centred on a translucent dark band. */
@@ -312,7 +468,7 @@ public final class Gui {
 
     /** The grey of secondary text is too faint once it's drawn smaller, so it's darker there. */
     private static int readable(int color, float scale) {
-        return color == LABEL_SOFT && scale < 1f ? LABEL_SOFT_SMALL : color;
+        return color == labelSoft() && scale < 1f ? labelSoftSmall() : color;
     }
 
     /**
@@ -508,17 +664,17 @@ public final class Gui {
             return;
         }
         int w = 6;
-        inset(g, x - 2, y, w, height, SLOT);
+        inset(g, x - 2, y, w, height, Tone.SLOT);
         int thumb = Math.max(12, (int) ((height - 2) * (height - 2) / (height - 2 + maxScroll)));
         int top = y + 1 + (int) ((height - 2 - thumb) * Math.min(1, scroll / maxScroll));
         int tx = x - 1;
-        g.fill(tx, top, tx + w - 2, top + thumb, PANEL);
-        g.fill(tx, top, tx + w - 3, top + 1, PANEL_LIGHT);
-        g.fill(tx, top, tx + 1, top + thumb - 1, PANEL_LIGHT);
-        g.fill(tx + 1, top + thumb - 1, tx + w - 2, top + thumb, PANEL_DARK);
-        g.fill(tx + w - 3, top + 1, tx + w - 2, top + thumb, PANEL_DARK);
+        tone(g, tx, top, tx + w - 2, top + thumb, Tone.PANEL);
+        tone(g, tx, top, tx + w - 3, top + 1, Tone.LIGHT);
+        tone(g, tx, top, tx + 1, top + thumb - 1, Tone.LIGHT);
+        tone(g, tx + 1, top + thumb - 1, tx + w - 2, top + thumb, Tone.DARK);
+        tone(g, tx + w - 3, top + 1, tx + w - 2, top + thumb, Tone.DARK);
         for (int line = top + 3; line < top + thumb - 3; line += 2) {
-            g.fill(tx + 1, line, tx + w - 3, line + 1, SLOT);
+            g.fill(tx + 1, line, tx + w - 3, line + 1, GRIP);
         }
     }
 

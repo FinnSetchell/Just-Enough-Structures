@@ -197,7 +197,7 @@ abstract class ToolsSection {
             Gui.fineClipped(g, font, markText, markX, y + 3, x + w - markX, selected ? 0xFFFFFFFF : markColour);
         }
         if (detail != null) {
-            Gui.fineClipped(g, font, detail, textX, y + 12, Math.max(0, room), selected ? 0xFFDDDDDD : Gui.LABEL_SOFT);
+            Gui.fineClipped(g, font, detail, textX, y + 12, Math.max(0, room), selected ? 0xFFDDDDDD : Gui.labelSoft());
         }
         g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
         return h;
@@ -244,9 +244,9 @@ abstract class ToolsSection {
 
     static int markColour(LootOverrides.Status status) {
         return switch (status) {
-            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> ToolsUi.CHANGED;
-            case BROKEN -> ToolsUi.BAD;
-            default -> ToolsUi.GOOD;
+            case ORIGINAL_CHANGED, ORIGINAL_MISSING -> ToolsUi.changed();
+            case BROKEN -> ToolsUi.bad();
+            default -> ToolsUi.good();
         };
     }
 
