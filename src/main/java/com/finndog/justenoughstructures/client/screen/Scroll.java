@@ -14,6 +14,9 @@ public final class Scroll {
     /** How much of the list shows at once. */
     private int view;
     private int content;
+    /** Whether the bar's thumb is held, and how far down the thumb. */
+    private boolean held;
+    private double grip;
 
     public Scroll(double step) {
         this.step = step;
@@ -80,6 +83,39 @@ public final class Scroll {
     /** How far down such a bar the thumb's top is, for a list scrolled {@code offset} pixels. */
     public static int thumbTop(int track, double most, double offset) {
         return 1 + (int) ((track - 2 - thumb(track, most)) * Math.min(1, offset / most));
+    }
+
+    /**
+     * Takes hold of the bar {@code y} pixels down it, a bar {@code track} pixels tall: of the thumb
+     * where it's pressed, or of its middle, brought to the press, when the press is beside it.
+     */
+    public void hold(double y, int track) {
+        int most = most();
+        int thumb = thumb(track, most);
+        int drawn = thumbTop(track, most, offset);
+        held = true;
+        if (y >= drawn && y < drawn + thumb && most > 0) {
+            // From where the thumb's top really is, not the whole pixel it's drawn at, so taking hold moves nothing.
+            grip = y - (1 + (track - 2 - thumb) * offset / most);
+        } else {
+            grip = thumb / 2.0;
+            dragTo(y, track);
+        }
+    }
+
+    /** Moves the list so the thumb stays under the mouse where it's held, now {@code y} pixels down the bar. */
+    public void dragTo(double y, int track) {
+        int most = most();
+        int room = track - 2 - thumb(track, most);
+        if (!held || most <= 0 || room <= 0) {
+            return;
+        }
+        offset = (y - grip - 1) / room * most;
+        clamp();
+    }
+
+    public void letGo() {
+        held = false;
     }
 
     private void clamp() {

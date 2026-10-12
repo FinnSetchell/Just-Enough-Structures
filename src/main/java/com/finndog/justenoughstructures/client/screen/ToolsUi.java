@@ -43,6 +43,9 @@ final class ToolsUi {
 
     private final Font font;
     private final List<Spot> spots = new ArrayList<>();
+    /** The scroll bars drawn this frame, and the one a press took hold of. */
+    private final List<Scroller> bars = new ArrayList<>();
+    private Scroller held;
     private int mouseX;
     private int mouseY;
     private int clipTop = Integer.MIN_VALUE;
@@ -62,6 +65,7 @@ final class ToolsUi {
     /** Starts a frame. {@code mouseX} and {@code mouseY} are -1 when something else has the mouse, like a popup. */
     void begin(int mouseX, int mouseY) {
         spots.clear();
+        bars.clear();
         tooltip = null;
         this.mouseX = mouseX;
         this.mouseY = mouseY;
@@ -115,7 +119,35 @@ final class ToolsUi {
         return tooltip;
     }
 
+    /** A scroll bar drawn this frame, for a press to take hold of. */
+    void bar(Scroller scroller) {
+        bars.add(scroller);
+    }
+
+    /** Moves the list whose scroll bar is held, if one is. */
+    boolean drag(double my) {
+        if (held == null) {
+            return false;
+        }
+        held.dragTo(my);
+        return true;
+    }
+
+    /** The mouse button came up: lets go of a scroll bar. */
+    void release() {
+        if (held != null) {
+            held.letGo();
+            held = null;
+        }
+    }
+
     boolean click(double mx, double my) {
+        for (int i = bars.size() - 1; i >= 0; i--) {
+            if (bars.get(i).grab(mx, my)) {
+                held = bars.get(i);
+                return true;
+            }
+        }
         for (int i = spots.size() - 1; i >= 0; i--) {
             Spot spot = spots.get(i);
             if (spot.contains(mx, my)) {

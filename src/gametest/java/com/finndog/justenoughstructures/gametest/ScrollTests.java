@@ -75,4 +75,42 @@ public final class ScrollTests {
         }
         helper.succeed();
     }
+
+    /** Dragging the bar's thumb moves the list with it, a press beside the thumb brings it there, and taking hold moves nothing. */
+    public static void barDragsTheList(GameTestHelper helper) {
+        int track = 100;
+        Scroll scroll = new Scroll(20);
+        scroll.view(100);
+        scroll.content(250);
+        // The thumb is 38 tall with 60 pixels to travel, for 150 of the list.
+        scroll.hold(20, track);
+        helper.assertTrue(scroll.offset() == 0, "taking hold of the thumb moved the list to " + scroll.offset());
+        scroll.dragTo(50, track);
+        helper.assertTrue(scroll.offset() == 75, "dragging the thumb half way moved the list to " + scroll.offset());
+        scroll.dragTo(500, track);
+        helper.assertTrue(scroll.offset() == 150, "dragging past the bar's end left the list at " + scroll.offset());
+        scroll.dragTo(-500, track);
+        helper.assertTrue(scroll.offset() == 0, "dragging past the bar's top left the list at " + scroll.offset());
+        scroll.letGo();
+        scroll.dragTo(50, track);
+        helper.assertTrue(scroll.offset() == 0, "the list moved with nothing held, to " + scroll.offset());
+
+        scroll.hold(80, track);
+        helper.assertTrue(scroll.offset() == 150, "a press near the bar's end brought the list to " + scroll.offset());
+        int middle = Scroll.thumbTop(track, 150, scroll.offset()) + Scroll.thumb(track, 150) / 2;
+        helper.assertTrue(middle == 80, "the thumb's middle is at " + middle + ", not under the press at 80");
+        scroll.letGo();
+
+        // Part way down, the thumb is drawn at a whole pixel a little above where it really is.
+        scroll.reset();
+        scroll.wheel(-1.85);
+        double before = scroll.offset();
+        int drawn = Scroll.thumbTop(track, 150, before);
+        scroll.hold(drawn, track);
+        scroll.dragTo(drawn, track);
+        helper.assertTrue(Math.abs(scroll.offset() - before) < 0.001, "holding the thumb still moved the list from " + before + " to " + scroll.offset());
+        scroll.dragTo(drawn + 1, track);
+        helper.assertTrue(Math.abs(scroll.offset() - before - 2.5) < 0.001, "one pixel of the bar moved the list " + (scroll.offset() - before));
+        helper.succeed();
+    }
 }

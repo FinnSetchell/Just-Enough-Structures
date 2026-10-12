@@ -30,6 +30,7 @@ final class Scroller {
         ui.unclip();
         if (scroll.scrolls()) {
             Gui.scrollbar(g, x + w - 4, y, h, scroll.offset(), scroll.most());
+            ui.bar(this);
         }
     }
 
@@ -39,6 +40,24 @@ final class Scroller {
         }
         scroll.wheel(delta);
         return true;
+    }
+
+    /** Takes hold of the scroll bar when a press is on it, or on the strip kept clear for it. */
+    boolean grab(double mouseX, double mouseY) {
+        if (!scroll.scrolls() || mouseX < x + w - 8 || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
+            return false;
+        }
+        scroll.hold(mouseY - y, h);
+        return true;
+    }
+
+    /** Moves the list with its bar, held since {@link #grab}. */
+    void dragTo(double mouseY) {
+        scroll.dragTo(mouseY - y, h);
+    }
+
+    void letGo() {
+        scroll.letGo();
     }
 
     void reset() {

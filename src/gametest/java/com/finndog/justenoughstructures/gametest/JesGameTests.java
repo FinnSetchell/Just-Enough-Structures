@@ -498,6 +498,11 @@ public final class JesGameTests {
         ScrollTests.thumbFollowsTheScroll(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void barDragsTheList(GameTestHelper helper) {
+        ScrollTests.barDragsTheList(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);
