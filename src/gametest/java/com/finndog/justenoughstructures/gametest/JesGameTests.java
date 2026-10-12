@@ -483,6 +483,21 @@ public final class JesGameTests {
         GridTests.gridMatchesACapturedVillage(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void scrollStaysWithinItsContent(GameTestHelper helper) {
+        ScrollTests.scrollStaysWithinItsContent(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void scrollRevealsARow(GameTestHelper helper) {
+        ScrollTests.scrollRevealsARow(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void thumbFollowsTheScroll(GameTestHelper helper) {
+        ScrollTests.thumbFollowsTheScroll(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);

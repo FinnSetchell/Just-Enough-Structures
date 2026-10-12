@@ -665,8 +665,8 @@ public final class Gui {
         }
         int w = 6;
         inset(g, x - 2, y, w, height, Tone.SLOT);
-        int thumb = Math.max(12, (int) ((height - 2) * (height - 2) / (height - 2 + maxScroll)));
-        int top = y + 1 + (int) ((height - 2 - thumb) * Math.min(1, scroll / maxScroll));
+        int thumb = Scroll.thumb(height, maxScroll);
+        int top = y + Scroll.thumbTop(height, maxScroll, scroll);
         int tx = x - 1;
         tone(g, tx, top, tx + w - 2, top + thumb, Tone.PANEL);
         tone(g, tx, top, tx + w - 3, top + 1, Tone.LIGHT);

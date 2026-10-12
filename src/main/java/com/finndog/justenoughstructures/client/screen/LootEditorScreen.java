@@ -105,9 +105,9 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** What's picked on the left: -1 for the table itself, then a pool, and -1 for the pool or one of its entries. */
     private int selectedPool = -1;
     private int selectedEntry = -1;
-    private final ToolsSection.Scroller treeScroll = new ToolsSection.Scroller();
-    private final ToolsSection.Scroller formScroll = new ToolsSection.Scroller();
-    private final ToolsSection.Scroller oddsScroll = new ToolsSection.Scroller();
+    private final Scroller treeScroll = new Scroller();
+    private final Scroller formScroll = new Scroller();
+    private final Scroller oddsScroll = new Scroller();
 
     private LootOdds preview;
     private Component previewProblem;
