@@ -4,7 +4,11 @@ import org.gradle.api.GradleException
 
 // What the loaders' dev runs set up before they start, and check once they're done.
 
-/** Clears what the last screenshot run left behind, and sets the options every run is shot with. */
+/**
+ * Clears what the last screenshot run left behind, and sets the options every run is shot with. A
+ * resource pack put in the run's resourcepacks folder is switched on, to see the browser as that
+ * pack makes it.
+ */
 fun prepareAutoshotFolder(root: File, modId: String) {
     // The browser remembers its toggles in config, which would carry over from the last run.
     for (old in listOf("saves", "screenshots", "config/$modId")) {
@@ -15,9 +19,12 @@ fun prepareAutoshotFolder(root: File, modId: String) {
     root.mkdirs()
     // Skip first-launch screens and keep the game running when the window isn't focused. No
     // clouds, so the world behind the screen doesn't change from frame to frame.
+    val packs = File(root, "resourcepacks").listFiles { file -> file.name.endsWith(".zip") }.orEmpty().sortedBy { it.name }
     File(root, "options.txt").writeText(
         "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
-            "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n"
+            "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n" +
+            if (packs.isEmpty()) "" else
+                "resourcePacks:[" + (listOf("vanilla") + packs.map { "file/${it.name}" }).joinToString(",") { "\"$it\"" } + "]\n"
     )
 }
 
