@@ -4,12 +4,14 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
@@ -60,6 +62,9 @@ final class SpawnersScenario {
                     browser.mouseReleased(reroll[0], reroll[1], 0);
                     return false;
                 }, Integer.MAX_VALUE))
+                // For a run in a real game to be read by: whether the mod still sees a processor pick a spawner's mob.
+                .then(run(() -> JustEnoughStructures.LOGGER.info("SPAWNERS a spawner with a list of mobs {} in {} layouts",
+                        browser(mc) != null && hasPool(browser(mc).result()) ? "turned up" : "never turned up", tries[0] + 1)))
                 .then(moveTo(() -> browser(mc).tab("entities"), 6))
                 .then(click())
                 .then(moveTo(() -> {

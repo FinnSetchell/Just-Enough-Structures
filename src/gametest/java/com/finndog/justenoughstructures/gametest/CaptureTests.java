@@ -9,8 +9,11 @@ import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.SpawnerPools;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.mixin.StructureTemplateManagerAccessor;
 import com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -49,6 +52,8 @@ import net.minecraft.world.level.block.entity.StructureBlockEntity;
 import net.minecraft.world.level.block.state.properties.StructureMode;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.templatesystem.BlockIgnoreProcessor;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import org.apache.logging.log4j.Level;
@@ -603,6 +608,71 @@ public final class CaptureTests {
             return;
         }
         helper.succeed();
+    }
+
+    /**
+     * The game asks every processor about every block of a piece as it places it, in any world, and
+     * this mod listens in on that call for the sake of spawners. Listening has to cost nothing. It
+     * once made an array and a function for each call, which came to two fifths of the memory a loot
+     * index went through. So one piece is put through one processor and then through seventeen, and
+     * the sixteen more may ask for next to no memory.
+     */
+    public static void listeningToProcessorsCostsNothing(GameTestHelper helper) {
+        if (!(ManagementFactory.getThreadMXBean() instanceof com.sun.management.ThreadMXBean threads)) {
+            // A Java that doesn't count what a thread asks for.
+            helper.succeed();
+            return;
+        }
+        ServerLevel level = helper.getLevel();
+        StructureTemplate tower = level.getServer().getStructureManager().get(Ids.parse("pillager_outpost/watchtower")).orElse(null);
+        if (tower == null) {
+            helper.fail("the outpost's watchtower didn't load");
+            return;
+        }
+        // Java sometimes makes the array and the function of a wrapped call vanish as it runs, and
+        // sometimes doesn't, so the wrapping itself is looked for too. And a redirect, which costs
+        // nothing but stops the game loading templates at all with the MixinExtras that Fabric
+        // Loader up to 0.19.3 brings.
+        for (Method method : StructureTemplate.class.getDeclaredMethods()) {
+            if (!method.getName().contains("justenoughstructures")) {
+                continue;
+            }
+            if (method.getName().startsWith("wrapOperation")) {
+                helper.fail("the game's call to each processor is wrapped, by " + method.getName() + ", which makes an array and a function for every call");
+                return;
+            }
+            if (method.getName().startsWith("redirect$")) {
+                helper.fail("a call in the game's template code is redirected, by " + method.getName() + ", which older Fabric loaders can't load");
+                return;
+            }
+        }
+        List<StructureTemplate.StructureBlockInfo> blocks = ((StructureTemplateAccessor) tower).justenoughstructures$palettes().get(0).blocks();
+        BlockPos at = helper.absolutePos(BlockPos.ZERO);
+        long one = processing(level, at, blocks, 1, threads);
+        long seventeen = processing(level, at, blocks, 17, threads);
+        long each = (seventeen - one) / (16L * blocks.size());
+        if (each >= 8) {
+            helper.fail("asking a processor about a block cost " + each + " bytes of memory, over " + blocks.size() + " blocks");
+            return;
+        }
+        helper.succeed();
+    }
+
+    /** The least memory this thread asked for while a piece's blocks went through that many processors that change nothing. */
+    private static long processing(ServerLevel level, BlockPos at, List<StructureTemplate.StructureBlockInfo> blocks, int processors,
+                                   com.sun.management.ThreadMXBean threads) {
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        for (int i = 0; i < processors; i++) {
+            settings.addProcessor(BlockIgnoreProcessor.STRUCTURE_BLOCK);
+        }
+        long least = Long.MAX_VALUE;
+        // More than once: the first goes on loading classes.
+        for (int round = 0; round < 5; round++) {
+            long before = threads.getThreadAllocatedBytes(Thread.currentThread().getId());
+            StructureTemplate.processBlockInfos(level, at, at, settings, blocks);
+            least = Math.min(least, threads.getThreadAllocatedBytes(Thread.currentThread().getId()) - before);
+        }
+        return least;
     }
 
     public static void unknownStructureFailsCleanly(GameTestHelper helper) {

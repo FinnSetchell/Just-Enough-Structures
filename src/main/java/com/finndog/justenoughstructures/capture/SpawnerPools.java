@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -44,7 +45,12 @@ public final class SpawnerPools {
     private static final Map<String, String> FILE_FIELDS = Map.of(
             "rs_spawner_resourcelocation", "rs_spawners",
             "integrated_api_spawner_resourcelocation", "integrated_structure_spawners");
-    private static final ThreadLocal<Recorded> RECORDED = new ThreadLocal<>();
+    private static final ThreadLocal<Recording> RECORDING = new ThreadLocal<>();
+    /**
+     * How many captures are recording just now, on any thread. The game asks a processor about every
+     * block of every piece it places, in any world, and with none recording that's all the hooks look at.
+     */
+    private static final AtomicInteger RECORDINGS = new AtomicInteger();
     private static final Map<StructureProcessor, Optional<Pool>> KNOWN = Collections.synchronizedMap(new WeakHashMap<>());
 
     private SpawnerPools() {
@@ -65,25 +71,79 @@ public final class SpawnerPools {
         static final Recorded NONE = new Recorded(Map.of(), LongSets.EMPTY_SET);
     }
 
+    /**
+     * One thread's capture as it records: what it has seen so far, and the processors being asked
+     * about a block just now with the block as each was handed it. More than one only when a
+     * processor places a template of its own while it's being asked.
+     */
+    private static final class Recording {
+        private static final int DEEPEST = 16;
+        final Recorded recorded = new Recorded(new HashMap<>(), new LongOpenHashSet());
+        final StructureProcessor[] processors = new StructureProcessor[DEEPEST];
+        final StructureTemplate.StructureBlockInfo[] blocks = new StructureTemplate.StructureBlockInfo[DEEPEST];
+        int asking;
+    }
+
     static void begin() {
-        RECORDED.set(new Recorded(new HashMap<>(), new LongOpenHashSet()));
+        RECORDING.set(new Recording());
+        RECORDINGS.incrementAndGet();
     }
 
     /** Stops recording, and gives back what was seen. */
     static Recorded end() {
-        Recorded recorded = RECORDED.get();
-        RECORDED.remove();
-        return recorded == null ? Recorded.NONE : recorded;
+        Recording recording = RECORDING.get();
+        if (recording == null) {
+            return Recorded.NONE;
+        }
+        RECORDING.remove();
+        RECORDINGS.decrementAndGet();
+        return recording.recorded;
     }
 
     /**
-     * Called after each processor handles a block of a template being placed. Does nothing outside a
-     * capture. A trial spawner a processor changes, like the ones Moog's Structure Lib gives configs,
-     * is only noted as changed: there's no list of mobs to pick from.
+     * Called as a processor is about to be asked about a block of a template being placed, with the
+     * block as it's handed to it. Does nothing outside a capture, and makes nothing in one.
      */
-    public static void processed(StructureProcessor processor, StructureTemplate.StructureBlockInfo before, StructureTemplate.StructureBlockInfo after) {
-        Recorded recorded = RECORDED.get();
-        if (recorded == null || after == null || Objects.equals(before.nbt(), after.nbt())) {
+    public static void asking(StructureProcessor processor, StructureTemplate.StructureBlockInfo block) {
+        if (RECORDINGS.get() == 0) {
+            return;
+        }
+        Recording recording = RECORDING.get();
+        if (recording != null) {
+            int depth = recording.asking++;
+            if (depth < Recording.DEEPEST) {
+                recording.processors[depth] = processor;
+                recording.blocks[depth] = block;
+            }
+        }
+    }
+
+    /** Called with what that processor made of the block. */
+    public static void answered(StructureTemplate.StructureBlockInfo after) {
+        if (RECORDINGS.get() == 0) {
+            return;
+        }
+        Recording recording = RECORDING.get();
+        if (recording == null || recording.asking == 0) {
+            return;
+        }
+        int depth = --recording.asking;
+        if (depth < Recording.DEEPEST) {
+            StructureProcessor processor = recording.processors[depth];
+            StructureTemplate.StructureBlockInfo before = recording.blocks[depth];
+            recording.processors[depth] = null;
+            recording.blocks[depth] = null;
+            processed(recording.recorded, processor, before, after);
+        }
+    }
+
+    /**
+     * A trial spawner a processor changes, like the ones Moog's Structure Lib gives configs, is only
+     * noted as changed: there's no list of mobs to pick from.
+     */
+    private static void processed(Recorded recorded, StructureProcessor processor, StructureTemplate.StructureBlockInfo before,
+                                  StructureTemplate.StructureBlockInfo after) {
+        if (after == null || before == null || Objects.equals(before.nbt(), after.nbt())) {
             return;
         }
         boolean trial = TrialSpawners.is(after.state());

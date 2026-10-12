@@ -602,6 +602,34 @@ public final class SpawnerTests {
     *///?}
 
     /** A bastion layout with the treasure room, found once and then remembered. */
+    /**
+     * A processor that changes a spawner as its piece is placed, as Moog's Structure Lib's does to
+     * pick its mob, leaves it something other than its template made it, so it mustn't claim the
+     * template. This mod learns of that by standing in for the game's call to each processor, which
+     * every loader makes its own way and which is allowed to go missing. So a processor that changes
+     * every spawner, though not its mob, is slipped in beside the bastion's own: its spawners claim
+     * their templates without it, and none may with it.
+     */
+    public static void changedSpawnersDontClaimTheirTemplate(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        StructureSnapshot usual = treasureBastion(server);
+        helper.assertTrue(usual != null, "none of " + TRIES + " bastion layouts had the treasure room");
+        int before = ChangedSpawners.changed();
+        StructureSnapshot changed;
+        ChangedSpawners.join(true);
+        try {
+            changed = capture(server, BASTION, treasureSeed);
+        } finally {
+            ChangedSpawners.join(false);
+        }
+        helper.assertTrue(ChangedSpawners.changed() > before, "the test's processor was never asked about a spawner");
+        helper.assertFalse(changed.spawners().isEmpty(), "the bastion had no spawner");
+        long claiming = changed.spawners().stream().filter(s -> s.source() != null).count();
+        helper.assertTrue(claiming == 0, claiming + " of " + changed.spawners().size()
+                + " spawners that a processor had changed still claimed their templates");
+        helper.succeed();
+    }
+
     private static StructureSnapshot treasureBastion(MinecraftServer server) {
         if (treasureSeed != null) {
             return capture(server, BASTION, treasureSeed);

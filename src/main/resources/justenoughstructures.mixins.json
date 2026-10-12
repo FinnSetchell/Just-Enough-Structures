@@ -16,6 +16,7 @@
     "ServerLevelGuardMixin",
     "ServerLevelMixin",
     "SinglePoolElementAccessor",
+    "StructureProcessorCallMixin",
     "StructureTemplateAccessor",
     "StructureTemplateManagerAccessor",
     "StructureTemplateManagerMixin",

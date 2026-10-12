@@ -139,6 +139,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void listeningToProcessorsCostsNothing(GameTestHelper helper) {
+        CaptureTests.listeningToProcessorsCostsNothing(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void catalogListsEveryVanillaStructure(GameTestHelper helper) {
         ServiceTests.catalogListsEveryVanillaStructure(helper);
     }
@@ -550,6 +555,11 @@ public final class JesGameTests {
     @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
     public void spawnersKnowTheirTemplate(GameTestHelper helper) {
         SpawnerTests.spawnersKnowTheirTemplate(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void changedSpawnersDontClaimTheirTemplate(GameTestHelper helper) {
+        SpawnerTests.changedSpawnersDontClaimTheirTemplate(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
