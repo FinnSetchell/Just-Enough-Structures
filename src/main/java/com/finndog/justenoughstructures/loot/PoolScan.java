@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.LoadedPieces;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
+import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -15,6 +16,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -128,7 +130,22 @@ final class PoolScan {
             // Noted as loaded for this mod, as the scan goes through every piece any pool names.
             StructureTemplate template = LoadedPieces.during(server, () -> server.getStructureManager().get(id).orElse(null));
             if (template != null) {
-                nbt(template.save(new CompoundTag()), "", tables, next);
+                // Only what a block or an entity carries can name a table or a pool. Writing the whole
+                // piece out to look through it made several tags for every block there is in it.
+                StructureTemplateAccessor parts = (StructureTemplateAccessor) template;
+                List<StructureTemplate.Palette> sets = parts.justenoughstructures$palettes();
+                if (!sets.isEmpty()) {
+                    for (StructureTemplate.StructureBlockInfo block : sets.get(0).blocks()) {
+                        if (block.nbt() != null) {
+                            nbt(block.nbt(), "nbt", tables, next);
+                        }
+                    }
+                }
+                for (StructureTemplate.StructureEntityInfo entity : parts.justenoughstructures$entities()) {
+                    if (entity.nbt != null) {
+                        nbt(entity.nbt, "nbt", tables, next);
+                    }
+                }
             }
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read structure piece {}", id, e);
