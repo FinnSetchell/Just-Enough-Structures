@@ -72,6 +72,8 @@ First release.
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
 - Other mods' warnings about their structures stay out of the game log
+- Uses much less memory after the loot index has built, most of all with many structure mods
+- No longer crashes when you point at some modded blocks in a preview
 - Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
