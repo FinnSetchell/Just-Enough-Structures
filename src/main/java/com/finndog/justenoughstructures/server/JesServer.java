@@ -231,7 +231,7 @@ public final class JesServer {
         }
     }
 
-    static void sendIndexProgress(ServerPlayer player, int done, int total) {
+    public static void sendIndexProgress(ServerPlayer player, int done, int total) {
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(done);
         buf.writeVarInt(total);
@@ -577,6 +577,11 @@ public final class JesServer {
     /** Set by the loader when a structure compass mod is installed. */
     public static void setCompassSearch(CompassSearch search) {
         compassSearch = search;
+    }
+
+    /** What sets a compass searching now, for a test to put back after standing in for it. */
+    public static CompassSearch compassSearch() {
+        return compassSearch;
     }
 
     /**

@@ -619,6 +619,124 @@ public final class Codecs {
         return buf.readBoolean() ? new String(buf.readByteArray(), StandardCharsets.UTF_8) : null;
     }
 
+    // ------------------------------------------------------------------ small messages
+    // Each of these is a whole packet. Changing what one carries, or the order it's in, means
+    // JesNetwork.PROTOCOL goes up.
+
+    /** How far the loot index has got: structures done, out of how many. */
+    public record IndexProgress(int done, int total) {
+    }
+
+    public static void writeIndexProgress(FriendlyByteBuf buf, IndexProgress progress) {
+        buf.writeVarInt(progress.done());
+        buf.writeVarInt(progress.total());
+    }
+
+    public static IndexProgress readIndexProgress(FriendlyByteBuf buf) {
+        int done = buf.readVarInt();
+        int total = buf.readVarInt();
+        return new IndexProgress(done, total);
+    }
+
+    /**
+     * What a player's browser is told about the server: the levels locating and teleporting need,
+     * whether a held structure compass can be set searching, and whether they can use Pack tools.
+     * {@code reloaded} has it drop everything from before a /reload, {@code structuresChanged} only
+     * the list of structures.
+     */
+    public record BrowserSettings(int locatePermission, int teleportPermission, boolean reloaded, boolean compassSearch, boolean packTools,
+                                  boolean structuresChanged) {
+    }
+
+    public static void writeBrowserSettings(FriendlyByteBuf buf, BrowserSettings settings) {
+        buf.writeVarInt(settings.locatePermission());
+        buf.writeVarInt(settings.teleportPermission());
+        buf.writeBoolean(settings.reloaded());
+        buf.writeBoolean(settings.compassSearch());
+        buf.writeBoolean(settings.packTools());
+        buf.writeBoolean(settings.structuresChanged());
+    }
+
+    public static BrowserSettings readBrowserSettings(FriendlyByteBuf buf) {
+        int locate = buf.readVarInt();
+        int teleport = buf.readVarInt();
+        boolean reloaded = buf.readBoolean();
+        boolean compass = buf.readBoolean();
+        boolean packTools = buf.readBoolean();
+        boolean structuresChanged = buf.readBoolean();
+        return new BrowserSettings(locate, teleport, reloaded, compass, packTools, structuresChanged);
+    }
+
+    /** Which loot tables have an override, and how each stands. */
+    public static void writeOverrides(FriendlyByteBuf buf, Map<ResourceLocation, LootOverrides.Status> statuses) {
+        buf.writeVarInt(statuses.size());
+        statuses.forEach((id, status) -> {
+            buf.writeResourceLocation(id);
+            buf.writeVarInt(status.ordinal());
+        });
+    }
+
+    /** A table whose standing isn't one this version knows is left out. */
+    public static Map<ResourceLocation, LootOverrides.Status> readOverrides(FriendlyByteBuf buf) {
+        Map<ResourceLocation, LootOverrides.Status> statuses = new HashMap<>();
+        LootOverrides.Status[] all = LootOverrides.Status.values();
+        int count = buf.readVarInt();
+        for (int i = 0; i < count; i++) {
+            ResourceLocation id = buf.readResourceLocation();
+            int status = buf.readVarInt();
+            if (status >= 0 && status < all.length) {
+                statuses.put(id, all[status]);
+            }
+        }
+        return statuses;
+    }
+
+    /** What the server says about an edit: a message, and for a draft, what it would give. Either can be null. */
+    public record EditReply(int requestId, Component message, LootOdds odds) {
+    }
+
+    public static void writeEditReply(FriendlyByteBuf buf, EditReply reply) {
+        buf.writeVarInt(reply.requestId());
+        buf.writeBoolean(reply.message() != null);
+        if (reply.message() != null) {
+            writeComponent(buf, reply.message());
+        }
+        buf.writeBoolean(reply.odds() != null);
+        if (reply.odds() != null) {
+            writeOdds(buf, reply.odds());
+        }
+    }
+
+    public static EditReply readEditReply(FriendlyByteBuf buf) {
+        int requestId = buf.readVarInt();
+        Component message = buf.readBoolean() ? readComponent(buf) : null;
+        LootOdds odds = buf.readBoolean() ? readOdds(buf) : null;
+        return new EditReply(requestId, message, odds);
+    }
+
+    /** What the player's told after a locate, or after setting a compass searching. */
+    public record LocateReply(int requestId, Component reply) {
+    }
+
+    public static void writeLocateReply(FriendlyByteBuf buf, LocateReply reply) {
+        buf.writeVarInt(reply.requestId());
+        writeComponent(buf, reply.reply());
+    }
+
+    public static LocateReply readLocateReply(FriendlyByteBuf buf) {
+        int requestId = buf.readVarInt();
+        return new LocateReply(requestId, readComponent(buf));
+    }
+
+    /** Opens a player's browser, on a structure or, with null, as it was left. */
+    public static void writeOpenBrowser(FriendlyByteBuf buf, ResourceLocation structure) {
+        writeNullableId(buf, structure);
+    }
+
+    public static ResourceLocation readOpenBrowser(FriendlyByteBuf buf) {
+        return readNullableId(buf);
+    }
+
     // ------------------------------------------------------------------ helpers
 
     // The buffer's own list and map helpers are gone from 26.3. These write the same: a count, then

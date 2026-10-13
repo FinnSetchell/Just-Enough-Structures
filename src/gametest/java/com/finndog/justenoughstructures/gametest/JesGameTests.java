@@ -508,6 +508,36 @@ public final class JesGameTests {
         ScrollTests.scrollCanRunPastItsEnd(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void indexProgressReadsBack(GameTestHelper helper) {
+        MessageTests.indexProgressReadsBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void browserSettingsReadBack(GameTestHelper helper) {
+        MessageTests.browserSettingsReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void overridesReadBack(GameTestHelper helper) {
+        MessageTests.overridesReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void editRepliesReadBack(GameTestHelper helper) {
+        MessageTests.editRepliesReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void locateRepliesReadBack(GameTestHelper helper) {
+        MessageTests.locateRepliesReadBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void openBrowserReadsBack(GameTestHelper helper) {
+        MessageTests.openBrowserReadsBack(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);
