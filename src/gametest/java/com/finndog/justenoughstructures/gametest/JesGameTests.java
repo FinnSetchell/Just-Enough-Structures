@@ -318,6 +318,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void entityTypesAreKept(GameTestHelper helper) {
+        OverrideTests.entityTypesAreKept(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void whatTheEditorStartsIsKept(GameTestHelper helper) {
+        OverrideTests.whatTheEditorStartsIsKept(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void newLootTableEntriesLoad(GameTestHelper helper) {
         OverrideTests.newLootTableEntriesLoad(helper);
     }

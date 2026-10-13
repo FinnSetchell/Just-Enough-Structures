@@ -32,6 +32,32 @@ public final class LootTypes {
     public static final String TABLE_KEY = "name";
     //?}
 
+    /**
+     * Where a tag entry names its tag, and what a tag has in front of it there. 26.3 made it a set
+     * of items under "items", so a tag takes a "#" as it does anywhere an item could go instead.
+     */
+    //? if >=26.3 {
+    /*public static final String TAG_KEY = "items";
+    public static final String TAG_MARK = "#";
+    *///?} else {
+    public static final String TAG_KEY = "name";
+    public static final String TAG_MARK = "";
+    //?}
+
+    /** Where an entity predicate says which kind of entity. 26.2 put the game's namespace on it. */
+    //? if >=26.2 {
+    /*public static final String ENTITY_TYPE_KEY = "minecraft:entity_type";
+    *///?} else {
+    public static final String ENTITY_TYPE_KEY = "type";
+    //?}
+
+    /** Where a "set loot table" function names the table. 26.3 renamed it, and no longer asks what kind of container. */
+    //? if >=26.3 {
+    /*public static final String CONTAINER_TABLE_KEY = "loot_table_id";
+    *///?} else {
+    public static final String CONTAINER_TABLE_KEY = "name";
+    //?}
+
     /** The ones people use most, first, in this order; then the rest by name. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
     // Each version's names for the same thing sit side by side; only the ones the game has are listed.
@@ -56,13 +82,11 @@ public final class LootTypes {
             Map.entry("function:enchanted_count_increase", "{\"enchantment\": \"minecraft:looting\", \"count\": 1}"),
             Map.entry("function:set_contents", "{\"component\": \"minecraft:container\", \"entries\": []}"),
             Map.entry("function:modify_contents", "{\"component\": \"minecraft:container\", \"modifier\": []}"),
-            Map.entry("function:filtered", "{\"item_filter\": {}, \"modifier\": []}"),
             Map.entry("function:sequence", "{\"functions\": []}"),
             Map.entry("function:set_item", "{\"item\": \"minecraft:stick\"}"),
             Map.entry("function:set_writable_book_pages", "{\"pages\": [], \"mode\": \"append\"}"),
             Map.entry("function:set_written_book_pages", "{\"pages\": [], \"mode\": \"append\"}"),
             Map.entry("function:set_ominous_bottle_amplifier", "{\"amplifier\": 0}"),
-            Map.entry("function:set_custom_model_data", "{\"value\": 0}"),
             Map.entry("function:toggle_tooltips", "{\"toggles\": {}}"),
             Map.entry("condition:random_chance_with_enchanted_bonus", "{\"enchantment\": \"minecraft:looting\", \"unenchanted_chance\": 0.1, "
                     + "\"enchanted_chance\": {\"type\": \"minecraft:linear\", \"base\": 0.11, \"per_level_above_first\": 0.01}}"),
@@ -93,17 +117,37 @@ public final class LootTypes {
             Map.entry("condition:time_check", "{\"clock\": \"minecraft:overworld\", \"value\": {\"min\": 0, \"max\": 12000}}"),
             Map.entry("condition:environment_attribute_check", "{\"attribute\": \"minecraft:gameplay/monsters_burn\", \"value\": true}"),
             Map.entry("function:set_random_dyes", "{\"number_of_dyes\": 1}"),
+            // By 26.1 custom model data is lists of numbers, flags, text and colours for a model to read.
+            Map.entry("function:set_custom_model_data", "{\"floats\": {\"values\": [1], \"mode\": \"replace_all\"}}"),
             *///?} else {
             Map.entry("condition:time_check", "{\"value\": {\"min\": 0, \"max\": 12000}}"),
+            Map.entry("function:set_custom_model_data", "{\"value\": 0}"),
+            //?}
+            //? if >=26.3 {
+            /*// 26.3 writes a tag with its "#" where a map's destination was a bare id, names a container's
+            // table by "loot_table_id" and no longer asks what kind of container, and split the value check
+            // in two, each with a "test" for its range. A function inside another says its kind as "type".
+            Map.entry("function:exploration_map", "{\"destination\": \"#minecraft:on_treasure_maps\", \"decoration\": \"red_x\", \"zoom\": 1, \"skip_existing_chunks\": false}"),
+            Map.entry("function:set_loot_table", "{\"loot_table_id\": \"minecraft:chests/simple_dungeon\"}"),
+            Map.entry("function:filtered", "{\"item_filter\": {}, \"on_fail\": {\"type\": \"minecraft:discard\"}}"),
+            Map.entry("condition:float_value_check", "{\"value\": 1, \"test\": {\"min\": 0, \"max\": 1}}"),
+            Map.entry("condition:int_value_check", "{\"value\": 1, \"test\": {\"min\": 0, \"max\": 1}}"),
+            *///?} else if >=26.1 {
+            /*// By 26.1 "filtered" says what to do with what passes and with what doesn't, where it had one modifier.
+            Map.entry("function:exploration_map", "{\"destination\": \"minecraft:on_treasure_maps\", \"decoration\": \"red_x\", \"zoom\": 1, \"skip_existing_chunks\": false}"),
+            Map.entry("function:set_loot_table", "{\"name\": \"minecraft:chests/simple_dungeon\", \"type\": \"minecraft:chest\"}"),
+            Map.entry("function:filtered", "{\"item_filter\": {}, \"on_fail\": {\"function\": \"minecraft:discard\"}}"),
+            *///?} else {
+            Map.entry("function:exploration_map", "{\"destination\": \"minecraft:on_treasure_maps\", \"decoration\": \"red_x\", \"zoom\": 1, \"skip_existing_chunks\": false}"),
+            Map.entry("function:set_loot_table", "{\"name\": \"minecraft:chests/simple_dungeon\", \"type\": \"minecraft:chest\"}"),
+            Map.entry("function:filtered", "{\"item_filter\": {}, \"modifier\": []}"),
             //?}
             Map.entry("function:set_damage", "{\"damage\": {\"type\": \"minecraft:uniform\", \"min\": 0.5, \"max\": 1}}"),
             Map.entry("function:set_potion", "{\"id\": \"minecraft:healing\"}"),
-            Map.entry("function:exploration_map", "{\"destination\": \"minecraft:on_treasure_maps\", \"decoration\": \"red_x\", \"zoom\": 1, \"skip_existing_chunks\": false}"),
             Map.entry("function:set_name", "{\"name\": \"Name\"}"),
             Map.entry("function:limit_count", "{\"limit\": {\"min\": 1, \"max\": 64}}"),
             Map.entry("function:set_instrument", "{\"options\": \"#minecraft:goat_horns\"}"),
             Map.entry("function:apply_bonus", "{\"enchantment\": \"minecraft:fortune\", \"formula\": \"minecraft:ore_drops\"}"),
-            Map.entry("function:set_loot_table", "{\"name\": \"minecraft:chests/simple_dungeon\", \"type\": \"minecraft:chest\"}"),
             Map.entry("function:set_stew_effect", "{\"effects\": []}"),
             Map.entry("function:copy_name", "{\"source\": \"block_entity\"}"),
             Map.entry("function:copy_state", "{\"block\": \"minecraft:stone\", \"properties\": []}"),
@@ -178,7 +222,7 @@ public final class LootTypes {
         switch (kind) {
             case "item" -> out.addProperty("name", was != null && was.has("name") && isItemType(was) ? was.get("name").getAsString() : "minecraft:stick");
             case "tag" -> {
-                out.addProperty("name", "minecraft:arrows");
+                out.addProperty(TAG_KEY, TAG_MARK + "minecraft:arrows");
                 out.addProperty("expand", false);
             }
             case "loot_table" -> out.addProperty(TABLE_KEY, "minecraft:chests/simple_dungeon");

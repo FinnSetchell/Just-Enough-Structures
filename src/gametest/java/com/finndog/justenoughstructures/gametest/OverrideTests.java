@@ -26,6 +26,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -269,6 +271,109 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * What the editor starts a function, a condition or a tag entry with, the game keeps: each
+     * setting written is one this version reads, not one it loads and takes no notice of. Told from
+     * the game's own writing of the table, which there is from 1.20.5.
+     */
+    public static void whatTheEditorStartsIsKept(GameTestHelper helper) {
+        //? if >=1.21 {
+        /*RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().getServer().registryAccess());
+        List<String> lost = new ArrayList<>();
+        for (String type : LootTypes.functionTypes()) {
+            // A reference needs an item modifier to point at, and the game has none of its own.
+            if (type.startsWith("minecraft:") && !type.equals("minecraft:reference")) {
+                kept(ops, type, "functions", LootTypes.function(type), lost);
+            }
+        }
+        for (String type : LootTypes.conditionTypes()) {
+            if (type.startsWith("minecraft:") && !type.equals("minecraft:reference")) {
+                kept(ops, type, "conditions", LootTypes.condition(type), lost);
+            }
+        }
+        kept(ops, "a tag entry", null, LootTypes.entry("minecraft:tag", null), lost);
+        helper.assertTrue(lost.isEmpty(), "the game doesn't keep these as the editor starts them: " + lost);
+        *///?}
+        helper.succeed();
+    }
+
+    /**
+     * The kind of entity in an entity predicate is kept under the key the form writes it to, and not
+     * under the key another version has for it, which this one loads and takes no notice of.
+     */
+    public static void entityTypesAreKept(GameTestHelper helper) {
+        //? if >=1.21 {
+        /*RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().getServer().registryAccess());
+        String other = LootTypes.ENTITY_TYPE_KEY.equals("type") ? "minecraft:entity_type" : "type";
+        JsonObject mine = readBack(ops, "conditions", ofZombies(LootTypes.ENTITY_TYPE_KEY));
+        helper.assertTrue(mine != null && mine.get("predicate") instanceof JsonObject predicate && predicate.has(LootTypes.ENTITY_TYPE_KEY),
+                "the game doesn't keep an entity's kind under " + LootTypes.ENTITY_TYPE_KEY + ": it wrote back " + mine);
+        JsonObject theirs = readBack(ops, "conditions", ofZombies(other));
+        helper.assertTrue(theirs == null || !(theirs.get("predicate") instanceof JsonObject predicate) || !predicate.has(other),
+                "the game keeps an entity's kind under " + other + " too, so this test can't tell the two apart: " + theirs);
+        *///?}
+        helper.succeed();
+    }
+
+    //? if >=1.21 {
+    /*private static JsonObject ofZombies(String key) {
+        JsonObject condition = LootTypes.condition("minecraft:entity_properties");
+        condition.getAsJsonObject("predicate").addProperty(key, "minecraft:zombie");
+        return condition;
+    }
+
+    // Left out of what the game writes back because it's what the game takes for granted, not because it wasn't read.
+    // A map goes to buried treasure unless told otherwise, and from 26.3 a tag entry isn't expanded unless told to be.
+    private static final Set<String> TAKEN_FOR_GRANTED = Set.of("minecraft:exploration_map.destination", "a tag entry.expand");
+
+    private static void kept(RegistryOps<JsonElement> ops, String what, String list, JsonObject added, List<String> lost) {
+        JsonObject back = readBack(ops, list, added);
+        if (back == null) {
+            Component problem = LootOverrides.check(IGLOO, sent(list, added));
+            lost.add(what + " (doesn't load: " + (problem == null ? "?" : problem.getString()) + ")");
+            return;
+        }
+        // Its kind is how it was found, and something with no settings that the game drops can't be told from one it keeps.
+        String kind = list == null ? "type" : list.substring(0, list.length() - 1);
+        for (Map.Entry<String, JsonElement> setting : added.entrySet()) {
+            JsonElement value = setting.getValue();
+            // Nothing in a list or a map is the same to the game as no list or map, so it writes neither.
+            boolean nothing = value instanceof JsonArray array && array.isEmpty() || value instanceof JsonObject object && object.size() == 0;
+            if (!nothing && !setting.getKey().equals(kind) && !back.has(setting.getKey()) && !TAKEN_FOR_GRANTED.contains(what + "." + setting.getKey())) {
+                lost.add(what + "." + setting.getKey());
+            }
+        }
+    }
+
+    // A table with one stick entry that has this function or condition, or with this entry alone, in the game's own shape.
+    private static String sent(String list, JsonObject added) {
+        JsonObject entry = list == null ? added.deepCopy() : JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}").getAsJsonObject();
+        if (list != null) {
+            JsonArray kinds = new JsonArray();
+            kinds.add(added.deepCopy());
+            entry.add(list, kinds);
+        }
+        JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
+        table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
+        return LootFormat.forGame(table).toString();
+    }
+
+    // That function, condition or entry as the game writes it back once it has read it, in the editor's
+    // shape: null if the game doesn't load it, and with nothing in it if the game dropped it.
+    private static JsonObject readBack(RegistryOps<JsonElement> ops, String list, JsonObject added) {
+        LootTable parsed = LootOverrides.parse(sent(list, added));
+        if (parsed == null) {
+            return null;
+        }
+        JsonObject table = LootFormat.forEditing(LootTable.DIRECT_CODEC.encodeStart(ops, parsed).getOrThrow().getAsJsonObject());
+        JsonObject entry = table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").get(0).getAsJsonObject();
+        if (list == null) {
+            return entry;
+        }
+        return entry.get(list) instanceof JsonArray kinds && !kinds.isEmpty() && kinds.get(0).isJsonObject() ? kinds.get(0).getAsJsonObject() : new JsonObject();
+    }
+    *///?}
+
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();
@@ -311,7 +416,9 @@ public final class OverrideTests {
         entry.add(list, kinds);
         JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
         table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
-        Component problem = LootOverrides.check(IGLOO, table.toString());
+        // In the game's own shape, as the editor sends a table. From 26.3 that isn't the shape it's edited
+        // in, and the game takes no notice of functions and conditions written the old way.
+        Component problem = LootOverrides.check(IGLOO, LootFormat.forGame(table).toString());
         if (problem != null) {
             broken.add(type + " (" + problem.getString() + ")");
         }
