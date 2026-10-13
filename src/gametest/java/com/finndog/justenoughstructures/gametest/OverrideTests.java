@@ -287,6 +287,23 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * A loot table entry the editor adds is one the game loads, and names its table where this
+     * version of the game looks for it: under "value" from 1.20.5, under "name" before.
+     */
+    public static void newLootTableEntriesLoad(GameTestHelper helper) {
+        JsonObject entry = LootTypes.entry("minecraft:loot_table", null);
+        helper.assertTrue(entry.has(LootTypes.TABLE_KEY) && entry.size() == 2, "a new loot table entry is " + entry);
+        JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
+        table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
+        Component problem = LootOverrides.check(IGLOO, table.toString());
+        helper.assertTrue(problem == null, "a new loot table entry doesn't load: " + (problem == null ? "" : problem.getString()));
+        // With its table named under the other version's key, the game must refuse it, or this test proves nothing.
+        entry.add(LootTypes.TABLE_KEY.equals("value") ? "name" : "value", entry.remove(LootTypes.TABLE_KEY));
+        helper.assertTrue(LootOverrides.check(IGLOO, table.toString()) != null, "the game loaded a loot table entry that names its table under the wrong key: " + entry);
+        helper.succeed();
+    }
+
     private static void problem(String type, String list, JsonObject added, List<String> broken) {
         JsonObject entry = JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}").getAsJsonObject();
         JsonArray kinds = new JsonArray();

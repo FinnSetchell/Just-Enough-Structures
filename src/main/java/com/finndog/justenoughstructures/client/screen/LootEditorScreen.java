@@ -1184,7 +1184,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     private static String label(JsonObject entry) {
         String type = entry.has("type") ? entry.get("type").getAsString() : "minecraft:item";
-        String name = entry.has("name") && entry.get("name").isJsonPrimitive() ? entry.get("name").getAsString() : "";
+        String key = LootTypes.shortId(type).equals("loot_table") ? LootTypes.TABLE_KEY : "name";
+        String name = entry.has(key) && entry.get(key).isJsonPrimitive() ? entry.get(key).getAsString() : "";
         if (LootTypes.shortId(type).equals("item")) {
             return LootForm.itemExists(name) ? LootForm.itemName(name).getString() : name;
         }

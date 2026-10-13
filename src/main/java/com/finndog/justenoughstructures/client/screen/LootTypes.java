@@ -22,6 +22,16 @@ public final class LootTypes {
             "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
             "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location", "minecraft:empty");
 
+    /**
+     * Where a loot table entry names its table. From 1.20.5 that's "value", which can also hold a
+     * whole table written out in place; before, it was "name", as an item entry's item still is.
+     */
+    //? if >=1.21 {
+    /*public static final String TABLE_KEY = "value";
+    *///?} else {
+    public static final String TABLE_KEY = "name";
+    //?}
+
     /** The ones people use most, first, in this order; then the rest by name. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
     // Each version's names for the same thing sit side by side; only the ones the game has are listed.
@@ -161,7 +171,7 @@ public final class LootTypes {
     }
 
     /** A new entry of this kind. */
-    static JsonObject entry(String type, JsonObject was) {
+    public static JsonObject entry(String type, JsonObject was) {
         JsonObject out = new JsonObject();
         out.addProperty("type", type);
         String kind = shortId(type);
@@ -171,7 +181,7 @@ public final class LootTypes {
                 out.addProperty("name", "minecraft:arrows");
                 out.addProperty("expand", false);
             }
-            case "loot_table" -> out.addProperty("name", "minecraft:chests/simple_dungeon");
+            case "loot_table" -> out.addProperty(TABLE_KEY, "minecraft:chests/simple_dungeon");
             case "dynamic" -> out.addProperty("name", "minecraft:contents");
             case "alternatives", "group", "sequence" -> out.add("children", new JsonArray());
             default -> {

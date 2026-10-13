@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void newLootTableEntriesLoad(GameTestHelper helper) {
+        OverrideTests.newLootTableEntriesLoad(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void tablesThatNameTablesCheck(GameTestHelper helper) {
         OverrideTests.tablesThatNameTablesCheck(helper);
     }

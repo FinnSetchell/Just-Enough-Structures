@@ -155,7 +155,13 @@ final class LootForm {
                 y = row(g, x, y, w, "tag", (cx, cw) -> pick(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.ITEM_TAG_IDS, false));
                 y = row(g, x, y, w, "expand", (cx, cw) -> check(g, cx, y(), JsonPaths.join(path, "expand"), false));
             }
-            case "loot_table" -> y = row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.LOOT_TABLES, false));
+            case "loot_table" -> {
+                String tablePath = JsonPaths.join(path, LootTypes.TABLE_KEY);
+                // A whole table written out in place of a name is left as it is, to be edited as JSON.
+                y = JsonPaths.get(draft(), tablePath) instanceof JsonObject
+                        ? row(g, x, y, w, "table", (cx, cw) -> raw(g, cx, y(), cw, tablePath))
+                        : row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, tablePath, LootOptions.LOOT_TABLES, false));
+            }
             case "dynamic" -> y = row(g, x, y, w, "name", (cx, cw) -> choice(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.DYNAMIC, false));
             default -> {
             }
