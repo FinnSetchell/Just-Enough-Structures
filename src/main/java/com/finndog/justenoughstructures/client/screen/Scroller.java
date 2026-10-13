@@ -42,22 +42,9 @@ final class Scroller {
         return true;
     }
 
-    /** Takes hold of the scroll bar when a press is on it, or on the strip kept clear for it. */
-    boolean grab(double mouseX, double mouseY) {
-        if (!scroll.scrolls() || mouseX < x + w - 8 || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
-            return false;
-        }
-        scroll.hold(mouseY - y, h);
-        return true;
-    }
-
-    /** Moves the list with its bar, held since {@link #grab}. */
-    void dragTo(double mouseY) {
-        scroll.dragTo(mouseY - y, h);
-    }
-
-    void letGo() {
-        scroll.letGo();
+    /** Takes hold of the scroll bar when a press is on it, or null. */
+    HeldBar grab(double mouseX, double mouseY) {
+        return HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
     }
 
     void reset() {

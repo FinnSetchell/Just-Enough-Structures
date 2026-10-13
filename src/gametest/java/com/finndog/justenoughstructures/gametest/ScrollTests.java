@@ -76,6 +76,40 @@ public final class ScrollTests {
         helper.succeed();
     }
 
+    /**
+     * A list drawn with a little room under its last row scrolls that far past its end, by the wheel
+     * or when told where to go, while its bar still stands for the content alone.
+     */
+    public static void scrollCanRunPastItsEnd(GameTestHelper helper) {
+        Scroll scroll = new Scroll(36, 2);
+        scroll.fit(100, 250);
+        helper.assertTrue(scroll.most() == 150, "the bar of 250 pixels in a window of 100 stands for " + scroll.most());
+        scroll.wheel(-100);
+        helper.assertTrue(scroll.offset() == 152, "with two pixels of room the wheel stopped at " + scroll.offset());
+        helper.assertTrue(Scroll.thumbTop(100, scroll.most(), scroll.offset()) == Scroll.thumbTop(100, 150, 150), "past its end, the thumb left the bar's end");
+        scroll.to(40);
+        helper.assertTrue(scroll.offset() == 40, "told to go to 40 it went to " + scroll.offset());
+        scroll.to(1000);
+        helper.assertTrue(scroll.offset() == 152, "told to go far past the end it went to " + scroll.offset());
+        scroll.to(-5);
+        helper.assertTrue(scroll.offset() == 0, "told to go above the top it went to " + scroll.offset());
+
+        // The thumb brought exactly to the bar's end is the content's end; the mouse on past it takes the room too.
+        scroll.hold(1, 100);
+        scroll.dragTo(61, 100);
+        helper.assertTrue(scroll.offset() == 150, "with the thumb at the bar's end the list is at " + scroll.offset());
+        scroll.dragTo(500, 100);
+        helper.assertTrue(scroll.offset() == 152, "dragged on past the bar's end the list is at " + scroll.offset());
+        scroll.letGo();
+
+        // Content a pixel short of the window: no bar, and only that pixel of the room to scroll.
+        scroll.fit(100, 99);
+        helper.assertTrue(!scroll.scrolls() && scroll.offset() == 1, "a list a pixel short of its window is scrolled to " + scroll.offset());
+        scroll.fit(100, 90);
+        helper.assertTrue(scroll.offset() == 0, "a list well short of its window is scrolled to " + scroll.offset());
+        helper.succeed();
+    }
+
     /** Dragging the bar's thumb moves the list with it, a press beside the thumb brings it there, and taking hold moves nothing. */
     public static void barDragsTheList(GameTestHelper helper) {
         int track = 100;

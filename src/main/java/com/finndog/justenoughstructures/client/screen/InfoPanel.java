@@ -109,7 +109,7 @@ final class InfoPanel {
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
-    private double scroll;
+    private final Scroll scroll = new Scroll(20);
     private int contentHeight;
     private int contentRight;
     private int tabsX;
@@ -157,7 +157,7 @@ final class InfoPanel {
         this.result = null;
         this.selectedTable = null;
         this.odds = null;
-        this.scroll = 0;
+        scroll.reset();
     }
 
     /** The same structure, as the server describes it now, keeping everything else on show. */
@@ -212,7 +212,7 @@ final class InfoPanel {
 
     void setTab(Tab tab) {
         this.tab = tab;
-        this.scroll = 0;
+        scroll.reset();
     }
 
     static void showDetails(boolean shown) {
@@ -281,7 +281,7 @@ final class InfoPanel {
         contentRight = x + width - (scrolls ? 8 : 0);
         Gui.scissor(g, x, top, x + width, top + bodyHeight);
         clampScroll();
-        int cursor = top + 2 - (int) scroll;
+        int cursor = top + 2 - scroll.top();
         int end = switch (tab) {
             case OVERVIEW -> overview(g, cursor, mouseX, mouseY, top, bodyHeight);
             case LOOT -> loot(g, cursor, mouseX, mouseY, top, bodyHeight);
@@ -292,7 +292,7 @@ final class InfoPanel {
         contentHeight = end - cursor + 2;
         clampScroll();
         if (contentHeight > bodyHeight) {
-            Gui.scrollbar(g, x + width - 4, top, bodyHeight, scroll, contentHeight - bodyHeight);
+            Gui.scrollbar(g, x + width - 4, top, bodyHeight, scroll.offset(), contentHeight - bodyHeight);
         }
     }
 
@@ -321,14 +321,29 @@ final class InfoPanel {
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
-        scroll -= delta * 20;
         clampScroll();
+        scroll.wheel(delta);
         return true;
     }
 
     /** Keeps the scroll inside the content, so it never shows past the top or bottom, even for a frame. */
     private void clampScroll() {
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, contentHeight - height)));
+        scroll.fit(height, contentHeight);
+    }
+
+    /** Takes hold of the scroll bar when a press is on it, or null. */
+    HeldBar grabBar(double mouseX, double mouseY) {
+        clampScroll();
+        return HeldBar.at(scroll, mouseX, mouseY, x + width, y, height);
+    }
+
+    /** A point part of the way down the scroll bar, for the screenshot harness, or null without one. */
+    int[] barPoint(float along) {
+        return scroll.scrolls() ? new int[]{x + width - 3, y + 1 + Math.round((height - 3) * along)} : null;
+    }
+
+    double scrolled() {
+        return scroll.offset();
     }
 
     private int textWidth() {

@@ -503,6 +503,11 @@ public final class JesGameTests {
         ScrollTests.barDragsTheList(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void scrollCanRunPastItsEnd(GameTestHelper helper) {
+        ScrollTests.scrollCanRunPastItsEnd(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);

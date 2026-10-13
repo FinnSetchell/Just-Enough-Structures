@@ -45,7 +45,7 @@ final class ToolsUi {
     private final List<Spot> spots = new ArrayList<>();
     /** The scroll bars drawn this frame, and the one a press took hold of. */
     private final List<Scroller> bars = new ArrayList<>();
-    private Scroller held;
+    private HeldBar held;
     private int mouseX;
     private int mouseY;
     private int clipTop = Integer.MIN_VALUE;
@@ -153,8 +153,8 @@ final class ToolsUi {
 
     boolean click(double mx, double my) {
         for (int i = bars.size() - 1; i >= 0; i--) {
-            if (bars.get(i).grab(mx, my)) {
-                held = bars.get(i);
+            held = bars.get(i).grab(mx, my);
+            if (held != null) {
                 return true;
             }
         }

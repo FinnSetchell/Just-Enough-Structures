@@ -10,6 +10,8 @@ public final class Scroll {
 
     /** Pixels one notch of the wheel moves the list. */
     private final double step;
+    /** Pixels the list may scroll past its end, for one drawn with a little room under its last row. */
+    private final int slack;
     private double offset;
     /** How much of the list shows at once. */
     private int view;
@@ -19,7 +21,12 @@ public final class Scroll {
     private double grip;
 
     public Scroll(double step) {
+        this(step, 0);
+    }
+
+    public Scroll(double step, int slack) {
         this.step = step;
+        this.slack = slack;
     }
 
     public double offset() {
@@ -31,7 +38,7 @@ public final class Scroll {
         return (int) offset;
     }
 
-    /** The furthest it can scroll. */
+    /** How far its content runs past what shows: what the bar's whole length stands for. */
     public int most() {
         return Math.max(0, content - view);
     }
@@ -48,6 +55,18 @@ public final class Scroll {
 
     public void content(int content) {
         this.content = content;
+        clamp();
+    }
+
+    /** Both at once, for a list that works out its own size and content. */
+    public void fit(int view, int content) {
+        this.view = view;
+        this.content = content;
+        clamp();
+    }
+
+    public void to(double offset) {
+        this.offset = offset;
         clamp();
     }
 
@@ -119,6 +138,6 @@ public final class Scroll {
     }
 
     private void clamp() {
-        offset = Math.max(0, Math.min(offset, most()));
+        offset = Math.max(0, Math.min(offset, Math.max(0, content - view + slack)));
     }
 }

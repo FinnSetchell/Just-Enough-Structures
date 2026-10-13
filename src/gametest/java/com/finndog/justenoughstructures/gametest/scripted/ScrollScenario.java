@@ -19,10 +19,11 @@ import com.finndog.justenoughstructures.client.screen.JesScreen;
 import net.minecraft.client.Minecraft;
 
 /**
- * Scroll bars: in Pack tools, the list of loot tables is dragged down by its bar's thumb, sent to
- * its end by a press beside the thumb, left alone by the mouse once the button is up, and moved by
- * the wheel as before. Each step says how far the list is scrolled, as a bar that didn't move
- * looks much like one that did.
+ * Scroll bars. In the browser, the structure list and the details are each dragged by their bar's
+ * thumb, and a press on the list's bar picks no structure. In Pack tools, the list of loot tables
+ * is dragged down by its thumb, sent to its end by a press beside the thumb, left alone by the
+ * mouse once the button is up, and moved by the wheel as before. Each step says how far the list
+ * is scrolled, as a bar that didn't move looks much like one that did.
  */
 final class ScrollScenario {
     private ScrollScenario() {
@@ -36,6 +37,28 @@ final class ScrollScenario {
                 .then(until(() -> browser(mc) != null, 40))
                 .then(until(() -> browser(mc).idle(), 600))
                 .then(run(() -> browser(mc).setSpin(false)))
+                .then(run(() -> browser(mc).showLootTab()))
+                .then(until(() -> browser(mc).scrollBar(false, 0) != null && browser(mc).scrollBar(true, 0) != null, 200))
+                .then(pause(10))
+                .then(run(() -> expect(browser(mc).scrolled(true) == 0, "The details didn't start at their top: " + browser(mc).scrolled(true))))
+                // The structure list, which opens scrolled to the structure on show: up to its top by the bar, then down by the thumb.
+                .then(moveTo(() -> orZero(browser(mc).scrollBar(false, 0.99f)), 10))
+                .then(dragTo(() -> orZero(browser(mc).scrollBar(false, 0)), 20, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(5))
+                .then(run(() -> expect(browser(mc).scrolled(false) == 0, "Dragging the structure list's bar to its top left the list at " + browser(mc).scrolled(false))))
+                .then(moveTo(() -> orZero(browser(mc).scrollBar(false, 0.02f)), 10))
+                .then(dragTo(() -> orZero(browser(mc).scrollBar(false, 0.6f)), 20, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(5))
+                .then(run(() -> {
+                    expect(browser(mc).scrolled(false) > 0, "Dragging the structure list's thumb down didn't scroll it");
+                    expect(Ids.parse("desert_pyramid").equals(browser(mc).selectedId()), "Pressing the structure list's bar picked " + browser(mc).selectedId());
+                }))
+                .then(shoot("s10_list_dragged"))
+                .then(moveTo(() -> orZero(browser(mc).scrollBar(true, 0.02f)), 10))
+                .then(dragTo(() -> orZero(browser(mc).scrollBar(true, 0.7f)), 20, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(5))
+                .then(run(() -> expect(browser(mc).scrolled(true) > 0, "Dragging the details' thumb down didn't scroll them")))
+                .then(shoot("s11_details_dragged"))
                 .then(moveTo(() -> browser(mc).button("tools"), 10))
                 .then(click())
                 .then(until(() -> tools(mc) != null && tools(mc).loaded(), 200))

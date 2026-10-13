@@ -172,6 +172,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     private boolean pressedInViewport;
     private boolean dragged;
+    /** The scroll bar a press took hold of, until the button comes up. */
+    private HeldBar heldBar;
     private final List<Marker> markerRects = new ArrayList<>();
 
     /** What the player is picking in the preview for Pack tools, if anything. */
@@ -1747,6 +1749,21 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return list.rowCentre(id);
     }
 
+    /** A point part of the way down the structure list's scroll bar, or the details' with {@code details}, or null without one. */
+    public int[] scrollBar(boolean details, float along) {
+        return details ? info.barPoint(along) : list.barPoint(along);
+    }
+
+    /** How far the structure list is scrolled, or the details with {@code details}. */
+    public double scrolled(boolean details) {
+        return details ? info.scrolled() : list.scrolled();
+    }
+
+    /** The structure on show, or null. */
+    public ResourceLocation selectedId() {
+        return selected == null ? null : selected.id();
+    }
+
     /** Where the details panel last drew a row that tints the preview, such as "block:minecraft:chest". */
     public Optional<int[]> highlightRow(String key) {
         return Optional.ofNullable(info.highlightRow(key));
@@ -2696,6 +2713,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             return true;
         }
         if (button == InputConstants.MOUSE_BUTTON_LEFT) {
+            if (sides) {
+                // Before the list's rows, which run on under its bar.
+                HeldBar bar = list.grabBar(mouseX, mouseY);
+                heldBar = bar != null ? bar : info.grabBar(mouseX, mouseY);
+                if (heldBar != null) {
+                    return true;
+                }
+            }
             Optional<StructureList.Pick> clicked = sides ? list.click(mouseX, mouseY) : Optional.empty();
             if (clicked.isPresent()) {
                 StructureList.Pick pick = clicked.get();
@@ -2722,6 +2747,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (heldBar != null) {
+            heldBar.dragTo(mouseY);
+            return true;
+        }
         if (pressedInViewport) {
             dragged |= Math.abs(dx) + Math.abs(dy) > 0.5;
             if (popup != null || side() != null) {
@@ -2739,6 +2768,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (heldBar != null) {
+            heldBar.letGo();
+            heldBar = null;
+            return true;
+        }
         if (pressedInViewport) {
             pressedInViewport = false;
             if (popup != null || side() != null) {

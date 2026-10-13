@@ -52,7 +52,8 @@ final class StructureList {
     private List<StructureCatalog.Entry> ordered = List.of();
     private String query = "";
     private int contentHeight;
-    private double scroll;
+    // Two rows a notch, and two pixels past the end, so the last row's edge shows.
+    private final Scroll scroll = new Scroll(ROW * 2, 2);
     private int x, y, width, height;
     private ResourceLocation selected;
     private Row hovered;
@@ -66,7 +67,7 @@ final class StructureList {
     void setQuery(String query) {
         if (!query.equals(this.query)) {
             this.query = query;
-            this.scroll = 0;
+            scroll.reset();
             rebuild();
         }
     }
@@ -119,7 +120,7 @@ final class StructureList {
     List<ResourceLocation> visible() {
         List<ResourceLocation> out = new ArrayList<>();
         for (Row row : rows) {
-            if (row.entry() != null && row.top() + ROW >= scroll && row.top() <= scroll + height) {
+            if (row.entry() != null && row.top() + ROW >= scroll.offset() && row.top() <= scroll.offset() + height) {
                 out.add(row.entry().id());
             }
         }
@@ -235,7 +236,7 @@ final class StructureList {
         boolean scrolls = contentHeight > height;
         int rowRight = x + width - (scrolls ? 8 : 0);
         Gui.scissor(g, x, y, x + width, y + height);
-        int offset = y - (int) scroll;
+        int offset = y - scroll.top();
         for (Row row : rows) {
             int top = offset + row.top();
             if (top + row.height() < y || top > y + height) {
@@ -290,7 +291,7 @@ final class StructureList {
         Gui.endScissor(g);
 
         if (scrolls) {
-            Gui.scrollbar(g, x + width - 4, y, height, scroll, contentHeight - height);
+            Gui.scrollbar(g, x + width - 4, y, height, scroll.offset(), contentHeight - height);
         }
     }
 
@@ -328,7 +329,7 @@ final class StructureList {
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return Optional.empty();
         }
-        double local = mouseY - y - 1 + scroll;
+        double local = mouseY - y - 1 + scroll.offset();
         for (Row row : rows) {
             if (local < row.top() || local >= row.top() + row.height()) {
                 continue;
@@ -336,7 +337,7 @@ final class StructureList {
             if (row.entry() != null) {
                 boolean scrolls = contentHeight > height;
                 int rowRight = x + width - (scrolls ? 8 : 0);
-                if (overStar(mouseX, mouseY, rowRight, y - (int) scroll + row.top())) {
+                if (overStar(mouseX, mouseY, rowRight, y - scroll.top() + row.top())) {
                     ClientState.toggleFavourite(row.entry().id());
                     rebuild();
                     return Optional.of(new Pick(null, ItemStack.EMPTY));
@@ -366,8 +367,8 @@ final class StructureList {
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
-        scroll -= delta * ROW * 2;
         clampScroll();
+        scroll.wheel(delta);
         return true;
     }
 
@@ -381,11 +382,11 @@ final class StructureList {
     Optional<int[]> rowCentre(ResourceLocation id) {
         for (Row row : rows) {
             if (row.entry() != null && row.entry().id().equals(id)) {
-                if (row.top() < scroll || row.top() + ROW > scroll + height - 2) {
-                    scroll = row.top() - height / 2.0;
+                if (row.top() < scroll.offset() || row.top() + ROW > scroll.offset() + height - 2) {
+                    scroll.to(row.top() - height / 2.0);
                     clampScroll();
                 }
-                return Optional.of(new int[]{x + 60, y + 1 - (int) scroll + row.top() + ROW / 2});
+                return Optional.of(new int[]{x + 60, y + 1 - scroll.top() + row.top() + ROW / 2});
             }
         }
         return Optional.empty();
@@ -395,10 +396,10 @@ final class StructureList {
     void revealSelected() {
         for (Row row : rows) {
             if (row.entry() != null && row.entry().id().equals(selected)) {
-                if (row.top() < scroll) {
-                    scroll = row.top();
-                } else if (row.top() + ROW > scroll + height - 2) {
-                    scroll = row.top() + ROW - height + 2;
+                if (row.top() < scroll.offset()) {
+                    scroll.to(row.top());
+                } else if (row.top() + ROW > scroll.offset() + height - 2) {
+                    scroll.to(row.top() + ROW - height + 2);
                 }
                 clampScroll();
                 return;
@@ -407,6 +408,21 @@ final class StructureList {
     }
 
     private void clampScroll() {
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, contentHeight - height + 2)));
+        scroll.fit(height, contentHeight);
+    }
+
+    /** Takes hold of the scroll bar when a press is on it, or null. */
+    HeldBar grabBar(double mouseX, double mouseY) {
+        clampScroll();
+        return HeldBar.at(scroll, mouseX, mouseY, x + width, y, height);
+    }
+
+    /** A point part of the way down the scroll bar, for the screenshot harness, or null without one. */
+    int[] barPoint(float along) {
+        return scroll.scrolls() ? new int[]{x + width - 3, y + 1 + Math.round((height - 3) * along)} : null;
+    }
+
+    double scrolled() {
+        return scroll.offset();
     }
 }
