@@ -569,6 +569,32 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     .bounds(undoX + buttonWidth("undo") + 4, y, buttonWidth("redo"), 20)
                     .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.redo_hint"))).build());
         }
+        // In the JSON view the same room takes Copy and Paste, to carry a table to another tool or bring one in.
+        if (raw && x - undoX >= buttonWidth("copy_json") + buttonWidth("paste_json") + 8) {
+            addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.copy_json"), b -> copyJson())
+                    .bounds(undoX, y, buttonWidth("copy_json"), 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.copy_json_hint"))).build());
+            addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.paste_json"), b -> pasteJson())
+                    .bounds(undoX + buttonWidth("copy_json") + 4, y, buttonWidth("paste_json"), 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.paste_json_hint"))).build());
+        }
+    }
+
+    /** The table's JSON onto the clipboard. */
+    private void copyJson() {
+        minecraft.keyboardHandler.setClipboard(json());
+        note(Component.translatable("screen.justenoughstructures.editor.copied_json"), good());
+    }
+
+    /** The clipboard's text in place of the JSON here. It's checked like anything typed in the box. */
+    private void pasteJson() {
+        String text = minecraft.keyboardHandler.getClipboard();
+        if (rawBox == null || text == null || text.isBlank()) {
+            note(Component.translatable("screen.justenoughstructures.editor.nothing_to_paste"), warn());
+            return;
+        }
+        rawBox.setValue(text);
+        note(Component.translatable("screen.justenoughstructures.editor.pasted_json"), good());
     }
 
     private int buttonWidth(String key) {
@@ -1920,6 +1946,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Where an option is in the open list of choices, or null. */
     public int[] optionAt(String option) {
         return choice == null ? null : choice.centre(option);
+    }
+
+    /** Presses the JSON view's Copy. */
+    public void copyJsonNow() {
+        copyJson();
+    }
+
+    /** Presses the JSON view's Paste. */
+    public void pasteJsonNow() {
+        pasteJson();
     }
 
     public void saveNow() {

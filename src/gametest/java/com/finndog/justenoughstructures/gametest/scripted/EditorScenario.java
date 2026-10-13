@@ -40,6 +40,7 @@ final class EditorScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         int[] counted = new int[1];
+        String[] clipboard = new String[1];
         Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -237,7 +238,31 @@ final class EditorScenario {
                         throw new IllegalStateException("Open on fishing's first entry left the editor on " + opened);
                     }
                 }))
-                .then(shoot("e11_table_opened"));
+                .then(shoot("e11_table_opened"))
+                // The JSON view's Copy and Paste carry a table out and bring one in. Whatever was on the
+                // clipboard is put back after.
+                .then(run(() -> {
+                    clipboard[0] = mc.keyboardHandler.getClipboard();
+                    editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": []}");
+                }))
+                .then(pause(10))
+                .then(run(() -> {
+                    editor(mc).copyJsonNow();
+                    String copied = mc.keyboardHandler.getClipboard();
+                    mc.keyboardHandler.setClipboard("{\"type\": \"minecraft:fishing\", \"pools\": []}");
+                    editor(mc).pasteJsonNow();
+                    mc.keyboardHandler.setClipboard(clipboard[0] == null ? "" : clipboard[0]);
+                    if (!copied.contains("minecraft:chest")) {
+                        throw new IllegalStateException("Copy put this on the clipboard: " + copied);
+                    }
+                }))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (!String.valueOf(Reflect.get(editor(mc), "rawText")).contains("minecraft:fishing")) {
+                        throw new IllegalStateException("Paste left the JSON view with " + Reflect.get(editor(mc), "rawText"));
+                    }
+                }))
+                .then(shoot("e12_json_pasted"));
         return d;
     }
 
