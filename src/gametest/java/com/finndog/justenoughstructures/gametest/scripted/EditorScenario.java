@@ -154,7 +154,20 @@ final class EditorScenario {
                 .then(until(() -> editor(mc) != null, 40))
                 .then(run(() -> editor(mc).mergeNow()))
                 .then(pause(40))
-                .then(shoot("e07_merged"));
+                .then(shoot("e07_merged"))
+                // Entries inside another are listed under it and open like any other: the oak leaves'
+                // table is one set of alternatives.
+                .then(run(() -> mc.setScreen(new LootEditorScreen(mc.screen, Ids.parse("blocks/oak_leaves"), "Oak Leaves"))))
+                .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
+                .then(pause(40))
+                .then(run(() -> editor(mc).pickChild(0, 0, "children.1")))
+                .then(pause(20))
+                .then(run(() -> {
+                    if (editor(mc).fieldAt("pools.0.entries.0.children.1.weight") == null) {
+                        throw new IllegalStateException("The form doesn't show the entry inside the alternatives");
+                    }
+                }))
+                .then(shoot("e08_entry_inside"));
         return d;
     }
 

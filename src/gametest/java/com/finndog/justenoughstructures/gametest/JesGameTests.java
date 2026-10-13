@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void entriesInsideOthersAreListedAndFound(GameTestHelper helper) {
+        EntryTreeTests.entriesInsideOthersAreListedAndFound(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void copiesGetAnIdAndASequenceOfTheirOwn(GameTestHelper helper) {
         TableCopyTests.copiesGetAnIdAndASequenceOfTheirOwn(helper);
     }

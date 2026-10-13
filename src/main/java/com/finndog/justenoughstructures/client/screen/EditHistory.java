@@ -12,8 +12,11 @@ public final class EditHistory {
     /** How many changes are kept to go back through. */
     static final int MOST = 200;
 
-    /** A table to go to, and the pool and entry to show it with. */
-    public record Step(String table, int pool, int entry) {
+    /** A table to go to, and what to show it with: the pool, the entry, and for an entry inside another the path down to it. */
+    public record Step(String table, int pool, int entry, String child) {
+        public Step(String table, int pool, int entry) {
+            this(table, pool, entry, "");
+        }
     }
 
     private final Deque<Step> back = new ArrayDeque<>();
@@ -29,6 +32,11 @@ public final class EditHistory {
 
     /** Notes the table after a change, made with this pool and entry picked. One that's the same as before isn't a change. */
     public void changed(String table, int pool, int entry) {
+        changed(table, pool, entry, "");
+    }
+
+    /** The same, made with an entry inside another picked: {@code child} is the path down to it from the pool's entry. */
+    public void changed(String table, int pool, int entry, String child) {
         if (now == null) {
             now = table;
             return;
@@ -36,7 +44,7 @@ public final class EditHistory {
         if (table.equals(now)) {
             return;
         }
-        back.push(new Step(now, pool, entry));
+        back.push(new Step(now, pool, entry, child));
         while (back.size() > MOST) {
             back.removeLast();
         }
@@ -67,7 +75,7 @@ public final class EditHistory {
             return null;
         }
         Step step = from.pop();
-        to.push(new Step(now, step.pool(), step.entry()));
+        to.push(new Step(now, step.pool(), step.entry(), step.child()));
         now = step.table();
         return step;
     }

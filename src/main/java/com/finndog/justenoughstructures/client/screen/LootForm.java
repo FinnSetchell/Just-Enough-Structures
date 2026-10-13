@@ -65,6 +65,9 @@ final class LootForm {
         void pickItem(String path);
 
         void select(int pool, int entry);
+
+        /** The same for an entry inside another, by the path down to it from the pool's entry. */
+        void select(int pool, int entry, String child);
     }
 
     private final Font font;
@@ -82,7 +85,7 @@ final class LootForm {
     }
 
     /** Draws the card for what's picked. Returns the y below it. */
-    int render(GuiGraphics g, int x, int y, int w, int pool, int entry) {
+    int render(GuiGraphics g, int x, int y, int w, int pool, int entry, String child) {
         labelW = Math.max(48, Math.min(LABEL_W, w / 4));
         if (pool < 0) {
             return tableCard(g, x, y, w);
@@ -94,11 +97,11 @@ final class LootForm {
         if (entry < 0) {
             return poolCard(g, x, y, w, pool, poolPath);
         }
-        String entryPath = JsonPaths.join(JsonPaths.join(poolPath, "entries"), entry);
+        String entryPath = EntryTree.path(pool, entry, child);
         if (JsonPaths.object(draft(), entryPath) == null) {
             return y;
         }
-        return entryCard(g, x, y, w, pool, entryPath);
+        return entryCard(g, x, y, w, pool, entry, child, entryPath);
     }
 
     // ------------------------------------------------------------------ cards
@@ -131,16 +134,28 @@ final class LootForm {
         return end(g, x, top, y, w);
     }
 
-    private int entryCard(GuiGraphics g, int x, int y, int w, int pool, String path) {
+    /** An entry's card. One inside another is {@code child} down from the pool's entry {@code index}, and empty otherwise. */
+    private int entryCard(GuiGraphics g, int x, int y, int w, int pool, int index, String child, String path) {
         int top = y;
         JsonObject entry = JsonPaths.object(draft(), path);
         String type = JsonPaths.string(draft(), JsonPaths.join(path, "type"), "minecraft:item");
         String kind = LootTypes.shortId(type);
         y = head(g, x, y, w, text("card.entry"), text("remove_entry"), () -> {
             JsonPaths.remove(draft(), path);
-            host.select(pool, -1);
+            // With one inside another gone, the one it was inside is shown.
+            if (child.isEmpty()) {
+                host.select(pool, -1);
+            } else {
+                host.select(pool, index, EntryTree.parent(child));
+            }
             host.changed();
-        }, path, to -> host.select(pool, to));
+        }, path, to -> {
+            if (child.isEmpty()) {
+                host.select(pool, to);
+            } else {
+                host.select(pool, index, EntryTree.beside(child, to));
+            }
+        });
         y = row(g, x, y, w, "entry_type", (cx, cw) -> dropdown(g, cx, y(), cw, JsonPaths.join(path, "type"), LootTypes.entryTypes(),
                 id -> LootTypes.name("entry_type", id), type, picked -> {
                     if (!picked.equals(type)) {
@@ -182,6 +197,16 @@ final class LootForm {
             JsonArray children = JsonPaths.array(draft(), JsonPaths.join(path, "children"));
             y = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.children", children == null ? 0 : children.size()),
                     x + 4, y + 1, w - 8, Gui.labelSoft()) + 2;
+            ui.link(g, text("add_item"), x + 4, y + 1, true, () -> {
+                String inside = JsonPaths.join(path, "children");
+                if (JsonPaths.array(draft(), inside) == null) {
+                    JsonPaths.set(draft(), inside, new JsonArray());
+                }
+                int added = JsonPaths.append(draft(), inside, LootTypes.entry("minecraft:item", null));
+                host.select(pool, index, EntryTree.inside(child, added));
+                host.changed();
+            });
+            y += Gui.fineLine(font) + 5;
         } else {
             y = row(g, x, y, w, "weight", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "weight"), Kind.INT, "1"));
             y = row(g, x, y, w, "quality", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "quality"), Kind.INT, "0"));

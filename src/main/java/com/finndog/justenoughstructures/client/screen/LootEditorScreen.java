@@ -115,6 +115,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** What's picked on the left: -1 for the table itself, then a pool, and -1 for the pool or one of its entries. */
     private int selectedPool = -1;
     private int selectedEntry = -1;
+    /** For an entry inside another: the path down to it from the pool's entry, like "children.1". Empty for the pool's own entry. */
+    private String selectedChild = "";
     private final Scroller treeScroll = new Scroller();
     private final Scroller formScroll = new Scroller();
     private final Scroller oddsScroll = new Scroller();
@@ -234,6 +236,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         selectedPool = -1;
         selectedEntry = -1;
+        selectedChild = "";
         dirty = true;
         // Going back to the mod's table is a change like any other, and can be taken back.
         remember();
@@ -277,8 +280,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (selectedPool >= 0 && JsonPaths.object(draft, JsonPaths.join("pools", selectedPool)) == null) {
             selectedPool = -1;
             selectedEntry = -1;
+            selectedChild = "";
         } else if (selectedEntry >= 0 && JsonPaths.object(draft, "pools." + selectedPool + ".entries." + selectedEntry) == null) {
             selectedEntry = -1;
+            selectedChild = "";
+        }
+        // With one inside another gone, the nearest it was inside that's still there is picked.
+        while (!selectedChild.isEmpty() && JsonPaths.object(draft, EntryTree.path(selectedPool, selectedEntry, selectedChild)) == null) {
+            selectedChild = EntryTree.parent(selectedChild);
         }
         schedulePreview();
     }
@@ -290,7 +299,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Notes the table as it now is, so the change that made it so can be taken back. The JSON view keeps none: its text is its own. */
     private void remember() {
         if (!raw && draft != null) {
-            history.changed(draft.toString(), selectedPool, selectedEntry);
+            history.changed(draft.toString(), selectedPool, selectedEntry, selectedChild);
         }
     }
 
@@ -324,15 +333,22 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         boolean pool = step.pool() >= 0 && JsonPaths.object(draft, JsonPaths.join("pools", step.pool())) != null;
         selectedPool = pool ? step.pool() : -1;
         selectedEntry = pool && step.entry() >= 0 && JsonPaths.object(draft, "pools." + step.pool() + ".entries." + step.entry()) != null ? step.entry() : -1;
+        selectedChild = selectedEntry >= 0 && JsonPaths.object(draft, EntryTree.path(selectedPool, selectedEntry, step.child())) != null ? step.child() : "";
         dirty = true;
         schedulePreview();
     }
 
     @Override
     public void select(int pool, int entry) {
+        select(pool, entry, "");
+    }
+
+    @Override
+    public void select(int pool, int entry, String child) {
         commitEditing();
         selectedPool = pool;
         selectedEntry = entry;
+        selectedChild = entry < 0 ? "" : child;
         formScroll.reset();
     }
 
@@ -576,6 +592,9 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 selectedPool = -1;
                 selectedEntry = -1;
             }
+            if (selectedEntry < 0 || JsonPaths.object(draft, EntryTree.path(selectedPool, selectedEntry, selectedChild)) == null) {
+                selectedChild = "";
+            }
             // Everything typed as JSON is one change.
             remember();
         } else {
@@ -613,13 +632,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (!raw && draft != null) {
             JsonArray pools = JsonPaths.array(draft, "pools");
             for (int p = 0; pools != null && p < pools.size(); p++) {
-                JsonArray entries = JsonPaths.array(draft, "pools." + p + ".entries");
-                for (int e = 0; entries != null && e < entries.size(); e++) {
-                    String path = "pools." + p + ".entries." + e;
+                // Those inside others too, which can name an item that isn't one as well as any.
+                for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, "pools." + p + ".entries"))) {
+                    String path = EntryTree.path(p, node.entry(), node.child());
                     if (LootTypes.shortId(JsonPaths.string(draft, path + ".type", "")).equals("item")
                             && !LootForm.itemExists(JsonPaths.string(draft, path + ".name", ""))) {
                         selectedPool = p;
-                        selectedEntry = e;
+                        selectedEntry = node.entry();
+                        selectedChild = node.child();
                         return Component.translatable("screen.justenoughstructures.editor.fix_item", JsonPaths.string(draft, path + ".name", ""));
                     }
                 }
@@ -1162,15 +1182,17 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             JsonElement rolls = JsonPaths.get(draft, poolPath + ".rolls");
             y = treeRow(g, x, y, w, ItemStack.EMPTY, Component.translatable("screen.justenoughstructures.editor.pool", p + 1).getString(),
                     rollsText(rolls), rollsAmount(rolls), selectedPool == p && selectedEntry < 0, () -> select(pool, -1), 0);
-            JsonArray entries = JsonPaths.array(draft, poolPath + ".entries");
-            for (int e = 0; entries != null && e < entries.size(); e++) {
-                int entry = e;
-                JsonObject object = entries.get(e).isJsonObject() ? entries.get(e).getAsJsonObject() : new JsonObject();
+            // Each entry, and after it those inside it, a step further in.
+            for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, poolPath + ".entries"))) {
+                JsonObject object = node.object();
                 JsonElement weight = object.get("weight");
-                String weightText = weight == null ? "1" : weight.getAsString();
-                String weightLabel = shortWeights ? weightText : Component.translatable("screen.justenoughstructures.editor.weight", weightText).getString();
+                // One that holds others has no weight of its own.
+                String weightText = EntryTree.holdsEntries(object) ? "" : weight == null ? "1" : weight.getAsString();
+                String weightLabel = shortWeights || weightText.isEmpty() ? weightText
+                        : Component.translatable("screen.justenoughstructures.editor.weight", weightText).getString();
                 y = treeRow(g, x, y, w, icon(object), label(object), weightLabel, weightText,
-                        selectedPool == p && selectedEntry == e, () -> select(pool, entry), 8);
+                        selectedPool == p && selectedEntry == node.entry() && selectedChild.equals(node.child()),
+                        () -> select(pool, node.entry(), node.child()), 8 + 8 * node.depth());
             }
             Component add = Component.translatable("screen.justenoughstructures.editor.add_item");
             ui.link(g, add, x + 12, y + 2, true, () -> {
@@ -1224,13 +1246,15 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
      */
     private boolean shortWeights(JsonArray pools, int w) {
         for (int p = 0; pools != null && p < pools.size(); p++) {
-            JsonArray entries = JsonPaths.array(draft, "pools." + p + ".entries");
-            for (int e = 0; entries != null && e < entries.size(); e++) {
-                JsonObject object = entries.get(e).isJsonObject() ? entries.get(e).getAsJsonObject() : new JsonObject();
+            for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, "pools." + p + ".entries"))) {
+                JsonObject object = node.object();
+                if (EntryTree.holdsEntries(object)) {
+                    continue;
+                }
                 JsonElement weight = object.get("weight");
                 String full = Component.translatable("screen.justenoughstructures.editor.weight", weight == null ? "1" : weight.getAsString()).getString();
                 // Indented, with an icon: the same room treeRow leaves the name.
-                if (font.width(label(object)) > w - 36 - Gui.fineWidth(font, full)) {
+                if (font.width(label(object)) > w - 36 - 8 * node.depth() - Gui.fineWidth(font, full)) {
                     return true;
                 }
             }
@@ -1306,7 +1330,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private void renderForm(GuiGraphics g) {
         int bottom = rollTop - 4;
         int top = formScroll.begin(g, ui, formX, contentTop, formW, bottom - contentTop);
-        int end = form.render(g, formX, top, formScroll.width(), selectedPool, selectedEntry);
+        int end = form.render(g, formX, top, formScroll.width(), selectedPool, selectedEntry, selectedChild);
         formScroll.end(g, ui, end - top + 4);
     }
 
@@ -1800,6 +1824,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         select(pool, entry);
     }
 
+    /** Picks an entry inside another, by the path down to it from its pool's entry, like "children.1". */
+    public void pickChild(int pool, int entry, String child) {
+        select(pool, entry, child);
+    }
+
     /** Takes back the last change, as Ctrl+Z does. */
     public void undoNow() {
         undo();
@@ -1832,7 +1861,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Types into the picked entry's item, as if typed in its field. */
     public void typeItem(String text) {
         if (draft != null && selectedPool >= 0 && selectedEntry >= 0) {
-            JsonPaths.set(draft, "pools." + selectedPool + ".entries." + selectedEntry + ".name", new com.google.gson.JsonPrimitive(text));
+            JsonPaths.set(draft, EntryTree.path(selectedPool, selectedEntry, selectedChild) + ".name", new com.google.gson.JsonPrimitive(text));
             changed();
         }
     }
@@ -1840,7 +1869,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Opens the item picker on the picked entry. */
     public void openItemPicker() {
         if (selectedPool >= 0 && selectedEntry >= 0) {
-            pickItem("pools." + selectedPool + ".entries." + selectedEntry + ".name");
+            pickItem(EntryTree.path(selectedPool, selectedEntry, selectedChild) + ".name");
         }
     }
 

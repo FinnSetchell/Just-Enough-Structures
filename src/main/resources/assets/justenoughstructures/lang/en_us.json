@@ -553,7 +553,7 @@
   "screen.justenoughstructures.editor.entry_type.group": "Group",
   "screen.justenoughstructures.editor.entry_type.sequence": "Sequence",
   "screen.justenoughstructures.editor.entry_type.dynamic": "Dynamic",
-  "screen.justenoughstructures.editor.children": "Has %s entries inside. Edit them as JSON.",
+  "screen.justenoughstructures.editor.children": "Has %s entries inside, listed under it on the left",
   "screen.justenoughstructures.editor.unknown_item": "No item with that id",
   "screen.justenoughstructures.editor.pick_item": "Pick an item",
   "screen.justenoughstructures.editor.search_items": "Search items",
