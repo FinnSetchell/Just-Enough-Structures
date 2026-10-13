@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void tableTypesAreThisVersions(GameTestHelper helper) {
+        OverrideTests.tableTypesAreThisVersions(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void mergesMatchEntriesThatHaveNoNameOfTheirOwn(GameTestHelper helper) {
         OverrideTests.mergesMatchEntriesThatHaveNoNameOfTheirOwn(helper);
     }

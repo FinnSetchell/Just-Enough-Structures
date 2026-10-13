@@ -18,9 +18,35 @@ import net.minecraft.resources.ResourceLocation;
  * check every new one loads.
  */
 public final class LootTypes {
-    static final List<String> TABLE_TYPES = List.of("minecraft:chest", "minecraft:archaeology", "minecraft:generic", "minecraft:entity",
-            "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
-            "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location", "minecraft:empty");
+    /**
+     * The kinds of loot table this version of the game has, which say what a table can know about
+     * when it's rolled. Read from the game's own list of them for each version: the ones 1.20.1 had
+     * first, as chests and mobs are what most tables are for, then what's been added since.
+     */
+    public static final List<String> TABLE_TYPES = tableTypes();
+
+    private static List<String> tableTypes() {
+        List<String> out = new ArrayList<>(List.of("minecraft:chest", "minecraft:archaeology", "minecraft:generic", "minecraft:entity",
+                "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
+                "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location"));
+        //? if >=1.21 {
+        /*// By 1.21: vaults, shearing, what a mob is given to wear, and what enchantments are worked out from.
+        out.addAll(List.of("minecraft:vault", "minecraft:shearing", "minecraft:equipment", "minecraft:block_use", "minecraft:hit_block",
+                "minecraft:enchanted_damage", "minecraft:enchanted_entity", "minecraft:enchanted_item", "minecraft:enchanted_location"));
+        *///?}
+        //? if >=26.1 {
+        /*out.addAll(List.of("minecraft:block_interact", "minecraft:entity_interact"));
+        *///?}
+        //? if >=26.3 {
+        /*// 26.3 has no kind for a villager's trades any more, and added these.
+        out.addAll(List.of("minecraft:container_process", "minecraft:command_slot_source", "minecraft:command_compute_default",
+                "minecraft:command_compute_entity", "minecraft:command_compute_position"));
+        *///?} else if >=26.1 {
+        /*out.add("minecraft:villager_trade");
+        *///?}
+        out.add("minecraft:empty");
+        return List.copyOf(out);
+    }
 
     /**
      * Where a loot table entry names its table. From 1.20.5 that's "value", which can also hold a

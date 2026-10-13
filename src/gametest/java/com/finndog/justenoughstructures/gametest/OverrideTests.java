@@ -441,6 +441,47 @@ public final class OverrideTests {
         return String.join(" ", names);
     }
 
+    /**
+     * Every kind of table the editor lists is one this version of the game has, and this version's
+     * own newer kinds are among them.
+     */
+    public static void tableTypesAreThisVersions(GameTestHelper helper) {
+        List<String> broken = new ArrayList<>();
+        for (String type : LootTypes.TABLE_TYPES) {
+            if (!isTableType(helper, type)) {
+                broken.add(type);
+            }
+        }
+        helper.assertTrue(broken.isEmpty(), "the game doesn't have these kinds of table: " + broken);
+        //? if >=26.1 {
+        /*helper.assertTrue(LootTypes.TABLE_TYPES.contains("minecraft:vault") && LootTypes.TABLE_TYPES.contains("minecraft:entity_interact"),
+                "a vault's kind of table, which 1.21 added, or the one 26.1 added for using something on a mob, isn't listed");
+        *///?} else if >=1.21 {
+        /*helper.assertTrue(LootTypes.TABLE_TYPES.contains("minecraft:vault"), "a vault's kind of table, which 1.21 added, isn't listed");
+        *///?}
+        helper.assertTrue(!isTableType(helper, "minecraft:no_such_kind"), "a kind of table there isn't passed for one, so this test proves nothing");
+        helper.succeed();
+    }
+
+    /**
+     * Whether the game has a kind of table by this name. One it doesn't know loads without a word,
+     * as the kind that can know everything, so what the game writes back is what tells.
+     */
+    private static boolean isTableType(GameTestHelper helper, String type) {
+        net.minecraft.world.level.storage.loot.LootTable table = LootOverrides.parse("{\"type\": \"" + type + "\", \"pools\": []}");
+        if (table == null) {
+            return false;
+        }
+        //? if >=1.21 {
+        /*JsonObject back = LootTable.DIRECT_CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, helper.getLevel().getServer().registryAccess()), table)
+                .getOrThrow().getAsJsonObject();
+        *///?} else {
+        JsonObject back = net.minecraft.world.level.storage.loot.LootDataType.TABLE.parser().toJsonTree(table).getAsJsonObject();
+        //?}
+        // The kind that can know everything is what's taken when none is given, so the game may leave it out.
+        return back.has("type") ? back.get("type").getAsString().equals(type) : type.equals("minecraft:generic");
+    }
+
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();
