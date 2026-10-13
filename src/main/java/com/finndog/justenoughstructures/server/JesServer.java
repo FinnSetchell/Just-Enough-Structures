@@ -125,8 +125,7 @@ public final class JesServer {
     public static void reload(MinecraftServer server) {
         running = server;
         if (!guardChecked) {
-            guardChecked = true;
-            StructureCapture.checkChunkGuard(server);
+            guardChecked = StructureCapture.checkChunkGuard(server);
         }
         ServerConfig.Settings settings = ServerConfig.load();
         var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);

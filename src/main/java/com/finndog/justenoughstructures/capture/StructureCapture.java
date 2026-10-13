@@ -261,8 +261,18 @@ public final class StructureCapture {
      * either way. A mod that replaces how the game looks chunks up can leave the guard out, and that's
      * worth saying, as a preview's structure code could then load real chunks.
      */
-    public static void checkChunkGuard(MinecraftServer server) {
-        ServerLevel level = server.overworld();
+    public static boolean checkChunkGuard(MinecraftServer server) {
+        return checkChunkGuard(server.overworld());
+    }
+
+    /**
+     * The same for the server's overworld. False if that's null, as it is on a datapack reload that
+     * comes while the server is still starting: nothing is checked, and the next reload asks again.
+     */
+    public static boolean checkChunkGuard(ServerLevel level) {
+        if (level == null) {
+            return false;
+        }
         Thread check = new Thread(() -> {
             try {
                 boolean guarded = inSandbox(level, new ChunkPos(0, 0), () -> {
@@ -278,6 +288,7 @@ public final class StructureCapture {
         }, "Just Enough Structures chunk guard check");
         check.setDaemon(true);
         check.start();
+        return true;
     }
 
     /** Runs {@code action} as though this thread were placing a capture with {@code random} as its own. For tests. */

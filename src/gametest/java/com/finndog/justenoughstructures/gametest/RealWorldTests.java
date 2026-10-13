@@ -32,6 +32,16 @@ public final class RealWorldTests {
     }
 
     /**
+     * A datapack reload can come while the server is still starting, before it has an overworld.
+     * The chunk guard can't be checked then, and that mustn't count as having checked it, or it
+     * never is.
+     */
+    public static void chunkGuardCheckWaitsForTheWorld(GameTestHelper helper) {
+        helper.assertFalse(StructureCapture.checkChunkGuard((ServerLevel) null), "a chunk guard check with no overworld yet counted as done");
+        helper.succeed();
+    }
+
+    /**
      * Structure code that reaches past the sandbox to the real level gets the sandbox: what it reads
      * and places, the mob it adds, the tick it schedules and the entities it looks for all stay out of
      * the world, no real chunk is loaded for it, and work it hands the server never runs, though work

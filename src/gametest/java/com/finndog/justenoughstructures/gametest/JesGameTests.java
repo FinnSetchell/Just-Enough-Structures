@@ -574,6 +574,11 @@ public final class JesGameTests {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void chunkGuardCheckWaitsForTheWorld(GameTestHelper helper) {
+        RealWorldTests.chunkGuardCheckWaitsForTheWorld(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
     public void spawnerPoolsAreRecorded(GameTestHelper helper) {
         CaptureTests.spawnerPoolsAreRecorded(helper);
