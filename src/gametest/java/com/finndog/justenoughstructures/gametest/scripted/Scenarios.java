@@ -72,6 +72,7 @@ public final class Scenarios {
             case "pack_tour" -> PackTourScenario.build(mc);
             case "emi_once" -> EmiScenario.once(mc);
             case "emi_same" -> EmiScenario.same(mc);
+            case "index_filling" -> IndexFillingScenario.build(mc);
             case "suite" -> suite(mc, System.getProperty("jes.autoshot.suite", "pack_tour,pack_tools"));
             default -> {
                 Function<Minecraft, Director> extra = EXTRA.get(mode);
