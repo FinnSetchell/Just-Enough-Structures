@@ -190,6 +190,8 @@ public final class RealWorldGuard {
         }
 
         private void note(String kind) {
+            // Code that never returns can just as well be asking a real level over and over as the sandbox.
+            StructureCapture.tick();
             Integer count = reaches.merge(kind, 1, Integer::sum);
             if (count == 1) {
                 firstFrom.put(kind, caller());

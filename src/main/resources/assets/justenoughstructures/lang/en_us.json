@@ -880,6 +880,7 @@
   "screen.justenoughstructures.error.crashed": "It crashed while generating: %s",
   "screen.justenoughstructures.error.too_wide": "It's %s chunks across, more than the %s we can show",
   "screen.justenoughstructures.error.too_big": "It's %s x %s x %s blocks, too big to show",
+  "screen.justenoughstructures.error.never_finished": "It never finished generating",
   "screen.justenoughstructures.attempt.no_start": "%s: no valid start",
   "screen.justenoughstructures.attempt.placed_nothing": "%s: placed nothing",
   "screen.justenoughstructures.attempt.blocks": "%s: %s blocks",

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -48,6 +49,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.StructureManager;
+import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.FixedBiomeSource;
@@ -116,6 +118,17 @@ public final class StructureCapture {
     private static final int MOST_BIOMES = 64;
     private static final int OTHER_PLACES = 192;
     private static final long OTHER_PLACES_NANOS = 30_000_000_000L;
+    /**
+     * How long one call into a structure's own code may take: finding its start, or placing one
+     * chunk of it. Some pieces walk up to find the Nether's roof, or down to find ground, with no
+     * stop of their own, and the sandbox has neither. Left to it, such a call would hold the capture,
+     * and with it the lock every other capture waits for, for good.
+     */
+    private static final long STEP_NANOS = TimeUnit.MINUTES.toNanos(2);
+    /** How many times structure code comes back to the sandbox between looks at the clock. */
+    private static final int LOOKS_BETWEEN = 1024;
+    /** The clock on this thread's structure code, while it runs any. */
+    private static final ThreadLocal<Watch> WATCH = new ThreadLocal<>();
     /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
     private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
     /** What draws from the real world's random come from while this thread is placing a capture. */
@@ -180,6 +193,7 @@ public final class StructureCapture {
             NOT_LOADED.set(new HashSet<>());
             LoadedPieces.begin();
             UNWANTED.set(unwanted);
+            WATCH.set(new Watch(STEP_NANOS));
             JesLog.ranOutOfMemory();
             boolean outOfMemory = false;
             try {
@@ -211,6 +225,7 @@ public final class StructureCapture {
                     LoadedPieces.end(server);
                 } finally {
                     UNWANTED.remove();
+                    WATCH.remove();
                     LOCK.unlock();
                 }
             }
@@ -311,6 +326,12 @@ public final class StructureCapture {
      * looking at and someone is waiting on one they are.
      */
     private static void checkpoint() {
+        // Whatever of the structure's own code is called next has its time from here.
+        Watch watch = WATCH.get();
+        if (watch != null) {
+            watch.since = System.nanoTime();
+            watch.resting = false;
+        }
         BooleanSupplier unwanted = UNWANTED.get();
         if (unwanted != null && unwanted.getAsBoolean()) {
             throw new Unwanted();
@@ -322,6 +343,43 @@ public final class StructureCapture {
             if (LOCK.hasQueuedThread(thread)) {
                 throw new GaveWay();
             }
+        }
+    }
+
+    /**
+     * Called wherever a structure's code comes back to the sandbox, for a chunk, a block of the real
+     * level or the height of the ground: code that never returns does one of those over and over.
+     * Once the call under way has had its time, this throws, and goes on throwing should the code
+     * catch it and carry on.
+     */
+    static void tick() {
+        Watch watch = WATCH.get();
+        if (watch == null || --watch.looks > 0) {
+            return;
+        }
+        watch.looks = LOOKS_BETWEEN;
+        if (!watch.resting && System.nanoTime() - watch.since > watch.step) {
+            throw new TookTooLong();
+        }
+    }
+
+    /** The structure's own code is done with: what reads the sandbox from here on is this mod's, and isn't timed. */
+    private static void rest() {
+        Watch watch = WATCH.get();
+        if (watch != null) {
+            watch.resting = true;
+        }
+    }
+
+    /** How long each call into a structure's code gets, and since when the one under way has been running. */
+    private static final class Watch {
+        private final long step;
+        private long since = System.nanoTime();
+        private boolean resting;
+        private int looks = LOOKS_BETWEEN;
+
+        Watch(long step) {
+            this.step = step;
         }
     }
 
@@ -408,7 +466,8 @@ public final class StructureCapture {
                 placedNothing++;
             } catch (Stopped e) {
                 throw e;
-            } catch (TooLargeException e) {
+            } catch (Refused e) {
+                noteSlow(structureId, other.terrain(), e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -422,6 +481,13 @@ public final class StructureCapture {
         }
         attempts.add(Component.translatable("screen.justenoughstructures.attempt.other_places"));
         return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.nowhere_to_generate"), attempts, elapsed(started));
+    }
+
+    /** Into the game log once for each structure that never finished, with where its code was at the time, so a report about it has the cause. */
+    private static void noteSlow(ResourceLocation structureId, SandboxTerrain terrain, Refused refused) {
+        if (refused instanceof TookTooLong) {
+            JesLog.warnOnce("capture-slow:" + structureId, "Capturing {} on {} terrain was stopped, as its own code didn't return", structureId, terrain, refused);
+        }
     }
 
     /** How trying every terrain went: a result to give back, if it came to one, and what it crashed with, if it did. */
@@ -440,7 +506,8 @@ public final class StructureCapture {
                 }
             } catch (Stopped e) {
                 throw e;
-            } catch (TooLargeException e) {
+            } catch (Refused e) {
+                noteSlow(structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return new Round(CaptureResult.failure(e.reason, attempts, elapsed(started)), null);
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -682,6 +749,8 @@ public final class StructureCapture {
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
 
         StructureStart start = start(server, holder, level, generator, biomeSource, place);
+        // Its code is back, with a start or without: the sandbox made next is this mod's own work.
+        rest();
         if (!start.isValid()) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.no_start", terrain.name()));
             return null;
@@ -739,6 +808,7 @@ public final class StructureCapture {
             region.placing(null);
             checkpoint();
             postProcess(region, chunks);
+            rest();
         } finally {
             SANDBOX_STRUCTURES.remove();
             SANDBOX_RANDOM.remove();
@@ -774,6 +844,14 @@ public final class StructureCapture {
      * is during a capture. For tests.
      */
     public static <T> T inSandbox(ServerLevel level, ChunkPos centre, Supplier<T> action) {
+        return inSandbox(level, centre, STEP_NANOS, sandbox -> action.get());
+    }
+
+    /**
+     * The same, handing {@code action} the sandbox as a structure's code is handed it, and stopping it
+     * as a structure's code is stopped once it has run for {@code stepNanos}. For tests.
+     */
+    public static <T> T inSandbox(ServerLevel level, ChunkPos centre, long stepNanos, Function<WorldGenLevel, T> action) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
         Holder<Biome> biome = Regs.holderOrThrow(biomes, Biomes.PLAINS);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(new FixedBiomeSource(biome), SandboxTerrain.LAND, level);
@@ -787,10 +865,12 @@ public final class StructureCapture {
         RealWorldGuard.Sandbox guard = RealWorldGuard.begin(level, "a test sandbox");
         SANDBOX_STRUCTURES.set(level.structureManager().forWorldGenRegion(region));
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(0));
+        WATCH.set(new Watch(stepNanos));
         try {
             guard.placing(region);
-            return action.get();
+            return action.apply(region);
         } finally {
+            WATCH.remove();
             SANDBOX_STRUCTURES.remove();
             SANDBOX_RANDOM.remove();
             RealWorldGuard.end(guard);
@@ -1049,11 +1129,25 @@ public final class StructureCapture {
         return (System.nanoTime() - started) / 1_000_000L;
     }
 
-    private static final class TooLargeException extends RuntimeException {
-        private final Component reason;
+    /** A capture given up on because of what the structure is or does, with the reason to show for it. */
+    private abstract static class Refused extends RuntimeException {
+        final Component reason;
 
-        TooLargeException(Component reason) {
+        Refused(Component reason) {
             this.reason = reason;
+        }
+    }
+
+    private static final class TooLargeException extends Refused {
+        TooLargeException(Component reason) {
+            super(reason);
+        }
+    }
+
+    /** A call into the structure's own code that had its time and hadn't returned. */
+    private static final class TookTooLong extends Refused {
+        TookTooLong() {
+            super(Component.translatable("screen.justenoughstructures.error.never_finished"));
         }
     }
 }

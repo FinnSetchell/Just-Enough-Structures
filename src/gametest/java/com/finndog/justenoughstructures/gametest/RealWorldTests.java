@@ -3,12 +3,15 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import com.finndog.justenoughstructures.capture.StructureCapture;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -21,7 +24,9 @@ import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.Pig;
 //?}
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.phys.AABB;
@@ -29,6 +34,53 @@ import net.minecraft.world.phys.AABB;
 /** Loader-neutral test bodies for keeping captures away from the real world. */
 public final class RealWorldTests {
     private RealWorldTests() {
+    }
+
+    /**
+     * Structure code that never returns is stopped once it has had its time. Here it's a piece
+     * walking up to find a roof, which the sandbox doesn't have: past the top of the world there's
+     * only more air. Once through the sandbox it was handed, and once through the real level, which
+     * answers from the sandbox. Each on a thread of its own, as captures are, so one that isn't
+     * stopped fails this test rather than hanging the server.
+     */
+    public static void structureCodeThatNeverReturnsIsStopped(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos real = helper.absolutePos(new BlockPos(1, 2, 1));
+        ChunkPos centre = new ChunkPos(SectionPos.blockToSectionCoord(real.getX()), SectionPos.blockToSectionCoord(real.getZ()));
+        CompletableFuture<String> handed = walkUpForEver(level, centre, sandbox -> sandbox);
+        CompletableFuture<String> reached = walkUpForEver(level, centre, sandbox -> level);
+        for (CompletableFuture<String> walk : List.of(handed, reached)) {
+            String how = walk == handed ? "the sandbox" : "the real level";
+            String ended;
+            try {
+                ended = walk.get(20, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                ended = "it was still walking after 20 seconds";
+            } catch (InterruptedException | ExecutionException e) {
+                ended = String.valueOf(e);
+            }
+            helper.assertTrue(ended.equals("stopped"), "a walk up through " + how + " that never ends wasn't stopped: " + ended);
+        }
+        helper.succeed();
+    }
+
+    /** A quarter of a second of walking up from above the ground, looking for anything that isn't air. */
+    private static CompletableFuture<String> walkUpForEver(ServerLevel level, ChunkPos centre, Function<WorldGenLevel, BlockGetter> through) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return StructureCapture.inSandbox(level, centre, 250_000_000L, sandbox -> {
+                    BlockGetter blocks = through.apply(sandbox);
+                    BlockPos.MutableBlockPos pos = centre.getMiddleBlockPosition(200).mutable();
+                    while (blocks.getBlockState(pos).isAir()) {
+                        pos.move(Direction.UP);
+                    }
+                    return "it found " + blocks.getBlockState(pos) + " at " + pos;
+                });
+            } catch (RuntimeException e) {
+                // The exception that stops it is the capture's own, and not one a test can name.
+                return e.getClass().getSimpleName().equals("TookTooLong") ? "stopped" : String.valueOf(e);
+            }
+        });
     }
 
     /**

@@ -59,6 +59,8 @@ final class CaptureRegion extends WorldGenRegion {
 
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
+        // Every read and write of a structure's comes through here, so this is where one that never returns is caught.
+        StructureCapture.tick();
         ChunkAccess chunk = chunks.get(Levels.pack(chunkX, chunkZ));
         if (chunk != null && status.isOrBefore(ChunkStatus.FEATURES)) {
             return chunk;
@@ -77,6 +79,13 @@ final class CaptureRegion extends WorldGenRegion {
     CaptureRegion(ServerLevel level, List<ChunkAccess> chunks, int writeRadius) {
         super(level, chunks, ChunkStatus.FEATURES, writeRadius);
         this.writeRadius = writeRadius;
+    }
+
+    // Every read and write of a structure's comes through here, so this is where one that never returns is caught.
+    @Override
+    public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
+        StructureCapture.tick();
+        return super.getChunk(chunkX, chunkZ, status, load);
     }
     //?}
 
