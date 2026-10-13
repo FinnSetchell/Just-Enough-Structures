@@ -426,6 +426,38 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * Every word the editor lists for who or what a setting is about is one this version of the game
+     * takes there: the entity a condition or a player head is about, and where a name or data is
+     * copied from. A word from another version must be refused, or this test proves nothing.
+     */
+    public static void listedWordsLoad(GameTestHelper helper) {
+        List<String> broken = new ArrayList<>();
+        for (String word : LootTypes.ENTITY_TARGETS) {
+            problem("entity_properties of " + word, "conditions", json("{'condition': 'minecraft:entity_properties', 'entity': '" + word + "', 'predicate': {}}"), broken);
+            problem("fill_player_head of " + word, "functions", json("{'function': 'minecraft:fill_player_head', 'entity': '" + word + "'}"), broken);
+        }
+        for (String word : LootTypes.COPY_SOURCES) {
+            problem("copy_name from " + word, "functions", json("{'function': 'minecraft:copy_name', 'source': '" + word + "'}"), broken);
+        }
+        // The same function under each version's name for it.
+        String copy = LootTypes.functionTypes().contains("minecraft:copy_custom_data") ? "minecraft:copy_custom_data" : "minecraft:copy_nbt";
+        for (String word : LootTypes.NBT_SOURCES) {
+            problem(copy + " from " + word, "functions", json("{'function': '" + copy + "', 'source': '" + word + "', 'ops': []}"), broken);
+        }
+        helper.assertTrue(broken.isEmpty(), "the game doesn't load these as the editor lists them: " + broken);
+        String other = LootTypes.ENTITY_TARGETS.contains("killer") ? "attacker" : "killer";
+        List<String> refused = new ArrayList<>();
+        problem("fill_player_head of " + other, "functions", json("{'function': 'minecraft:fill_player_head', 'entity': '" + other + "'}"), refused);
+        helper.assertTrue(refused.size() == 1, "the game loaded " + other + ", another version's word for an entity");
+        helper.succeed();
+    }
+
+    /** JSON written with single quotes, to keep it readable here. */
+    private static JsonObject json(String text) {
+        return JsonParser.parseString(text.replace('\'', '"')).getAsJsonObject();
+    }
+
     private static void problem(String type, String list, JsonObject added, List<String> broken) {
         JsonObject entry = JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}").getAsJsonObject();
         JsonArray kinds = new JsonArray();

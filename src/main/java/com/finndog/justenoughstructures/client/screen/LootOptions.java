@@ -145,9 +145,9 @@ final class LootOptions {
     static final Source CLOCKS = source(() -> serverNames(PackToolsState.CLOCKS, null));
 
     // The fixed words some settings take, named by the editor's lang file.
-    static final Source ENTITY_TARGETS = words("target", "this", "killer", "direct_killer", "killer_player");
-    static final Source COPY_SOURCES = words("target", "block_entity", "this", "killer", "killer_player");
-    static final Source NBT_SOURCES = words("target", "block_entity", "this", "killer", "killer_player", "direct_killer");
+    static final Source ENTITY_TARGETS = words("target", LootTypes.ENTITY_TARGETS.toArray(String[]::new));
+    static final Source COPY_SOURCES = words("target", LootTypes.COPY_SOURCES.toArray(String[]::new));
+    static final Source NBT_SOURCES = words("target", LootTypes.NBT_SOURCES.toArray(String[]::new));
     static final Source COPY_OPS = words("copy_op", "replace", "append", "merge");
     //? if >=1.21 {
     /*static final Source OPERATIONS = words("operation", "add_value", "add_multiplied_base", "add_multiplied_total");

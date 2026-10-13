@@ -58,6 +58,27 @@ public final class LootTypes {
     public static final String CONTAINER_TABLE_KEY = "name";
     //?}
 
+    // The fixed words some settings take for who or what they're about, which the game has renamed
+    // twice. Here rather than with the screen's own lists, so the game tests can check the game
+    // takes every one of them.
+    //? if >=26.1 {
+    /*// By 26.1 there are two more, for the entity a player hit or used something on, and one list
+    // serves everything that reads from an entity or a block entity.
+    public static final List<String> ENTITY_TARGETS = List.of("this", "attacker", "direct_attacker", "attacking_player", "target_entity", "interacting_entity");
+    public static final List<String> COPY_SOURCES = List.of("block_entity", "this", "attacker", "direct_attacker", "attacking_player", "target_entity",
+            "interacting_entity");
+    public static final List<String> NBT_SOURCES = COPY_SOURCES;
+    *///?} else if >=1.21 {
+    /*// 1.21 said attacker where it had said killer, and gave copying a name words of its own.
+    public static final List<String> ENTITY_TARGETS = List.of("this", "attacker", "direct_attacker", "attacking_player");
+    public static final List<String> COPY_SOURCES = List.of("block_entity", "this", "attacking_entity", "last_damage_player");
+    public static final List<String> NBT_SOURCES = List.of("block_entity", "this", "attacker", "direct_attacker", "attacking_player");
+    *///?} else {
+    public static final List<String> ENTITY_TARGETS = List.of("this", "killer", "direct_killer", "killer_player");
+    public static final List<String> COPY_SOURCES = List.of("block_entity", "this", "killer", "killer_player");
+    public static final List<String> NBT_SOURCES = List.of("block_entity", "this", "killer", "killer_player", "direct_killer");
+    //?}
+
     /** The ones people use most, first, in this order; then the rest by name. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
     // Each version's names for the same thing sit side by side; only the ones the game has are listed.

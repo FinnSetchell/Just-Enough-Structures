@@ -338,6 +338,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void listedWordsLoad(GameTestHelper helper) {
+        OverrideTests.listedWordsLoad(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void tablesThatNameTablesCheck(GameTestHelper helper) {
         OverrideTests.tablesThatNameTablesCheck(helper);
     }
