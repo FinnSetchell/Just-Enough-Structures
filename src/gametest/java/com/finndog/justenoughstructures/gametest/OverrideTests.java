@@ -413,6 +413,34 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /** A list's item is copied to the place after it and moved a place at a time, and nothing else in the table changes. */
+    public static void listItemsAreCopiedAndMoved(GameTestHelper helper) {
+        JsonObject table = JsonParser.parseString("{\"pools\": [{\"rolls\": 1, \"entries\": [{\"name\": \"a\", \"weight\": 2}, {\"name\": \"b\"}, {\"name\": \"c\"}]}]}")
+                .getAsJsonObject();
+        String entries = "pools.0.entries";
+        helper.assertTrue(JsonPaths.duplicate(table, entries + ".0") == 1 && names(table).equals("a a b c"), "copying the first gave " + names(table));
+        JsonPaths.set(table, entries + ".1.weight", JsonPaths.number(9));
+        helper.assertTrue(JsonPaths.get(table, entries + ".0.weight").getAsInt() == 2, "changing the copy changed what it was copied from");
+        helper.assertTrue(JsonPaths.duplicate(table, entries + ".3") == 4 && names(table).equals("a a b c c"), "copying the last gave " + names(table));
+        helper.assertTrue(JsonPaths.move(table, entries + ".4", -1) == 3 && JsonPaths.move(table, entries + ".3", -1) == 2 && names(table).equals("a a c b c"),
+                "moving the last up twice gave " + names(table));
+        helper.assertTrue(JsonPaths.move(table, entries + ".0", 1) == 1 && JsonPaths.get(table, entries + ".1.weight").getAsInt() == 2
+                && JsonPaths.get(table, entries + ".0.weight").getAsInt() == 9, "moving the first down didn't swap it with the second");
+        String before = table.toString();
+        helper.assertTrue(JsonPaths.move(table, entries + ".0", -1) == -1 && JsonPaths.move(table, entries + ".4", 1) == -1 && JsonPaths.move(table, entries + ".9", 1) == -1
+                && JsonPaths.duplicate(table, entries + ".9") == -1 && JsonPaths.duplicate(table, "pools.0.rolls") == -1 && JsonPaths.move(table, "pools", 1) == -1
+                && table.toString().equals(before), "a move or a copy that can't be made changed the table to " + table);
+        helper.assertTrue(JsonPaths.siblings(table, entries + ".2") == 5 && JsonPaths.siblings(table, "pools.0") == 1 && JsonPaths.siblings(table, "pools.0.rolls") == 0,
+                "the lists' sizes came out wrong");
+        helper.succeed();
+    }
+
+    private static String names(JsonObject table) {
+        List<String> names = new ArrayList<>();
+        JsonPaths.array(table, "pools.0.entries").forEach(entry -> names.add(entry.getAsJsonObject().get("name").getAsString()));
+        return String.join(" ", names);
+    }
+
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();

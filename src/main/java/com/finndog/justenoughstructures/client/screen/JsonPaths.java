@@ -103,6 +103,53 @@ public final class JsonPaths {
         return array.size() - 1;
     }
 
+    /** Puts a copy of the list item at the path straight after it. Returns the copy's index, or -1 if there's no such item. */
+    public static int duplicate(JsonElement root, String path) {
+        int index = indexIn(root, path);
+        if (index < 0) {
+            return -1;
+        }
+        JsonArray array = array(root, parent(path));
+        // A list has no way to put one in the middle, so the ones after it each move down a place.
+        array.add(array.get(array.size() - 1));
+        for (int i = array.size() - 2; i > index + 1; i--) {
+            array.set(i, array.get(i - 1));
+        }
+        array.set(index + 1, array.get(index).deepCopy());
+        return index + 1;
+    }
+
+    /** Moves the list item at the path one place towards the start (-1) or the end (1). Returns where it is now, or -1 if it can't go that way. */
+    public static int move(JsonElement root, String path, int by) {
+        int index = indexIn(root, path);
+        JsonArray array = index < 0 ? null : array(root, parent(path));
+        int to = index + by;
+        if (array == null || Math.abs(by) != 1 || to < 0 || to >= array.size()) {
+            return -1;
+        }
+        JsonElement moved = array.get(index);
+        array.set(index, array.get(to));
+        array.set(to, moved);
+        return to;
+    }
+
+    /** How many items the list holding the item at the path has, or 0 if it isn't in one. */
+    public static int siblings(JsonElement root, String path) {
+        return indexIn(root, path) < 0 ? 0 : array(root, parent(path)).size();
+    }
+
+    /** The place in its list of the item at the path, or -1 if the path isn't to an item of a list. */
+    public static int indexIn(JsonElement root, String path) {
+        int dot = path.lastIndexOf('.');
+        String last = path.substring(dot + 1);
+        JsonArray array = dot < 0 ? null : array(root, path.substring(0, dot));
+        return array != null && isIndex(last) && Integer.parseInt(last) < array.size() ? Integer.parseInt(last) : -1;
+    }
+
+    private static String parent(String path) {
+        return path.substring(0, path.lastIndexOf('.'));
+    }
+
     private static JsonElement child(JsonElement at, String part) {
         if (at instanceof JsonObject object) {
             return object.get(part);

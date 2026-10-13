@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -116,7 +117,7 @@ final class LootForm {
             JsonPaths.remove(draft(), path);
             host.select(-1, -1);
             host.changed();
-        });
+        }, path, to -> host.select(to, -1));
         y = row(g, x, y, w, "rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "rolls"), 1));
         y = row(g, x, y, w, "bonus_rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "bonus_rolls"), 0));
         JsonArray entries = JsonPaths.array(draft(), JsonPaths.join(path, "entries"));
@@ -135,7 +136,7 @@ final class LootForm {
             JsonPaths.remove(draft(), path);
             host.select(pool, -1);
             host.changed();
-        });
+        }, path, to -> host.select(pool, to));
         y = row(g, x, y, w, "entry_type", (cx, cw) -> dropdown(g, cx, y(), cw, JsonPaths.join(path, "type"), LootTypes.entryTypes(),
                 id -> LootTypes.name("entry_type", id), type, picked -> {
                     if (!picked.equals(type)) {
@@ -746,26 +747,83 @@ final class LootForm {
 
     /** The top of a card: a title, and a link at the right such as Remove. Returns the y below it. */
     private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction) {
+        return head(g, x, y, w, title, action, onAction, null, null);
+    }
+
+    /**
+     * The same for a card of something in a list, at {@code listPath}: before the link come ones to
+     * copy it and to move it up or down its list, and {@code picked} is told where the copy or the
+     * moved one now is, to keep it the one shown.
+     */
+    private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction, String listPath, IntConsumer picked) {
         g.fill(x, y, x + w, y + 14, 0xFF8B8B8B);
-        Gui.drawClipped(g, font, title.getString(), x + 4, y + 3, w - 60, 0xFFFFFFFF, true);
+        int right = x + w - 4;
         if (action != null) {
-            int aw = Gui.fineWidth(font, action.getString());
-            ui.link(g, action, x + w - 4 - aw, y + 4, true, onAction);
+            right -= Gui.fineWidth(font, action.getString());
+            ui.link(g, action, right, y + 4, true, onAction);
         }
+        if (listPath != null) {
+            right = listLinks(g, right - 6, y + 4, listPath, picked);
+        }
+        Gui.drawClipped(g, font, title.getString(), x + 4, y + 3, Math.max(20, right - x - 10), 0xFFFFFFFF, true);
         return y + 16;
+    }
+
+    /** Links to copy a list's item and to move it up or down, drawn leftwards from {@code right}. Returns where they start. */
+    private int listLinks(GuiGraphics g, int right, int y, String path, IntConsumer picked) {
+        int index = JsonPaths.indexIn(draft(), path);
+        int x = right;
+        Component copy = text("duplicate");
+        x -= Gui.fineWidth(font, copy.getString());
+        ui.link(g, copy, x, y, true, () -> listChange(JsonPaths.duplicate(draft(), path), picked));
+        if (index < JsonPaths.siblings(draft(), path) - 1) {
+            Component down = text("move_down");
+            x -= Gui.fineWidth(font, down.getString()) + 6;
+            ui.link(g, down, x, y, true, () -> listChange(JsonPaths.move(draft(), path, 1), picked));
+        }
+        if (index > 0) {
+            Component up = text("move_up");
+            x -= Gui.fineWidth(font, up.getString()) + 6;
+            ui.link(g, up, x, y, true, () -> listChange(JsonPaths.move(draft(), path, -1), picked));
+        }
+        return x;
+    }
+
+    /** After a copy or a move that put an item at {@code to}: it's what's shown, and the table has changed. */
+    private void listChange(int to, IntConsumer picked) {
+        if (to < 0) {
+            return;
+        }
+        if (picked != null) {
+            picked.accept(to);
+        }
+        host.changed();
+    }
+
+    /** A letter-sized spot in a function's or condition's heading, like the x that takes it away. */
+    private void headSpot(GuiGraphics g, int x, int y, String sign, int colour, Runnable action, Component tip) {
+        boolean over = ui.hovered(x - 2, y + 2, 10, 12);
+        g.drawString(font, sign, x, y + 4, over ? 0xFFFFFF55 : colour, false);
+        ui.spot(x - 2, y + 2, 10, 12, action);
+        ui.tooltip(x - 2, y + 2, 10, 12, tip);
     }
 
     /** The top of a function or condition card: which kind it is, to pick another, and an x to take it away. */
     private int typeHead(GuiGraphics g, int x, int y, int w, String id, List<String> options, String kind, String current,
                          Consumer<String> pick, String path) {
         g.fill(x, y, x + w, y + 16, 0xFF9D9D9D);
-        dropdown(g, x + 2, y + 1, Math.min(w - 22, 150), id, options, option -> LootTypes.name(kind, option), current, pick);
-        String remove = "x";
+        // Room at the right for the x, and before it a + to copy this one and arrows to move it, as its order matters.
+        dropdown(g, x + 2, y + 1, Math.min(w - 58, 150), id, options, option -> LootTypes.name(kind, option), current, pick);
         int rx = x + w - 10;
-        boolean over = ui.hovered(rx - 2, y + 2, 10, 12);
-        g.drawString(font, remove, rx, y + 4, over ? 0xFFFFFF55 : 0xFF6A1010, false);
-        ui.spot(rx - 2, y + 2, 10, 12, () -> remove(path));
-        ui.tooltip(rx - 2, y + 2, 10, 12, text(kind.equals("function") ? "remove_function" : "remove_condition"));
+        headSpot(g, rx, y, "x", 0xFF6A1010, () -> remove(path), text(kind.equals("function") ? "remove_function" : "remove_condition"));
+        headSpot(g, rx - 12, y, "+", 0xFF202020, () -> listChange(JsonPaths.duplicate(draft(), path), null), text("duplicate"));
+        int index = JsonPaths.indexIn(draft(), path);
+        if (index < JsonPaths.siblings(draft(), path) - 1) {
+            headSpot(g, rx - 24, y, "v", 0xFF202020, () -> listChange(JsonPaths.move(draft(), path, 1), null), text("move_down"));
+        }
+        if (index > 0) {
+            headSpot(g, rx - 36, y, "^", 0xFF202020, () -> listChange(JsonPaths.move(draft(), path, -1), null), text("move_up"));
+        }
         return y + 19;
     }
 

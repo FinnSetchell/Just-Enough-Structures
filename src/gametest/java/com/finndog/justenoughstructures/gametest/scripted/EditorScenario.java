@@ -39,6 +39,7 @@ final class EditorScenario {
 
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
+        int[] counted = new int[1];
         Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -91,6 +92,28 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(shoot("e03i_undone"))
                 .then(run(() -> editor(mc).redoNow()))
+                // The entry's card has links to copy it and to move it up or down its pool.
+                .then(run(() -> counted[0] = entries(mc)))
+                .then(moveTo(() -> at(mc, "Duplicate"), 8))
+                .then(click())
+                .then(pause(10))
+                .then(run(() -> {
+                    if (entries(mc) != counted[0] + 1) {
+                        throw new IllegalStateException("Duplicate left the pool with " + entries(mc) + " entries, where it had " + counted[0]);
+                    }
+                }))
+                .then(shoot("e03j_duplicated"))
+                .then(moveTo(() -> at(mc, "Move up"), 8))
+                .then(click())
+                .then(pause(10))
+                .then(shoot("e03k_moved_up"))
+                .then(run(() -> {
+                    editor(mc).undoNow();
+                    editor(mc).undoNow();
+                    if (entries(mc) != counted[0]) {
+                        throw new IllegalStateException("Taking the move and the copy back left " + entries(mc) + " entries");
+                    }
+                }))
                 .then(run(() -> editor(mc).openItemPicker()))
                 .then(pause(20))
                 .then(shoot("e03c_item_picker"))
@@ -141,6 +164,11 @@ final class EditorScenario {
         int top = (Integer) Reflect.call(mc.screen, "top");
         int bottom = (Integer) Reflect.call(mc.screen, "bottom");
         return new int[]{right - 3, top + 2 + Math.round((bottom - top - 5) * along)};
+    }
+
+    /** How many entries the first pool of the table being edited has. */
+    private static int entries(Minecraft mc) {
+        return JsonParser.parseString(editor(mc).draftText()).getAsJsonObject().getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").size();
     }
 
     private static int[] field(Minecraft mc, String path) {
