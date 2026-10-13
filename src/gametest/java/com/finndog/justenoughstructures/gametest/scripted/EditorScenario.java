@@ -217,7 +217,27 @@ final class EditorScenario {
                         throw new IllegalStateException("Adding a setting called power, set to 3, left the table as " + editor(mc).draftText());
                     }
                 }))
-                .then(shoot("e09_setting_added"));
+                .then(shoot("e09_setting_added"))
+                // The table a loot table entry names opens from a link beside its name: fishing's first
+                // entry is another table.
+                .then(run(() -> mc.setScreen(new LootEditorScreen(mc.screen, Ids.parse("gameplay/fishing"), "Fishing"))))
+                .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
+                .then(pause(40))
+                .then(run(() -> editor(mc).pick(0, 0)))
+                .then(pause(20))
+                .then(shoot("e10_table_entry"))
+                .then(moveTo(() -> at(mc, "Open"), 8))
+                .then(click())
+                .then(pause(10))
+                .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
+                .then(pause(20))
+                .then(run(() -> {
+                    String opened = String.valueOf(Reflect.get(editor(mc), "tableId"));
+                    if (!opened.startsWith("minecraft:gameplay/fishing/")) {
+                        throw new IllegalStateException("Open on fishing's first entry left the editor on " + opened);
+                    }
+                }))
+                .then(shoot("e11_table_opened"));
         return d;
     }
 

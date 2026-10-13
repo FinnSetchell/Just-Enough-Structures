@@ -72,6 +72,9 @@ final class LootForm {
 
         /** What was typed in a field was turned down, and why. */
         void refused(Component why);
+
+        /** Another table, named by an entry of this one, is to be opened over it. */
+        void openTable(String id);
     }
 
     private final Font font;
@@ -190,7 +193,17 @@ final class LootForm {
                 // A whole table written out in place of a name is left as it is, to be edited as JSON.
                 y = JsonPaths.get(draft(), tablePath) instanceof JsonObject
                         ? row(g, x, y, w, "table", (cx, cw) -> raw(g, cx, y(), cw, tablePath))
-                        : row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, tablePath, LootOptions.LOOT_TABLES, false));
+                        : row(g, x, y, w, "table", (cx, cw) -> {
+                            // Beside the table's name, a way into it. Not for a tag of tables, which 26.3 allows here.
+                            String named = JsonPaths.string(draft(), tablePath, "").trim();
+                            boolean opens = !named.isEmpty() && !named.startsWith("#") && ResourceLocation.tryParse(named) != null;
+                            Component open = text("open_table");
+                            int openW = opens ? Gui.fineWidth(font, open.getString()) + 6 : 0;
+                            pick(g, cx, y(), cw - openW, tablePath, LootOptions.LOOT_TABLES, false);
+                            if (opens) {
+                                ui.link(g, open, cx + cw - openW + 6, y() + 3, true, () -> host.openTable(named));
+                            }
+                        });
             }
             case "dynamic" -> y = row(g, x, y, w, "name", (cx, cw) -> choice(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.DYNAMIC, false));
             case "slots" -> y = row(g, x, y, w, "slot_source", (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, "slot_source")));

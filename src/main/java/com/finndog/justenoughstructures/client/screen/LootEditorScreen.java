@@ -744,6 +744,17 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         note(why, bad());
     }
 
+    /** The editor on a table this one names, opened over this one, which is as it was left on coming back. */
+    @Override
+    public void openTable(String id) {
+        ResourceLocation table = ResourceLocation.tryParse(id);
+        if (table != null) {
+            commitEditing();
+            Nav.remember();
+            minecraft.setScreen(new LootEditorScreen(this, table, StructureNames.lootTable(table.toString())));
+        }
+    }
+
     private void note(Component text, int colour) {
         message = text;
         messageColour = colour;
