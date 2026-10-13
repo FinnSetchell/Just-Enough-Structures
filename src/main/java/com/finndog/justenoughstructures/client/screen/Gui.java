@@ -678,6 +678,18 @@ public final class Gui {
         }
     }
 
+    /**
+     * The bar of a list that drops down over a screen: a thin thumb and no track, on the list's own
+     * dark ground. {@code right} is the list's right edge and the bar is as tall as the list.
+     */
+    static void slimBar(GuiGraphics g, int right, int top, int height, Scroll scroll) {
+        if (!scroll.scrolls()) {
+            return;
+        }
+        int from = top + Scroll.thumbTop(height, scroll.most(), scroll.offset());
+        g.fill(right - 5, from, right - 1, from + Scroll.thumb(height, scroll.most()), 0xFF9A9A9A);
+    }
+
     public static String clip(Font font, String text, int width) {
         if (font.width(text) <= width) {
             return text;

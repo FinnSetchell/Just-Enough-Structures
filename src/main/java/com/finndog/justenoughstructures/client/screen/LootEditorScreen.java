@@ -108,6 +108,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private final Scroller treeScroll = new Scroller();
     private final Scroller formScroll = new Scroller();
     private final Scroller oddsScroll = new Scroller();
+    /** The bar of a dropdown or of the item grid that a press took hold of. */
+    private HeldBar heldBar;
 
     private LootOdds preview;
     private Component previewProblem;
@@ -736,15 +738,25 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (pickerSearch != null && pickerSearch.isMouseOver(mouseX, mouseY)) {
                 return super.mouseClicked(mouseX, mouseY, button);
             }
-            picker.click(mouseX, mouseY);
+            heldBar = picker.grabBar(mouseX, mouseY);
+            if (heldBar == null) {
+                picker.click(mouseX, mouseY);
+            }
             return true;
         }
         if (choice != null) {
-            choice.click(mouseX, mouseY);
-            choice = null;
+            heldBar = choice.grabBar(mouseX, mouseY);
+            if (heldBar == null) {
+                choice.click(mouseX, mouseY);
+                choice = null;
+            }
             return true;
         }
         if (editingId != null && suggestions != null && suggestions.contains(mouseX, mouseY)) {
+            heldBar = suggestions.grabBar(mouseX, mouseY);
+            if (heldBar != null) {
+                return true;
+            }
             LootOptions.Option clicked = suggestions.at(mouseX, mouseY);
             if (clicked != null) {
                 pickSuggestion(clicked);
@@ -762,11 +774,20 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (heldBar != null) {
+            heldBar.dragTo(mouseY);
+            return true;
+        }
         return ui.drag(mouseY) || super.mouseDragged(mouseX, mouseY, button, dx, dy);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (heldBar != null) {
+            heldBar.letGo();
+            heldBar = null;
+            return true;
+        }
         ui.release();
         return super.mouseReleased(mouseX, mouseY, button);
     }
@@ -1283,7 +1304,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         private final String current;
         private final Consumer<String> pick;
         private final int x, y, w, h;
-        private double scroll;
+        private final Scroll scroll = new Scroll(LINE * 2);
 
         Choice(int[] rect, List<String> options, Function<String, String> names, String current, Consumer<String> pick) {
             this.options = options;
@@ -1294,14 +1315,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             for (String option : options) {
                 widest = Math.max(widest, font.width(names.apply(option)) + 12);
             }
-            w = Math.min(widest, width - 12);
             h = Math.min(options.size() * LINE + 2, Math.max(60, Math.min(170, height - rect[1] - rect[3] - 8)));
+            scroll.fit(h, options.size() * LINE + 2);
+            // Room for the bar beside the longest name.
+            w = Math.min(widest + (scroll.scrolls() ? 6 : 0), width - 12);
             x = Math.max(4, Math.min(rect[0], width - w - 4));
             int below = rect[1] + rect[3];
             y = below + h <= height - 4 ? below : Math.max(4, rect[1] - h);
             int index = options.indexOf(current);
             if (index >= 0) {
-                scroll = Math.max(0, Math.min(index * LINE - h / 2, options.size() * LINE + 2 - h));
+                scroll.to(index * LINE - h / 2);
             }
         }
 
@@ -1309,33 +1332,40 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFFFFFFFF);
             g.fill(x, y, x + w, y + h, 0xFF202020);
             Gui.scissor(g, x, y, x + w, y + h);
-            int cy = y + 1 - (int) scroll;
+            int cy = y + 1 - scroll.top();
+            int room = scroll.scrolls() ? 6 : 0;
             for (String option : options) {
                 if (cy + LINE > y && cy < y + h) {
-                    boolean over = mouseX >= x && mouseX < x + w && mouseY >= Math.max(cy, y) && mouseY < Math.min(cy + LINE, y + h);
+                    boolean over = mouseX >= x && mouseX < x + w - room && mouseY >= Math.max(cy, y) && mouseY < Math.min(cy + LINE, y + h);
                     if (over) {
                         g.fill(x, cy, x + w, cy + LINE, 0xFF4B5280);
                     }
                     int colour = option.equals(current) ? 0xFFFFFF55 : 0xFFE0E0E0;
-                    Gui.drawClipped(g, font, names.apply(option), x + 4, cy + 2, w - 8, colour, false);
+                    Gui.drawClipped(g, font, names.apply(option), x + 4, cy + 2, w - 8 - room, colour, false);
                 }
                 cy += LINE;
             }
             Gui.endScissor(g);
+            Gui.slimBar(g, x + w, y, h, scroll);
+        }
+
+        /** Takes hold of the bar when a press is on it, or null. */
+        HeldBar grabBar(double mouseX, double mouseY) {
+            return HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
         }
 
         void click(double mouseX, double mouseY) {
             if (mouseX < x || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
                 return;
             }
-            int index = (int) ((mouseY - y - 1 + scroll) / LINE);
+            int index = (int) ((mouseY - y - 1 + scroll.offset()) / LINE);
             if (index >= 0 && index < options.size()) {
                 pick.accept(options.get(index));
             }
         }
 
         void scroll(double delta) {
-            scroll = Math.max(0, Math.min(scroll - delta * LINE * 2, Math.max(0, options.size() * LINE + 2 - h)));
+            scroll.wheel(delta);
         }
 
         int[] centre(String option) {
@@ -1343,8 +1373,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (index < 0) {
                 return null;
             }
-            scroll = Math.max(0, Math.min(index * LINE, Math.max(0, options.size() * LINE + 2 - h)));
-            return new int[]{x + w / 2, y + 1 + index * LINE - (int) scroll + LINE / 2};
+            scroll.to(index * LINE);
+            return new int[]{x + w / 2, y + 1 + index * LINE - scroll.top() + LINE / 2};
         }
     }
 
@@ -1366,7 +1396,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         private String query;
         private List<LootOptions.Option> shown = List.of();
         private int highlight = -1;
-        private int scroll;
+        // Three rows a notch. Kept in pixels like any list, and read back as whole rows.
+        private final Scroll scroll = new Scroll(LINE * 3);
         private int x, y, w, h;
 
         Suggestions(int[] rect, LootOptions.Source source, String opened) {
@@ -1410,8 +1441,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 // Only a close match is picked for Enter; otherwise Enter keeps what was typed.
                 highlight = starting.isEmpty() ? -1 : 0;
             }
-            scroll = highlight < 0 ? 0 : Math.max(0, Math.min(highlight - ROWS / 2, shown.size() - ROWS));
+            scroll.fit(ROWS * LINE, shown.size() * LINE);
+            scroll.to(highlight < 0 ? 0 : (highlight - ROWS / 2) * LINE);
             layout();
+        }
+
+        /** The first row on show. */
+        private int first() {
+            return (int) Math.round(scroll.offset() / LINE);
         }
 
         private void layout() {
@@ -1438,28 +1475,30 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             }
             g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFFFFFFFF);
             g.fill(x, y, x + w, y + h, 0xFF202020);
-            int rows = Math.min(shown.size() - scroll, ROWS);
+            int first = first();
+            int rows = Math.min(shown.size() - first, ROWS);
             for (int i = 0; i < rows; i++) {
-                int index = scroll + i;
+                int index = first + i;
                 LootOptions.Option option = shown.get(index);
                 int cy = y + 1 + i * LINE;
                 boolean over = mouseX >= x && mouseX < x + w && mouseY >= cy && mouseY < cy + LINE;
                 if (index == highlight || over) {
                     g.fill(x, cy, x + w, cy + LINE, index == highlight ? 0xFF4B5280 : 0xFF3A3A3A);
                 }
-                int right = x + w - (shown.size() > ROWS ? 6 : 3);
+                int right = x + w - (shown.size() > ROWS ? 8 : 3);
                 int idRoom = sameAsId(option) ? 0 : Math.min(Gui.fineWidth(font, option.id()), (right - x) / 2);
                 Gui.drawClipped(g, font, option.name(), x + 4, cy + 2, right - x - 6 - (idRoom > 0 ? idRoom + 6 : 0), 0xFFE0E0E0, false);
                 if (idRoom > 0) {
                     Gui.fineClipped(g, font, option.id(), right - idRoom, cy + 3, idRoom, 0xFF8C8C8C);
                 }
             }
-            if (shown.size() > ROWS) {
-                int track = h - 2;
-                int thumb = Math.max(6, track * ROWS / shown.size());
-                int top = y + 1 + (track - thumb) * scroll / Math.max(1, shown.size() - ROWS);
-                g.fill(x + w - 3, top, x + w - 1, top + thumb, 0xFF9A9A9A);
-            }
+            Gui.slimBar(g, x + w, y, h, scroll);
+        }
+
+        /** Takes hold of the bar when a press is on it, or null. */
+        HeldBar grabBar(double mouseX, double mouseY) {
+            update();
+            return shown.isEmpty() ? null : HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
         }
 
         boolean contains(double mouseX, double mouseY) {
@@ -1468,7 +1507,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         LootOptions.Option at(double mouseX, double mouseY) {
-            int index = (int) ((mouseY - y - 1) / LINE) + scroll;
+            int index = (int) ((mouseY - y - 1) / LINE) + first();
             return index >= 0 && index < shown.size() ? shown.get(index) : null;
         }
 
@@ -1478,10 +1517,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 return;
             }
             highlight = Math.max(0, Math.min(shown.size() - 1, highlight + direction));
-            if (highlight < scroll) {
-                scroll = highlight;
-            } else if (highlight >= scroll + ROWS) {
-                scroll = highlight - ROWS + 1;
+            if (highlight < first()) {
+                scroll.to(highlight * LINE);
+            } else if (highlight >= first() + ROWS) {
+                scroll.to((highlight - ROWS + 1) * LINE);
             }
         }
 
@@ -1491,7 +1530,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         void scroll(double delta) {
-            scroll = Math.max(0, Math.min(scroll - (int) Math.signum(delta) * 3, Math.max(0, shown.size() - ROWS)));
+            // Whole rows, however little the wheel says it turned.
+            scroll.to((first() - (int) Math.signum(delta) * 3) * LINE);
         }
     }
 
@@ -1510,7 +1550,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private final class Picker {
         private final String path;
         private List<Item> shown;
-        private double scroll;
+        private final Scroll scroll = new Scroll(SLOT * 2);
         private int x, y, w, h, gridTop, gridH, columns;
         Item hovered;
 
@@ -1535,7 +1575,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 out.sort(Comparator.comparing((Item item) -> !StructureNames.item(item).getString().toLowerCase(Locale.ROOT).startsWith(q)));
             }
             shown = out;
-            scroll = 0;
+            scroll.reset();
         }
 
         void render(GuiGraphics g, int mouseX, int mouseY) {
@@ -1562,13 +1602,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             columns = Math.max(1, (w - 18) / SLOT);
             Gui.inset(g, x + 7, gridTop - 1, columns * SLOT + 2, gridH + 2, Gui.Tone.PANEL);
             int rows = (shown.size() + columns - 1) / columns;
-            scroll = Math.max(0, Math.min(scroll, Math.max(0, rows * SLOT - gridH)));
+            scroll.fit(gridH, rows * SLOT);
             hovered = null;
             Gui.scissor(g, x + 8, gridTop, x + 8 + columns * SLOT, gridTop + gridH);
-            int first = (int) (scroll / SLOT);
+            int first = (int) (scroll.offset() / SLOT);
             for (int i = first * columns; i < shown.size(); i++) {
                 int sx = x + 8 + (i % columns) * SLOT;
-                int sy = gridTop + (i / columns) * SLOT - (int) scroll;
+                int sy = gridTop + (i / columns) * SLOT - scroll.top();
                 if (sy > gridTop + gridH) {
                     break;
                 }
@@ -1580,9 +1620,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 g.renderItem(new ItemStack(shown.get(i)), sx + 1, sy + 1);
             }
             Gui.endScissor(g);
-            Gui.scrollbar(g, x + w - 6, gridTop, gridH, scroll, Math.max(0, rows * SLOT - gridH));
+            Gui.scrollbar(g, x + w - 6, gridTop, gridH, scroll.offset(), scroll.most());
             String count = Component.translatable("screen.justenoughstructures.editor.items_count", shown.size()).getString();
             Gui.fine(g, font, count, x + 8, y + h - 13, Gui.labelSoft());
+        }
+
+        /** Takes hold of the grid's bar when a press is on it, or null. */
+        HeldBar grabBar(double mouseX, double mouseY) {
+            return HeldBar.at(scroll, mouseX, mouseY, x + w - 2, gridTop, gridH);
         }
 
         void click(double mouseX, double mouseY) {
@@ -1601,7 +1646,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         void scroll(double delta) {
-            scroll = Math.max(0, scroll - delta * SLOT * 2);
+            scroll.wheel(delta);
         }
     }
 
