@@ -453,6 +453,16 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /** A modifier added to a "set attributes" function starts with an attribute this version of the game has. */
+    public static void newAttributeModifiersLoad(GameTestHelper helper) {
+        JsonObject attributes = json("{'function': 'minecraft:set_attributes', 'modifiers': []}");
+        attributes.getAsJsonArray("modifiers").add(LootTypes.modifier());
+        List<String> broken = new ArrayList<>();
+        problem("a new attribute modifier", "functions", attributes, broken);
+        helper.assertTrue(broken.isEmpty(), "the game doesn't load " + broken);
+        helper.succeed();
+    }
+
     /** JSON written with single quotes, to keep it readable here. */
     private static JsonObject json(String text) {
         return JsonParser.parseString(text.replace('\'', '"')).getAsJsonObject();

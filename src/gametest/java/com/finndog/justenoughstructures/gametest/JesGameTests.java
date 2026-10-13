@@ -338,6 +338,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void newAttributeModifiersLoad(GameTestHelper helper) {
+        OverrideTests.newAttributeModifiersLoad(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void listedWordsLoad(GameTestHelper helper) {
         OverrideTests.listedWordsLoad(helper);
     }

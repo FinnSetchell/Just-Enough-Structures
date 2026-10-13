@@ -235,6 +235,22 @@ public final class LootTypes {
         return reorder(out, "condition");
     }
 
+    /** A new attribute modifier, as adding one to a "set attributes" function starts it. */
+    public static JsonObject modifier() {
+        //? if >=1.21.2 {
+        /*// 1.21.2 dropped "generic." from the attributes' names.
+        return JsonParser.parseString("{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:max_health\", \"amount\": 1, "
+                + "\"operation\": \"add_value\", \"slot\": \"any\"}").getAsJsonObject();
+        *///?} else if >=1.21 {
+        /*// Since 1.21 a modifier is known by an id rather than a name and a UUID.
+        return JsonParser.parseString("{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:generic.max_health\", \"amount\": 1, "
+                + "\"operation\": \"add_value\", \"slot\": \"any\"}").getAsJsonObject();
+        *///?} else {
+        return JsonParser.parseString("{\"attribute\": \"minecraft:generic.max_health\", \"name\": \"Modifier\", \"amount\": 1, "
+                + "\"operation\": \"addition\", \"slot\": \"mainhand\"}").getAsJsonObject();
+        //?}
+    }
+
     /** A new entry of this kind. */
     public static JsonObject entry(String type, JsonObject was) {
         JsonObject out = new JsonObject();

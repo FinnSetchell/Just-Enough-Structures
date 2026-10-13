@@ -311,7 +311,7 @@ final class LootForm {
             /*// Since 1.21 a modifier is known by an id rather than a name and a UUID, and replaces the item's own by default.
             case "set_attributes" -> {
                 y = objectList(g, x, y, w, "modifiers", at(path, "modifiers"),
-                        () -> object("id", "minecraft:modifier", "attribute", "minecraft:generic.max_health", "amount", 1, "operation", "add_value", "slot", "any"),
+                        LootTypes::modifier,
                         (ox, oy, ow, op) -> {
                             int ny = row(g, ox, oy, ow, "attribute", (cx, cw) -> pick(g, cx, y(), cw, at(op, "attribute"), LootOptions.ATTRIBUTES, false));
                             ny = row(g, ox, ny, ow, "modifier_id", (cx, cw) -> text(g, cx, y(), cw, at(op, "id"), false));
@@ -325,7 +325,7 @@ final class LootForm {
             }
             *///?} else {
             case "set_attributes" -> y = objectList(g, x, y, w, "modifiers", at(path, "modifiers"),
-                    () -> object("attribute", "minecraft:generic.max_health", "name", "Modifier", "amount", 1, "operation", "addition", "slot", "mainhand"),
+                    LootTypes::modifier,
                     (ox, oy, ow, op) -> {
                         int ny = row(g, ox, oy, ow, "attribute", (cx, cw) -> pick(g, cx, y(), cw, at(op, "attribute"), LootOptions.ATTRIBUTES, false));
                         ny = row(g, ox, ny, ow, "modifier_name", (cx, cw) -> text(g, cx, y(), cw, at(op, "name"), false));
