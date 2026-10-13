@@ -594,6 +594,13 @@
   "screen.justenoughstructures.editor.no": "No",
   "screen.justenoughstructures.editor.either": "Either",
   "screen.justenoughstructures.editor.not_set": "Not set",
+  "screen.justenoughstructures.editor.text_colour": "Colour: %s",
+  "screen.justenoughstructures.editor.text_bold_unset": "Bold is left to the game. Click for bold",
+  "screen.justenoughstructures.editor.text_bold_yes": "Bold. Click for not bold",
+  "screen.justenoughstructures.editor.text_bold_no": "Not bold. Click to leave it to the game",
+  "screen.justenoughstructures.editor.text_italic_unset": "Italic is left to the game, which slants names and lore. Click for italic",
+  "screen.justenoughstructures.editor.text_italic_yes": "Italic. Click for upright",
+  "screen.justenoughstructures.editor.text_italic_no": "Upright. Click to leave it to the game",
   "screen.justenoughstructures.editor.not_in_game": "Not in this game",
 
   "_comment.loot_editor_fields": "Loot table editor: field names",

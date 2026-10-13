@@ -262,7 +262,25 @@ final class EditorScenario {
                         throw new IllegalStateException("Paste left the JSON view with " + Reflect.get(editor(mc), "rawText"));
                     }
                 }))
-                .then(shoot("e12_json_pasted"));
+                .then(shoot("e12_json_pasted"))
+                // A name's style is set beside its words: here it's made bold with a click on its B.
+                .then(run(() -> editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", "
+                        + "\"name\": \"minecraft:stick\", \"functions\": [{\"function\": \"minecraft:set_name\", \"name\": \"Fang\"}]}]}]}")))
+                .then(pause(10))
+                .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
+                .then(click())
+                .then(pause(10))
+                .then(run(() -> editor(mc).pick(0, 0)))
+                .then(pause(10))
+                .then(moveTo(() -> field(mc, "pools.0.entries.0.functions.0.name#bold"), 8))
+                .then(click())
+                .then(pause(10))
+                .then(run(() -> {
+                    if (!editor(mc).draftText().contains("{\"text\":\"Fang\",\"bold\":true}")) {
+                        throw new IllegalStateException("Clicking the name's B left the table as " + editor(mc).draftText());
+                    }
+                }))
+                .then(shoot("e13_name_made_bold"));
         return d;
     }
 

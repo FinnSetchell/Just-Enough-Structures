@@ -969,22 +969,27 @@ final class LootForm {
 
     /** A box to type in: drawn here, and typed in through the editor's one text box when clicked. */
     private void field(GuiGraphics g, int x, int y, int w, String path, Kind kind, String shown) {
+        box(g, x, y, w, path, shown, text -> commit(path, kind, text));
+        if (kind == Kind.RAW && font.width(shown) > w - 8) {
+            ui.tooltip(x, y, w, FIELD, Component.literal(shown));
+        }
+    }
+
+    /** The box itself: what it shows, and where what's typed in it goes. {@code id} tells it from the form's other boxes. */
+    private void box(GuiGraphics g, int x, int y, int w, String id, String shown, Consumer<String> typed) {
         int[] rect = {x, y, w, FIELD};
-        host.drawn(path, rect);
-        boolean editing = path.equals(host.editing());
+        host.drawn(id, rect);
+        boolean editing = id.equals(host.editing());
         boolean over = ui.hovered(x, y, w, FIELD);
         g.fill(x, y, x + w, y + FIELD, over || editing ? 0xFFFFFFFF : 0xFFA0A0A0);
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, 0xFF000000);
         if (!editing) {
             Gui.drawClipped(g, font, shown, x + 4, y + 3, w - 8, 0xFFE0E0E0, false);
         }
-        ui.spot(x, y, w, FIELD, () -> host.edit(path, rect, shown, text -> commit(path, kind, text)));
-        if (path.equals(pendingEdit)) {
+        ui.spot(x, y, w, FIELD, () -> host.edit(id, rect, shown, typed));
+        if (id.equals(pendingEdit)) {
             pendingEdit = null;
-            host.edit(path, rect, shown, text -> commit(path, kind, text));
-        }
-        if (kind == Kind.RAW && font.width(shown) > w - 8) {
-            ui.tooltip(x, y, w, FIELD, Component.literal(shown));
+            host.edit(id, rect, shown, typed);
         }
     }
 
@@ -1250,9 +1255,60 @@ final class LootForm {
      */
     private void textComponent(GuiGraphics g, int x, int y, int w, String path) {
         JsonElement value = JsonPaths.get(draft(), path);
-        String shown = value == null ? "" : value.isJsonPrimitive() ? value.getAsString()
-                : value instanceof JsonObject o && o.size() == 1 && o.has("text") && o.get("text").isJsonPrimitive() ? o.get("text").getAsString() : value.toString();
-        field(g, x, y, w, path, Kind.COMPONENT, shown);
+        if (!TextStyle.simple(value)) {
+            // More to it than the boxes beside the words can show, so it's kept as it is, as JSON.
+            field(g, x, y, w, path, Kind.COMPONENT, value.isJsonPrimitive() ? value.getAsString() : value.toString());
+            return;
+        }
+        int styleW = 38;
+        box(g, x, y, w - styleW, path, TextStyle.text(value), typed -> {
+            String trimmed = typed.trim();
+            JsonElement parsed = null;
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                try {
+                    parsed = JsonParser.parseString(trimmed);
+                } catch (JsonParseException e) {
+                    // Not JSON after all: plain text.
+                }
+            }
+            // The colour and style stay with the words as they're retyped.
+            JsonElement now = trimmed.isEmpty() ? null : parsed != null ? parsed : TextStyle.with(value, "text", new JsonPrimitive(typed));
+            if (now == null ? value != null : !now.equals(value)) {
+                set(path, now);
+            }
+        });
+        // Its colour: a square of it, which opens the list of them.
+        int sx = x + w - styleW + 3;
+        String colour = TextStyle.colour(value);
+        int[] swatch = {sx, y + 2, 10, 10};
+        host.drawn(path + "#color", swatch);
+        g.fill(sx, y + 2, sx + 10, y + 12, ui.hovered(sx, y + 2, 10, 10) ? 0xFFFFFFFF : 0xFF000000);
+        g.fill(sx + 1, y + 3, sx + 9, y + 11, 0xFF000000 | TextStyle.rgb(colour));
+        List<String> colours = new java.util.ArrayList<>(List.of(""));
+        colours.addAll(TextStyle.COLOURS);
+        if (!colours.contains(colour)) {
+            colours.add(colour);
+        }
+        int listW = Math.min(90, w);
+        ui.spot(sx, y + 2, 10, 10, () -> host.choose(new int[]{x + w - listW, y, listW, FIELD}, colours,
+                id -> id.isEmpty() ? text("not_set").getString() : StructureNames.pretty(id), colour,
+                picked -> set(path, TextStyle.with(value, "color", picked.isEmpty() ? null : new JsonPrimitive(picked)))));
+        ui.tooltip(sx, y + 2, 10, 10, text("text_colour", colour.isEmpty() ? text("not_set") : Component.literal(StructureNames.pretty(colour))));
+        styleToggle(g, sx + 13, y, path, value, "bold", "B");
+        styleToggle(g, sx + 24, y, path, value, "italic", "I");
+    }
+
+    /**
+     * A letter for whether text is bold or italic: dark green for yes, dark red for no, and grey where
+     * it's left to the game, which slants names and lore by itself. Each click moves it on to the next.
+     */
+    private void styleToggle(GuiGraphics g, int x, int y, String path, JsonElement value, String key, String letter) {
+        Boolean now = TextStyle.flag(value, key);
+        host.drawn(path + "#" + key, new int[]{x, y + 1, 9, 12});
+        boolean over = ui.hovered(x, y + 1, 9, 12);
+        g.drawString(font, letter, x + 2, y + 3, over ? 0xFFFFFF55 : now == null ? 0xFF707070 : now ? 0xFF106A10 : 0xFF6A1010, false);
+        ui.spot(x, y + 1, 9, 12, () -> set(path, TextStyle.with(value, key, now == null ? new JsonPrimitive(true) : now ? new JsonPrimitive(false) : null)));
+        ui.tooltip(x, y + 1, 9, 12, text("text_" + key + (now == null ? "_unset" : now ? "_yes" : "_no")));
     }
 
     /**
