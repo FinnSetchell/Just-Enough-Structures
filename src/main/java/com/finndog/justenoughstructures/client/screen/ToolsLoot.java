@@ -165,7 +165,7 @@ final class ToolsLoot extends ToolsSection {
 
     /** The tables the filter and search leave, worked out again only when either changes. */
     private List<ResourceLocation> shown() {
-        String key = filter + "|" + query + "|" + FoundIn.ready();
+        String key = filter + "|" + query + "|" + FoundIn.changes();
         if (key.equals(shownFor)) {
             return shown;
         }

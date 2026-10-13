@@ -23,6 +23,7 @@ public final class FoundIn {
     private static LootIndex index;
     private static Map<ResourceLocation, Set<ResourceLocation>> byTable = Map.of();
     private static final Map<ResourceLocation, String> NAMES = new HashMap<>();
+    private static int changes;
 
     private FoundIn() {
     }
@@ -44,12 +45,22 @@ public final class FoundIn {
                 tables.computeIfAbsent(table, t -> new TreeSet<>()).add(structure)));
         byTable = tables;
         index = built;
+        changes++;
     }
 
     static void clear() {
         byItem = Map.of();
         byTable = Map.of();
         index = null;
+        changes++;
+    }
+
+    /**
+     * Goes up every time the index here changes: one arrives, a finished one takes an early one's
+     * place, or it's dropped. Anything that lists from it looks again when this has moved.
+     */
+    public static int changes() {
+        return changes;
     }
 
     public static boolean ready() {

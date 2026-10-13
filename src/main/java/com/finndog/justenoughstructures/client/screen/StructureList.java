@@ -229,6 +229,8 @@ final class StructureList {
                 float progress = ClientRequests.indexProgress();
                 message = progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
                         : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
+            } else if (query.contains("$") && ClientRequests.indexFilling()) {
+                message = Component.translatable("screen.justenoughstructures.no_matches_yet", Math.round(ClientRequests.indexProgress() * 100));
             }
             Gui.wrapped(g, font, message, x + 5, y + 5, width - 10, Gui.labelSoft());
             return;

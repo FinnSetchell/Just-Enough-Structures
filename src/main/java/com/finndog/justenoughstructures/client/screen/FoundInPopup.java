@@ -34,6 +34,8 @@ final class FoundInPopup {
     private List<Row> rows;
     private boolean sorted;
     private long listedAt;
+    /** The index the rows were listed from, as {@link FoundIn#changes()} had it. */
+    private int listedFrom;
     // A row a notch. Kept in pixels like any list, and read back as whole rows.
     private final Scroll scroll = new Scroll(ROW);
     int x;
@@ -58,7 +60,13 @@ final class FoundInPopup {
 
     /** The rows, best chance first, or null until they're ready to show. */
     private List<Row> rows() {
+        if (rows != null && listedFrom != FoundIn.changes()) {
+            // The index has changed since, as when the finished one takes an early one's place: listed again.
+            rows = null;
+            sorted = false;
+        }
         if (rows == null && FoundIn.ready()) {
+            listedFrom = FoundIn.changes();
             rows = new ArrayList<>();
             for (Map.Entry<ResourceLocation, Set<ResourceLocation>> e : FoundIn.structuresFor(item.getItem()).entrySet()) {
                 rows.add(new Row(e.getKey(), e.getValue()));
@@ -101,11 +109,17 @@ final class FoundInPopup {
             Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.labelSoft());
             return;
         }
-        Gui.smallClipped(g, font, Component.translatable("screen.justenoughstructures.found_in_chance", list.size()).getString(), x + 30, y + 17,
-                WIDTH - 38, Gui.labelSoft());
+        // With an early index the list can still grow, so it says how far the server has got with the rest.
+        boolean filling = ClientRequests.indexFilling();
+        int percent = filling ? Math.round(ClientRequests.indexProgress() * 100) : 0;
+        Component under = filling ? Component.translatable("screen.justenoughstructures.found_in_so_far", list.size(), percent)
+                : Component.translatable("screen.justenoughstructures.found_in_chance", list.size());
+        Gui.smallClipped(g, font, under.getString(), x + 30, y + 17, WIDTH - 38, Gui.labelSoft());
         Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, Gui.Tone.WELL);
         if (list.isEmpty()) {
-            Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.labelSoft());
+            Component nowhere = filling ? Component.translatable("screen.justenoughstructures.found_nowhere_yet", percent)
+                    : Component.translatable("screen.justenoughstructures.found_nowhere");
+            Gui.wrapped(g, font, nowhere, x + 10, top + 4, WIDTH - 20, Gui.labelSoft());
         }
         scroll.fit(VISIBLE_ROWS * ROW, list.size() * ROW);
         int first = first();

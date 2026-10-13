@@ -27,6 +27,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
     private final Component containerName;
     private ResourceLocation typed;
     private boolean indexed;
+    private int indexSeen = FoundIn.changes();
 
     TablePickerScreen(Screen parent, StructureSnapshot.Source source, String current, Component containerName) {
         super(Component.translatable("screen.justenoughstructures.picker.title", containerName), parent, "picker");
@@ -149,8 +150,9 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
     @Override
     public void tick() {
         super.tick();
-        if (!indexed && FoundIn.ready()) {
+        if (FoundIn.ready() && (!indexed || indexSeen != FoundIn.changes())) {
             indexed = true;
+            indexSeen = FoundIn.changes();
             refilter();
         }
     }

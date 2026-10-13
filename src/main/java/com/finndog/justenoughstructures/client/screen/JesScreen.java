@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Thumbnails;
@@ -143,6 +144,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private boolean locating;
     private int locateAccess;
     private int seenReloads = ClientRequests.reloads();
+    private int seenIndex = FoundIn.changes();
     private int seenStructureChanges = ClientRequests.structureChanges();
     private int captureRequest;
     private CompletableFuture<Codecs.CaptureReply> capturing;
@@ -474,6 +476,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         updateLocateButton();
         updateMarkersButton();
         updateCompassButton();
+        // The search looks through loot too, so it's run again whenever the loot index changes.
+        if (FoundIn.changes() != seenIndex) {
+            seenIndex = FoundIn.changes();
+            list.refresh();
+        }
         // After a /reload the structure may have changed, like a container pointed at another table, so it's generated again.
         if (ClientRequests.reloads() != seenReloads) {
             seenReloads = ClientRequests.reloads();

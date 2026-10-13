@@ -362,6 +362,15 @@ public final class ClientRequests {
         return indexTotal <= 0 ? -1f : (float) indexDone / indexTotal;
     }
 
+    /**
+     * Whether the index that's here is an early one, with the server still finding the rest: it
+     * has most of the loot, and the finished one takes its place when it's done. The server says so
+     * by sending how far it has got after the index, which it never does after a finished one.
+     */
+    public static boolean indexFilling() {
+        return indexReady() && indexTotal > 0 && indexDone < indexTotal;
+    }
+
     public static void tick() {
         if (!viewersLookedFor) {
             viewersLookedFor = true;
@@ -568,6 +577,9 @@ public final class ClientRequests {
             catalog.complete(entries);
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
             LootIndex built = Codecs.readIndex(buf);
+            // What was said of progress so far was about the wait for this one.
+            indexDone = 0;
+            indexTotal = 0;
             ARRIVAL.arrived(built);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
