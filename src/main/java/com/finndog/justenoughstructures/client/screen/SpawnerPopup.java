@@ -61,7 +61,9 @@ final class SpawnerPopup extends SidePopup {
      * Pack tools is pointed out, so it's learnt as the way to change one.
      */
     boolean picking;
-    private int scroll;
+    private final Scroll scroll = new Scroll(OddsList.ROW + 1);
+    /** Where the list's bar was last drawn. */
+    private int barRight, barTop, barHeight;
     private final PopupLinks<Action> links = new PopupLinks<>(Action.class);
 
     SpawnerPopup(StructureSnapshot.Spawner spawner, CompoundTag tag, Component title, int index, int count) {
@@ -173,13 +175,22 @@ final class SpawnerPopup extends SidePopup {
         if (mouseX < x || mouseX >= x + WIDTH) {
             return false;
         }
-        scroll = Math.max(0, Math.min(mostScroll(), scroll - (int) (delta * (OddsList.ROW + 1))));
+        mostScroll();
+        // In whole pixels, as the rows are drawn.
+        scroll.to(scroll.top() - (int) (delta * (OddsList.ROW + 1)));
         return true;
+    }
+
+    @Override
+    HeldBar grabBar(double mouseX, double mouseY) {
+        mostScroll();
+        return HeldBar.at(scroll, mouseX, mouseY, barRight, barTop, barHeight);
     }
 
     /** How far the list scrolls, or 0 when it all fits. */
     private int mostScroll() {
-        return Math.max(0, rows.size() * (OddsList.ROW + 1) - (listHeight() - 4));
+        scroll.fit(listHeight() - 4, rows.size() * (OddsList.ROW + 1));
+        return scroll.most();
     }
 
     @Override
@@ -235,7 +246,7 @@ final class SpawnerPopup extends SidePopup {
         int most = mostScroll();
         int rowRight = most > 0 ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
-        int cy = top + 1 - scroll;
+        int cy = top + 1 - scroll.top();
         for (Row row : rows) {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 if (row.mob() == null) {
@@ -247,7 +258,10 @@ final class SpawnerPopup extends SidePopup {
             cy += OddsList.ROW + 1;
         }
         Gui.endScissor(g);
-        Gui.scrollbar(g, right - 5, top, bottom - top, scroll, most);
+        Gui.scrollbar(g, right - 5, top, bottom - top, scroll.offset(), most);
+        barRight = right;
+        barTop = top;
+        barHeight = bottom - top;
     }
 
     private void renderRow(GuiGraphics g, Font font, Row row, int left, int right, int cy, int top, int bottom, int mouseX, int mouseY) {

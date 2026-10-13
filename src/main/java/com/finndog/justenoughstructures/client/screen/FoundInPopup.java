@@ -34,7 +34,8 @@ final class FoundInPopup {
     private List<Row> rows;
     private boolean sorted;
     private long listedAt;
-    private int scroll;
+    // A row a notch. Kept in pixels like any list, and read back as whole rows.
+    private final Scroll scroll = new Scroll(ROW);
     int x;
     int y;
 
@@ -106,30 +107,45 @@ final class FoundInPopup {
         if (list.isEmpty()) {
             Gui.wrapped(g, font, Component.translatable("screen.justenoughstructures.found_nowhere"), x + 10, top + 4, WIDTH - 20, Gui.labelSoft());
         }
-        for (int i = 0; i < VISIBLE_ROWS && scroll + i < list.size(); i++) {
-            Row row = list.get(scroll + i);
+        scroll.fit(VISIBLE_ROWS * ROW, list.size() * ROW);
+        int first = first();
+        // A list that scrolls says so with a bar down its side, and its rows make room for it.
+        int room = scroll.scrolls() ? 7 : 0;
+        for (int i = 0; i < VISIBLE_ROWS && first + i < list.size(); i++) {
+            Row row = list.get(first + i);
             int ry = top + i * ROW;
-            boolean hovered = mouseX >= x + 7 && mouseX < x + WIDTH - 7 && mouseY >= ry && mouseY < ry + ROW;
+            boolean hovered = mouseX >= x + 7 && mouseX < x + WIDTH - 7 - room && mouseY >= ry && mouseY < ry + ROW;
             if (hovered) {
-                g.fill(x + 7, ry, x + WIDTH - 7, ry + ROW, Gui.rowHover());
+                g.fill(x + 7, ry, x + WIDTH - 7 - room, ry + ROW, Gui.rowHover());
             }
             if (!Thumbnails.draw(g, row.structure(), x + 9, ry + 2, 18)) {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
             double chance = chance(row);
             String pct = FoundIn.percent(chance);
-            Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - font.width(pct), Gui.ink(0xFF202020, Gui.VANILLA_LABEL));
-            g.drawString(font, pct, x + WIDTH - 10 - font.width(pct), ry + 3, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
+            Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - room - font.width(pct), Gui.ink(0xFF202020, Gui.VANILLA_LABEL));
+            g.drawString(font, pct, x + WIDTH - 10 - room - font.width(pct), ry + 3, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
             // Which of its loot tables, unless that only repeats the structure's name.
             String name = StructureNames.structure(row.structure());
             String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct()
                     .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
-            Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40, Gui.labelSoft());
+            Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40 - room, Gui.labelSoft());
         }
+        Gui.scrollbar(g, x + WIDTH - 11, top, VISIBLE_ROWS * ROW, scroll.offset(), scroll.most());
         if (list.size() > VISIBLE_ROWS) {
-            String more = Component.translatable("screen.justenoughstructures.found_in_range", scroll + 1, Math.min(list.size(), scroll + VISIBLE_ROWS), list.size()).getString();
+            String more = Component.translatable("screen.justenoughstructures.found_in_range", first + 1, Math.min(list.size(), first + VISIBLE_ROWS), list.size()).getString();
             Gui.small(g, font, more, x + WIDTH - 8 - Gui.smallWidth(font, more), y + height() - 11, Gui.labelSoft());
         }
+    }
+
+    /** The first row on show. */
+    private int first() {
+        return (int) Math.round(scroll.offset() / ROW);
+    }
+
+    /** Takes hold of the list's scroll bar when a press is on it, or null. */
+    HeldBar grabBar(double mouseX, double mouseY) {
+        return rows() == null ? null : HeldBar.at(scroll, mouseX, mouseY, x + WIDTH - 7, y + 30, VISIBLE_ROWS * ROW);
     }
 
     Optional<Row> click(double mouseX, double mouseY) {
@@ -138,10 +154,11 @@ final class FoundInPopup {
             return Optional.empty();
         }
         int top = y + 30;
-        for (int i = 0; i < VISIBLE_ROWS && scroll + i < list.size(); i++) {
+        int first = first();
+        for (int i = 0; i < VISIBLE_ROWS && first + i < list.size(); i++) {
             int ry = top + i * ROW;
             if (mouseX >= x + 7 && mouseX < x + WIDTH - 7 && mouseY >= ry && mouseY < ry + ROW) {
-                return Optional.of(list.get(scroll + i));
+                return Optional.of(list.get(first + i));
             }
         }
         return Optional.empty();
@@ -150,7 +167,7 @@ final class FoundInPopup {
     /** Where a row showing now is, or nothing if there's no such row yet. */
     Optional<int[]> rowCentre(int index) {
         List<Row> list = rows();
-        if (list == null || index < 0 || index >= Math.min(VISIBLE_ROWS, list.size() - scroll)) {
+        if (list == null || index < 0 || index >= Math.min(VISIBLE_ROWS, list.size() - first())) {
             return Optional.empty();
         }
         return Optional.of(new int[]{x + WIDTH / 2, y + 30 + index * ROW + ROW / 2});
@@ -162,13 +179,15 @@ final class FoundInPopup {
         if (list == null) {
             return List.of();
         }
-        return list.subList(scroll, Math.min(list.size(), scroll + VISIBLE_ROWS)).stream().map(Row::structure).toList();
+        return list.subList(Math.min(first(), list.size()), Math.min(list.size(), first() + VISIBLE_ROWS)).stream().map(Row::structure).toList();
     }
 
     void scroll(double delta) {
         List<Row> list = rows();
         if (list != null) {
-            scroll = Math.max(0, Math.min(scroll - (int) Math.signum(delta), Math.max(0, list.size() - VISIBLE_ROWS)));
+            scroll.fit(VISIBLE_ROWS * ROW, list.size() * ROW);
+            // A whole row, however little the wheel says it turned.
+            scroll.to((first() - (int) Math.signum(delta)) * ROW);
         }
     }
 }

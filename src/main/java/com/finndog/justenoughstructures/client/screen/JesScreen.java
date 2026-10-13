@@ -2640,6 +2640,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         if (foundIn != null) {
             if (foundIn.contains(mouseX, mouseY)) {
+                heldBar = button == InputConstants.MOUSE_BUTTON_LEFT ? foundIn.grabBar(mouseX, mouseY) : null;
+                if (heldBar != null) {
+                    return true;
+                }
                 foundIn.click(mouseX, mouseY).ifPresent(this::pickFromFoundIn);
             } else {
                 foundIn = null;
@@ -2657,6 +2661,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
                     return Gui.click(b, mouseX, mouseY, button);
                 }
+            }
+            heldBar = button == InputConstants.MOUSE_BUTTON_LEFT ? side.grabBar(mouseX, mouseY) : null;
+            if (heldBar != null) {
+                return true;
             }
             SpawnerPopup.Action action = spawnerPopup == null ? null : spawnerPopup.actionAt(mouseX, mouseY);
             if (action != null) {
@@ -2682,6 +2690,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 if (b.visible && b.isMouseOver(mouseX, mouseY)) {
                     return Gui.click(b, mouseX, mouseY, button);
                 }
+            }
+            heldBar = button == InputConstants.MOUSE_BUTTON_LEFT ? popup.grabBar(mouseX, mouseY) : null;
+            if (heldBar != null) {
+                return true;
             }
             ChestPopup.Action action = popup.actionAt(mouseX, mouseY);
             if (action != null) {

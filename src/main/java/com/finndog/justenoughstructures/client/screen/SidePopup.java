@@ -42,6 +42,11 @@ abstract class SidePopup {
         return false;
     }
 
+    /** Takes hold of its list's scroll bar when a press is on it, or null. */
+    HeldBar grabBar(double mouseX, double mouseY) {
+        return null;
+    }
+
     /** Showing all the ones like it rather than a particular one of them. */
     boolean overview() {
         return index < 0;

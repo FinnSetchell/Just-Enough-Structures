@@ -68,7 +68,9 @@ final class ChestPopup {
     LootOdds odds;
     int x;
     int y;
-    private int scroll;
+    private final Scroll scroll = new Scroll(OddsList.ROW + 1);
+    /** Where the list of chances' bar was last drawn. */
+    private int barRight, barTop, barHeight;
     /** A tab under the mouse, set as it's drawn. */
     Action hoveredAction;
     /** Lines to add to the tooltip of the hovered item, in the list of chances. */
@@ -238,7 +240,7 @@ final class ChestPopup {
 
     void switchTo(View next) {
         view = next;
-        scroll = 0;
+        scroll.reset();
     }
 
     /** Scrolls the list of chances, when it's showing and the mouse is over it. */
@@ -246,9 +248,23 @@ final class ChestPopup {
         if (view != View.ODDS || odds == null || mouseX < x || mouseX >= x + WIDTH) {
             return false;
         }
-        int most = Math.max(0, odds.rows().size() * (OddsList.ROW + 1) - (bodyHeight() - 4));
-        scroll = Math.max(0, Math.min(most, scroll - (int) (delta * (OddsList.ROW + 1))));
+        fitScroll();
+        // In whole pixels, as the rows are drawn.
+        scroll.to(scroll.top() - (int) (delta * (OddsList.ROW + 1)));
         return true;
+    }
+
+    /** Takes hold of the list of chances' scroll bar when a press is on it, or null. */
+    HeldBar grabBar(double mouseX, double mouseY) {
+        if (view != View.ODDS || odds == null) {
+            return null;
+        }
+        fitScroll();
+        return HeldBar.at(scroll, mouseX, mouseY, barRight, barTop, barHeight);
+    }
+
+    private void fitScroll() {
+        scroll.fit(bodyHeight() - 4, odds.rows().size() * (OddsList.ROW + 1));
     }
 
     /** Draws the popup and returns the stack under the mouse, or empty. */
@@ -378,14 +394,17 @@ final class ChestPopup {
         ItemStack hovered = ItemStack.EMPTY;
         List<LootOdds.Row> rows = OddsList.sorted(odds, false);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
+        fitScroll();
+        // A list that scrolls says so with a bar down its side, and its rows make room for it.
+        int rowRight = scroll.scrolls() ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
         int detailRoom = OddsList.detailRoom(font, rows.stream().map(OddsList::counts).toList());
-        int cy = top + 1 - scroll;
+        int cy = top + 1 - scroll.top();
         for (LootOdds.Row row : rows) {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 float chance = (float) row.hits() / odds.rolls();
-                boolean over = mouseX >= left && mouseX < right && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
-                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, left, cy, right - 1, over, detailRoom);
+                boolean over = mouseX >= left && mouseX < rowRight && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
+                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, left, cy, rowRight - 1, over, detailRoom);
                 if (over) {
                     hovered = row.example();
                     hoveredExtra = OddsList.tooltip(row, chance, count, kind);
@@ -394,6 +413,10 @@ final class ChestPopup {
             cy += OddsList.ROW + 1;
         }
         Gui.endScissor(g);
+        Gui.scrollbar(g, right - 5, top, bottom - top, scroll.offset(), scroll.most());
+        barRight = right;
+        barTop = top;
+        barHeight = bottom - top;
         return hovered;
     }
 
