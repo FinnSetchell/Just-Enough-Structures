@@ -422,19 +422,37 @@ public final class Director {
         };
     }
 
-    /** Holds the button while moving to {@code target}, then lets go. */
+    /**
+     * Holds the button while moving to {@code target}, then lets go. From 1.21 the game tells a screen
+     * where the mouse went once a frame, so the button stays down until a frame has been drawn after
+     * the last move: let go any sooner, and the drag ends short of where it was taken.
+     */
     public static Action dragTo(Supplier<int[]> target, int frames, int button) {
         Action move = moveTo(target, frames);
-        return (d, frame) -> {
-            if (frame == 0) {
-                d.press(button);
-                return false;
-            }
-            if (move.step(d, frame - 1)) {
+        return new Action() {
+            int there = -1;
+            int since;
+
+            @Override
+            public boolean step(Director d, int frame) {
+                if (frame == 0) {
+                    d.press(button);
+                    return false;
+                }
+                if (there < 0) {
+                    if (move.step(d, frame - 1)) {
+                        there = d.renders;
+                        since = frame;
+                    }
+                    return false;
+                }
+                // Nothing is drawn with no screen open and the HUD hidden, so it doesn't wait long.
+                if (d.renders == there && frame - since < 10) {
+                    return false;
+                }
                 d.release(button);
                 return true;
             }
-            return false;
         };
     }
 
