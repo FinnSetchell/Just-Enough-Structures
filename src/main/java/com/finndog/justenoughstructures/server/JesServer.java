@@ -62,6 +62,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.storage.loot.LootTable;
 
 /** Answers client requests. Loader code calls these from its packet handlers, on the server thread. */
 public final class JesServer {
@@ -331,7 +332,7 @@ public final class JesServer {
         if (!canEdit(player) || LootOverrides.check(roll.draft().id(), roll.draft().json()) != null) {
             return java.util.Collections.nCopies(size, ItemStack.EMPTY);
         }
-        return LootRolls.fill(Players.level(player), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
+        return LootRolls.fill(Players.level(player), roll.draft().id(), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
     }
 
     public static Component saveTable(ServerPlayer player, ResourceLocation id, String json) {
@@ -802,7 +803,12 @@ public final class JesServer {
     }
 
     public static void onRequestLoot(ServerPlayer player, int requestId, ResourceLocation table, long seed, int size) {
-        List<ItemStack> items = LootRolls.fill(Players.level(player), table, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
+        answerLoot(player, requestId, table, LootRolls.table(Players.server(player), table), seed, size);
+    }
+
+    /** Answers with a roll of {@code loot}, which is handed in so that a test's needn't be a loaded table. */
+    public static void answerLoot(ServerPlayer player, int requestId, ResourceLocation table, LootTable loot, long seed, int size) {
+        List<ItemStack> items = LootRolls.fill(Players.level(player), table, loot, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeItems(buf, items);

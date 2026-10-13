@@ -174,6 +174,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void fillSurvivesLootThatThrows(GameTestHelper helper) {
+        LootGuardTests.fillSurvivesLootThatThrows(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void chestRollThatThrowsIsAnswered(GameTestHelper helper) {
+        LootGuardTests.chestRollThatThrowsIsAnswered(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void treasureMapRollsAreQuick(GameTestHelper helper) {
         ServiceTests.treasureMapRollsAreQuick(helper);
     }

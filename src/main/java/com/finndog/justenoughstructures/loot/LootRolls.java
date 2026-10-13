@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.loot;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,20 +55,29 @@ public final class LootRolls {
 
     /** Fills a container of {@code size} slots the way a chest is filled when it's first opened. */
     public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, long seed, int size) {
-        return fill(level, table(level.getServer(), tableId), seed, size);
+        return fill(level, tableId, table(level.getServer(), tableId), seed, size);
     }
 
-    /** The same for a table that isn't loaded, like an edit that hasn't been saved yet. */
-    public static List<ItemStack> fill(ServerLevel level, LootTable table, long seed, int size) {
-        return JesLog.quietly(() -> {
-            SimpleContainer container = new SimpleContainer(size);
-            table.fill(container, chestParams(level), seed);
-            List<ItemStack> out = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                out.add(container.getItem(i).copy());
-            }
-            return out;
-        });
+    /**
+     * The same for a table that isn't loaded, like an edit that hasn't been saved yet. Other mods'
+     * loot functions and modifiers run in here, on the server's own thread, so when one of them
+     * throws, the container comes out empty and the server carries on.
+     */
+    public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, LootTable table, long seed, int size) {
+        try {
+            return JesLog.quietly(() -> {
+                SimpleContainer container = new SimpleContainer(size);
+                table.fill(container, chestParams(level), seed);
+                List<ItemStack> out = new ArrayList<>(size);
+                for (int i = 0; i < size; i++) {
+                    out.add(container.getItem(i).copy());
+                }
+                return out;
+            });
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            JesLog.warnOnce("loot-fill:" + tableId, "Couldn't roll the loot table {}, so its container shows as empty", tableId, e);
+            return new ArrayList<>(Collections.nCopies(size, ItemStack.EMPTY));
+        }
     }
 
     /** Rolls the table {@code rolls} times and counts how often each item turned up. */

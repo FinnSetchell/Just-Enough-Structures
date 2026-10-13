@@ -261,7 +261,7 @@ public final class MessageTests {
     }
 
     /** Every message the server sends {@code player} on {@code channel} while {@code action} runs. Anyone else's go on as usual. */
-    private static List<byte[]> sent(ServerPlayer player, ResourceLocation channel, Runnable action) {
+    static List<byte[]> sent(ServerPlayer player, ResourceLocation channel, Runnable action) {
         List<byte[]> messages = new ArrayList<>();
         JesNetwork.ServerSender before = JesNetwork.serverSender();
         JesNetwork.setServerSender((target, to, buf) -> {
@@ -279,7 +279,7 @@ public final class MessageTests {
         return messages;
     }
 
-    private static byte[] only(GameTestHelper helper, List<byte[]> messages, String what) {
+    static byte[] only(GameTestHelper helper, List<byte[]> messages, String what) {
         helper.assertTrue(messages.size() == 1, "the server sent " + messages.size() + " " + what + " messages, not one");
         return messages.get(0);
     }
