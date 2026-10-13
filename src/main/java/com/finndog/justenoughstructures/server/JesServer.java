@@ -233,8 +233,7 @@ public final class JesServer {
 
     public static void sendIndexProgress(ServerPlayer player, int done, int total) {
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(done);
-        buf.writeVarInt(total);
+        Codecs.writeIndexProgress(buf, new Codecs.IndexProgress(done, total));
         JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
     }
 
@@ -280,11 +279,7 @@ public final class JesServer {
         Map<ResourceLocation, LootOverrides.Status> statuses = canEdit(player)
                 ? LootOverrides.statuses(Players.server(player).getResourceManager()) : Map.of();
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(statuses.size());
-        statuses.forEach((id, status) -> {
-            buf.writeResourceLocation(id);
-            buf.writeVarInt(status.ordinal());
-        });
+        Codecs.writeOverrides(buf, statuses);
         JesNetwork.send(player, JesNetwork.OVERRIDES, buf);
     }
 
@@ -562,15 +557,7 @@ public final class JesServer {
 
     private static void sendEditReply(ServerPlayer player, int requestId, Component message, LootOdds odds) {
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(requestId);
-        buf.writeBoolean(message != null);
-        if (message != null) {
-            Codecs.writeComponent(buf, message);
-        }
-        buf.writeBoolean(odds != null);
-        if (odds != null) {
-            Codecs.writeOdds(buf, odds);
-        }
+        Codecs.writeEditReply(buf, new Codecs.EditReply(requestId, message, odds));
         JesNetwork.send(player, JesNetwork.EDIT_REPLY, buf);
     }
 
@@ -592,12 +579,8 @@ public final class JesServer {
     private static void sendSettings(ServerPlayer player, boolean reloaded, boolean structuresChanged) {
         ServerConfig.Settings settings = ServerConfig.get();
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(settings.locatePermission());
-        buf.writeVarInt(settings.teleportPermission());
-        buf.writeBoolean(reloaded);
-        buf.writeBoolean(compassSearch != null);
-        buf.writeBoolean(PackToolsAccess.allowed(player));
-        buf.writeBoolean(structuresChanged);
+        Codecs.writeBrowserSettings(buf, new Codecs.BrowserSettings(settings.locatePermission(), settings.teleportPermission(), reloaded,
+                compassSearch != null, PackToolsAccess.allowed(player), structuresChanged));
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 
@@ -909,8 +892,7 @@ public final class JesServer {
         UUID uuid = player.getUUID();
         if (!LOCATING.add(uuid)) {
             FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
-            buf.writeVarInt(requestId);
-            Codecs.writeComponent(buf, Component.translatable("screen.justenoughstructures.locate_busy"));
+            Codecs.writeLocateReply(buf, new Codecs.LocateReply(requestId, Component.translatable("screen.justenoughstructures.locate_busy")));
             JesNetwork.send(player, JesNetwork.LOCATE, buf);
             return;
         }
@@ -927,8 +909,7 @@ public final class JesServer {
     public static void queueCompass(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id) {
         server.execute(() -> {
             FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
-            buf.writeVarInt(requestId);
-            Codecs.writeComponent(buf, compassFor(player, id));
+            Codecs.writeLocateReply(buf, new Codecs.LocateReply(requestId, compassFor(player, id)));
             JesNetwork.send(player, JesNetwork.LOCATE, buf);
         });
     }
@@ -956,8 +937,7 @@ public final class JesServer {
     public static void onRequestLocate(ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
         Component reply = locateFor(player, id, teleport);
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        buf.writeVarInt(requestId);
-        Codecs.writeComponent(buf, reply);
+        Codecs.writeLocateReply(buf, new Codecs.LocateReply(requestId, reply));
         JesNetwork.send(player, JesNetwork.LOCATE, buf);
     }
 

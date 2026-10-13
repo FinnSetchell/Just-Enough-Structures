@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.Blobs;
+import com.finndog.justenoughstructures.network.Codecs;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
@@ -53,10 +54,7 @@ public final class JesCommands {
             return 0;
         }
         FriendlyByteBuf buf = Blobs.buffer(source.registryAccess());
-        buf.writeBoolean(structure != null);
-        if (structure != null) {
-            buf.writeResourceLocation(structure);
-        }
+        Codecs.writeOpenBrowser(buf, structure);
         JesNetwork.send(player, JesNetwork.OPEN_BROWSER, buf);
         return 1;
     }

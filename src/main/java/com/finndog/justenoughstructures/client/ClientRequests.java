@@ -646,21 +646,21 @@ public final class ClientRequests {
      * The server's locate settings. After a /reload the structure list and loot may have changed
      * too, so what's cached is dropped and fetched again the next time it's wanted.
      */
-    public static void onSettings(int locate, int teleport, boolean reloaded, boolean compass, boolean canUsePackTools, boolean structuresChanged) {
-        locatePermission = locate;
-        teleportPermission = teleport;
-        compassSearch = compass;
-        packTools = canUsePackTools;
+    public static void onSettings(Codecs.BrowserSettings settings) {
+        locatePermission = settings.locatePermission();
+        teleportPermission = settings.teleportPermission();
+        compassSearch = settings.compassSearch();
+        packTools = settings.packTools();
         // The browser asks which tables are edited as it opens, which the first time is before the
         // server has said this player may see them, and a /reload can change them, so ask now.
         requestOverrides();
-        if (structuresChanged) {
+        if (settings.structuresChanged()) {
             structureChanges++;
             if (catalog != null && catalog.isDone()) {
                 catalog = null;
             }
         }
-        if (!reloaded) {
+        if (!settings.reloaded()) {
             return;
         }
         reloads++;

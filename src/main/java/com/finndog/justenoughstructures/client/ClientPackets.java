@@ -6,13 +6,11 @@ import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -43,51 +41,33 @@ public final class ClientPackets {
         });
 
         on(JesNetwork.INDEX_PROGRESS, (client, buf) -> {
-            int done = buf.readVarInt();
-            int total = buf.readVarInt();
-            client.execute(() -> ClientRequests.onIndexProgress(done, total));
+            Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
+            client.execute(() -> ClientRequests.onIndexProgress(progress.done(), progress.total()));
         });
 
         on(JesNetwork.LOCATE, (client, buf) -> {
-            int requestId = buf.readVarInt();
-            Component reply = Codecs.readComponent(buf);
-            client.execute(() -> ClientRequests.onLocate(requestId, reply));
+            Codecs.LocateReply reply = Codecs.readLocateReply(buf);
+            client.execute(() -> ClientRequests.onLocate(reply.requestId(), reply.reply()));
         });
 
         on(JesNetwork.OPEN_BROWSER, (client, buf) -> {
-            ResourceLocation structure = buf.readBoolean() ? buf.readResourceLocation() : null;
+            ResourceLocation structure = Codecs.readOpenBrowser(buf);
             client.execute(() -> JesClient.openBrowser(client, structure));
         });
 
         on(JesNetwork.SETTINGS, (client, buf) -> {
-            int locate = buf.readVarInt();
-            int teleport = buf.readVarInt();
-            boolean reloaded = buf.readBoolean();
-            boolean compass = buf.readBoolean();
-            boolean packTools = buf.readBoolean();
-            boolean structuresChanged = buf.readBoolean();
-            client.execute(() -> ClientRequests.onSettings(locate, teleport, reloaded, compass, packTools, structuresChanged));
+            Codecs.BrowserSettings settings = Codecs.readBrowserSettings(buf);
+            client.execute(() -> ClientRequests.onSettings(settings));
         });
 
         on(JesNetwork.OVERRIDES, (client, buf) -> {
-            Map<ResourceLocation, LootOverrides.Status> statuses = new HashMap<>();
-            LootOverrides.Status[] all = LootOverrides.Status.values();
-            int count = buf.readVarInt();
-            for (int i = 0; i < count; i++) {
-                ResourceLocation id = buf.readResourceLocation();
-                int status = buf.readVarInt();
-                if (status >= 0 && status < all.length) {
-                    statuses.put(id, all[status]);
-                }
-            }
+            Map<ResourceLocation, LootOverrides.Status> statuses = Codecs.readOverrides(buf);
             client.execute(() -> ClientRequests.onOverrides(statuses));
         });
 
         on(JesNetwork.EDIT_REPLY, (client, buf) -> {
-            int requestId = buf.readVarInt();
-            Component message = buf.readBoolean() ? Codecs.readComponent(buf) : null;
-            LootOdds odds = buf.readBoolean() ? Codecs.readOdds(buf) : null;
-            client.execute(() -> ClientRequests.onEditReply(requestId, message, odds));
+            Codecs.EditReply reply = Codecs.readEditReply(buf);
+            client.execute(() -> ClientRequests.onEditReply(reply.requestId(), reply.message(), reply.odds()));
         });
     }
 
