@@ -39,9 +39,11 @@ public final class JesEmiPlugin implements EmiPlugin {
     private static volatile LootIndex latest;
     private static volatile LootIndex loaded;
     private static boolean listening;
+    private static volatile int loads;
 
     @Override
     public void register(EmiRegistry registry) {
+        loads++;
         registry.addCategory(FOUND_IN);
         Minecraft.getInstance().execute(JesEmiPlugin::listen);
         LootIndex index = latest;
@@ -77,6 +79,11 @@ public final class JesEmiPlugin implements EmiPlugin {
     /** Whether EMI has loaded with the structures in it. For the screenshot harness. */
     public static boolean ready() {
         return loaded != null && EmiReloadManager.isLoaded();
+    }
+
+    /** How many times EMI has loaded since the game started. For the screenshot harness. */
+    public static int loads() {
+        return loads;
     }
 
     /** Where the first row's structure is on screen, or null before EMI has shown one. For the screenshot harness. */
