@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +40,9 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     protected T picked;
     /** Why the server turned the last pick down, shown until something else is picked. */
     private Component problem;
-    private double scroll;
+    // The rows sit two pixels inside the list's frame, top and bottom.
+    private final Scroll scroll = new Scroll(ROW);
+    private HeldBar heldBar;
 
     PickerScreen(Component title, Screen parent, String keys) {
         super(title);
@@ -123,7 +126,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
 
     protected void refilter() {
         shown = matching(search.getValue().trim().toLowerCase(Locale.ROOT));
-        scroll = 0;
+        scroll.reset();
         if (picked != null && !shown.contains(picked)) {
             picked = null;
         }
@@ -199,8 +202,15 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
+            fitScroll();
+            heldBar = HeldBar.at(scroll, mouseX, mouseY, right(), listTop(), listBottom() - listTop());
+            if (heldBar != null) {
+                return true;
+            }
+        }
         if (mouseX >= left() && mouseX < right() && mouseY >= listTop() && mouseY < listBottom()) {
-            int row = (int) ((mouseY - listTop() - 2 + scroll) / ROW);
+            int row = (int) ((mouseY - listTop() - 2 + scroll.offset()) / ROW);
             if (row >= 0 && row < shown.size()) {
                 picked = shown.get(row);
                 problem = null;
@@ -213,8 +223,32 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        scroll = Math.max(0, Math.min(scroll - delta * ROW, Math.max(0, shown.size() * ROW - (listBottom() - listTop() - 4))));
+        fitScroll();
+        scroll.wheel(delta);
         return true;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (heldBar != null) {
+            heldBar.dragTo(mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (heldBar != null) {
+            heldBar.letGo();
+            heldBar = null;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void fitScroll() {
+        scroll.fit(listBottom() - listTop() - 4, shown.size() * ROW);
     }
 
     @Override
@@ -234,9 +268,10 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
             Gui.wrapped(g, font, nothingShown(), left + 4, listTop() + 4, w - 8, Gui.labelSoft());
         }
         Gui.scissor(g, left + 1, listTop() + 1, right - 1, listBottom() - 1);
-        int y = listTop() + 2 - (int) scroll;
+        fitScroll();
+        int y = listTop() + 2 - scroll.top();
         // Narrower rows when the list scrolls, leaving room for its bar.
-        int rowRight = shown.size() * ROW > listBottom() - listTop() - 4 ? right - 8 : right;
+        int rowRight = scroll.scrolls() ? right - 8 : right;
         for (T choice : shown) {
             if (y > listBottom()) {
                 break;
@@ -258,7 +293,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
             y += ROW;
         }
         Gui.endScissor(g);
-        Gui.scrollbar(g, right - 4, listTop(), listBottom() - listTop(), scroll, Math.max(0, shown.size() * ROW - (listBottom() - listTop() - 4)));
+        Gui.scrollbar(g, right - 4, listTop(), listBottom() - listTop(), scroll.offset(), scroll.most());
         Component note = note();
         if (note != null) {
             Gui.drawClipped(g, font, note.getString(), left + 2, listBottom() + 3, w, Gui.labelSoft(), false);
