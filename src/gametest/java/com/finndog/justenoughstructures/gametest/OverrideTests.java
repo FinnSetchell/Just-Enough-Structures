@@ -176,7 +176,7 @@ public final class OverrideTests {
             helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, "{ not json")).contains("invalid_json"),
                     "broken JSON wasn't refused");
             String unknownEntry = "{\"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:nonsense\"}]}]}";
-            helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, unknownEntry)).endsWith("invalid_table"),
+            helper.assertTrue(key(LootOverrides.save(server.getResourceManager(), IGLOO, unknownEntry)).endsWith("invalid_entry"),
                     "a table with an unknown entry type wasn't refused");
             helper.assertFalse(Files.exists(dir.resolve("data")), "something was saved anyway");
         } finally {

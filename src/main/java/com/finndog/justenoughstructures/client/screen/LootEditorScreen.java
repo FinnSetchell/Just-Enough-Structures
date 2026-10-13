@@ -739,6 +739,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         });
     }
 
+    @Override
+    public void refused(Component why) {
+        note(why, bad());
+    }
+
     private void note(Component text, int colour) {
         message = text;
         messageColour = colour;
@@ -1393,7 +1398,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
-            Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, bad());
+            int below = Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, bad());
+            // When it names a pool or an entry, a way straight to it.
+            LootOverrides.Fault fault = raw || draft == null ? null : LootOverrides.Fault.of(previewProblem);
+            if (fault != null && JsonPaths.object(draft, fault.entry() < 0 ? JsonPaths.join("pools", fault.pool())
+                    : EntryTree.path(fault.pool(), fault.entry(), fault.child())) != null) {
+                ui.link(g, Component.translatable("screen.justenoughstructures.editor.show_fault"), x + 2, below + 3, true,
+                        () -> select(fault.pool(), fault.entry(), fault.child()));
+            }
             return;
         }
         if (preview == null) {

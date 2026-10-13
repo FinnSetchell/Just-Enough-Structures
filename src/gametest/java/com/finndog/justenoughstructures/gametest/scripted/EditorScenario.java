@@ -67,6 +67,20 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(shoot("e03e_typing_weight"))
                 .then(pressKey(InputConstants.KEY_RETURN))
+                // What isn't a number is turned down with a word about it, and the weight stays.
+                .then(moveTo(() -> field(mc, "pools.0.entries.1.weight"), 8))
+                .then(click())
+                .then(type("x", 2))
+                .then(pressKey(InputConstants.KEY_RETURN))
+                .then(pause(5))
+                .then(run(() -> {
+                    String weight = String.valueOf(JsonParser.parseString(editor(mc).draftText()).getAsJsonObject().getAsJsonArray("pools").get(0).getAsJsonObject()
+                            .getAsJsonArray("entries").get(1).getAsJsonObject().get("weight"));
+                    if (!weight.equals("40") || Reflect.get(editor(mc), "message") == null) {
+                        throw new IllegalStateException("Typing 40x as a weight left it " + weight + " and said " + Reflect.get(editor(mc), "message"));
+                    }
+                }))
+                .then(shoot("e03e2_not_a_number"))
                 .then(moveTo(() -> field(mc, "pools.0.entries.1.functions.1.count#kind"), 8))
                 .then(click())
                 .then(pause(10))

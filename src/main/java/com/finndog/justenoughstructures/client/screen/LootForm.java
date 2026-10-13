@@ -68,6 +68,9 @@ final class LootForm {
 
         /** The same for an entry inside another, by the path down to it from the pool's entry. */
         void select(int pool, int entry, String child);
+
+        /** What was typed in a field was turned down, and why. */
+        void refused(Component why);
     }
 
     private final Font font;
@@ -1370,6 +1373,7 @@ final class LootForm {
                         double number = Double.parseDouble(trimmed);
                         value = kind == Kind.INT ? new JsonPrimitive(Math.round(number)) : JsonPaths.number(number);
                     } catch (NumberFormatException e) {
+                        host.refused(text("not_a_number", trimmed));
                         return;
                     }
                 }

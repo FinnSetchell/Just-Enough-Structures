@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.server.JesServer;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -27,10 +28,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.Resource;
@@ -219,11 +222,120 @@ public final class LootOverrides {
         } catch (JsonParseException e) {
             return jsonProblem(e);
         }
+        String problem = problem(id, parsed, beforeWorld);
+        return problem == null ? null : located(id, parsed, beforeWorld, problem);
+    }
+
+    /** Why the game can't load this as a loot table, or null if it can. */
+    private static String problem(ResourceLocation id, JsonElement json, boolean beforeWorld) {
         try {
-            LootTable table = fromJson(id, parsed, beforeWorld);
-            return table == null ? Component.translatable("screen.justenoughstructures.override.invalid_table", "") : null;
+            return fromJson(id, json, beforeWorld) == null ? "" : null;
         } catch (RuntimeException e) {
-            return Component.translatable("screen.justenoughstructures.override.invalid_table", message(e));
+            return message(e);
+        }
+    }
+
+    /**
+     * A table the game can't load, with the part that's the matter named when leaving the rest out
+     * shows which it is: a pool by itself, then one of its entries by itself, then one of the entries
+     * inside that. The reason given is the smallest part's, which has the least in it that's fine.
+     */
+    private static Component located(ResourceLocation id, JsonElement json, boolean beforeWorld, String whole) {
+        // With no pools it's the table's own settings, and there's no part to name.
+        if (json instanceof JsonObject table && table.get("pools") instanceof JsonArray pools
+                && problem(id, with(table, "pools", new JsonArray()), beforeWorld) == null) {
+            for (int p = 0; p < pools.size(); p++) {
+                String inPool = problem(id, with(table, "pools", only(pools.get(p))), beforeWorld);
+                if (inPool == null) {
+                    continue;
+                }
+                // With no entries it's the pool's own settings.
+                if (pools.get(p) instanceof JsonObject pool && pool.get("entries") instanceof JsonArray entries
+                        && problem(id, with(table, "pools", only(with(pool, "entries", new JsonArray()))), beforeWorld) == null) {
+                    for (int e = 0; e < entries.size(); e++) {
+                        Function<JsonElement, String> alone = entry -> problem(id, with(table, "pools", only(with(pool, "entries", only(entry)))), beforeWorld);
+                        String inEntry = alone.apply(entries.get(e));
+                        if (inEntry != null) {
+                            StringBuilder child = new StringBuilder();
+                            String reason = deepest(entries.get(e), alone, child, inEntry);
+                            return Component.translatable("screen.justenoughstructures.override.invalid_entry" + (child.length() == 0 ? "" : "_inside"),
+                                    e + 1, p + 1, reason, child.toString());
+                        }
+                    }
+                }
+                return Component.translatable("screen.justenoughstructures.override.invalid_pool", p + 1, inPool);
+            }
+        }
+        return Component.translatable("screen.justenoughstructures.override.invalid_table", whole);
+    }
+
+    /**
+     * Follows what's the matter with an entry down into the entries inside it, for as long as leaving
+     * the others out still shows which it is. {@code alone} says what's wrong with the table when this
+     * entry is put in it as given. The way down is added to {@code child}, and the reason at the end of it returned.
+     */
+    private static String deepest(JsonElement entry, Function<JsonElement, String> alone, StringBuilder child, String reason) {
+        if (!(entry instanceof JsonObject holder) || !(holder.get("children") instanceof JsonArray children)
+                || alone.apply(with(holder, "children", new JsonArray())) != null) {
+            return reason;
+        }
+        for (int c = 0; c < children.size(); c++) {
+            Function<JsonElement, String> inside = one -> alone.apply(with(holder, "children", only(one)));
+            String inChild = inside.apply(children.get(c));
+            if (inChild != null) {
+                child.append(child.length() == 0 ? "" : ".").append("children.").append(c);
+                return deepest(children.get(c), inside, child, inChild);
+            }
+        }
+        return reason;
+    }
+
+    /** A copy of an object with one of its values swapped. What's in it is shared, not copied. */
+    private static JsonObject with(JsonObject object, String key, JsonElement value) {
+        JsonObject copy = new JsonObject();
+        object.entrySet().forEach(e -> copy.add(e.getKey(), e.getKey().equals(key) ? value : e.getValue()));
+        return copy;
+    }
+
+    private static JsonArray only(JsonElement element) {
+        JsonArray array = new JsonArray();
+        array.add(element);
+        return array;
+    }
+
+    /**
+     * The part of a table a problem from {@link #check} is about: a pool, counted from 0, an entry in
+     * it or -1 for the pool itself, and for an entry inside another the path down to it from that
+     * entry, like "children.1". The problem's own words say it to a player; this is for showing it.
+     */
+    public record Fault(int pool, int entry, String child) {
+        /** The part a problem names, or null if it names none. */
+        public static Fault of(Component problem) {
+            if (problem == null || !(problem.getContents() instanceof TranslatableContents said)) {
+                return null;
+            }
+            String key = said.getKey();
+            Object[] args = said.getArgs();
+            try {
+                if (key.endsWith("override.invalid_pool") && args.length >= 1) {
+                    return new Fault(number(args[0]) - 1, -1, "");
+                }
+                if ((key.endsWith("override.invalid_entry") || key.endsWith("override.invalid_entry_inside")) && args.length >= 2) {
+                    return new Fault(number(args[1]) - 1, number(args[0]) - 1, args.length >= 4 ? said(args[3]) : "");
+                }
+            } catch (NumberFormatException e) {
+                // Not one of ours after all.
+            }
+            return null;
+        }
+
+        // What it was given as, or the text of that once it has been sent to a player.
+        private static int number(Object arg) {
+            return Integer.parseInt(said(arg).trim());
+        }
+
+        private static String said(Object arg) {
+            return arg instanceof Component component ? component.getString() : String.valueOf(arg);
         }
     }
 
