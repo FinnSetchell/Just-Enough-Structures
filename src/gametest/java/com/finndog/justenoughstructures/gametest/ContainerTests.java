@@ -349,7 +349,10 @@ public final class ContainerTests {
         helper.succeed();
     }
 
-    /** After /reload the structure really has the changed container, and after undoing it and another /reload, its own table again. */
+    /**
+     * After /reload the structure really has the changed container, and after undoing it and another
+     * /reload, its own table again, with the undone change forgotten.
+     */
     public static void patchesApplyOnReload(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         freshFolder();
@@ -376,6 +379,7 @@ public final class ContainerTests {
         AtomicReference<CompletableFuture<Void>> second = new AtomicReference<>();
         StructureSnapshot.Container[] seen = new StructureSnapshot.Container[2];
         String[] rechanged = new String[1];
+        String[] ownAfter = new String[1];
         helper.succeedWhen(() -> {
             helper.assertTrue(first.isDone(), "still reloading");
             if (second.get() == null) {
@@ -395,6 +399,8 @@ public final class ContainerTests {
             helper.assertTrue(second.get().isDone(), "still reloading");
             if (seen[1] == null) {
                 seen[1] = at(capture(server, "pillager_outpost"), source);
+                // Were the container's own table now the one the undone change had set, it would be its own.
+                ownAfter[0] = ContainerPatches.ownTable(source.template(), source.pos(), "minecraft:chests/desert_pyramid");
                 leaveFolder();
             }
             helper.assertTrue(seen[0] != null && IGLOO.toString().equals(seen[0].lootTable())
@@ -403,6 +409,8 @@ public final class ContainerTests {
                     "the container's own table wasn't back after undoing the change");
             helper.assertTrue(before.lootTable().equals(rechanged[0]),
                     "changing it again before /reload remembered " + rechanged[0] + " as its own table, not " + before.lootTable());
+            helper.assertTrue("minecraft:chests/desert_pyramid".equals(ownAfter[0]),
+                    "the undone change was still remembered after /reload: a container with the table it had set was said to have " + ownAfter[0] + " as its own");
         });
     }
 

@@ -159,14 +159,14 @@ public final class JesServer {
     public static void starting(MinecraftServer server) {
         running = server;
         ServerConfig.load();
-        ContainerPatches.load();
-        SpawnerPatches.load();
+        ContainerPatches.reloaded();
+        SpawnerPatches.reloaded();
     }
 
     /** Called when the server starts and after /reload, since structures and loot can change. */
     public static void invalidate() {
-        ContainerPatches.load();
-        SpawnerPatches.load();
+        ContainerPatches.reloaded();
+        SpawnerPatches.reloaded();
         clearCaptures();
         catalog = null;
         ODDS_CACHE.clear();

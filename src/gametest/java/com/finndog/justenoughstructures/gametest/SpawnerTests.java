@@ -412,6 +412,7 @@ public final class SpawnerTests {
         AtomicReference<CompletableFuture<Void>> second = new AtomicReference<>();
         StructureSnapshot.Spawner[] seen = new StructureSnapshot.Spawner[2];
         SpawnerPatches.Patch[] again = new SpawnerPatches.Patch[1];
+        String[] ownAfter = new String[1];
         helper.succeedWhen(() -> {
             helper.assertTrue(first.isDone(), "still reloading");
             if (second.get() == null) {
@@ -428,12 +429,23 @@ public final class SpawnerTests {
             helper.assertTrue(second.get().isDone(), "still reloading");
             if (seen[1] == null) {
                 seen[1] = at(capture(server, BASTION, seed), source);
+                // Were the spawner's own mob now the one the undone change had set, it would be its own.
+                CompoundTag entity = new CompoundTag();
+                entity.putString("id", "minecraft:zombie");
+                CompoundTag data = new CompoundTag();
+                data.put("entity", entity);
+                CompoundTag zombie = new CompoundTag();
+                zombie.put("SpawnData", data);
+                ownAfter[0] = SpawnerPatches.ownMob(source.template(), source.pos(),
+                        new StructureTemplate.StructureBlockInfo(source.pos(), Blocks.SPAWNER.defaultBlockState(), zombie), server.getResourceManager());
                 leaveFolder();
             }
             helper.assertTrue(seen[0] != null && HUSK.equals(seen[0].mob()) && seen[0].others() == 0 && MAGMA_CUBE.equals(seen[0].source().patchedFrom()),
                     "the changed spawner wasn't used after /reload: " + seen[0]);
             helper.assertTrue(again[0] != null && MAGMA_CUBE.equals(again[0].original()),
                     "changing it again after undoing took the undone mob as its own: " + again[0]);
+            helper.assertTrue("minecraft:zombie".equals(ownAfter[0]),
+                    "the undone change was still remembered after /reload: a spawner with the mob it had set was said to have " + ownAfter[0] + " as its own");
             helper.assertTrue(seen[1] != null && MAGMA_CUBE.equals(seen[1].mob()) && seen[1].source().patchedFrom() == null,
                     "the spawner's own mob wasn't back after undoing the change: " + seen[1]);
         });

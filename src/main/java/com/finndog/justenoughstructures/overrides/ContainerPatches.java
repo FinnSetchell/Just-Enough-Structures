@@ -39,6 +39,11 @@ public final class ContainerPatches {
         STORE.load();
     }
 
+    /** Reads the patches again as the server starts or after a /reload, and forgets the ones undone before it. */
+    public static void reloaded() {
+        STORE.reloaded();
+    }
+
     /**
      * Each patched template and its patches in use, as text that changes whenever they do, so the
      * loot index can tell which templates' containers changed.

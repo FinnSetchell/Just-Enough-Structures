@@ -122,6 +122,11 @@ public final class SpawnerPatches {
         STORE.load();
     }
 
+    /** Reads the patches again as the server starts or after a /reload, and forgets the ones undone before it. */
+    public static void reloaded() {
+        STORE.reloaded();
+    }
+
     /** Every patch saved, in the order they were saved, whether or not changes are in use. */
     public static List<Patch> all() {
         return STORE.all();

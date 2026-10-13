@@ -69,6 +69,15 @@ final class PatchStore<P extends PatchStore.Spot> {
         }
     }
 
+    /**
+     * Reads the patches again as the server starts or after a /reload. Every template is loaded afresh
+     * from then on, so none still has a patch that was undone, and the undone ones are forgotten.
+     */
+    synchronized void reloaded() {
+        undone.clear();
+        load();
+    }
+
     /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
     synchronized void load() {
         Map<ResourceLocation, List<P>> out = new HashMap<>();
