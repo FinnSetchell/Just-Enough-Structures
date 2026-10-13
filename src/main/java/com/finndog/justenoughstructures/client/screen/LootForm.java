@@ -193,7 +193,11 @@ final class LootForm {
             }
             case "dynamic" -> y = row(g, x, y, w, "name", (cx, cw) -> choice(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.DYNAMIC, false));
             case "slots" -> y = row(g, x, y, w, "slot_source", (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, "slot_source")));
+            // A kind the form doesn't know, like a mod's: a field for each of its settings, as for functions.
             default -> {
+                if (!List.of("empty", "alternatives", "group", "sequence").contains(kind)) {
+                    y = generic(g, x, y, w, path, List.of("type", "weight", "quality", "functions", "conditions"));
+                }
             }
         }
         if (composite) {
@@ -490,7 +494,10 @@ final class LootForm {
         return end(g, x, top, y, w);
     }
 
-    /** A field for each setting of a kind the form doesn't know, with its JSON in it. */
+    /**
+     * A field for each setting of a kind the form doesn't know, with its JSON in it, and a link to
+     * give it one it hasn't got: its name is typed first, then what it's set to.
+     */
     private int generic(GuiGraphics g, int x, int y, int w, String path, List<String> skip) {
         JsonObject object = JsonPaths.object(draft(), path);
         if (object == null) {
@@ -503,7 +510,47 @@ final class LootForm {
             String key = e.getKey();
             y = labelled(g, x, y, w, StructureNames.pretty(key), (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, key)));
         }
-        return y;
+        if (!path.equals(naming)) {
+            ui.link(g, text("add_setting"), x + 4, y + 1, true, () -> {
+                naming = path;
+                pendingEdit = path + "#setting";
+            });
+            return y + Gui.fineLine(font) + 5;
+        }
+        String id = path + "#setting";
+        return row(g, x, y, w, "setting_name", (cx, cw) -> {
+            int[] rect = {cx, y(), cw - 12, FIELD};
+            host.drawn(id, rect);
+            boolean lit = id.equals(host.editing()) || ui.hovered(rect[0], rect[1], rect[2], FIELD);
+            g.fill(rect[0], rect[1], rect[0] + rect[2], rect[1] + FIELD, lit ? 0xFFFFFFFF : 0xFFA0A0A0);
+            g.fill(rect[0] + 1, rect[1] + 1, rect[0] + rect[2] - 1, rect[1] + FIELD - 1, 0xFF000000);
+            Consumer<String> named = name -> nameSetting(path, name.trim());
+            ui.spot(rect[0], rect[1], rect[2], FIELD, () -> host.edit(id, rect, "", named));
+            if (id.equals(pendingEdit)) {
+                pendingEdit = null;
+                host.edit(id, rect, "", named);
+            }
+            removeX(g, cx + cw - 8, y(), () -> naming = null);
+        });
+    }
+
+    /**
+     * Gives what's being given a setting that setting, by the name typed for it, with nothing in it
+     * yet: what it's set to is typed next. No name leaves it without one. One it has already, or one
+     * with a dot, which is how the form finds its way about a table, is turned down.
+     */
+    private void nameSetting(String path, String name) {
+        naming = null;
+        JsonObject object = JsonPaths.object(draft(), path);
+        if (object == null || name.isEmpty()) {
+            return;
+        }
+        if (name.contains(".") || object.has(name)) {
+            host.refused(text(name.contains(".") ? "setting_with_dot" : "setting_there", name));
+            return;
+        }
+        pendingEdit = JsonPaths.join(path, name);
+        set(pendingEdit, new JsonPrimitive(""));
     }
 
     // ------------------------------------------------------------------ predicates
@@ -913,6 +960,10 @@ final class LootForm {
             Gui.drawClipped(g, font, shown, x + 4, y + 3, w - 8, 0xFFE0E0E0, false);
         }
         ui.spot(x, y, w, FIELD, () -> host.edit(path, rect, shown, text -> commit(path, kind, text)));
+        if (path.equals(pendingEdit)) {
+            pendingEdit = null;
+            host.edit(path, rect, shown, text -> commit(path, kind, text));
+        }
         if (kind == Kind.RAW && font.width(shown) > w - 8) {
             ui.tooltip(x, y, w, FIELD, Component.literal(shown));
         }
@@ -967,6 +1018,8 @@ final class LootForm {
 
     /** A field just added to a list, to start typing in as soon as it's drawn. */
     private String pendingEdit;
+    /** The function, condition or entry being given a setting the form has no row for, while its name is typed. Null for none. */
+    private String naming;
 
     /**
      * A box for an id with a list of what it can be, like an enchantment or a potion, listed under it

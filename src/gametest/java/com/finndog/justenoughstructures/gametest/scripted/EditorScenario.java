@@ -181,7 +181,31 @@ final class EditorScenario {
                         throw new IllegalStateException("The form doesn't show the entry inside the alternatives");
                     }
                 }))
-                .then(shoot("e08_entry_inside"));
+                .then(shoot("e08_entry_inside"))
+                // A kind the form has no rows for, like a mod's function, is given a setting by its name.
+                .then(run(() -> editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", "
+                        + "\"name\": \"minecraft:stick\", \"functions\": [{\"function\": \"examplemod:sparkle\", \"colour\": \"red\"}]}]}]}")))
+                .then(pause(10))
+                .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
+                .then(click())
+                .then(pause(10))
+                .then(run(() -> editor(mc).pick(0, 0)))
+                .then(pause(10))
+                .then(moveTo(() -> at(mc, "+ Add setting"), 8))
+                .then(click())
+                .then(pause(5))
+                .then(type("power", 2))
+                .then(pressKey(InputConstants.KEY_RETURN))
+                .then(pause(5))
+                .then(type("3", 2))
+                .then(pressKey(InputConstants.KEY_RETURN))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (!editor(mc).draftText().contains("\"colour\":\"red\",\"power\":3")) {
+                        throw new IllegalStateException("Adding a setting called power, set to 3, left the table as " + editor(mc).draftText());
+                    }
+                }))
+                .then(shoot("e09_setting_added"));
         return d;
     }
 
