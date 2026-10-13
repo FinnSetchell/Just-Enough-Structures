@@ -637,6 +637,12 @@ public final class JesGameTests {
         SpawnerTests.spawnersGroupByWhatTheyMake(helper);
     }
 
+    // Builds the whole loot index, which every other test's previews would wait behind, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_build", timeoutTicks = 6000)
+    public void indexIsHandedOutEarlyThenFinished(GameTestHelper helper) {
+        IndexStoreTests.indexIsHandedOutEarlyThenFinished(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
     public void spawnerPatchesApplyOnReload(GameTestHelper helper) {

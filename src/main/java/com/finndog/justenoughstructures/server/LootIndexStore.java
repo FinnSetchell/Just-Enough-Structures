@@ -56,6 +56,11 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * Otherwise a dedicated server builds it straight away and singleplayer waits until someone wants
  * it, and while it's rebuilt the index from before stays in use. Nothing here holds up the server
  * starting or players joining.
+ *
+ * <p>A build with no index from before to go on using hands one out early: what every structure's
+ * template pools hold and the whole of the structures without pools, which is most of the loot and
+ * quick to find. The rest, one generation of each structure with pools, takes many times longer in
+ * a big pack. Players are told how far that has got, and get the finished index when it's done.
  */
 public final class LootIndexStore {
     /**
@@ -83,6 +88,9 @@ public final class LootIndexStore {
     // Building failed, and won't be tried again until the next /reload.
     private static boolean broken;
     private static boolean wanted;
+    // The index players have is an early one, with more to come. Read on the index's thread too.
+    private static volatile boolean partial;
+    private static volatile long progressSaid;
     private static volatile int done;
     private static volatile int total;
     // For the debug log: what each source file hashed to last time, to say which ones changed.
@@ -165,6 +173,7 @@ public final class LootIndexStore {
                 } else {
                     index = null;
                     payload = null;
+                    partial = false;
                 }
             });
         });
@@ -181,6 +190,7 @@ public final class LootIndexStore {
         building = false;
         broken = false;
         wanted = false;
+        partial = false;
         WAITING.clear();
     }
 
@@ -189,6 +199,10 @@ public final class LootIndexStore {
         WAITING.add(player.getUUID());
         if (payload != null) {
             JesServer.sendIndex(player, payload);
+            if (partial) {
+                // It's an early index, so they're told there's more to come and how far that has got.
+                JesServer.sendIndexProgress(player, done, total);
+            }
             return;
         }
         wanted = true;
@@ -209,8 +223,12 @@ public final class LootIndexStore {
             long started = System.nanoTime();
             AtomicInteger failed = new AtomicInteger();
             // It makes every structure's first view on the way, which is saved for players.
-            StructureScan scanned = LootIndex.scan(server, ids, d -> done = d, () -> generation != GENERATION.get() || !server.isRunning(), failed,
-                    (id, firstView) -> SavedPreviews.offer(server, id, StructureCapture.defaultSeed(id), firstView));
+            StructureScan scanned = LootIndex.scan(server, ids, d -> {
+                        done = d;
+                        sayProgress(server, generation);
+                    }, () -> generation != GENERATION.get() || !server.isRunning(), failed,
+                    (id, firstView) -> SavedPreviews.offer(server, id, StructureCapture.defaultSeed(id), firstView),
+                    early -> publishEarly(server, generation, early, started));
             if (scanned == null) {
                 JesLog.debug("Stopped building the loot index after {} of {} structures, as {}", done, ids.size(),
                         server.isRunning() ? "the server's data was reloaded" : "the server is stopping");
@@ -256,12 +274,53 @@ public final class LootIndexStore {
         });
     }
 
-    /** Works out what players get, leaving hidden structures out, and sends it to everyone who asked. */
+    /**
+     * Once the quick part of a build is done: players get the index as far as it goes rather than
+     * nothing until every structure has been generated, unless they have a finished one from before
+     * to go on using. On the index's thread.
+     */
+    private static void publishEarly(MinecraftServer server, int generation, StructureScan early, long started) {
+        LootIndex soon = LootIndex.of(server, early);
+        server.execute(() -> {
+            if (generation != GENERATION.get() || !building || (index != null && !partial)) {
+                return;
+            }
+            JesLog.debug("The loot index can be used after {} s, with {} of {} structures still to generate", (System.nanoTime() - started) / 1_000_000_000L,
+                    total - done, total);
+            index = soon;
+            partial = true;
+            send(server);
+            Players.forEachOnline(server, WAITING, player -> JesServer.sendIndexProgress(player, done, total));
+        });
+    }
+
+    /** While the rest of an early index is found: tells everyone who has it how far that's got, every couple of seconds. On the index's thread. */
+    private static void sayProgress(MinecraftServer server, int generation) {
+        long now = System.currentTimeMillis();
+        // Not once the last one is done: the finished index is on its way, and says so by arriving.
+        if (!partial || done >= total || now - progressSaid < 2000) {
+            return;
+        }
+        progressSaid = now;
+        server.execute(() -> {
+            if (generation == GENERATION.get() && partial) {
+                Players.forEachOnline(server, WAITING, player -> JesServer.sendIndexProgress(player, done, total));
+            }
+        });
+    }
+
+    /** The finished index goes to everyone who asked, and a dedicated server then saves the first views it hasn't yet. */
     private static void publish(MinecraftServer server) {
+        partial = false;
+        send(server);
+        SavedPreviews.fill(server);
+    }
+
+    /** Works out what players get from the index as it stands, leaving hidden structures out, and sends it to everyone who asked. */
+    private static void send(MinecraftServer server) {
         LootIndex shown = visible(index);
         payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeIndex(buf, shown)));
         Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
-        SavedPreviews.fill(server);
     }
 
     /** The index without the structures the server hides, and without loot tables only they use. */
