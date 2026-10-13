@@ -533,6 +533,47 @@ public final class OverrideTests {
         }
     }
 
+    /**
+     * Entries are matched up across a merge by what they are, so a pool with a Nothing entry, or with
+     * the same item in it twice, still merges entry by entry: the dev's change to one and the mod's
+     * new entry both come through, with nothing left to look at.
+     */
+    public static void mergesMatchEntriesThatHaveNoNameOfTheirOwn(GameTestHelper helper) {
+        String withNothing = """
+                {"pools": [{"rolls": 1, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 10},
+                  {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 5},
+                  {"type": "minecraft:empty", "weight": 20}]}]}
+                """;
+        String emerald = ",\n  {\"type\": \"minecraft:item\", \"name\": \"minecraft:emerald\", \"weight\": 2}]}]}";
+        String mine = withNothing.replace("\"weight\": 5", "\"weight\": 9");
+        String theirs = withNothing.replace("]}]}", emerald);
+        helper.assertTrue(!mine.equals(withNothing) && !theirs.equals(withNothing), "the test's own tables aren't what it means them to be");
+        JsonMerge.Result merged = JsonMerge.merge(JsonParser.parseString(withNothing), JsonParser.parseString(mine), JsonParser.parseString(theirs));
+        String entries = JsonPaths.array(merged.merged(), "pools.0.entries").toString();
+        helper.assertTrue(merged.conflicts() == 0 && entries.contains("\"minecraft:gold_ingot\",\"weight\":9") && entries.contains("minecraft:emerald")
+                        && entries.split("minecraft:empty", -1).length == 2 && JsonPaths.array(merged.merged(), "pools.0.entries").size() == 4,
+                "a pool with a Nothing entry merged with " + merged.conflicts() + " to look at, as " + entries);
+
+        String twice = """
+                {"pools": [{"rolls": 1, "entries": [
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 10},
+                  {"type": "minecraft:item", "name": "minecraft:bone", "weight": 1, "functions": [{"function": "minecraft:set_count", "count": 5}]},
+                  {"type": "minecraft:item", "name": "minecraft:gold_ingot", "weight": 5}]}]}
+                """;
+        String mineTwice = twice.replace("\"weight\": 5", "\"weight\": 9");
+        String theirsTwice = twice.replace("\"weight\": 1,", "\"weight\": 3,").replace("]}]}", emerald);
+        helper.assertTrue(!mineTwice.equals(twice) && theirsTwice.contains("\"weight\": 3,") && theirsTwice.contains("emerald"),
+                "the test's own tables aren't what it means them to be");
+        JsonMerge.Result both = JsonMerge.merge(JsonParser.parseString(twice), JsonParser.parseString(mineTwice), JsonParser.parseString(theirsTwice));
+        String bones = JsonPaths.array(both.merged(), "pools.0.entries").toString();
+        helper.assertTrue(both.conflicts() == 0 && bones.contains("\"minecraft:bone\",\"weight\":10") && bones.contains("\"minecraft:bone\",\"weight\":3")
+                        && bones.contains("\"minecraft:gold_ingot\",\"weight\":9") && bones.contains("minecraft:emerald")
+                        && JsonPaths.array(both.merged(), "pools.0.entries").size() == 4,
+                "a pool with bones in it twice merged with " + both.conflicts() + " to look at, as " + bones);
+        helper.succeed();
+    }
+
     /** A mod's update and a dev's edit to different parts both survive a merge; the same part is a conflict, keeping the dev's. */
     public static void mergesKeepBothSidesChanges(GameTestHelper helper) {
         String base = """

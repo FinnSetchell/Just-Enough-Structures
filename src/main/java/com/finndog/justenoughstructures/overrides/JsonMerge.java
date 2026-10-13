@@ -3,8 +3,9 @@ package com.finndog.justenoughstructures.overrides;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,8 +18,9 @@ import java.util.Set;
  * table that's been overridden. What only one side changed is taken from that side. Where both
  * changed the same thing, the dev's version is kept and it counts as a conflict to look at.
  *
- * <p>Lists of entries are matched up by their {@code name} where every entry has a different one,
- * so a mod adding or moving an item doesn't make every entry after it look changed.
+ * <p>Lists of entries are matched up by what each entry is, its kind and the item, tag or table
+ * it names, so a mod adding or moving an item doesn't make every entry after it look changed. The
+ * second and later of the same thing are told apart by their order.
  */
 public final class JsonMerge {
     private JsonMerge() {
@@ -72,9 +74,9 @@ public final class JsonMerge {
     }
 
     private static JsonArray mergeArrays(JsonArray base, JsonArray mine, JsonArray theirs, int[] conflicts) {
-        Map<String, JsonElement> baseByName = byName(base);
-        Map<String, JsonElement> mineByName = byName(mine);
-        Map<String, JsonElement> theirsByName = byName(theirs);
+        Map<String, JsonElement> baseByName = byKey(base);
+        Map<String, JsonElement> mineByName = byKey(mine);
+        Map<String, JsonElement> theirsByName = byKey(theirs);
         JsonArray out = new JsonArray();
         if (baseByName != null && mineByName != null && theirsByName != null) {
             // Their order, then anything only the dev added, in the dev's order.
@@ -106,21 +108,42 @@ public final class JsonMerge {
         return mine.deepCopy();
     }
 
-    /** The array's objects by their names, or null if they don't all have a different one. */
-    private static Map<String, JsonElement> byName(JsonArray array) {
+    /**
+     * The array's objects by what each one is, or null if they can't all be told apart. An entry is
+     * its kind and the item, tag or table it names, and the second and later of the same get their
+     * place among those after it, so a Nothing entry, or an item that's there twice, has a key of its
+     * own. Anything else is its name, which has to be different from the others'.
+     */
+    private static Map<String, JsonElement> byKey(JsonArray array) {
         Map<String, JsonElement> out = new LinkedHashMap<>();
-        Set<String> seen = new HashSet<>();
+        Map<String, Integer> seen = new HashMap<>();
         for (JsonElement element : array) {
-            if (!element.isJsonObject() || !element.getAsJsonObject().has("name") || !element.getAsJsonObject().get("name").isJsonPrimitive()) {
+            if (!element.isJsonObject()) {
                 return null;
             }
-            String name = element.getAsJsonObject().get("name").getAsString();
-            if (!seen.add(name)) {
+            JsonObject object = element.getAsJsonObject();
+            String key;
+            if (object.get("type") instanceof JsonPrimitive kind) {
+                key = kind.getAsString() + " " + named(object);
+            } else if (object.get("name") instanceof JsonPrimitive name && !seen.containsKey(name.getAsString())) {
+                key = name.getAsString();
+            } else {
                 return null;
             }
-            out.put(name, element);
+            int count = seen.merge(key, 1, Integer::sum);
+            out.put(count == 1 ? key : key + " #" + count, element);
         }
         return out;
+    }
+
+    /** What an entry names: its item, or its table or tag under whichever key this version of the game has for those. */
+    private static String named(JsonObject entry) {
+        for (String key : List.of("name", "value", "items")) {
+            if (entry.get(key) instanceof JsonPrimitive named) {
+                return named.getAsString();
+            }
+        }
+        return "";
     }
 
     private static JsonElement copy(JsonElement element) {
