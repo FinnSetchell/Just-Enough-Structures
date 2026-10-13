@@ -247,6 +247,28 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * The game's own tables that name other tables pass the check a draft gets, with a world loaded
+     * and before one has. From 26.3 a table is named as an entry of the loot table registry, which
+     * the check has to be given.
+     */
+    public static void tablesThatNameTablesCheck(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        for (String name : List.of("gameplay/fishing", "chests/simple_dungeon")) {
+            ResourceLocation id = Ids.parse(name);
+            String json = LootOverrides.original(server.getResourceManager(), id);
+            helper.assertTrue(json != null, "the game has no " + name + " to try");
+            for (boolean beforeWorld : new boolean[]{false, true}) {
+                Component problem = LootOverrides.check(id, json, beforeWorld);
+                helper.assertTrue(problem == null, name + " as the game has it doesn't pass the check" + (beforeWorld ? " before a world has loaded: " : ": ")
+                        + (problem == null ? "" : problem.getString()));
+            }
+        }
+        helper.assertTrue(LootOverrides.original(server.getResourceManager(), Ids.parse("gameplay/fishing")).contains("loot_table"),
+                "the fishing table names no other table any more, so this test needs another");
+        helper.succeed();
+    }
+
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();

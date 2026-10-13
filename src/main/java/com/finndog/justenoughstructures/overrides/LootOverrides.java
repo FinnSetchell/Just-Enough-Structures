@@ -282,6 +282,62 @@ public final class LootOverrides {
     }
     *///?}
 
+    //? if >=26.3 {
+    /*// From 26.3 a table names another table, a predicate or an item modifier as an entry of that
+    // registry, where it used to give its id alone, so reading a table takes those registries too:
+    // the server's own once a world has loaded. One that's named and isn't there is taken as there,
+    // as an id always was: it may be a table saved here that the next reload brings in.
+    private static HolderLookup.Provider withLoot(HolderLookup.Provider registries, MinecraftServer server) {
+        HolderLookup.Provider loaded = server == null ? null : server.reloadableRegistries().lookup();
+        java.util.List<HolderLookup.RegistryLookup<?>> all = new java.util.ArrayList<>();
+        registries.listRegistries().filter(registry -> !LOOT_REGISTRIES.contains(registry.key())).forEach(all::add);
+        all.add(loot(loaded, net.minecraft.core.registries.Registries.LOOT_TABLE));
+        all.add(loot(loaded, net.minecraft.core.registries.Registries.ITEM_MODIFIER));
+        all.add(loot(loaded, net.minecraft.core.registries.Registries.PREDICATE));
+        return HolderLookup.Provider.create(all.stream());
+    }
+
+    private static final java.util.Set<ResourceKey<?>> LOOT_REGISTRIES = java.util.Set.of(net.minecraft.core.registries.Registries.LOOT_TABLE,
+            net.minecraft.core.registries.Registries.ITEM_MODIFIER, net.minecraft.core.registries.Registries.PREDICATE);
+
+    private static <T> HolderLookup.RegistryLookup<T> loot(HolderLookup.Provider loaded, ResourceKey<net.minecraft.core.Registry<T>> key) {
+        HolderLookup.RegistryLookup<T> there = loaded == null ? null : loaded.<T>lookup(key).orElse(null);
+        return lenient(there != null ? there : new Empty<T>(key));
+    }
+
+    // A registry with nothing in it, to stand for the server's before a world has loaded.
+    private record Empty<T>(ResourceKey<? extends net.minecraft.core.Registry<? extends T>> key) implements HolderLookup.RegistryLookup<T> {
+        @Override
+        public com.mojang.serialization.Lifecycle registryLifecycle() {
+            return com.mojang.serialization.Lifecycle.stable();
+        }
+
+        @Override
+        public Optional<Holder.Reference<T>> get(ResourceKey<T> id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<HolderSet.Named<T>> get(TagKey<T> tag) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Stream<Holder.Reference<T>> listElements() {
+            return Stream.empty();
+        }
+
+        @Override
+        public Stream<HolderSet.Named<T>> listTags() {
+            return Stream.empty();
+        }
+    }
+    *///?} else if >=1.21 {
+    /*private static HolderLookup.Provider withLoot(HolderLookup.Provider registries, MinecraftServer server) {
+        return registries;
+    }
+    *///?}
+
     /** Reads a loot table the way the game reads one from a datapack. */
     private static LootTable fromJson(ResourceLocation id, JsonElement json, boolean beforeWorld) {
         //? if >=1.21 {
@@ -289,7 +345,8 @@ public final class LootOverrides {
         // taking whatever else a table names as there, as a mod's enchantment will be by then.
         MinecraftServer server = JesServer.running();
         HolderLookup.Provider registries = beforeWorld || server == null ? lenientRegistries() : server.registryAccess();
-        return named(LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, registries), json).getOrThrow(JsonParseException::new), id);
+        HolderLookup.Provider all = withLoot(registries, beforeWorld ? null : server);
+        return named(LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, all), json).getOrThrow(JsonParseException::new), id);
         *///?} else if forge {
         /*// Forge names each pool as a table is read, which only works inside its own loading.
         return net.minecraftforge.common.ForgeHooks.loadLootTable(LootDataType.TABLE.parser(), id, json, true);
