@@ -580,7 +580,6 @@
   "screen.justenoughstructures.editor.add_setting": "+ Add setting",
   "screen.justenoughstructures.editor.field.setting_name": "Its name",
   "screen.justenoughstructures.editor.setting_there": "It has a setting called %s already",
-  "screen.justenoughstructures.editor.setting_with_dot": "A setting's name can't have a dot in it",
   "screen.justenoughstructures.editor.add": "+ Add",
   "screen.justenoughstructures.editor.provider.constant": "Constant",
   "screen.justenoughstructures.editor.provider.uniform": "Uniform",

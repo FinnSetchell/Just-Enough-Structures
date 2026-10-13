@@ -482,6 +482,30 @@ public final class OverrideTests {
         return back.has("type") ? back.get("type").getAsString().equals(type) : type.equals("minecraft:generic");
     }
 
+    /**
+     * An id with a dot in it, as some mods' enchantments have, is one step of a path in the form, so
+     * its level is read, changed and taken out where it is and not somewhere of the form's own making.
+     */
+    public static void idsWithDotsAreOneStep(GameTestHelper helper) {
+        JsonObject function = JsonParser.parseString("{\"function\": \"minecraft:set_enchantments\", \"enchantments\": "
+                + "{\"examplemod:storm.caller\": 2, \"minecraft:sharpness\": 1}}").getAsJsonObject();
+        String storm = JsonPaths.join("enchantments", JsonPaths.key("examplemod:storm.caller"));
+        helper.assertTrue(JsonPaths.get(function, storm) instanceof com.google.gson.JsonPrimitive level && level.getAsInt() == 2,
+                "the level of an enchantment with a dot in its id was read as " + JsonPaths.get(function, storm));
+        JsonPaths.set(function, storm, new com.google.gson.JsonPrimitive(5));
+        helper.assertTrue(function.toString().equals("{\"function\":\"minecraft:set_enchantments\",\"enchantments\":{\"examplemod:storm.caller\":5,\"minecraft:sharpness\":1}}"),
+                "setting its level left " + function);
+        JsonPaths.remove(function, storm);
+        helper.assertTrue(function.toString().equals("{\"function\":\"minecraft:set_enchantments\",\"enchantments\":{\"minecraft:sharpness\":1}}"),
+                "taking it out left " + function);
+        // The form's own paths, and a key with the mark itself in it, as before.
+        helper.assertTrue(JsonPaths.get(function, "enchantments.minecraft:sharpness").getAsInt() == 1, "a plain path stopped working");
+        String odd = JsonPaths.join("enchantments", JsonPaths.key("a\\b.c"));
+        JsonPaths.set(function, odd, new com.google.gson.JsonPrimitive(3));
+        helper.assertTrue(function.getAsJsonObject("enchantments").has("a\\b.c") && JsonPaths.get(function, odd).getAsInt() == 3, "a key with a backslash in it was lost in " + function);
+        helper.succeed();
+    }
+
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();

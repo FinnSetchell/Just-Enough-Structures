@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void idsWithDotsAreOneStep(GameTestHelper helper) {
+        OverrideTests.idsWithDotsAreOneStep(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void namesTakeAColourAndAStyle(GameTestHelper helper) {
         TextStyleTests.namesTakeAColourAndAStyle(helper);
     }

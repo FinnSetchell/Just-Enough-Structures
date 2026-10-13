@@ -522,7 +522,7 @@ final class LootForm {
                 continue;
             }
             String key = e.getKey();
-            y = labelled(g, x, y, w, StructureNames.pretty(key), (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, key)));
+            y = labelled(g, x, y, w, StructureNames.pretty(key), (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, JsonPaths.key(key))));
         }
         if (!path.equals(naming)) {
             ui.link(g, text("add_setting"), x + 4, y + 1, true, () -> {
@@ -550,8 +550,8 @@ final class LootForm {
 
     /**
      * Gives what's being given a setting that setting, by the name typed for it, with nothing in it
-     * yet: what it's set to is typed next. No name leaves it without one. One it has already, or one
-     * with a dot, which is how the form finds its way about a table, is turned down.
+     * yet: what it's set to is typed next. No name leaves it without one, and one it has already is
+     * turned down.
      */
     private void nameSetting(String path, String name) {
         naming = null;
@@ -559,11 +559,11 @@ final class LootForm {
         if (object == null || name.isEmpty()) {
             return;
         }
-        if (name.contains(".") || object.has(name)) {
-            host.refused(text(name.contains(".") ? "setting_with_dot" : "setting_there", name));
+        if (object.has(name)) {
+            host.refused(text("setting_there", name));
             return;
         }
-        pendingEdit = JsonPaths.join(path, name);
+        pendingEdit = JsonPaths.join(path, JsonPaths.key(name));
         set(pendingEdit, new JsonPrimitive(""));
     }
 
@@ -1126,9 +1126,9 @@ final class LootForm {
             int pickW = Math.max(40, (cw - 12) * 55 / 100);
             pickBox(g, cx, y(), pickW, path + "#key" + index, id, options, text -> renameKey(path, id, text.trim()));
             if (!id.isEmpty()) {
-                provider(g, cx + pickW + 4, y(), cw - pickW - 16, at(path, id), fallback);
+                provider(g, cx + pickW + 4, y(), cw - pickW - 16, at(path, JsonPaths.key(id)), fallback);
             }
-            removeX(g, cx + cw - 8, y(), () -> remove(at(path, id)));
+            removeX(g, cx + cw - 8, y(), () -> remove(at(path, JsonPaths.key(id))));
         });
     }
 
@@ -1194,7 +1194,7 @@ final class LootForm {
         if (to.isEmpty()) {
             // A new one left without an id goes again; one that had an id keeps it.
             if (from.isEmpty()) {
-                JsonPaths.remove(draft(), JsonPaths.join(path, from));
+                JsonPaths.remove(draft(), JsonPaths.join(path, JsonPaths.key(from)));
                 map.remove("");
                 host.changed();
             }
