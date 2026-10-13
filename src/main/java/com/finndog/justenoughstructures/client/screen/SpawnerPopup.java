@@ -199,7 +199,7 @@ final class SpawnerPopup extends SidePopup {
 
     /** How far the list scrolls, or 0 when it all fits. */
     private int mostScroll() {
-        scroll.fit(listHeight() - 4, rows.size() * (OddsList.ROW + 1));
+        scroll.fit(listHeight() - 4, OddsList.height(rows.size()));
         return scroll.most();
     }
 

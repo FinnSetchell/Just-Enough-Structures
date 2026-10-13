@@ -29,7 +29,7 @@ import net.minecraft.world.item.Items;
 /**
  * Scroll bars. In the browser, the structure list and the details are each dragged by their bar's
  * thumb, and a press on the list's bar picks no structure; then a loot table's chances in its popup
- * and the structures an item is found in. In Pack tools, the list of loot tables is dragged down by
+ * and the structures an item is found in, and a spawner with one mob, whose list has no bar. In Pack tools, the list of loot tables is dragged down by
  * its thumb, sent to its end by a press beside the thumb, left alone by the mouse once the button is
  * up, and moved by the wheel as before. In the loot editor, the item grid, the list under a field
  * being typed in and a list of choices, which a press on its bar leaves open. Each step says how
@@ -84,6 +84,18 @@ final class ScrollScenario {
                 .then(pause(10))
                 .then(drag("the structures iron is found in", along -> browser(mc).popupBar(along), () -> browser(mc).popupScrolled()))
                 .then(shoot("s13_found_in_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(pause(5))
+                // A spawner with one mob, the stronghold's: its list fits, so it has no bar.
+                .then(run(() -> browser(mc).select(Ids.parse("stronghold"))))
+                .then(until(() -> browser(mc).idle() && browser(mc).result() != null && Ids.parse("stronghold").equals(browser(mc).selectedId()), 20 * 400))
+                .then(run(() -> {
+                    expect(browser(mc).result().succeeded() && !browser(mc).result().snapshot().spawners().isEmpty(), "The stronghold had no spawner to open");
+                    browser(mc).openSpawnerPopup(browser(mc).result().snapshot().spawners().get(0));
+                }))
+                .then(pause(10))
+                .then(shoot("s14_spawner_one_mob"))
+                .then(run(() -> expect(browser(mc).popupBar(0) == null, "A spawner with one mob has a scroll bar")))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(pause(5))
                 .then(moveTo(() -> browser(mc).button("tools"), 10))

@@ -40,6 +40,11 @@ final class OddsList {
     private OddsList() {
     }
 
+    /** How tall so many rows are, drawn a pixel apart: the gap comes between rows, not after the last. */
+    static int height(int rows) {
+        return Math.max(0, rows * (ROW + 1) - 1);
+    }
+
     /** A table's rows, most likely first, or rarest first. */
     static List<LootOdds.Row> sorted(LootOdds odds, boolean rarestFirst) {
         List<LootOdds.Row> rows = new ArrayList<>(odds.rows());

@@ -264,7 +264,7 @@ final class ChestPopup {
     }
 
     private void fitScroll() {
-        scroll.fit(bodyHeight() - 4, odds.rows().size() * (OddsList.ROW + 1));
+        scroll.fit(bodyHeight() - 4, OddsList.height(odds.rows().size()));
     }
 
     /** A point part of the way down the list of chances' scroll bar, for the screenshot harness, or null without one. */
