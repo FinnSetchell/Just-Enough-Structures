@@ -251,6 +251,17 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         scroll.fit(listBottom() - listTop() - 4, shown.size() * ROW);
     }
 
+    /** A point part of the way down the list's scroll bar, for the screenshot harness, or null without one. */
+    public int[] scrollBar(float along) {
+        fitScroll();
+        return scroll.scrolls() ? new int[]{right() - 3, listTop() + 1 + Math.round((listBottom() - listTop() - 3) * along)} : null;
+    }
+
+    /** How far the list is scrolled. */
+    public double scrolled() {
+        return scroll.offset();
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Gui.beginClipped();

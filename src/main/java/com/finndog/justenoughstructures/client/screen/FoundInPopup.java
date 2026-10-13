@@ -148,6 +148,15 @@ final class FoundInPopup {
         return rows() == null ? null : HeldBar.at(scroll, mouseX, mouseY, x + WIDTH - 7, y + 30, VISIBLE_ROWS * ROW);
     }
 
+    /** A point part of the way down the list's scroll bar, for the screenshot harness, or null without one. */
+    int[] barPoint(float along) {
+        return rows() != null && scroll.scrolls() ? new int[]{x + WIDTH - 10, y + 31 + Math.round((VISIBLE_ROWS * ROW - 3) * along)} : null;
+    }
+
+    double scrolled() {
+        return scroll.offset();
+    }
+
     Optional<Row> click(double mouseX, double mouseY) {
         List<Row> list = rows();
         if (list == null) {

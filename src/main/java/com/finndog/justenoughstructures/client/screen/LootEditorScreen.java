@@ -1354,6 +1354,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             return HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
         }
 
+        int[] barPoint(float along) {
+            return scroll.scrolls() ? new int[]{x + w - 3, y + 1 + Math.round((h - 3) * along)} : null;
+        }
+
         void click(double mouseX, double mouseY) {
             if (mouseX < x || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
                 return;
@@ -1501,6 +1505,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             return shown.isEmpty() ? null : HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
         }
 
+        int[] barPoint(float along) {
+            update();
+            return !shown.isEmpty() && scroll.scrolls() ? new int[]{x + w - 3, y + 1 + Math.round((h - 3) * along)} : null;
+        }
+
         boolean contains(double mouseX, double mouseY) {
             update();
             return !shown.isEmpty() && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
@@ -1630,6 +1639,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             return HeldBar.at(scroll, mouseX, mouseY, x + w - 2, gridTop, gridH);
         }
 
+        int[] barPoint(float along) {
+            return scroll.scrolls() ? new int[]{x + w - 5, gridTop + 1 + Math.round((gridH - 3) * along)} : null;
+        }
+
         void click(double mouseX, double mouseY) {
             Component cancel = Component.translatable("gui.cancel");
             int cancelW = ui.buttonWidth(cancel);
@@ -1708,6 +1721,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Where a button or link with this label was last drawn, or null. */
     public int[] buttonAt(String label) {
         return ui.centre(label);
+    }
+
+    /** A point part of the way down the scroll bar of the item grid or the list that's open over the form, or null without one. */
+    public int[] dropBar(float along) {
+        return picker != null ? picker.barPoint(along) : choice != null ? choice.barPoint(along) : suggestions != null ? suggestions.barPoint(along) : null;
+    }
+
+    /** How far that grid or list is scrolled, or -1 with none open. */
+    public double dropScrolled() {
+        return picker != null ? picker.scroll.offset() : choice != null ? choice.scroll.offset() : suggestions != null ? suggestions.scroll.offset() : -1;
     }
 
     /** Where the field or list box for a path in the table was last drawn, or null. */

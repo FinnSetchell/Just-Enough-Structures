@@ -2,6 +2,8 @@ package com.finndog.justenoughstructures.gametest.scripted;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.dragTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.tablePicker;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
@@ -79,6 +81,15 @@ final class PackToolsScenario {
                 .then(until(() -> mc.screen instanceof TablePickerScreen p && p.ready(), 400))
                 .then(pause(20))
                 .then(shoot("p09_picker"))
+                .then(moveTo(() -> orZero(tablePicker(mc).scrollBar(0.02f)), 8))
+                .then(dragTo(() -> orZero(tablePicker(mc).scrollBar(0.6f)), 15, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(5))
+                .then(run(() -> {
+                    if (!(tablePicker(mc).scrolled() > 0)) {
+                        throw new IllegalStateException("Dragging the table picker's bar didn't scroll its list");
+                    }
+                }))
+                .then(shoot("p09b_picker_dragged"))
                 // Back out to the browser one screen at a time, the picker, then Pack tools, then the
                 // chest that opened them, waiting for each: a busy pack can be a frame or two behind.
                 .then(pressKey(InputConstants.KEY_ESCAPE))

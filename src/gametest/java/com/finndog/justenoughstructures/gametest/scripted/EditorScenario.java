@@ -5,6 +5,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.dragTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
@@ -16,6 +17,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
+import com.finndog.justenoughstructures.client.screen.Scroll;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -98,12 +100,30 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).showChanges()))
                 .then(pause(10))
                 .then(shoot("e06_changes"))
+                // The compare screen's own class isn't open to the harness, so its bar is found by its workings.
+                .then(moveTo(() -> diffBar(mc, 0.02f), 8))
+                .then(dragTo(() -> diffBar(mc, 0.7f), 15, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(5))
+                .then(run(() -> {
+                    if (!(((Scroll) Reflect.get(mc.screen, "scroll")).offset() > 0)) {
+                        throw new IllegalStateException("Dragging the compare screen's bar didn't scroll it");
+                    }
+                }))
+                .then(shoot("e06b_changes_dragged"))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> editor(mc) != null, 40))
                 .then(run(() -> editor(mc).mergeNow()))
                 .then(pause(40))
                 .then(shoot("e07_merged"));
         return d;
+    }
+
+    /** A point part of the way down the compare screen's scroll bar. */
+    private static int[] diffBar(Minecraft mc, float along) {
+        int right = (Integer) Reflect.call(mc.screen, "barRight");
+        int top = (Integer) Reflect.call(mc.screen, "top");
+        int bottom = (Integer) Reflect.call(mc.screen, "bottom");
+        return new int[]{right - 3, top + 2 + Math.round((bottom - top - 5) * along)};
     }
 
     private static int[] field(Minecraft mc, String path) {

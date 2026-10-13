@@ -187,6 +187,16 @@ final class SpawnerPopup extends SidePopup {
         return HeldBar.at(scroll, mouseX, mouseY, barRight, barTop, barHeight);
     }
 
+    @Override
+    int[] barPoint(float along) {
+        return mostScroll() > 0 ? new int[]{barRight - 4, barTop + 1 + Math.round((barHeight - 3) * along)} : null;
+    }
+
+    @Override
+    double scrolled() {
+        return scroll.offset();
+    }
+
     /** How far the list scrolls, or 0 when it all fits. */
     private int mostScroll() {
         scroll.fit(listHeight() - 4, rows.size() * (OddsList.ROW + 1));

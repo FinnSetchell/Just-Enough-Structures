@@ -14,16 +14,26 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.orZero;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
+import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
+
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
+import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * Scroll bars. In the browser, the structure list and the details are each dragged by their bar's
- * thumb, and a press on the list's bar picks no structure. In Pack tools, the list of loot tables
- * is dragged down by its thumb, sent to its end by a press beside the thumb, left alone by the
- * mouse once the button is up, and moved by the wheel as before. Each step says how far the list
- * is scrolled, as a bar that didn't move looks much like one that did.
+ * thumb, and a press on the list's bar picks no structure; then a loot table's chances in its popup
+ * and the structures an item is found in. In Pack tools, the list of loot tables is dragged down by
+ * its thumb, sent to its end by a press beside the thumb, left alone by the mouse once the button is
+ * up, and moved by the wheel as before. In the loot editor, the item grid, the list under a field
+ * being typed in and a list of choices, which a press on its bar leaves open. Each step says how
+ * far the list is scrolled, as a bar that didn't move looks much like one that did.
  */
 final class ScrollScenario {
     private ScrollScenario() {
@@ -59,6 +69,23 @@ final class ScrollScenario {
                 .then(pause(5))
                 .then(run(() -> expect(browser(mc).scrolled(true) > 0, "Dragging the details' thumb down didn't scroll them")))
                 .then(shoot("s11_details_dragged"))
+                .then(run(() -> browser(mc).openTable("minecraft:chests/desert_pyramid")))
+                .then(pause(30))
+                .then(moveTo(() -> orZero(browser(mc).popupLink("odds")), 10))
+                .then(click())
+                .then(until(() -> browser(mc).popupBar(0) != null, 200))
+                .then(drag("the popup's chances", along -> browser(mc).popupBar(along), () -> browser(mc).popupScrolled()))
+                .then(shoot("s12_popup_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(pause(5))
+                .then(run(() -> browser(mc).openFoundIn(new ItemStack(Items.IRON_INGOT))))
+                // The loot index can still be building.
+                .then(until(() -> browser(mc).popupBar(0) != null, 20 * 400))
+                .then(pause(10))
+                .then(drag("the structures iron is found in", along -> browser(mc).popupBar(along), () -> browser(mc).popupScrolled()))
+                .then(shoot("s13_found_in_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(pause(5))
                 .then(moveTo(() -> browser(mc).button("tools"), 10))
                 .then(click())
                 .then(until(() -> tools(mc) != null && tools(mc).loaded(), 200))
@@ -99,8 +126,51 @@ final class ScrollScenario {
                 .then(dragTo(() -> orZero(tools(mc).scrollBar(0, 0)), 20, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(5))
                 .then(run(() -> expect(tools(mc).scrolled(0) < was[0], "Dragging back up left the list at " + tools(mc).scrolled(0) + ", from " + was[0])))
-                .then(shoot("s03_dragged_back"));
+                .then(shoot("s03_dragged_back"))
+                // The loot editor, on the pyramid's second entry.
+                .then(run(() -> mc.setScreen(new LootEditorScreen(mc.screen, Ids.parse("chests/desert_pyramid"), "Desert Pyramid"))))
+                .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
+                .then(pause(20))
+                .then(run(() -> editor(mc).pick(0, 1)))
+                .then(pause(20))
+                .then(run(() -> editor(mc).openItemPicker()))
+                .then(until(() -> editor(mc).dropBar(0) != null, 100))
+                .then(drag("the item grid", along -> editor(mc).dropBar(along), () -> editor(mc).dropScrolled()))
+                .then(shoot("s20_item_grid_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(pause(5))
+                .then(moveTo(() -> orZero(editor(mc).fieldAt("pools.0.entries.1.name")), 8))
+                .then(click())
+                .then(until(() -> editor(mc).dropBar(0) != null, 100))
+                .then(drag("the items listed under the field", along -> editor(mc).dropBar(along), () -> editor(mc).dropScrolled()))
+                .then(shoot("s21_suggestions_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(pause(5))
+                .then(moveTo(() -> orZero(editor(mc).fieldAt("pools.0.entries.1.functions.0.function")), 8))
+                .then(click())
+                .then(until(() -> editor(mc).dropBar(0) != null, 100))
+                .then(drag("the list of functions", along -> editor(mc).dropBar(along), () -> editor(mc).dropScrolled()))
+                .then(run(() -> expect(editor(mc).dropBar(0) != null, "Pressing the list of functions' bar closed the list")))
+                .then(shoot("s22_choices_dragged"))
+                .then(pressKey(InputConstants.KEY_ESCAPE));
         return d;
+    }
+
+    /**
+     * Sends a list to its top by its bar, with a press near the bar's end and a drag up to its top,
+     * then drags it down by the thumb, and says so if either did nothing. Lists that open already
+     * scrolled to what's picked in them start anywhere.
+     */
+    private static Director.Action drag(String what, Function<Float, int[]> bar, DoubleSupplier scrolled) {
+        return Director.chain(
+                moveTo(() -> orZero(bar.apply(0.98f)), 10),
+                dragTo(() -> orZero(bar.apply(0f)), 15, InputConstants.MOUSE_BUTTON_LEFT),
+                pause(5),
+                run(() -> expect(scrolled.getAsDouble() == 0, "Dragging its bar to the top left " + what + " at " + scrolled.getAsDouble())),
+                moveTo(() -> orZero(bar.apply(0.02f)), 10),
+                dragTo(() -> orZero(bar.apply(0.7f)), 20, InputConstants.MOUSE_BUTTON_LEFT),
+                pause(5),
+                run(() -> expect(scrolled.getAsDouble() > 0, "Dragging its bar's thumb down didn't scroll " + what)));
     }
 
     private static void expect(boolean fine, String otherwise) {

@@ -267,6 +267,19 @@ final class ChestPopup {
         scroll.fit(bodyHeight() - 4, odds.rows().size() * (OddsList.ROW + 1));
     }
 
+    /** A point part of the way down the list of chances' scroll bar, for the screenshot harness, or null without one. */
+    int[] barPoint(float along) {
+        if (view != View.ODDS || odds == null) {
+            return null;
+        }
+        fitScroll();
+        return scroll.scrolls() ? new int[]{barRight - 4, barTop + 1 + Math.round((barHeight - 3) * along)} : null;
+    }
+
+    double scrolled() {
+        return scroll.offset();
+    }
+
     /** Draws the popup and returns the stack under the mouse, or empty. */
     ItemStack render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         links.clear();

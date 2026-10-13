@@ -47,6 +47,16 @@ abstract class SidePopup {
         return null;
     }
 
+    /** A point part of the way down its list's scroll bar, for the screenshot harness, or null without one. */
+    int[] barPoint(float along) {
+        return null;
+    }
+
+    /** How far its list is scrolled, or -1 without one. */
+    double scrolled() {
+        return -1;
+    }
+
     /** Showing all the ones like it rather than a particular one of them. */
     boolean overview() {
         return index < 0;

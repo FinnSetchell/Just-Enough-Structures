@@ -1759,6 +1759,18 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return details ? info.scrolled() : list.scrolled();
     }
 
+    /** A point part of the way down the scroll bar of the open popup's list, or null without one. */
+    public int[] popupBar(float along) {
+        SidePopup side = side();
+        return foundIn != null ? foundIn.barPoint(along) : side != null ? side.barPoint(along) : popup != null ? popup.barPoint(along) : null;
+    }
+
+    /** How far the open popup's list is scrolled, or -1 without one. */
+    public double popupScrolled() {
+        SidePopup side = side();
+        return foundIn != null ? foundIn.scrolled() : side != null ? side.scrolled() : popup != null ? popup.scrolled() : -1;
+    }
+
     /** The structure on show, or null. */
     public ResourceLocation selectedId() {
         return selected == null ? null : selected.id();
