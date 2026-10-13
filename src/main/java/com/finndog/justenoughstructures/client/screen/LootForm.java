@@ -20,6 +20,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -929,6 +930,11 @@ final class LootForm {
 
     /** A label and its control. Returns the y below them. */
     private int row(GuiGraphics g, int x, int y, int w, String key, Control control) {
+        // What the field is for, on hovering its label, where there's a line about it.
+        String help = "screen.justenoughstructures.editor.help." + key;
+        if (Language.getInstance().has(help)) {
+            ui.tooltip(x, y, labelW, FIELD, Component.translatable(help));
+        }
         return labelled(g, x, y, w, text("field." + key).getString(), control);
     }
 

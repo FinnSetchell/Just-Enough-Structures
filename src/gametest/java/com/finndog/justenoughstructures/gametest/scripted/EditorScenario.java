@@ -54,6 +54,18 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).pick(0, 1)))
                 .then(pause(40))
                 .then(shoot("e03_editor_entry"))
+                // Hovering a field's label says what the field is for.
+                .then(moveTo(() -> {
+                    int[] weight = field(mc, "pools.0.entries.1.weight");
+                    return new int[]{weight[0] - 45, weight[1]};
+                }, 8))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (!(Reflect.get(Reflect.get(editor(mc), "ui"), "tooltip") instanceof java.util.List<?> lines) || lines.isEmpty()) {
+                        throw new IllegalStateException("Hovering the Weight label showed nothing about it");
+                    }
+                }))
+                .then(shoot("e03a_field_help"))
                 .then(moveTo(() -> at(mc, "+ Add function"), 8))
                 .then(click())
                 .then(pause(30))
