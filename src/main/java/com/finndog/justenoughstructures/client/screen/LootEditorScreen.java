@@ -97,6 +97,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private boolean raw;
     private String rawText;
     private boolean dirty;
+    /** The table before each change, to go back to with Ctrl+Z and forward again with Ctrl+Y. */
+    private final EditHistory history = new EditHistory();
+    private Button undoButton;
+    private Button redoButton;
     /** Merge in what the mod changed as soon as the table's here, as Pack tools' Merge asks. */
     private boolean mergeWhenLoaded;
     private Component message;
@@ -177,6 +181,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 if (draft != null && JsonPaths.object(draft, "pools.0") != null) {
                     selectedPool = 0;
                 }
+                // There's nothing to go back to before the table as it was opened.
+                history.start(raw || draft == null ? null : draft.toString());
             }
             if (mergeWhenLoaded) {
                 mergeWhenLoaded = false;
@@ -203,6 +209,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         selectedPool = -1;
         selectedEntry = -1;
         dirty = true;
+        // Going back to the mod's table is a change like any other, and can be taken back.
+        remember();
         schedulePreview();
     }
 
@@ -233,6 +241,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     @Override
     public void changed() {
+        // First, while what's picked is still what the change was made on.
+        remember();
         dirty = true;
         if (message != null && messageColour == bad()) {
             message = null;
@@ -249,6 +259,47 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     private void schedulePreview() {
         previewDue = Util.getMillis() + PREVIEW_DELAY;
+    }
+
+    /** Notes the table as it now is, so the change that made it so can be taken back. The JSON view keeps none: its text is its own. */
+    private void remember() {
+        if (!raw && draft != null) {
+            history.changed(draft.toString(), selectedPool, selectedEntry);
+        }
+    }
+
+    private void undo() {
+        if (canStep()) {
+            // What's being typed counts as a change, and is the first to be taken back.
+            commitEditing();
+            show(history.undo());
+        }
+    }
+
+    private void redo() {
+        if (canStep()) {
+            commitEditing();
+            show(history.redo());
+        }
+    }
+
+    /** Not in the JSON view, whose box is the game's own, nor with the item grid open over the form. */
+    private boolean canStep() {
+        return !raw && picker == null && view != null && draft != null;
+    }
+
+    /** Puts a table from the history in the editor, with what was picked when it was changed picked again. */
+    private void show(EditHistory.Step step) {
+        if (step == null) {
+            return;
+        }
+        draft = JsonParser.parseString(step.table()).getAsJsonObject();
+        choice = null;
+        boolean pool = step.pool() >= 0 && JsonPaths.object(draft, JsonPaths.join("pools", step.pool())) != null;
+        selectedPool = pool ? step.pool() : -1;
+        selectedEntry = pool && step.entry() >= 0 && JsonPaths.object(draft, "pools." + step.pool() + ".entries." + step.entry()) != null ? step.entry() : -1;
+        dirty = true;
+        schedulePreview();
     }
 
     @Override
@@ -464,6 +515,18 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     .bounds(x, y, buttonWidth("remove"), 20)
                     .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.remove_hint"))).build());
         }
+        // Undo and Redo go beside the JSON button while there's room before the buttons on the right. Their keys work either way.
+        int undoX = left + buttonWidth(raw ? "form" : "json") + 4;
+        undoButton = null;
+        redoButton = null;
+        if (!raw && x - undoX >= buttonWidth("undo") + buttonWidth("redo") + 8) {
+            undoButton = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.undo"), b -> undo())
+                    .bounds(undoX, y, buttonWidth("undo"), 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.undo_hint"))).build());
+            redoButton = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.redo"), b -> redo())
+                    .bounds(undoX + buttonWidth("undo") + 4, y, buttonWidth("redo"), 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.redo_hint"))).build());
+        }
     }
 
     private int buttonWidth(String key) {
@@ -487,6 +550,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 selectedPool = -1;
                 selectedEntry = -1;
             }
+            // Everything typed as JSON is one change.
+            remember();
         } else {
             rawText = json();
             raw = true;
@@ -650,6 +715,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     @Override
     public void tick() {
         super.tick();
+        if (undoButton != null && redoButton != null) {
+            undoButton.active = canStep() && history.canUndo();
+            redoButton.active = canStep() && history.canRedo();
+        }
         if (rawBox != null) {
             //? if <1.21 {
             rawBox.tick();
@@ -718,6 +787,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (editingId != null && (key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER || key == InputConstants.KEY_TAB)) {
             commitEditing();
             return true;
+        }
+        if (hasControlDown() && canStep()) {
+            if (key == InputConstants.KEY_Y || key == InputConstants.KEY_Z && hasShiftDown()) {
+                redo();
+                return true;
+            }
+            if (key == InputConstants.KEY_Z) {
+                undo();
+                return true;
+            }
         }
         if (key == InputConstants.KEY_S && hasControlDown() && view != null) {
             save(false);
@@ -1692,6 +1771,21 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Picks a pool, and an entry in it or -1 for the pool itself. */
     public void pick(int pool, int entry) {
         select(pool, entry);
+    }
+
+    /** Takes back the last change, as Ctrl+Z does. */
+    public void undoNow() {
+        undo();
+    }
+
+    /** Puts back the change last taken back, as Ctrl+Y does. */
+    public void redoNow() {
+        redo();
+    }
+
+    /** The table being edited, as text, to tell one state of it from another. */
+    public String draftText() {
+        return draft == null ? "" : draft.toString();
     }
 
     public boolean loaded() {

@@ -74,6 +74,23 @@ final class EditorScenario {
                 .then(click())
                 .then(pause(30))
                 .then(shoot("e03g_count_range"))
+                // The last change is taken back and put back again, as Ctrl+Z and Ctrl+Y do.
+                .then(run(() -> {
+                    String changed = editor(mc).draftText();
+                    editor(mc).undoNow();
+                    String before = editor(mc).draftText();
+                    if (before.equals(changed)) {
+                        throw new IllegalStateException("Undo left the table as it was");
+                    }
+                    editor(mc).redoNow();
+                    if (!editor(mc).draftText().equals(changed)) {
+                        throw new IllegalStateException("Redo didn't put the change back");
+                    }
+                    editor(mc).undoNow();
+                }))
+                .then(pause(10))
+                .then(shoot("e03i_undone"))
+                .then(run(() -> editor(mc).redoNow()))
                 .then(run(() -> editor(mc).openItemPicker()))
                 .then(pause(20))
                 .then(shoot("e03c_item_picker"))

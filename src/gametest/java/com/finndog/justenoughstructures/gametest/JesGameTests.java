@@ -318,6 +318,21 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void changesAreTakenBackAndPutBack(GameTestHelper helper) {
+        EditHistoryTests.changesAreTakenBackAndPutBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void aNewChangeEndsWhatCouldBePutBack(GameTestHelper helper) {
+        EditHistoryTests.aNewChangeEndsWhatCouldBePutBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void oldChangesAreLetGo(GameTestHelper helper) {
+        EditHistoryTests.oldChangesAreLetGo(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void newEntriesLoad(GameTestHelper helper) {
         OverrideTests.newEntriesLoad(helper);
     }
