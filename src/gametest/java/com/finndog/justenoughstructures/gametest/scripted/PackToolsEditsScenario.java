@@ -10,10 +10,13 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
+import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -81,8 +84,30 @@ final class PackToolsEditsScenario {
                 .then(moveTo(() -> at(mc, "Save notes"), 10))
                 .then(click())
                 .then(pause(30))
-                .then(shoot("e06_put_back"));
+                .then(shoot("e06_put_back"))
+                // A new loot table started as a copy of the igloo chest's, which is left as it is.
+                .then(run(() -> tools(mc).pickFor("loot", "minecraft:chests/igloo_chest")))
+                .then(pause(20))
+                .then(shoot("e07_loot_table_picked"))
+                .then(moveTo(() -> at(mc, "Copy as new"), 10))
+                .then(click())
+                .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
+                .then(pause(40))
+                .then(run(() -> checkCopy(mc)))
+                .then(shoot("e08_copy_as_new"));
         return d;
+    }
+
+    /** The editor is on a new table, under an id of its own, that starts with what the igloo chest has. */
+    private static void checkCopy(Minecraft mc) {
+        String id = String.valueOf(Reflect.get(editor(mc), "tableId"));
+        if (!id.equals("justenoughstructures:chests/igloo_chest_copy")) {
+            throw new IllegalStateException("The copy was offered the id " + id);
+        }
+        JsonObject copy = JsonParser.parseString(editor(mc).draftText()).getAsJsonObject();
+        if (copy.has("random_sequence") || !copy.toString().contains("minecraft:golden_apple")) {
+            throw new IllegalStateException("The copy doesn't start as the igloo chest's table without its sequence: " + copy);
+        }
     }
 
     private static int[] at(Minecraft mc, String label) {

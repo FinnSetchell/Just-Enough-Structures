@@ -26,6 +26,8 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
     private final String current;
     private final Component containerName;
     private ResourceLocation typed;
+    /** Starts a new table as a copy of another. Null where there's no room for it. */
+    private Button copy;
     private boolean indexed;
     private int indexSeen = FoundIn.changes();
 
@@ -68,8 +70,33 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
     @Override
     protected void addButtons(int left, int y) {
         Component label = Component.translatable("screen.justenoughstructures.picker.new");
-        addRenderableWidget(Button.builder(label, b -> newTable())
-                .bounds(left, y, font.width(label) + 12, 20).tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.new_hint"))).build());
+        int newWidth = font.width(label) + 12;
+        addRenderableWidget(Button.builder(label, b -> newTable(null))
+                .bounds(left, y, newWidth, 20).tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.new_hint"))).build());
+        Component copyLabel = Component.translatable("screen.justenoughstructures.picker.copy");
+        int copyWidth = font.width(copyLabel) + 12;
+        copy = null;
+        // Only where it fits beside the buttons on the right.
+        if (left + newWidth + 4 + copyWidth + 4 <= buttonsRight()) {
+            copy = addRenderableWidget(Button.builder(copyLabel, b -> newTable(copySource()))
+                    .bounds(left + newWidth + 4, y, copyWidth, 20).tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.picker.copy_hint"))).build());
+        }
+    }
+
+    @Override
+    protected void updateUse() {
+        super.updateUse();
+        if (copy != null) {
+            copy.active = copySource() != null;
+        }
+    }
+
+    /** The table a copy would be of: the one picked in the list, or else the one the container has now. */
+    private ResourceLocation copySource() {
+        if (picked != null && !picked.equals(typed)) {
+            return picked;
+        }
+        return current == null || current.isEmpty() ? null : ResourceLocation.tryParse(current);
     }
 
     @Override
@@ -134,9 +161,15 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         Gui.fineClipped(g, font, id.toString(), left + 6, y + 13, right - left - 14, Gui.labelSoft());
     }
 
-    /** Opens the editor on a new table, named as typed or after the container's template. Save it, then pick it here. */
-    private void newTable() {
+    /**
+     * Opens the editor on a new table, named as typed, or after the table it starts as a copy of when
+     * there is one, or after the container's template. Save it, then pick it here.
+     */
+    private void newTable(ResourceLocation copyOf) {
         ResourceLocation id = typed;
+        if (id == null && copyOf != null) {
+            id = TableCopy.id(copyOf, FoundIn.allTables());
+        }
         if (id == null) {
             String path = source.template().getPath();
             id = Ids.of("justenoughstructures", "chests/" + path.substring(path.lastIndexOf('/') + 1));
@@ -144,7 +177,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         search.setValue(id.toString());
         Nav.remember();
         // Saved under whatever id it ends up with, it's typed in here, which picks it.
-        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), this::useSaved));
+        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), this::useSaved, copyOf));
     }
 
     @Override

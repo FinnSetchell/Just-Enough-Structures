@@ -11,9 +11,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -232,6 +234,19 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     void newTable() {
         ResourceLocation id = Ids.of(JustEnoughStructures.MOD_ID, "chests/new_table");
         openEditor(id, false);
+    }
+
+    /** The editor on a new table that starts as a copy of this one, which is left as it is. */
+    void copyTable(ResourceLocation table) {
+        Set<ResourceLocation> taken = new HashSet<>();
+        if (state != null) {
+            taken.addAll(state.tables());
+            taken.addAll(state.overrides().keySet());
+        }
+        ResourceLocation id = TableCopy.id(table, taken);
+        Nav.remember();
+        current().leaving();
+        minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), null, table));
     }
 
     /** The mod's table and the edit side by side. */

@@ -75,6 +75,15 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     protected void addButtons(int left, int y) {
     }
 
+    /** Where the buttons on the right begin, which those at the bottom left have to stop short of. */
+    protected int buttonsRight() {
+        int x = right() - font.width(Component.translatable("screen.justenoughstructures.editor.back")) - 12;
+        if (ClientRequests.canUsePackTools()) {
+            x -= font.width(Component.translatable("screen.justenoughstructures.picker.use_reload")) + 12 + 4;
+        }
+        return x - 4 - font.width(Component.translatable("screen.justenoughstructures.picker.use")) - 12;
+    }
+
     /** What the list says when nothing matches. */
     protected Component nothingShown() {
         return Component.translatable("screen.justenoughstructures." + keys + ".none");

@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -85,6 +87,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private final String tableName;
     /** Told the id a table was saved under, for the table picker to pick a new one. Null if no one asked. */
     private final Consumer<ResourceLocation> onSaved;
+    /** The table a new one starts as a copy of, or null for one that starts empty. */
+    private final ResourceLocation copyOf;
+    /** Whether it did start as that copy. Not if it had been saved already, or the other table couldn't be read. */
+    private boolean copied;
     // A new table's id, which can still be changed until it's saved, and anything wrong with it.
     private EditBox idBox;
     private Component idProblem;
@@ -151,12 +157,18 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName, Consumer<ResourceLocation> onSaved) {
+        this(parent, tableId, tableName, onSaved, null);
+    }
+
+    /** With {@code copyOf}, a table there isn't yet starts as a copy of that one, which is left as it is. */
+    public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName, Consumer<ResourceLocation> onSaved, ResourceLocation copyOf) {
         super(Component.translatable("screen.justenoughstructures.editor.title", tableName));
         this.parent = parent;
         this.tableId = tableId;
         this.openedAs = tableId;
         this.tableName = tableName;
         this.onSaved = onSaved;
+        this.copyOf = copyOf;
         this.ui = new ToolsUi(net.minecraft.client.Minecraft.getInstance().font);
         this.form = new LootForm(net.minecraft.client.Minecraft.getInstance().font, ui, this);
         load();
@@ -168,14 +180,28 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     private void load() {
-        ClientRequests.table(tableId).thenAccept(reply -> {
+        // A copy needs the table it's a copy of as well, the first time. After that the draft is the copy.
+        boolean copying = copyOf != null && draft == null && rawText == null;
+        CompletableFuture<Codecs.TableReply> other = copying ? ClientRequests.table(copyOf) : CompletableFuture.completedFuture(null);
+        ClientRequests.table(tableId).thenAcceptBoth(other, (reply, source) -> {
             if (reply.problem() != null) {
                 loadProblem = reply.problem();
                 return;
             }
             view = reply.view();
             if (draft == null && rawText == null) {
-                startFrom(view.current() != null ? view.current() : BLANK, view.status() == LootOverrides.Status.BROKEN);
+                LootOverrides.View from = source != null && isNew() ? source.view() : null;
+                if (from != null && from.current() != null) {
+                    // An edit the game can't load is copied as it is, to be fixed as JSON.
+                    boolean broken = from.status() == LootOverrides.Status.BROKEN;
+                    startFrom(broken ? from.current() : TableCopy.start(from.current()), broken);
+                    copied = true;
+                } else {
+                    startFrom(view.current() != null ? view.current() : BLANK, view.status() == LootOverrides.Status.BROKEN);
+                    if (source != null && isNew()) {
+                        note(Component.translatable("screen.justenoughstructures.editor.copy_missing", copyOf.toString()), warn());
+                    }
+                }
                 dirty = false;
                 // The first pool, as that's where most of the table is.
                 if (draft != null && JsonPaths.object(draft, "pools.0") != null) {
@@ -914,7 +940,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     // ------------------------------------------------------------------ back and forward
 
     /** Where the editor is, for Back and Forward: which table. */
-    private record EditorLayer(ResourceLocation id, String name, boolean isNew) implements Nav.Layer {
+    private record EditorLayer(ResourceLocation id, String name, boolean isNew, ResourceLocation copyOf) implements Nav.Layer {
         @Override
         public Object key() {
             return List.of("editor", id);
@@ -928,13 +954,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
         @Override
         public Screen open(Screen below) {
-            return new LootEditorScreen(below, id, name, below instanceof TablePickerScreen picker ? picker::useSaved : null);
+            return new LootEditorScreen(below, id, name, below instanceof TablePickerScreen picker ? picker::useSaved : null, copyOf);
         }
     }
 
     @Override
     public Nav.Layer layer() {
-        return new EditorLayer(openedAs, tableName, isNew());
+        return new EditorLayer(openedAs, tableName, isNew(), copyOf);
     }
 
     @Override
@@ -1102,7 +1128,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             return Component.empty();
         }
         if (isNew()) {
-            return Component.translatable("screen.justenoughstructures.editor.status.new");
+            return copied ? Component.translatable("screen.justenoughstructures.editor.status.copy", StructureNames.lootTable(copyOf.toString()))
+                    : Component.translatable("screen.justenoughstructures.editor.status.new");
         }
         return ToolsSection.statusText(view.status());
     }

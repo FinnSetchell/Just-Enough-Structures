@@ -272,6 +272,8 @@ final class ToolsLoot extends ToolsSection {
         LootOverrides.Status status = state.overrides().getOrDefault(table, LootOverrides.Status.NONE);
         List<RowButton> buttons = new ArrayList<>();
         buttons.add(RowButton.of("tools.edit", () -> screen.openEditor(table, false)));
+        buttons.add(new RowButton(Component.translatable("screen.justenoughstructures.tools.copy_table"), () -> screen.copyTable(table),
+                Component.translatable("screen.justenoughstructures.tools.copy_table_hint")));
         if (status != LootOverrides.Status.NONE) {
             buttons.add(new RowButton(Component.translatable("screen.justenoughstructures.tools.remove_edit"), () -> screen.removeEdit(table),
                     Component.translatable("screen.justenoughstructures.editor.remove_hint")));
