@@ -83,6 +83,7 @@ public final class JesServer {
     private static final ExecutorService PICTURES = Threads.single("Just Enough Structures pictures");
     /** Each player's newest preview, so ones they've already moved on from stop. */
     private static final Map<UUID, Integer> LATEST_PREVIEW = new ConcurrentHashMap<>();
+    private static volatile Capturer capturer = JesServer::capture;
 
     private static final AtomicInteger TRANSFER_IDS = new AtomicInteger();
     /** Captures already sent, newest use last, kept to {@link #CACHED_CAPTURES} and {@link #CACHE_BYTES}. */
@@ -677,6 +678,24 @@ public final class JesServer {
         });
     }
 
+    /** What makes the capture a player asked for: a preview, or a picture nobody is waiting on. */
+    public interface Capturer {
+        CaptureResult capture(MinecraftServer server, ResourceLocation structure, long seed, boolean preview, BooleanSupplier unwanted);
+    }
+
+    private static CaptureResult capture(MinecraftServer server, ResourceLocation structure, long seed, boolean preview, BooleanSupplier unwanted) {
+        return preview ? StructureCapture.capture(server, structure, seed, unwanted) : StructureCapture.captureInBackground(server, structure, seed, unwanted);
+    }
+
+    public static Capturer capturer() {
+        return capturer;
+    }
+
+    /** Swaps what makes captures, which a test does for one that fails as another mod's structure can. */
+    public static void setCapturer(Capturer to) {
+        capturer = to;
+    }
+
     /** Has a capture made on the thread for previews or the one for the list's pictures, and sends it. */
     private static void make(MinecraftServer server, ServerPlayer player, UUID playerId, int requestId, ResourceLocation structure, long seed,
                              boolean preview, String key, int generation, BooleanSupplier unwanted, AtomicInteger queued, Path saved, long kept) {
@@ -689,8 +708,7 @@ public final class JesServer {
                 } else if (Memory.low()) {
                     result = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.low_memory"), List.of(), 0);
                 } else {
-                    result = preview ? StructureCapture.capture(server, structure, seed, unwanted)
-                            : StructureCapture.captureInBackground(server, structure, seed, unwanted);
+                    result = capturer.capture(server, structure, seed, preview, unwanted);
                 }
                 // Nobody wants it any more. Only a player who's moved on to another preview is still
                 // there to be told.
@@ -715,14 +733,16 @@ public final class JesServer {
                 } else {
                     payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, reply));
                 }
-            } catch (RuntimeException e) {
-                JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
-                CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
-                payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
             } catch (OutOfMemoryError e) {
                 // Whatever the capture had is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
                 CaptureResult failed = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
+                payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
+            } catch (Throwable e) {
+                // Whatever it is, an error of another mod's included: left to end this thread's work,
+                // the player would never be answered, and would be shown "Generating" for good.
+                JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
+                CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
                 payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
             } finally {
                 if (!preview) {

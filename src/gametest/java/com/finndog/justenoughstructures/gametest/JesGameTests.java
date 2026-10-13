@@ -244,6 +244,12 @@ public final class JesGameTests {
         ServiceTests.keptFirstViewsAreNotSentAgain(helper);
     }
 
+    // Waits on the thread previews are made on, so it runs with the other tests that do.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "capture", timeoutTicks = 400)
+    public void previewThatDiesIsAnswered(GameTestHelper helper) {
+        PreviewGuardTests.previewThatDiesIsAnswered(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void filesAreWrittenSafely(GameTestHelper helper) {
         ServiceTests.filesAreWrittenSafely(helper);
