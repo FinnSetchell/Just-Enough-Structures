@@ -65,6 +65,7 @@ public final class Scenarios {
             case "loot_tab" -> LootTabScenario.build(mc);
             case "pack_tools" -> PackToolsScenario.build(mc);
             case "pack_tools_edits" -> PackToolsEditsScenario.build(mc);
+            case "scroll" -> ScrollScenario.build(mc);
             case "update_before" -> UpdateFlowScenario.before(mc);
             case "update_after" -> UpdateFlowScenario.after(mc);
             case "update_after_mods" -> UpdateFlowScenario.afterUseMods(mc);

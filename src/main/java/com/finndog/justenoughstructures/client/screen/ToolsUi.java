@@ -124,6 +124,16 @@ final class ToolsUi {
         bars.add(scroller);
     }
 
+    /** A point part of the way down one of this frame's scroll bars, the first being 0, for the screenshot harness, or null. */
+    int[] barPoint(int index, float along) {
+        return index < bars.size() ? bars.get(index).barPoint(along) : null;
+    }
+
+    /** How far the list with that scroll bar is scrolled, or -1 without one. */
+    double scrolled(int index) {
+        return index < bars.size() ? bars.get(index).offset() : -1;
+    }
+
     /** Moves the list whose scroll bar is held, if one is. */
     boolean drag(double my) {
         if (held == null) {

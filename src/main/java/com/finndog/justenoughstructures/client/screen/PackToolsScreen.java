@@ -566,6 +566,16 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         return ui.centre(label);
     }
 
+    /** A point part of the way down one of the scroll bars last drawn, the first being 0, or null. */
+    public int[] scrollBar(int index, float along) {
+        return ui.barPoint(index, along);
+    }
+
+    /** How far the list with that scroll bar is scrolled, or -1 without one. */
+    public double scrolled(int index) {
+        return ui.scrolled(index);
+    }
+
     public void pickFor(String name, String selection) {
         Section to = Section.valueOf(name.toUpperCase(Locale.ROOT));
         go(to, sections.get(to).parse(selection));

@@ -64,6 +64,15 @@ final class Scroller {
         scroll.reset();
     }
 
+    /** A point {@code along} of the way down the scroll bar, for the screenshot harness. */
+    int[] barPoint(float along) {
+        return new int[]{x + w - 3, y + 1 + Math.round((h - 3) * along)};
+    }
+
+    double offset() {
+        return scroll.offset();
+    }
+
     /** See {@link Scroll#reveal}. */
     void reveal(int top, int bottom) {
         scroll.reveal(top, bottom);
