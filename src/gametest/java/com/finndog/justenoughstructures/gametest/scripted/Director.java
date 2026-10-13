@@ -153,6 +153,7 @@ public final class Director {
 
     /** Called at the end of every client tick. */
     void tick() {
+        useWindow();
         if (innerRunning()) {
             innerTicks++;
             try {
@@ -223,6 +224,21 @@ public final class Director {
     }
 
     // ------------------------------------------------------------------ raw input
+
+    /**
+     * Has the game count its window as the one in use. From 1.21 a screen is only told the mouse
+     * moved, and so that it's dragging, while it is, and a test game's often isn't: something else is
+     * being done on the PC it runs on.
+     */
+    private void useWindow() {
+        //? if >=26.1 {
+        /*if (!mc.isWindowActive()) {
+            Reflect.set(mc.getWindow(), "focused", true);
+        }
+        *///?} else {
+        mc.setWindowActive(true);
+        //?}
+    }
 
     void moveMouse(double x, double y) {
         //? if >=26.3 {

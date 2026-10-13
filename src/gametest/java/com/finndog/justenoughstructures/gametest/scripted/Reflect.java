@@ -24,6 +24,23 @@ final class Reflect {
         throw new IllegalStateException("No field " + name + " on " + target.getClass());
     }
 
+    /** Gives a field of {@code target}, its own or one it inherits, another value. */
+    static void set(Object target, String name, Object value) {
+        for (Class<?> c = target.getClass(); c != null; c = c.getSuperclass()) {
+            try {
+                Field f = c.getDeclaredField(name);
+                f.setAccessible(true);
+                f.set(target, value);
+                return;
+            } catch (NoSuchFieldException e) {
+                // Look further up.
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        throw new IllegalStateException("No field " + name + " on " + target.getClass());
+    }
+
     static int getInt(Object target, String name) {
         return ((Number) get(target, name)).intValue();
     }
