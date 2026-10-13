@@ -538,6 +538,16 @@ public final class JesGameTests {
         MessageTests.openBrowserReadsBack(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void indexOnItsWayIsWaitedFor(GameTestHelper helper) {
+        IndexArrivalTests.indexOnItsWayIsWaitedFor(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void indexThatIsntComingIsntWaitedFor(GameTestHelper helper) {
+        IndexArrivalTests.indexThatIsntComingIsntWaitedFor(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);

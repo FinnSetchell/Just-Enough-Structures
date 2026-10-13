@@ -33,6 +33,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+//? if emi {
+import com.finndog.justenoughstructures.JustEnoughStructures;
+//?}
 
 /**
  * Client end of the protocol: sends requests and hands back futures that complete when the answer
@@ -48,6 +51,9 @@ public final class ClientRequests {
     private static final Map<Integer, Keeping> KEEPING = new HashMap<>();
     private static int reloads;
     private static boolean indexWanted;
+    private static boolean viewersLookedFor;
+    /** The loot index as it arrives, kept where EMI's own thread can ask for it. */
+    private static final IndexArrival ARRIVAL = new IndexArrival();
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
     private static final Map<ResourceLocation, CompletableFuture<LootOdds>> ODDS_BY_TABLE = new HashMap<>();
@@ -110,6 +116,7 @@ public final class ClientRequests {
             index.cancel(false);
         }
         index = null;
+        ARRIVAL.forget();
         indexDone = 0;
         indexTotal = 0;
         FoundIn.clear();
@@ -318,6 +325,7 @@ public final class ClientRequests {
     public static CompletableFuture<LootIndex> index() {
         if (index == null || index.isCancelled()) {
             index = new CompletableFuture<>();
+            ARRIVAL.asked();
             pollIndex();
         }
         return index;
@@ -335,12 +343,30 @@ public final class ClientRequests {
         return index != null && index.isDone() && !index.isCompletedExceptionally() && !index.isCancelled();
     }
 
+    /** The loot index if this server's has arrived, or null. Any thread can ask. */
+    public static LootIndex latestIndex() {
+        return ARRIVAL.now();
+    }
+
+    /**
+     * For a recipe viewer loading on a thread of its own: the loot index, waiting up to
+     * {@code millis} for one that's been asked for and is on its way. Asked on the game's thread,
+     * where the index arrives, it never waits.
+     */
+    public static LootIndex awaitIndex(long millis) {
+        return Minecraft.getInstance().isSameThread() ? ARRIVAL.now() : ARRIVAL.await(millis);
+    }
+
     /** How much of the index is built, from 0 to 1, or -1 before the server has said. */
     public static float indexProgress() {
         return indexTotal <= 0 ? -1f : (float) indexDone / indexTotal;
     }
 
     public static void tick() {
+        if (!viewersLookedFor) {
+            viewersLookedFor = true;
+            indexWanted |= loadsWithTheIndex();
+        }
         if (indexWanted && index == null && serverSupported()) {
             index();
             // The structure list is what saved thumbnails are checked against, so rows can have pictures.
@@ -359,6 +385,19 @@ public final class ClientRequests {
         indexWanted = true;
     }
 
+    /**
+     * Whether a recipe viewer is installed that only takes the structures while it loads, which is
+     * EMI. It loads as a server is joined, so the index is asked for then rather than once its
+     * plugin has run: one the server has saved is there for that load, and EMI has no second to do.
+     */
+    private static boolean loadsWithTheIndex() {
+        //? if emi {
+        return JustEnoughStructures.modVersions().containsKey("emi");
+        //?} else {
+        /*return false;
+        *///?}
+    }
+
     private static void pollIndex() {
         lastIndexPoll = System.currentTimeMillis();
         send(JesNetwork.REQUEST_INDEX, buf -> {
@@ -368,6 +407,9 @@ public final class ClientRequests {
     public static void onIndexProgress(int done, int total) {
         indexDone = done;
         indexTotal = total;
+        if (total > 0 && done < total) {
+            ARRIVAL.building();
+        }
     }
 
     public static CompletableFuture<List<StructureCatalog.Entry>> catalog() {
@@ -526,6 +568,7 @@ public final class ClientRequests {
             catalog.complete(entries);
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
             LootIndex built = Codecs.readIndex(buf);
+            ARRIVAL.arrived(built);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
             if (index == null || index.isDone()) {
@@ -669,6 +712,7 @@ public final class ClientRequests {
         }
         if (index != null && index.isDone()) {
             index = null;
+            ARRIVAL.forget();
             indexDone = 0;
             indexTotal = 0;
             FoundIn.clear();

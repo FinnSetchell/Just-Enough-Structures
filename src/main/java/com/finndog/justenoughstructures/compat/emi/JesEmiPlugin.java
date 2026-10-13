@@ -21,8 +21,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Adds a "Found in structures" category to EMI, so looking up how to get an item also lists the
  * structures whose loot can give it. The recipes come from the loot index, which the server sends
- * after the world is joined. EMI only takes recipes while it loads, so once the index is here EMI is
- * loaded again with them.
+ * after the world is joined. EMI only takes recipes while it loads, which it starts as the world is
+ * joined, so its load waits a little for an index that's on its way. One that comes later, or
+ * changes, has EMI loaded again.
  */
 // The annotation is how EMI finds it on Forge; Fabric uses the entrypoint in fabric.mod.json.
 @EmiEntrypoint
@@ -34,44 +35,51 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
     };
 
-    // The newest index, and the one EMI last loaded. EMI loads on a thread of its own, so they're
-    // handed over through these rather than read from ClientRequests there.
-    private static volatile LootIndex latest;
+    /** How long EMI's load waits for an index that's on its way. Loading EMI all over again takes longer. */
+    private static final long INDEX_WAIT_MS = 10_000;
+
+    // The index EMI last loaded with, and whether it's loading now, which it does on a thread of its own.
     private static volatile LootIndex loaded;
+    private static volatile boolean loading;
     private static boolean listening;
     private static volatile int loads;
 
     @Override
     public void register(EmiRegistry registry) {
         loads++;
-        registry.addCategory(FOUND_IN);
-        Minecraft.getInstance().execute(JesEmiPlugin::listen);
-        LootIndex index = latest;
-        loaded = index;
-        if (index == null) {
-            return;
-        }
-        for (FoundInRecipe recipe : FoundInRecipe.fromIndex(index, StructureNames::structure)) {
-            registry.addRecipe(new FoundInEmiRecipe(recipe));
+        loading = true;
+        try {
+            registry.addCategory(FOUND_IN);
+            LootIndex index = ClientRequests.awaitIndex(INDEX_WAIT_MS);
+            loaded = index;
+            if (index != null) {
+                for (FoundInRecipe recipe : FoundInRecipe.fromIndex(index, StructureNames::structure)) {
+                    registry.addRecipe(new FoundInEmiRecipe(recipe));
+                }
+            }
+        } finally {
+            loading = false;
+            // Only now that the load is over, so an index that came during it is looked at once, after it.
+            Minecraft.getInstance().execute(JesEmiPlugin::listen);
         }
     }
 
-    /** On the game's thread: hears about every index, including one that's already here. */
+    /** On the game's thread, after each load: hears about every index from now on, and catches up with one that's come since. */
     private static void listen() {
-        if (listening) {
-            return;
+        if (!listening) {
+            listening = true;
+            ClientRequests.onEachIndex(JesEmiPlugin::arrived);
+            ClientRequests.wantIndex();
         }
-        listening = true;
-        ClientRequests.onEachIndex(JesEmiPlugin::arrived);
-        ClientRequests.wantIndex();
-        if (ClientRequests.indexReady()) {
-            arrived(ClientRequests.index().join());
+        LootIndex latest = ClientRequests.latestIndex();
+        if (latest != null) {
+            arrived(latest);
         }
     }
 
     private static void arrived(LootIndex index) {
-        latest = index;
-        if (index != loaded) {
+        // One that comes while EMI loads is left for the look that follows the load.
+        if (!loading && index != loaded) {
             reload();
         }
     }
