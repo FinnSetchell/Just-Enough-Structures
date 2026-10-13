@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootFormat;
@@ -56,6 +57,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int TREE_ROW = 18;
+    /** The picked row's buttons and the grip that says it can be dragged, nine pixels square. Placeholders. */
+    private static final ResourceLocation ROW_COPY = JustEnoughStructures.id("textures/gui/row_copy.png");
+    private static final ResourceLocation ROW_REMOVE = JustEnoughStructures.id("textures/gui/row_remove.png");
+    private static final ResourceLocation ROW_GRIP = JustEnoughStructures.id("textures/gui/row_grip.png");
+    /** The room those take at the right of the row. */
+    private static final int ROW_ACTIONS = 38;
     /** The widest the tree, form and chances are together. */
     private static final int MOST_CONTENT = 1100;
     /** The least height the form keeps when one possible roll goes under it; with less, there's no roll. */
@@ -117,6 +124,24 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private int selectedEntry = -1;
     /** For an entry inside another: the path down to it from the pool's entry, like "children.1". Empty for the pool's own entry. */
     private String selectedChild = "";
+
+    /**
+     * A row of the list that can be moved: the pool or entry it stands for, where that is in the table
+     * and in the list that holds it, and where the row is drawn.
+     */
+    private record TreeRow(int pool, int entry, String child, String path, String list, int index, int y, int indent) {
+    }
+
+    /** The rows drawn this frame, top to bottom, and where the last of them ends. */
+    private final List<TreeRow> treeRows = new ArrayList<>();
+    private int treeEnd;
+    /** Where the picked row's buttons are, so a press on one isn't taken for the start of a drag. Null without any. */
+    private int[] rowButtons;
+    /** The row pressed on, which is being dragged once the mouse has gone a little way with it, and where the mouse is. */
+    private TreeRow pressedRow;
+    private double pressedY;
+    private double dragY;
+    private boolean draggingRow;
     private final Scroller treeScroll = new Scroller();
     private final Scroller formScroll = new Scroller();
     private final Scroller oddsScroll = new Scroller();
@@ -890,6 +915,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             save(false);
             return true;
         }
+        // What dragging a row does, for the keyboard: Alt with an arrow moves what's picked one place.
+        if (hasAltDown() && (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN)
+                && canStep() && editingId == null && selectedPool >= 0) {
+            moved(JsonPaths.move(draft, pickedPath(), key == InputConstants.KEY_UP ? -1 : 1));
+            return true;
+        }
         if (picker == null && navBar.keyPressed(key, modifiers)) {
             return true;
         }
@@ -933,7 +964,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (editingId != null && !(inline != null && inline.isMouseOver(mouseX, mouseY))) {
             commitEditing();
         }
+        // A press on a row of the list picks it, and may be the start of dragging it somewhere else in its list.
+        TreeRow under = button == InputConstants.MOUSE_BUTTON_LEFT ? rowUnder(mouseX, mouseY) : null;
         if (button == InputConstants.MOUSE_BUTTON_LEFT && ui.click(mouseX, mouseY)) {
+            pressedRow = under;
+            pressedY = mouseY;
+            dragY = mouseY;
+            draggingRow = false;
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -945,6 +982,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             heldBar.dragTo(mouseY);
             return true;
         }
+        if (pressedRow != null) {
+            dragY = mouseY;
+            // Not until it has gone a little way, so a click that slips isn't a drag.
+            if (Math.abs(mouseY - pressedY) > 4) {
+                draggingRow = true;
+            }
+            if (draggingRow) {
+                return true;
+            }
+        }
         return ui.drag(mouseY) || super.mouseDragged(mouseX, mouseY, button, dx, dy);
     }
 
@@ -954,6 +1001,19 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             heldBar.letGo();
             heldBar = null;
             return true;
+        }
+        if (pressedRow != null) {
+            int to = dropIndex();
+            TreeRow row = pressedRow;
+            pressedRow = null;
+            if (draggingRow) {
+                draggingRow = false;
+                // The press picked the row, so what's picked is what moves.
+                if (to != row.index()) {
+                    moved(JsonPaths.moveTo(draft, row.path(), to));
+                }
+                return true;
+            }
         }
         ui.release();
         return super.mouseReleased(mouseX, mouseY, button);
@@ -1212,18 +1272,25 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         int w = treeScroll.width();
         int x = treeX + 1;
         int y = top;
+        treeRows.clear();
+        rowButtons = null;
         String type = JsonPaths.string(draft, "type", "minecraft:chest");
         String typeName = LootTypes.name("table_type", type);
         y = treeRow(g, x, y, w, ItemStack.EMPTY, Component.translatable("screen.justenoughstructures.editor.card.table").getString(),
-                typeName, typeName, selectedPool < 0, () -> select(-1, -1), 0);
+                typeName, typeName, selectedPool < 0, () -> select(-1, -1), 0, false);
         JsonArray pools = JsonPaths.array(draft, "pools");
         boolean shortWeights = shortWeights(pools, w);
         for (int p = 0; pools != null && p < pools.size(); p++) {
             int pool = p;
             String poolPath = "pools." + p;
             JsonElement rolls = JsonPaths.get(draft, poolPath + ".rolls");
+            boolean poolPicked = selectedPool == p && selectedEntry < 0;
+            treeRows.add(new TreeRow(p, -1, "", poolPath, "pools", p, y, 0));
             y = treeRow(g, x, y, w, ItemStack.EMPTY, Component.translatable("screen.justenoughstructures.editor.pool", p + 1).getString(),
-                    rollsText(rolls), rollsAmount(rolls), selectedPool == p && selectedEntry < 0, () -> select(pool, -1), 0);
+                    rollsText(rolls), rollsAmount(rolls), poolPicked, () -> select(pool, -1), 0, poolPicked);
+            if (poolPicked) {
+                rowActions(g, x, y - TREE_ROW, w, "remove_pool");
+            }
             // Each entry, and after it those inside it, a step further in.
             for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, poolPath + ".entries"))) {
                 JsonObject object = node.object();
@@ -1232,9 +1299,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 String weightText = EntryTree.holdsEntries(object) ? "" : weight == null ? "1" : weight.getAsString();
                 String weightLabel = shortWeights || weightText.isEmpty() ? weightText
                         : Component.translatable("screen.justenoughstructures.editor.weight", weightText).getString();
-                y = treeRow(g, x, y, w, icon(object), label(object), weightLabel, weightText,
-                        selectedPool == p && selectedEntry == node.entry() && selectedChild.equals(node.child()),
-                        () -> select(pool, node.entry(), node.child()), 8 + 8 * node.depth());
+                boolean picked = selectedPool == p && selectedEntry == node.entry() && selectedChild.equals(node.child());
+                String path = EntryTree.path(p, node.entry(), node.child());
+                int cut = path.lastIndexOf('.');
+                treeRows.add(new TreeRow(p, node.entry(), node.child(), path, path.substring(0, cut), Integer.parseInt(path.substring(cut + 1)), y,
+                        8 + 8 * node.depth()));
+                y = treeRow(g, x, y, w, icon(object), label(object), weightLabel, weightText, picked,
+                        () -> select(pool, node.entry(), node.child()), 8 + 8 * node.depth(), picked);
+                if (picked) {
+                    rowActions(g, x, y - TREE_ROW, w, "remove_entry");
+                }
             }
             Component add = Component.translatable("screen.justenoughstructures.editor.add_item");
             ui.link(g, add, x + 12, y + 2, true, () -> {
@@ -1253,7 +1327,126 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             changed();
         });
         y += Gui.fineLine(font) + 6;
+        treeEnd = y;
+        dropLine(g, x, w);
         treeScroll.end(g, ui, y - top);
+    }
+
+    /**
+     * On the picked row, where its detail would be: a grip to say the row can be dragged, a button to
+     * copy what it stands for and one to take it out. The words for them are on hovering each.
+     */
+    private void rowActions(GuiGraphics g, int x, int y, int w, String removeKey) {
+        int right = x + w - 3;
+        // The grip isn't among them: a press on it starts a drag like a press anywhere else on the row.
+        rowButtons = new int[]{right - 24, y, 24, TREE_ROW};
+        rowButton(g, right - 10, y, ROW_REMOVE, 0xFFB04040, Component.translatable("screen.justenoughstructures.editor." + removeKey), this::removePicked);
+        rowButton(g, right - 22, y, ROW_COPY, 0xFF6D6D6D, Component.translatable("screen.justenoughstructures.editor.duplicate"),
+                () -> moved(JsonPaths.duplicate(draft, pickedPath())));
+        Gui.blit(g, ROW_GRIP, right - 32, y + 5, 0, 0, 9, 9, 9, 9);
+        ui.tooltip(right - 34, y + 3, 11, 12, Component.translatable("screen.justenoughstructures.editor.drag_row"));
+    }
+
+    private void rowButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, Component name, Runnable action) {
+        if (ui.hovered(x - 1, y + 3, 11, 12)) {
+            g.fill(x - 1, y + 3, x + 10, y + 15, lit);
+        }
+        Gui.blit(g, icon, x, y + 5, 0, 0, 9, 9, 9, 9);
+        ui.spot(x - 1, y + 3, 11, 12, action, name.getString());
+        ui.tooltip(x - 1, y + 3, 11, 12, name);
+    }
+
+    /** Where in the table what's picked is: a pool, or an entry of one. */
+    private String pickedPath() {
+        return selectedEntry < 0 ? JsonPaths.join("pools", selectedPool) : EntryTree.path(selectedPool, selectedEntry, selectedChild);
+    }
+
+    /** Takes what's picked out of the table, leaving what it was in picked. */
+    private void removePicked() {
+        JsonPaths.remove(draft, pickedPath());
+        if (selectedEntry < 0) {
+            select(-1, -1);
+        } else if (selectedChild.isEmpty()) {
+            select(selectedPool, -1);
+        } else {
+            select(selectedPool, selectedEntry, EntryTree.parent(selectedChild));
+        }
+        changed();
+    }
+
+    /** After a move or a copy that put what's picked, or its copy, at {@code to} in its list: that's what's picked now. Nothing for -1. */
+    private void moved(int to) {
+        if (to < 0) {
+            return;
+        }
+        if (selectedEntry < 0) {
+            select(to, -1);
+        } else if (selectedChild.isEmpty()) {
+            select(selectedPool, to);
+        } else {
+            select(selectedPool, selectedEntry, EntryTree.beside(selectedChild, to));
+        }
+        changed();
+    }
+
+    /** The row of the list under the mouse, other than on the picked row's buttons, or null. */
+    private TreeRow rowUnder(double mouseX, double mouseY) {
+        if (raw || draft == null || mouseX < treeX + 1 || mouseX >= treeX + 1 + treeScroll.width() || mouseY < contentTop + 1 || mouseY >= contentBottom - 1) {
+            return null;
+        }
+        if (rowButtons != null && mouseX >= rowButtons[0] && mouseY >= rowButtons[1] && mouseY < rowButtons[1] + rowButtons[3]) {
+            return null;
+        }
+        for (TreeRow row : treeRows) {
+            if (mouseY >= row.y() && mouseY < row.y() + TREE_ROW) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    /** Where what a row stands for ends in the list: after the rows of whatever is inside it. */
+    private int blockEnd(TreeRow row) {
+        for (int i = treeRows.indexOf(row) + 1; i < treeRows.size(); i++) {
+            if (!treeRows.get(i).path().startsWith(row.path() + ".")) {
+                return treeRows.get(i).y();
+            }
+        }
+        return treeEnd;
+    }
+
+    /** The rows of the list the row being dragged is in, in order. */
+    private List<TreeRow> besideDragged() {
+        return treeRows.stream().filter(row -> row.list().equals(pressedRow.list())).toList();
+    }
+
+    /** Where in its list the row being dragged would land if it were let go now, or where it is if it isn't being dragged. */
+    private int dropIndex() {
+        if (pressedRow == null || !draggingRow) {
+            return pressedRow == null ? -1 : pressedRow.index();
+        }
+        List<TreeRow> list = besideDragged();
+        int[] tops = new int[list.size()];
+        int[] bottoms = new int[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            tops[i] = list.get(i).y();
+            bottoms[i] = blockEnd(list.get(i));
+        }
+        return Math.min(EntryTree.dropIndex(tops, bottoms, pressedRow.index(), (int) dragY), Math.max(0, list.size() - 1));
+    }
+
+    /** While a row is dragged, a line where it would land among the others in its list. */
+    private void dropLine(GuiGraphics g, int x, int w) {
+        if (pressedRow == null || !draggingRow) {
+            return;
+        }
+        List<TreeRow> others = besideDragged().stream().filter(row -> row.index() != pressedRow.index()).toList();
+        if (others.isEmpty()) {
+            return;
+        }
+        int to = dropIndex();
+        int lineY = to < others.size() ? others.get(to).y() : blockEnd(others.get(others.size() - 1));
+        g.fill(x + 2 + pressedRow.indent(), lineY - 1, x + w - 2, lineY + 1, 0xFFFFFFFF);
     }
 
     /**
@@ -1261,7 +1454,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
      * beside it, like "15" for "weight 15", as the name matters more.
      */
     private int treeRow(GuiGraphics g, int x, int y, int w, ItemStack icon, String name, String detail, String shortDetail, boolean selected,
-                        Runnable pick, int indent) {
+                        Runnable pick, int indent, boolean actions) {
         if (selected) {
             g.fill(x, y, x + w, y + TREE_ROW, 0xFF9D9D9D);
         } else if (ui.hovered(x, y, w, TREE_ROW)) {
@@ -1276,9 +1469,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (font.width(name) > x + w - 6 - Gui.fineWidth(font, detail) - textX) {
             detail = shortDetail;
         }
-        int detailW = Gui.fineWidth(font, detail);
+        // The picked row's buttons go where its detail would, which the form beside it shows anyway.
+        int detailW = actions ? ROW_ACTIONS : Gui.fineWidth(font, detail);
         Gui.drawClipped(g, font, name, textX, y + 5, x + w - 6 - detailW - textX, selected ? 0xFFFFFFFF : Gui.label(), selected);
-        Gui.fine(g, font, detail, x + w - 3 - detailW, y + 6, selected ? 0xFFEEEEEE : Gui.labelSoft());
+        if (!actions) {
+            Gui.fine(g, font, detail, x + w - 3 - detailW, y + 6, selected ? 0xFFEEEEEE : Gui.labelSoft());
+        }
         return y + TREE_ROW;
     }
 
@@ -1871,6 +2067,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** Picks a pool, and an entry in it or -1 for the pool itself. */
     public void pick(int pool, int entry) {
         select(pool, entry);
+    }
+
+    /** The middle of a pool's or an entry's row of the list, with -1 for the entry of a pool's own, or null if it isn't drawn. */
+    public int[] rowAt(int pool, int entry, String child) {
+        for (TreeRow row : treeRows) {
+            if (row.pool() == pool && row.entry() == entry && row.child().equals(child)) {
+                return new int[]{treeX + 30, row.y() + TREE_ROW / 2};
+            }
+        }
+        return null;
     }
 
     /** Picks an entry inside another, by the path down to it from its pool's entry, like "children.1". */

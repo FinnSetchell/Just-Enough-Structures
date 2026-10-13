@@ -68,6 +68,21 @@ public final class EntryTree {
         return child.substring(0, child.lastIndexOf('.') + 1) + index;
     }
 
+    /**
+     * Where in its list a row dragged to {@code y} would land. {@code tops} and {@code bottoms} are where
+     * each thing in the list is drawn, with the rows of whatever's inside it; {@code dragged} is the one
+     * being dragged. It lands after every other one whose middle is above where it has been taken.
+     */
+    public static int dropIndex(int[] tops, int[] bottoms, int dragged, int y) {
+        int above = 0;
+        for (int i = 0; i < tops.length; i++) {
+            if (i != dragged && (tops[i] + bottoms[i]) / 2 < y) {
+                above++;
+            }
+        }
+        return above;
+    }
+
     /** The path to an entry inside this one, by its place among those. */
     public static String inside(String child, int index) {
         return (child.isEmpty() ? "children." : child + ".children.") + index;

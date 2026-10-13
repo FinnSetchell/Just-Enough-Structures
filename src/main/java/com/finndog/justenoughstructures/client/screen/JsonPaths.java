@@ -189,6 +189,25 @@ public final class JsonPaths {
         return to;
     }
 
+    /**
+     * Moves the list item at the path to another place in its list, those between the two each moving
+     * one along. Returns where it is now, or -1 if there's no such item or no such place.
+     */
+    public static int moveTo(JsonElement root, String path, int to) {
+        int index = indexIn(root, path);
+        JsonArray array = index < 0 ? null : array(root, parent(path));
+        if (array == null || to < 0 || to >= array.size()) {
+            return -1;
+        }
+        JsonElement moved = array.get(index);
+        int step = to > index ? 1 : -1;
+        for (int i = index; i != to; i += step) {
+            array.set(i, array.get(i + step));
+        }
+        array.set(to, moved);
+        return to;
+    }
+
     /** How many items the list holding the item at the path has, or 0 if it isn't in one. */
     public static int siblings(JsonElement root, String path) {
         return indexIn(root, path) < 0 ? 0 : array(root, parent(path)).size();

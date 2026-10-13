@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void rowsLandWhereTheyAreDragged(GameTestHelper helper) {
+        OverrideTests.rowsLandWhereTheyAreDragged(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void idsWithDotsAreOneStep(GameTestHelper helper) {
         OverrideTests.idsWithDotsAreOneStep(helper);
     }

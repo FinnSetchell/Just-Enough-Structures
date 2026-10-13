@@ -41,6 +41,7 @@ final class EditorScenario {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         int[] counted = new int[1];
         String[] clipboard = new String[1];
+        String[] dragged = new String[1];
         Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -119,7 +120,7 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(shoot("e03i_undone"))
                 .then(run(() -> editor(mc).redoNow()))
-                // The entry's card has links to copy it and to move it up or down its pool.
+                // The picked entry's row of the list has buttons to copy it and to take it out, and is dragged to move it.
                 .then(run(() -> counted[0] = entries(mc)))
                 .then(moveTo(() -> at(mc, "Duplicate"), 8))
                 .then(click())
@@ -130,15 +131,31 @@ final class EditorScenario {
                     }
                 }))
                 .then(shoot("e03j_duplicated"))
-                .then(moveTo(() -> at(mc, "Move up"), 8))
+                // The copy, third in its pool, is dragged to the top of it.
+                .then(run(() -> dragged[0] = entry(mc, 2)))
+                .then(moveTo(() -> row(mc, 2, 0), 8))
+                .then(dragTo(() -> row(mc, 0, -6), 15, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (!entry(mc, 0).equals(dragged[0])) {
+                        throw new IllegalStateException("Dragging the third entry to the top of its pool left the first as " + entry(mc, 0));
+                    }
+                }))
+                .then(shoot("e03k_dragged_up"))
+                .then(moveTo(() -> at(mc, "Remove entry"), 8))
+                .then(pause(5))
+                .then(shoot("e03l_row_buttons"))
                 .then(click())
                 .then(pause(10))
-                .then(shoot("e03k_moved_up"))
                 .then(run(() -> {
+                    if (entries(mc) != counted[0] || entry(mc, 0).equals(dragged[0])) {
+                        throw new IllegalStateException("Taking the dragged entry out left " + entries(mc) + " entries, the first " + entry(mc, 0));
+                    }
+                    editor(mc).undoNow();
                     editor(mc).undoNow();
                     editor(mc).undoNow();
                     if (entries(mc) != counted[0]) {
-                        throw new IllegalStateException("Taking the move and the copy back left " + entries(mc) + " entries");
+                        throw new IllegalStateException("Taking the removal, the move and the copy back left " + entries(mc) + " entries");
                     }
                 }))
                 .then(run(() -> editor(mc).openItemPicker()))
@@ -290,6 +307,17 @@ final class EditorScenario {
         int top = (Integer) Reflect.call(mc.screen, "top");
         int bottom = (Integer) Reflect.call(mc.screen, "bottom");
         return new int[]{right - 3, top + 2 + Math.round((bottom - top - 5) * along)};
+    }
+
+    /** One of the first pool's entries, as text. */
+    private static String entry(Minecraft mc, int index) {
+        return JsonParser.parseString(editor(mc).draftText()).getAsJsonObject().getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").get(index).toString();
+    }
+
+    /** A point on the row of one of the first pool's entries in the list, {@code dy} down from its middle. */
+    private static int[] row(Minecraft mc, int entry, int dy) {
+        int[] at = editor(mc) == null ? null : editor(mc).rowAt(0, entry, "");
+        return at == null ? new int[]{0, 0} : new int[]{at[0], at[1] + dy};
     }
 
     /** How many entries the first pool of the table being edited has. */

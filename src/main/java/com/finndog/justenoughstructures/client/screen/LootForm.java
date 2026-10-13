@@ -127,11 +127,8 @@ final class LootForm {
 
     private int poolCard(GuiGraphics g, int x, int y, int w, int pool, String path) {
         int top = y;
-        y = head(g, x, y, w, Component.translatable("screen.justenoughstructures.editor.pool", pool + 1), text("remove_pool"), () -> {
-            JsonPaths.remove(draft(), path);
-            host.select(-1, -1);
-            host.changed();
-        }, path, to -> host.select(to, -1));
+        // Copying it, moving it and taking it out are on its row of the list.
+        y = head(g, x, y, w, Component.translatable("screen.justenoughstructures.editor.pool", pool + 1), null, null);
         y = row(g, x, y, w, "rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "rolls"), 1));
         y = row(g, x, y, w, "bonus_rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "bonus_rolls"), 0));
         JsonArray entries = JsonPaths.array(draft(), JsonPaths.join(path, "entries"));
@@ -147,22 +144,7 @@ final class LootForm {
         JsonObject entry = JsonPaths.object(draft(), path);
         String type = JsonPaths.string(draft(), JsonPaths.join(path, "type"), "minecraft:item");
         String kind = LootTypes.shortId(type);
-        y = head(g, x, y, w, text("card.entry"), text("remove_entry"), () -> {
-            JsonPaths.remove(draft(), path);
-            // With one inside another gone, the one it was inside is shown.
-            if (child.isEmpty()) {
-                host.select(pool, -1);
-            } else {
-                host.select(pool, index, EntryTree.parent(child));
-            }
-            host.changed();
-        }, path, to -> {
-            if (child.isEmpty()) {
-                host.select(pool, to);
-            } else {
-                host.select(pool, index, EntryTree.beside(child, to));
-            }
-        });
+        y = head(g, x, y, w, text("card.entry"), null, null);
         y = row(g, x, y, w, "entry_type", (cx, cw) -> dropdown(g, cx, y(), cw, JsonPaths.join(path, "type"), LootTypes.entryTypes(),
                 id -> LootTypes.name("entry_type", id), type, picked -> {
                     if (!picked.equals(type)) {
@@ -839,48 +821,16 @@ final class LootForm {
 
     // ------------------------------------------------------------------ parts of a card
 
-    /** The top of a card: a title, and a link at the right such as Remove. Returns the y below it. */
+    /** The top of a card: a title, and a link at the right where there's one to offer. Returns the y below it. */
     private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction) {
-        return head(g, x, y, w, title, action, onAction, null, null);
-    }
-
-    /**
-     * The same for a card of something in a list, at {@code listPath}: before the link come ones to
-     * copy it and to move it up or down its list, and {@code picked} is told where the copy or the
-     * moved one now is, to keep it the one shown.
-     */
-    private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction, String listPath, IntConsumer picked) {
         g.fill(x, y, x + w, y + 14, 0xFF8B8B8B);
         int right = x + w - 4;
         if (action != null) {
             right -= Gui.fineWidth(font, action.getString());
             ui.link(g, action, right, y + 4, true, onAction);
         }
-        if (listPath != null) {
-            right = listLinks(g, right - 6, y + 4, listPath, picked);
-        }
         Gui.drawClipped(g, font, title.getString(), x + 4, y + 3, Math.max(20, right - x - 10), 0xFFFFFFFF, true);
         return y + 16;
-    }
-
-    /** Links to copy a list's item and to move it up or down, drawn leftwards from {@code right}. Returns where they start. */
-    private int listLinks(GuiGraphics g, int right, int y, String path, IntConsumer picked) {
-        int index = JsonPaths.indexIn(draft(), path);
-        int x = right;
-        Component copy = text("duplicate");
-        x -= Gui.fineWidth(font, copy.getString());
-        ui.link(g, copy, x, y, true, () -> listChange(JsonPaths.duplicate(draft(), path), picked));
-        if (index < JsonPaths.siblings(draft(), path) - 1) {
-            Component down = text("move_down");
-            x -= Gui.fineWidth(font, down.getString()) + 6;
-            ui.link(g, down, x, y, true, () -> listChange(JsonPaths.move(draft(), path, 1), picked));
-        }
-        if (index > 0) {
-            Component up = text("move_up");
-            x -= Gui.fineWidth(font, up.getString()) + 6;
-            ui.link(g, up, x, y, true, () -> listChange(JsonPaths.move(draft(), path, -1), picked));
-        }
-        return x;
     }
 
     /** After a copy or a move that put an item at {@code to}: it's what's shown, and the table has changed. */

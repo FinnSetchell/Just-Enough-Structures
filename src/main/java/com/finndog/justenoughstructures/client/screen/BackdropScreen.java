@@ -109,6 +109,10 @@ abstract class BackdropScreen extends Screen {
                 : down(InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL);
     }
 
+    static boolean hasAltDown() {
+        return down(InputConstants.KEY_LALT, InputConstants.KEY_RALT);
+    }
+
     private static boolean down(int left, int right) {
         Window window = Minecraft.getInstance().getWindow();
         return InputConstants.isKeyDown(window, left) || InputConstants.isKeyDown(window, right);

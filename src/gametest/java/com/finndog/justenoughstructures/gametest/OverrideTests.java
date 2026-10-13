@@ -7,6 +7,7 @@ import static com.finndog.justenoughstructures.gametest.TestSupport.reload;
 
 import com.finndog.justenoughstructures.Folders;
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.client.screen.EntryTree;
 import com.finndog.justenoughstructures.client.screen.JsonPaths;
 import com.finndog.justenoughstructures.client.screen.LootTypes;
 import com.finndog.justenoughstructures.loot.LootFormat;
@@ -503,6 +504,29 @@ public final class OverrideTests {
         String odd = JsonPaths.join("enchantments", JsonPaths.key("a\\b.c"));
         JsonPaths.set(function, odd, new com.google.gson.JsonPrimitive(3));
         helper.assertTrue(function.getAsJsonObject("enchantments").has("a\\b.c") && JsonPaths.get(function, odd).getAsInt() == 3, "a key with a backslash in it was lost in " + function);
+        helper.succeed();
+    }
+
+    /**
+     * A row dragged in the editor's list lands where it's let go: after every other row of its list
+     * whose middle is above that, counting the rows of what's inside each. Moving it there shifts the
+     * ones between along and loses none.
+     */
+    public static void rowsLandWhereTheyAreDragged(GameTestHelper helper) {
+        int[] tops = {0, 18, 36, 54};
+        int[] bottoms = {18, 36, 54, 72};
+        helper.assertTrue(EntryTree.dropIndex(tops, bottoms, 3, 5) == 0 && EntryTree.dropIndex(tops, bottoms, 3, 20) == 1
+                && EntryTree.dropIndex(tops, bottoms, 0, 70) == 3 && EntryTree.dropIndex(tops, bottoms, 1, 27) == 1, "four rows of one height landed in the wrong places");
+        // The second holds two more rows, so it's passed only below the middle of all three.
+        int[] tall = {18, 72};
+        helper.assertTrue(EntryTree.dropIndex(new int[]{0, 18}, tall, 0, 40) == 0 && EntryTree.dropIndex(new int[]{0, 18}, tall, 0, 50) == 1,
+                "a row was taken past one with rows inside it too soon or too late");
+
+        JsonObject pool = JsonParser.parseString("{\"entries\": [\"a\", \"b\", \"c\", \"d\"]}").getAsJsonObject();
+        helper.assertTrue(JsonPaths.moveTo(pool, "entries.3", 0) == 0 && pool.get("entries").toString().equals("[\"d\",\"a\",\"b\",\"c\"]"), "the last moved to the top left " + pool);
+        helper.assertTrue(JsonPaths.moveTo(pool, "entries.0", 2) == 2 && pool.get("entries").toString().equals("[\"a\",\"b\",\"d\",\"c\"]"), "the first moved down two left " + pool);
+        helper.assertTrue(JsonPaths.moveTo(pool, "entries.1", 1) == 1 && JsonPaths.moveTo(pool, "entries.1", 4) == -1 && JsonPaths.moveTo(pool, "entries.9", 0) == -1
+                && pool.get("entries").toString().equals("[\"a\",\"b\",\"d\",\"c\"]"), "a move to where it is, or to nowhere, left " + pool);
         helper.succeed();
     }
 

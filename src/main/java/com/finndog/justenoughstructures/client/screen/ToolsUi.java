@@ -92,7 +92,8 @@ final class ToolsUi {
         spot(x, y, w, h, action, null);
     }
 
-    private void spot(int x, int y, int w, int h, Runnable action, String label) {
+    /** The same with a name, for a button that's a picture: the name finds it for the screenshot harness. */
+    void spot(int x, int y, int w, int h, Runnable action, String label) {
         if (action != null) {
             spots.add(new Spot(x, y, w, h, clipTop, clipBottom, action, label));
         }
