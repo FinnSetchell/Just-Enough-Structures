@@ -535,6 +535,8 @@
   "screen.justenoughstructures.editor.remove_pool": "Remove pool",
   "screen.justenoughstructures.editor.remove_entry": "Remove entry",
   "screen.justenoughstructures.editor.duplicate": "Duplicate",
+  "screen.justenoughstructures.editor.use_held": "Use what you're holding: %s",
+  "screen.justenoughstructures.editor.use_held_hint": "Makes this entry give the item in your hand, with its count, name, enchantments and the rest",
   "screen.justenoughstructures.editor.move_up": "Move up",
   "screen.justenoughstructures.editor.move_down": "Move down",
   "screen.justenoughstructures.editor.entry_type.item": "Item",

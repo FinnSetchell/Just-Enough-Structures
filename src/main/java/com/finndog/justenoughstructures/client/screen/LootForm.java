@@ -1,7 +1,9 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.loot.StackEntry;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -15,6 +17,8 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -151,6 +155,7 @@ final class LootForm {
                     pick(g, cx, y(), cw - FIELD - 4, namePath, LootOptions.ITEMS, false);
                     itemButton(g, cx + cw - FIELD - 2, y(), namePath);
                 });
+                y = heldLink(g, x, y, w, path);
             }
             case "tag" -> {
                 //? if >=26.3 {
@@ -1272,6 +1277,29 @@ final class LootForm {
         }
         ui.spot(x, y, FIELD + 2, FIELD, () -> host.pickItem(path));
         ui.tooltip(x, y, FIELD + 2, FIELD, text("pick_item"));
+    }
+
+    /**
+     * While the player holds something: a link that makes the entry give exactly that, its name,
+     * enchantments and all, which is far quicker than writing them out. Returns the y below it.
+     */
+    private int heldLink(GuiGraphics g, int x, int y, int w, String path) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        ItemStack held = player == null ? ItemStack.EMPTY : player.getMainHandItem();
+        JsonObject entry = JsonPaths.object(draft(), path);
+        if (held.isEmpty() || entry == null) {
+            return y;
+        }
+        Component label = text("use_held", held.getHoverName());
+        ui.link(g, label, x + labelW, y, true, () -> {
+            try {
+                StackEntry.fill(entry, held.copy(), player.level().registryAccess());
+                host.changed();
+            } catch (RuntimeException e) {
+                JesLog.debug("Couldn't take the held item into the loot table", e);
+            }
+        }, text("use_held_hint"));
+        return y + Gui.fineLine(font) + 4;
     }
 
     static boolean itemExists(String id) {

@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void entriesGiveBackTheirStack(GameTestHelper helper) {
+        StackEntryTests.entriesGiveBackTheirStack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void listItemsAreCopiedAndMoved(GameTestHelper helper) {
         OverrideTests.listItemsAreCopiedAndMoved(helper);
     }
