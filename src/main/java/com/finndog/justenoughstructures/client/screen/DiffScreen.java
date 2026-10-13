@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
@@ -41,7 +42,8 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
     private final String yours;
     private final List<Row> rows;
     private final NavBar navBar = new NavBar(this);
-    private double scroll;
+    private final Scroll scroll = new Scroll(LINE * 3);
+    private HeldBar heldBar;
 
     DiffScreen(Screen parent, String tableName, String theirs, String yours) {
         super(Component.translatable("screen.justenoughstructures.editor.diff.title", tableName));
@@ -171,7 +173,36 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        return navBar.mouseClicked(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
+        if (navBar.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
+            fitScroll();
+            heldBar = HeldBar.at(scroll, mouseX, mouseY, barRight(), top() + 1, bottom() - top() - 2);
+            if (heldBar != null) {
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (heldBar != null) {
+            heldBar.dragTo(mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (heldBar != null) {
+            heldBar.letGo();
+            heldBar = null;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
@@ -181,8 +212,19 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        scroll = Math.max(0, Math.min(scroll - delta * LINE * 3, Math.max(0, rows.size() * LINE - (bottom() - top()))));
+        fitScroll();
+        scroll.wheel(delta);
         return true;
+    }
+
+    private void fitScroll() {
+        scroll.fit(bottom() - top(), rows.size() * LINE);
+    }
+
+    /** The right edge of the bar, just inside the right-hand column's frame. */
+    private int barRight() {
+        int column = (width - PAD * 2 - 18) / 2;
+        return PAD + 6 + column + 6 + column - 1;
     }
 
     private int top() {
@@ -206,8 +248,11 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.editor.diff.yours").getString(), right, TOP + 18, column, 12);
         Gui.inset(g, left, top(), column, bottom() - top(), Gui.Tone.LIGHT);
         Gui.inset(g, right, top(), column, bottom() - top(), Gui.Tone.LIGHT);
+        fitScroll();
+        // A list that scrolls says so with a bar down its side, and the right-hand lines make room for it.
+        int room = scroll.scrolls() ? 6 : 0;
         Gui.scissor(g, left, top() + 1, right + column, bottom() - 1);
-        int y = top() + 2 - (int) scroll;
+        int y = top() + 2 - scroll.top();
         for (Row row : rows) {
             if (y > bottom()) {
                 break;
@@ -224,12 +269,13 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
                     Gui.drawClipped(g, font, row.left(), left + 3, y + 1, column - 6, Gui.label(), false);
                 }
                 if (row.right() != null) {
-                    Gui.drawClipped(g, font, row.right(), right + 3, y + 1, column - 6, Gui.label(), false);
+                    Gui.drawClipped(g, font, row.right(), right + 3, y + 1, column - 6 - room, Gui.label(), false);
                 }
             }
             y += LINE;
         }
         Gui.endScissor(g);
+        Gui.scrollbar(g, barRight() - 4, top() + 1, bottom() - top() - 2, scroll.offset(), scroll.most());
         super.render(g, mouseX, mouseY, partialTick);
         navBar.render(g, font, mouseX, mouseY, partialTick);
         Gui.push(g);
