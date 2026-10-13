@@ -605,15 +605,27 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
+    /**
+     * What stands in for the system's clipboard when Copy and Paste are pressed, or null for the
+     * clipboard itself. The screenshot harness puts something here, as its hidden window isn't let
+     * at the real one.
+     */
+    public static Consumer<String> copyTo;
+    public static java.util.function.Supplier<String> pasteFrom;
+
     /** The table's JSON onto the clipboard. */
     private void copyJson() {
-        minecraft.keyboardHandler.setClipboard(json());
+        if (copyTo != null) {
+            copyTo.accept(json());
+        } else {
+            minecraft.keyboardHandler.setClipboard(json());
+        }
         note(Component.translatable("screen.justenoughstructures.editor.copied_json"), good());
     }
 
     /** The clipboard's text in place of the JSON here. It's checked like anything typed in the box. */
     private void pasteJson() {
-        String text = minecraft.keyboardHandler.getClipboard();
+        String text = pasteFrom != null ? pasteFrom.get() : minecraft.keyboardHandler.getClipboard();
         if (rawBox == null || text == null || text.isBlank()) {
             note(Component.translatable("screen.justenoughstructures.editor.nothing_to_paste"), warn());
             return;

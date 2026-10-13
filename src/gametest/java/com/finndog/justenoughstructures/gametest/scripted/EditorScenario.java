@@ -256,21 +256,23 @@ final class EditorScenario {
                     }
                 }))
                 .then(shoot("e11_table_opened"))
-                // The JSON view's Copy and Paste carry a table out and bring one in. Whatever was on the
-                // clipboard is put back after.
+                // The JSON view's Copy and Paste carry a table out and bring one in. A string stands in for
+                // the clipboard: the hidden window isn't let at the real one, and it's whoever's at the PC's.
                 .then(run(() -> {
-                    clipboard[0] = mc.keyboardHandler.getClipboard();
+                    LootEditorScreen.copyTo = text -> clipboard[0] = text;
+                    LootEditorScreen.pasteFrom = () -> clipboard[0];
                     editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": []}");
                 }))
                 .then(pause(10))
                 .then(run(() -> {
                     editor(mc).copyJsonNow();
-                    String copied = mc.keyboardHandler.getClipboard();
-                    mc.keyboardHandler.setClipboard("{\"type\": \"minecraft:fishing\", \"pools\": []}");
+                    String copied = clipboard[0];
+                    clipboard[0] = "{\"type\": \"minecraft:fishing\", \"pools\": []}";
                     editor(mc).pasteJsonNow();
-                    mc.keyboardHandler.setClipboard(clipboard[0] == null ? "" : clipboard[0]);
-                    if (!copied.contains("minecraft:chest")) {
-                        throw new IllegalStateException("Copy put this on the clipboard: " + copied);
+                    LootEditorScreen.copyTo = null;
+                    LootEditorScreen.pasteFrom = null;
+                    if (copied == null || !copied.contains("minecraft:chest")) {
+                        throw new IllegalStateException("Copy gave this: " + copied);
                     }
                 }))
                 .then(pause(10))
