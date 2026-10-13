@@ -78,8 +78,10 @@ public final class JesEmiPlugin implements EmiPlugin {
     }
 
     private static void arrived(LootIndex index) {
-        // One that comes while EMI loads is left for the look that follows the load.
-        if (!loading && index != loaded) {
+        // One that comes while EMI loads is left for the look that follows the load. The server sends
+        // its index again each time it has checked it, and one that says the same as EMI has isn't
+        // worth loading EMI all over again for.
+        if (!loading && !index.equals(loaded)) {
             reload();
         }
     }
