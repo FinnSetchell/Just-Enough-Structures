@@ -72,7 +72,8 @@ public final class PackToolsServer {
         names.put(PackToolsState.STRUCTURES, new ArrayList<>(new TreeSet<>(registry.keySet())));
         names.put(PackToolsState.STRUCTURE_TAGS, new ArrayList<>(new TreeSet<>(Regs.tagIds(registry).map(TagKey::location).toList())));
         //? if >=26.1 {
-        /*names.put(PackToolsState.PREDICATES, reloadable(server, Registries.PREDICATE));
+        /*names.put(PackToolsState.CLOCKS, new ArrayList<>(new TreeSet<>(server.registryAccess().registryOrThrow(Registries.WORLD_CLOCK).keySet())));
+        names.put(PackToolsState.PREDICATES, reloadable(server, Registries.PREDICATE));
         names.put(PackToolsState.ITEM_MODIFIERS, reloadable(server, Registries.ITEM_MODIFIER));
         *///?} else if >=1.21 {
         /*names.put(PackToolsState.PREDICATES, new ArrayList<>(new TreeSet<>(server.reloadableRegistries().getKeys(Registries.PREDICATE))));

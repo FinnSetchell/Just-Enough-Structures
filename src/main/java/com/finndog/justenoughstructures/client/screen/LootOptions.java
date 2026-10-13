@@ -135,6 +135,14 @@ final class LootOptions {
     static final Source STRUCTURES_OR_TAGS = either(STRUCTURES,
             () -> STRUCTURE_TAGS.list().stream().map(o -> new Option("#" + o.id(), o.name())).toList());
     *///?}
+    //? if >=26.3 {
+    /*// 26.3 made a tag entry's tag and a map's destination sets like those. In these the tags come first.
+    static final Source TAGS_OR_ITEMS = either(source(() -> tags(BuiltInRegistries.ITEM, "#")), ITEMS::list);
+    static final Source TAGS_OR_STRUCTURES = either(
+            source(() -> STRUCTURE_TAGS.list().stream().map(o -> new Option("#" + o.id(), o.name())).toList()), STRUCTURES::list);
+    *///?}
+    /** The world's clocks, one of which a time check reads from 26.1. None before. */
+    static final Source CLOCKS = source(() -> serverNames(PackToolsState.CLOCKS, null));
 
     // The fixed words some settings take, named by the editor's lang file.
     static final Source ENTITY_TARGETS = words("target", "this", "killer", "direct_killer", "killer_player");

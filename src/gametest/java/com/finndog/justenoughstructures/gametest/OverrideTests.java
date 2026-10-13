@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JsonPaths;
 import com.finndog.justenoughstructures.client.screen.LootTypes;
 import com.finndog.justenoughstructures.loot.LootFormat;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.JsonMerge;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -373,6 +375,21 @@ public final class OverrideTests {
         return entry.get(list) instanceof JsonArray kinds && !kinds.isEmpty() && kinds.get(0).isJsonObject() ? kinds.get(0).getAsJsonObject() : new JsonObject();
     }
     *///?}
+
+    /**
+     * The index of what tables give finds the items of a tag entry and of a table another table
+     * names, however this version of the game writes those: the creeper's music discs come from a
+     * tag, and fishing's fish from a table of fish.
+     */
+    public static void indexReadsTagsAndTablesInTables(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Set<ResourceLocation> creeper = LootIndex.itemsIn(server, Ids.parse("entities/creeper"), new HashSet<>());
+        helper.assertTrue(creeper.contains(Ids.parse("gunpowder")) && creeper.contains(Ids.parse("music_disc_13")),
+                "the creeper's table gives gunpowder and, from a tag, music discs. The index found " + creeper);
+        Set<ResourceLocation> fishing = LootIndex.itemsIn(server, Ids.parse("gameplay/fishing"), new HashSet<>());
+        helper.assertTrue(fishing.contains(Ids.parse("cod")), "fishing gives what the tables it names give. The index found " + fishing);
+        helper.succeed();
+    }
 
     /** Every function and condition the editor can add starts out as something the game loads. */
     public static void newFunctionsAndConditionsLoad(GameTestHelper helper) {

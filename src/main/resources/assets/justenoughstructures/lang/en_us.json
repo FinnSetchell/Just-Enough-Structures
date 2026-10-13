@@ -652,6 +652,7 @@
   "screen.justenoughstructures.editor.field.structure": "Structure",
   "screen.justenoughstructures.editor.field.thundering": "Thundering",
   "screen.justenoughstructures.editor.field.time": "Time",
+  "screen.justenoughstructures.editor.field.clock": "Clock",
   "screen.justenoughstructures.editor.field.to_path": "To",
   "screen.justenoughstructures.editor.field.uuid": "UUID",
   "screen.justenoughstructures.editor.field.value": "Value",

@@ -318,6 +318,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void indexReadsTagsAndTablesInTables(GameTestHelper helper) {
+        OverrideTests.indexReadsTagsAndTablesInTables(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void entityTypesAreKept(GameTestHelper helper) {
         OverrideTests.entityTypesAreKept(helper);
     }

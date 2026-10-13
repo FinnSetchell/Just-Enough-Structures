@@ -24,7 +24,7 @@ import net.minecraft.resources.ResourceLocation;
  * @param hidden     the structures players can't see, which the browser's list leaves out
  * @param tables     every loot table the server has
  * @param names      other ids only the server has, for the loot table editor to list: {@link #STRUCTURES},
- *                   {@link #STRUCTURE_TAGS}, {@link #PREDICATES} and {@link #ITEM_MODIFIERS}
+ *                   {@link #STRUCTURE_TAGS}, {@link #PREDICATES}, {@link #ITEM_MODIFIERS} and, from 26.1, {@link #CLOCKS}
  */
 public record PackToolsState(ServerConfig.Settings settings, Set<String> pending, Map<ResourceLocation, LootOverrides.Status> overrides,
                              List<ContainerPatches.Patch> patches, List<SpawnerPatches.Patch> spawners, Map<ResourceLocation, Written> structures,
@@ -33,6 +33,7 @@ public record PackToolsState(ServerConfig.Settings settings, Set<String> pending
     public static final String STRUCTURE_TAGS = "structure_tags";
     public static final String PREDICATES = "predicates";
     public static final String ITEM_MODIFIERS = "item_modifiers";
+    public static final String CLOCKS = "clocks";
 
     /** The server.json5 setting that only applies from the next /reload: using changed containers and spawners. */
     public static final String RULES = "rules";

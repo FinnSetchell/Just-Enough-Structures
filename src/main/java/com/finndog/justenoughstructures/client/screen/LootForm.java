@@ -152,7 +152,12 @@ final class LootForm {
                 });
             }
             case "tag" -> {
-                y = row(g, x, y, w, "tag", (cx, cw) -> pick(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.ITEM_TAG_IDS, false));
+                //? if >=26.3 {
+                /*// From 26.3 it's a set of items like any other: a tag with its "#", an item, or a list of items.
+                y = holderSet(g, x, y, w, "tag", JsonPaths.join(path, LootTypes.TAG_KEY), LootOptions.TAGS_OR_ITEMS, LootOptions.ITEMS, null);
+                *///?} else {
+                y = row(g, x, y, w, "tag", (cx, cw) -> pick(g, cx, y(), cw, JsonPaths.join(path, LootTypes.TAG_KEY), LootOptions.ITEM_TAG_IDS, false));
+                //?}
                 y = row(g, x, y, w, "expand", (cx, cw) -> check(g, cx, y(), JsonPaths.join(path, "expand"), false));
             }
             case "loot_table" -> {
@@ -250,7 +255,12 @@ final class LootForm {
             case "set_nbt", "set_custom_data" -> y = row(g, x, y, w, "nbt", (cx, cw) -> text(g, cx, y(), cw, at(path, "tag"), false));
             case "set_instrument" -> y = row(g, x, y, w, "options", (cx, cw) -> pick(g, cx, y(), cw, at(path, "options"), LootOptions.INSTRUMENT_TAGS, false));
             case "exploration_map" -> {
+                //? if >=26.3 {
+                /*// From 26.3 it's a set of structures: a tag with its "#", a structure, or a list of structures.
+                y = holderSet(g, x, y, w, "destination", at(path, "destination"), LootOptions.TAGS_OR_STRUCTURES, LootOptions.STRUCTURES, null);
+                *///?} else {
                 y = row(g, x, y, w, "destination", (cx, cw) -> pick(g, cx, y(), cw, at(path, "destination"), LootOptions.STRUCTURE_TAGS, true));
+                //?}
                 y = row(g, x, y, w, "decoration", (cx, cw) -> choice(g, cx, y(), cw, at(path, "decoration"), LootOptions.MAP_DECORATIONS, true));
                 y = row(g, x, y, w, "zoom", (cx, cw) -> number(g, cx, y(), 50, at(path, "zoom"), Kind.INT, "2"));
                 y = row(g, x, y, w, "search_radius", (cx, cw) -> number(g, cx, y(), 50, at(path, "search_radius"), Kind.INT, "50"));
@@ -345,8 +355,10 @@ final class LootForm {
                 y = row(g, x, y, w, "entries", (cx, cw) -> raw(g, cx, y(), cw, at(path, "entries")));
             }
             case "set_loot_table" -> {
-                y = row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, at(path, "name"), LootOptions.LOOT_TABLES, false));
+                y = row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, at(path, LootTypes.CONTAINER_TABLE_KEY), LootOptions.LOOT_TABLES, false));
+                //? if <26.3 {
                 y = row(g, x, y, w, "block_entity", (cx, cw) -> pick(g, cx, y(), cw, at(path, "type"), LootOptions.BLOCK_ENTITY_TYPES, false));
+                //?}
                 y = row(g, x, y, w, "seed", (cx, cw) -> number(g, cx, y(), Math.min(cw, 120), at(path, "seed"), Kind.INT, "0"));
             }
             case "explosion_decay", "furnace_smelt" -> {
@@ -419,6 +431,10 @@ final class LootForm {
             case "match_tool" -> y = itemPredicate(g, x, y, w, at(path, "predicate"));
             case "reference" -> y = row(g, x, y, w, "predicate_id", (cx, cw) -> pick(g, cx, y(), cw, at(path, "name"), LootOptions.PREDICATES, false));
             case "time_check" -> {
+                //? if >=26.1 {
+                /*// 26.1 keeps time by clocks, and a world can have more than one.
+                y = row(g, x, y, w, "clock", (cx, cw) -> pick(g, cx, y(), cw, at(path, "clock"), LootOptions.CLOCKS, false));
+                *///?}
                 y = row(g, x, y, w, "time", (cx, cw) -> range(g, cx, y(), cw, at(path, "value")));
                 y = row(g, x, y, w, "period", (cx, cw) -> number(g, cx, y(), 60, at(path, "period"), Kind.INT, ""));
             }
@@ -460,11 +476,11 @@ final class LootForm {
     /** What an entity has to be: its type, with the rest of the predicate as JSON. */
     private int entityPredicate(GuiGraphics g, int x, int y, int w, String path) {
         //? if >=1.21 {
-        /*y = holderSet(g, x, y, w, "entity_type", at(path, "type"), LootOptions.ENTITY_TYPES_OR_TAGS, LootOptions.ENTITY_TYPES, null);
+        /*y = holderSet(g, x, y, w, "entity_type", at(path, LootTypes.ENTITY_TYPE_KEY), LootOptions.ENTITY_TYPES_OR_TAGS, LootOptions.ENTITY_TYPES, null);
         *///?} else {
-        y = row(g, x, y, w, "entity_type", (cx, cw) -> pick(g, cx, y(), cw, at(path, "type"), LootOptions.ENTITY_TYPES_OR_TAGS, true));
+        y = row(g, x, y, w, "entity_type", (cx, cw) -> pick(g, cx, y(), cw, at(path, LootTypes.ENTITY_TYPE_KEY), LootOptions.ENTITY_TYPES_OR_TAGS, true));
         //?}
-        return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of("type")));
+        return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of(LootTypes.ENTITY_TYPE_KEY)));
     }
 
     /** Where it has to be: a biome, a structure, a dimension, with the rest of the predicate as JSON. */

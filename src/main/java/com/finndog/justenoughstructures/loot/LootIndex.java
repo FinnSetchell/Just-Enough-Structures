@@ -385,6 +385,19 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         if (name == null && (type.equals("minecraft:loot_table") || type.equals("loot_table"))) {
             name = idAt(object, "value");
         }
+        // From 26.3 a tag entry's tag is under items, with a "#". Without one it's an item, and there can be a list of those.
+        if (name == null && (type.equals("minecraft:tag") || type.equals("tag")) && object.has("items")) {
+            JsonElement items = object.get("items");
+            for (JsonElement item : items instanceof JsonArray list ? list : List.of(items)) {
+                String id = item.isJsonPrimitive() ? item.getAsString() : "";
+                ResourceLocation parsed = ResourceLocation.tryParse(id.startsWith("#") ? id.substring(1) : id);
+                if (parsed != null && id.startsWith("#")) {
+                    name = parsed;
+                } else if (parsed != null) {
+                    out.add(parsed);
+                }
+            }
+        }
         if (name != null) {
             switch (type) {
                 case "minecraft:item", "item" -> {
