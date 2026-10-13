@@ -274,7 +274,7 @@ public final class OverrideTests {
     }
 
     /**
-     * What the editor starts a function, a condition or a tag entry with, the game keeps: each
+     * What the editor starts a function, a condition or an entry of any kind with, the game keeps: each
      * setting written is one this version reads, not one it loads and takes no notice of. Told from
      * the game's own writing of the table, which there is from 1.20.5.
      */
@@ -293,7 +293,11 @@ public final class OverrideTests {
                 kept(ops, type, "conditions", LootTypes.condition(type), lost);
             }
         }
-        kept(ops, "a tag entry", null, LootTypes.entry("minecraft:tag", null), lost);
+        for (String type : LootTypes.entryTypes()) {
+            if (type.startsWith("minecraft:")) {
+                kept(ops, type, null, LootTypes.entry(type, null), lost);
+            }
+        }
         helper.assertTrue(lost.isEmpty(), "the game doesn't keep these as the editor starts them: " + lost);
         *///?}
         helper.succeed();
@@ -326,7 +330,7 @@ public final class OverrideTests {
 
     // Left out of what the game writes back because it's what the game takes for granted, not because it wasn't read.
     // A map goes to buried treasure unless told otherwise, and from 26.3 a tag entry isn't expanded unless told to be.
-    private static final Set<String> TAKEN_FOR_GRANTED = Set.of("minecraft:exploration_map.destination", "a tag entry.expand");
+    private static final Set<String> TAKEN_FOR_GRANTED = Set.of("minecraft:exploration_map.destination", "minecraft:tag.expand");
 
     private static void kept(RegistryOps<JsonElement> ops, String what, String list, JsonObject added, List<String> lost) {
         JsonObject back = readBack(ops, list, added);
@@ -388,6 +392,24 @@ public final class OverrideTests {
                 "the creeper's table gives gunpowder and, from a tag, music discs. The index found " + creeper);
         Set<ResourceLocation> fishing = LootIndex.itemsIn(server, Ids.parse("gameplay/fishing"), new HashSet<>());
         helper.assertTrue(fishing.contains(Ids.parse("cod")), "fishing gives what the tables it names give. The index found " + fishing);
+        helper.succeed();
+    }
+
+    /** Every kind of entry the editor can add starts out as something the game loads. */
+    public static void newEntriesLoad(GameTestHelper helper) {
+        List<String> broken = new ArrayList<>();
+        for (String type : LootTypes.entryTypes()) {
+            if (type.startsWith("minecraft:")) {
+                JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
+                table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(LootTypes.entry(type, null));
+                // In the game's own shape, as the editor sends a table.
+                Component problem = LootOverrides.check(IGLOO, LootFormat.forGame(table).toString());
+                if (problem != null) {
+                    broken.add(type + " (" + problem.getString() + ")");
+                }
+            }
+        }
+        helper.assertTrue(broken.isEmpty(), "these entries don't load as the editor starts them: " + broken);
         helper.succeed();
     }
 

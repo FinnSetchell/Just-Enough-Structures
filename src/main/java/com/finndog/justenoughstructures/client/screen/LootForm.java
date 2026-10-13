@@ -168,6 +168,7 @@ final class LootForm {
                         : row(g, x, y, w, "table", (cx, cw) -> pick(g, cx, y(), cw, tablePath, LootOptions.LOOT_TABLES, false));
             }
             case "dynamic" -> y = row(g, x, y, w, "name", (cx, cw) -> choice(g, cx, y(), cw, JsonPaths.join(path, "name"), LootOptions.DYNAMIC, false));
+            case "slots" -> y = row(g, x, y, w, "slot_source", (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, "slot_source")));
             default -> {
             }
         }

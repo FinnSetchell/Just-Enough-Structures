@@ -264,6 +264,9 @@ public final class LootTypes {
             }
             case "loot_table" -> out.addProperty(TABLE_KEY, "minecraft:chests/simple_dungeon");
             case "dynamic" -> out.addProperty("name", "minecraft:contents");
+            // 26.1's entry for what's in some slots of whatever the loot comes from: here, all of a container's.
+            case "slots" -> out.add("slot_source", JsonParser.parseString(
+                    "{\"type\": \"minecraft:slot_range\", \"source\": \"block_entity\", \"slots\": \"container.*\"}"));
             case "alternatives", "group", "sequence" -> out.add("children", new JsonArray());
             default -> {
             }
