@@ -16,6 +16,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +25,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -82,10 +84,23 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     /** The same, handing each structure's first view, made with its first seed, to {@code firstViews} as it goes. */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                      AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews) {
+        return scan(server, ids, progress, cancelled, failed, firstViews, early -> {
+        });
+    }
+
+    /**
+     * The same, also handing {@code early} the scan as it stands once the quick part is done: every
+     * structure's pools read, and the structures without pools generated. That is most of the loot,
+     * long before the rest have each been generated for what their code adds as it places them.
+     * {@code progress} counts the structures that are finished, so those with pools only count once
+     * they've been generated.
+     */
+    public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                     AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
         // How the containers and spawners changed in the browser stand now, which the templates are loaded with.
         Map<ResourceLocation, String> patches = templatePatches();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
-        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews));
+        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews, early));
     }
 
     /**
@@ -144,15 +159,46 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                              AtomicInteger failed, Map<ResourceLocation, String> patches,
-                                             BiConsumer<ResourceLocation, CaptureResult> firstViews) {
+                                             BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
         Set<ResourceLocation> retry = new TreeSet<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
         int done = 0;
+        // First what's quick to find: every structure's pools are read, and the structures without
+        // pools generated, which is all there is to do for those.
+        Map<ResourceLocation, PoolScan.Reach> pooled = new LinkedHashMap<>();
         for (ResourceLocation id : ids) {
-            Found found = scanOne(server, registry, scan, id, cancelled, firstViews);
+            Found found = LoadedPieces.during(server, () -> {
+                if (cancelled.getAsBoolean()) {
+                    return null;
+                }
+                PoolScan.Reach reach = pools(registry, scan, id);
+                if (reach == null) {
+                    return generate(server, id, null, cancelled, firstViews);
+                }
+                pooled.put(id, reach);
+                return new Found(new TreeSet<>(reach.tables()), new TreeSet<>(reach.templates()), true, false);
+            });
+            if (found == null) {
+                return null;
+            }
+            keep(id, found, tables, templates);
+            if (!pooled.containsKey(id)) {
+                if (found.tryAgain()) {
+                    retry.add(id);
+                } else if (!found.generated()) {
+                    failed.incrementAndGet();
+                }
+                progress.accept(++done);
+            }
+        }
+        early.accept(new StructureScan(new TreeMap<>(tables), new TreeMap<>(templates), patches, new TreeSet<>(retry)));
+        // Then the slow part: one generation of each structure that has pools, for loot its code sets as it's placed.
+        for (Map.Entry<ResourceLocation, PoolScan.Reach> entry : pooled.entrySet()) {
+            ResourceLocation id = entry.getKey();
+            Found found = LoadedPieces.during(server, () -> generate(server, id, entry.getValue(), cancelled, firstViews));
             if (found == null) {
                 return null;
             }
@@ -213,17 +259,37 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         if (cancelled.getAsBoolean()) {
             return null;
         }
-        Set<ResourceLocation> found = new TreeSet<>();
-        Set<ResourceLocation> placed = new TreeSet<>();
-        // Jigsaw structures' pieces can all be read without generating anything, which finds
-        // rare pieces too. One generation still runs for loot that code sets as it places.
+        return generate(server, id, pools(registry, scan, id), cancelled, firstViews);
+    }
+
+    /**
+     * What a structure's template pools can place, or null if it isn't built from pools, or they
+     * couldn't be read. Jigsaw structures' pieces can all be read without generating anything,
+     * which finds rare pieces too.
+     */
+    private static PoolScan.Reach pools(Registry<Structure> registry, PoolScan scan, ResourceLocation id) {
         Structure structure = Regs.value(registry, id);
-        PoolScan.Reach fromPools = null;
         try {
-            fromPools = structure == null ? null : scan.scan(structure);
+            return structure == null ? null : scan.scan(structure);
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
             JesLog.debug("Reading {}'s pools failed", id, e);
+            return null;
         }
+    }
+
+    /**
+     * Generates a structure for the loot only generating shows. For one without pools
+     * ({@code fromPools} null) that is all of it. For one with pools it is what its code sets as it
+     * places, on top of what the pools hold. Null if cancelled.
+     */
+    private static Found generate(MinecraftServer server, ResourceLocation id, PoolScan.Reach fromPools, BooleanSupplier cancelled,
+                                  BiConsumer<ResourceLocation, CaptureResult> firstViews) {
+        if (cancelled.getAsBoolean()) {
+            return null;
+        }
+        Set<ResourceLocation> found = new TreeSet<>();
+        Set<ResourceLocation> placed = new TreeSet<>();
+        // One generation still runs for a structure with pools, for loot that code sets as it places.
         if (fromPools != null) {
             found.addAll(fromPools.tables());
             placed.addAll(fromPools.templates());

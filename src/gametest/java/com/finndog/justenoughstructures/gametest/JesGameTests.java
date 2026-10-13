@@ -249,6 +249,11 @@ public final class JesGameTests {
         ServiceTests.lootIndexFingerprintIsStable(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
+    public void earlyScanIsPartOfTheFinishedOne(GameTestHelper helper) {
+        ScanTests.earlyScanIsPartOfTheFinishedOne(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
         ServiceTests.hiddenStructuresLeaveTheLootIndex(helper);
