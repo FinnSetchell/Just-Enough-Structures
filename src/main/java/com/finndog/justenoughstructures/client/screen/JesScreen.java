@@ -120,6 +120,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private SpawnerPopup spawnerPopup;
     private MobPopup mobPopup;
     private FoundInPopup foundIn;
+    /** The player's own notes on a structure, open over the browser, or null. */
+    private NotesPopup notes;
     private String pendingTable;
     /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
     private StructureViewport.Camera pendingCamera;
@@ -281,6 +283,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             info.onOpenSpawner(this::openSpawnerPopup);
             info.onOpenMobs(this::openMobs);
             info.onMove(Nav::remember);
+            info.onEditNotes(this::openNotes);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -425,6 +428,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (foundIn != null) {
             foundIn.place(width, height);
         }
+        if (notes != null) {
+            addNotesWidgets();
+        }
         if (side() != null) {
             side().placeAt(besideX(SidePopup.WIDTH), height, font);
         }
@@ -472,6 +478,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         //? if <1.21 {
         search.tick();
         //?}
+        if (notes != null) {
+            //? if <1.21 {
+            notes.box.tick();
+            //?}
+        }
         updateToolsButton();
         updateLocateButton();
         updateMarkersButton();
@@ -1206,6 +1217,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
+    /** The player's own notes on a structure. */
+    private record NotesPlace(ResourceLocation id) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("notes", id);
+        }
+    }
+
     /** The browser as it was: the structure and layout, the tab, the picked table, the camera and any popup. */
     private record BrowserLayer(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera,
                                 Popup popup, Component label, Picking picking) implements Nav.Layer {
@@ -1228,7 +1247,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         Popup open = currentPopup();
         String name = StructureNames.structure(selected.id());
         Component label;
-        if (open instanceof FoundInList list) {
+        if (open instanceof NotesPlace) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, Component.translatable("screen.justenoughstructures.your_notes"));
+        } else if (open instanceof FoundInList list) {
             label = Component.translatable("screen.justenoughstructures.nav.found_in", list.item().getHoverName());
         } else if (open instanceof ContainerPopup container) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, container.title());
@@ -1258,6 +1279,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     /** The popup showing, or the one waiting for its structure. */
     private Popup currentPopup() {
+        if (notes != null) {
+            return new NotesPlace(notes.id);
+        }
         if (foundIn != null) {
             return new FoundInList(foundIn.item);
         }
@@ -1339,6 +1363,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         pendingPopup = null;
         if (open instanceof FoundInList list) {
             showFoundIn(list.item());
+            return;
+        }
+        if (open instanceof NotesPlace place) {
+            showNotes(place.id());
             return;
         }
         if (result == null) {
@@ -1730,6 +1758,40 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
     }
 
+    /** The player's own notes on a structure, to write or change, in a popup over the browser. */
+    private void openNotes(ResourceLocation id) {
+        Nav.remember();
+        showNotes(id);
+    }
+
+    private void showNotes(ResourceLocation id) {
+        closePopup();
+        foundIn = null;
+        notes = new NotesPopup(id);
+        addNotesWidgets();
+    }
+
+    /** The notes popup's box and Done, made for the screen as it is now, with the box given the keyboard. */
+    private void addNotesWidgets() {
+        notes.build(font, width, height, this::closeNotes);
+        addWidget(notes.box);
+        addWidget(notes.done);
+        setFocused(notes.box);
+        notes.box.setFocused(true);
+    }
+
+    /** Closes the notes popup, keeping what's written. */
+    private void closeNotes() {
+        if (notes == null) {
+            return;
+        }
+        notes.save();
+        removeWidget(notes.box);
+        removeWidget(notes.done);
+        setFocused(null);
+        notes = null;
+    }
+
     /** The Loot tab with {@code table} picked, as clicking its row would. */
     public void showLoot(String table) {
         info.setTab(InfoPanel.Tab.LOOT);
@@ -1838,6 +1900,20 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return info.tabCentre(InfoPanel.Tab.valueOf(name.toUpperCase(Locale.ROOT)));
     }
 
+    /** The player's notes on the Info tab, or the line asking for some, if it's showing. */
+    public int[] notesSpot() {
+        return info.notesSpot();
+    }
+
+    public boolean notesOpen() {
+        return notes != null;
+    }
+
+    /** The notes popup's Done, or null while they aren't open. */
+    public int[] notesDone() {
+        return notes == null ? null : notes.doneCentre();
+    }
+
     /** Where the marker for the first container using {@code table} is drawn, if it's on screen. */
     public Optional<int[]> marker(String table) {
         for (Marker m : markerRects) {
@@ -1886,6 +1962,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     private void closePopup() {
+        closeNotes();
         popup = null;
         spawnerPopup = null;
         mobPopup = null;
@@ -2036,7 +2113,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
         SidePopup side = side();
         boolean popupOpen = popup != null || side != null;
-        boolean anyPopup = popupOpen || foundIn != null;
+        boolean anyPopup = popupOpen || foundIn != null || notes != null;
         int mx = anyPopup ? -1 : mouseX;
         int my = anyPopup ? -1 : mouseY;
         if (sides) {
@@ -2049,7 +2126,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         renderHeader(g);
         // The preview still answers the mouse beside a container's popup, so another container can be picked.
-        boolean beside = foundIn == null && (side != null ? !side.contains(mouseX, mouseY, font)
+        boolean beside = foundIn == null && notes == null && (side != null ? !side.contains(mouseX, mouseY, font)
                 : popup != null && popup.container != null && !popup.contains(mouseX, mouseY, font));
         StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
         if (sides) {
@@ -2091,9 +2168,17 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             foundIn.render(g, font, mouseX, mouseY);
             Gui.pop(g);
         }
+        if (notes != null) {
+            Gui.beginClipped();
+            Gui.push(g);
+            Gui.lift(g, 400);
+            g.fill(0, 0, width, height, 0x88000000);
+            notes.render(g, font, mouseX, mouseY, partialTick);
+            Gui.pop(g);
+        }
         navBar.render(g, font, mouseX, mouseY, partialTick);
 
-        if (foundIn != null) {
+        if (foundIn != null || notes != null) {
             Gui.push(g);
             Gui.lift(g, 600);
             Gui.clippedTooltip(g, font, mouseX, mouseY);
@@ -2657,6 +2742,18 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
+        // The notes take every click while they're open: one outside closes them, keeping what's written.
+        if (notes != null) {
+            if (!notes.contains(mouseX, mouseY)) {
+                closeNotes();
+            } else if (notes.done.isMouseOver(mouseX, mouseY)) {
+                Gui.click(notes.done, mouseX, mouseY, button);
+            } else if (notes.box.isMouseOver(mouseX, mouseY) && Gui.click(notes.box, mouseX, mouseY, button)) {
+                setFocused(notes.box);
+                setDragging(button == InputConstants.MOUSE_BUTTON_LEFT);
+            }
+            return true;
+        }
         if (foundIn != null) {
             if (foundIn.contains(mouseX, mouseY)) {
                 heldBar = button == InputConstants.MOUSE_BUTTON_LEFT ? foundIn.grabBar(mouseX, mouseY) : null;
@@ -2778,6 +2875,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (notes != null) {
+            return super.mouseDragged(mouseX, mouseY, button, dx, dy);
+        }
         if (heldBar != null) {
             heldBar.dragTo(mouseY);
             return true;
@@ -2799,6 +2899,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (notes != null) {
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
         if (heldBar != null) {
             heldBar.letGo();
             heldBar = null;
@@ -2820,6 +2923,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (notes != null) {
+            if (notes.contains(mouseX, mouseY)) {
+                super.mouseScrolled(mouseX, mouseY, delta);
+            }
+            return true;
+        }
         if (foundIn != null) {
             foundIn.scroll(delta);
             return true;
@@ -2841,6 +2950,15 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
+        // While the notes are open every key is typing, not one of the browser's own, and Escape closes them.
+        if (notes != null) {
+            if (key == InputConstants.KEY_ESCAPE) {
+                closeNotes();
+            } else if (key != InputConstants.KEY_TAB) {
+                super.keyPressed(key, scanCode, modifiers);
+            }
+            return true;
+        }
         if (key == InputConstants.KEY_ESCAPE && foundIn != null) {
             foundIn = null;
             return true;
@@ -2888,6 +3006,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public void removed() {
+        if (notes != null) {
+            notes.save();
+        }
         viewport.close();
         thumbnails.close();
         clearHighlight();

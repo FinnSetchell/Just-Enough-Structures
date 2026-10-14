@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -94,6 +96,59 @@ public final class SettingsTests {
             ClientState.maximised = before[3];
             ClientState.details = before[4];
             ClientState.rarestFirst = before[5];
+        }
+        helper.succeed();
+    }
+
+    /** The player's own notes on structures come back after a restart, from a file of their own. */
+    public static void playerNotesSurviveARestart(GameTestHelper helper) {
+        Map<String, String> before = new LinkedHashMap<>(ClientState.notes);
+        try {
+            Path file = Files.createTempDirectory("jes-notes").resolve("notes.json");
+            String igloo = "Found one past the village.\nThe basement has the potion.";
+            String tower = "Quotes \" and <brackets> & signs";
+            ClientState.notes.clear();
+            ClientState.notes.put("minecraft:igloo", igloo);
+            ClientState.notes.put("test:tower", tower);
+            ClientState.writeNotes(file);
+            ClientState.notes.clear();
+            ClientState.readNotes(file);
+            helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", igloo, "test:tower", tower)),
+                    "the notes came back as " + ClientState.notes);
+            helper.assertTrue(Files.readString(file).contains("<brackets> & signs"), "the notes file isn't written as typed");
+
+            // Notes on something that isn't an id, or with nothing in them, aren't kept.
+            Files.writeString(file, "{\"format\": 1, \"notes\": {\"Not an id!\": \"lost\", \"minecraft:mansion\": \" \\n \", \"minecraft:igloo\": \"kept\"}}");
+            ClientState.readNotes(file);
+            helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", "kept")), "these notes were read: " + ClientState.notes);
+
+            // A broken file changes nothing rather than losing every note.
+            Files.writeString(file, "{ this isn't json");
+            ClientState.readNotes(file);
+            helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", "kept")), "a broken file changed the notes");
+
+            // One a newer version saved is left as it is: not read, and not written over.
+            String newer = "{\"format\": 99, \"notes\": {\"minecraft:mansion\": \"from later\"}}";
+            Files.writeString(file, newer);
+            ClientState.readNotes(file);
+            helper.assertTrue(!ClientState.notes.containsKey("minecraft:mansion"), "a newer version's notes were read");
+            ClientState.writeNotes(file);
+            helper.assertTrue(Files.readString(file).equals(newer), "a newer version's notes were written over");
+
+            // The state file doesn't carry them, so a version from before notes can't drop them.
+            Path state = file.resolveSibling("state.json");
+            ClientState.write(state);
+            helper.assertTrue(!Files.readString(state).contains("kept"), "the notes went into the state file");
+
+            // What's typed is kept without the spaces and empty lines after it, and only up to the limit.
+            helper.assertTrue(ClientState.kept(" \n \n").isEmpty(), "blank notes were kept");
+            helper.assertTrue(ClientState.kept("  Indented.\n\n ").equals("  Indented."), "the notes' ends weren't tidied");
+            helper.assertTrue(ClientState.kept("x".repeat(ClientState.NOTE_LIMIT + 5)).length() == ClientState.NOTE_LIMIT, "notes past the limit were kept");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary file", e);
+        } finally {
+            ClientState.notes.clear();
+            ClientState.notes.putAll(before);
         }
         helper.succeed();
     }

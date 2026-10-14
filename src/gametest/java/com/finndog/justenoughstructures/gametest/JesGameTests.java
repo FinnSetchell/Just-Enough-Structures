@@ -491,6 +491,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void playerNotesSurviveARestart(GameTestHelper helper) {
+        SettingsTests.playerNotesSurviveARestart(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsReadTheirFile(GameTestHelper helper) {
         SettingsTests.serverSettingsReadTheirFile(helper);
     }

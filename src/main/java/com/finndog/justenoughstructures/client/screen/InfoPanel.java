@@ -56,6 +56,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
@@ -106,6 +107,11 @@ final class InfoPanel {
     };
     private Runnable beforeMove = () -> {
     };
+    /** Opens the player's own notes on a structure, to write. */
+    private Consumer<ResourceLocation> onEditNotes = id -> {
+    };
+    /** Where the player's notes, or the line asking for some, were last drawn, for the screenshot harness. */
+    private int[] notesSpot;
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
@@ -210,6 +216,15 @@ final class InfoPanel {
         beforeMove = action;
     }
 
+    /** What clicking the player's notes on the Info tab does: opens them to write. */
+    void onEditNotes(Consumer<ResourceLocation> action) {
+        onEditNotes = action;
+    }
+
+    int[] notesSpot() {
+        return notesSpot;
+    }
+
     void setTab(Tab tab) {
         this.tab = tab;
         scroll.reset();
@@ -264,6 +279,7 @@ final class InfoPanel {
         hoveredText = List.of();
         hoveredBlocks = null;
         highlightRows.clear();
+        notesSpot = null;
 
         // JEI's category tabs: icons only, the selected one joined to the panel below.
         for (Tab t : Tab.values()) {
@@ -415,6 +431,31 @@ final class InfoPanel {
             cy += 16;
             cy = Gui.wrapped(g, font, info.notes(), x + PAD, cy, textWidth(), Gui.label()) + 3;
         }
+
+        // The player's own notes, kept on this game only. Clicking them, or the line asking for
+        // some, opens them to write.
+        cy += 3;
+        Gui.band(g, font, Component.translatable("screen.justenoughstructures.your_notes").getString(), x, cy, contentRight - x, 13);
+        cy += 16;
+        String mine = ClientState.note(entry.id());
+        Component written = mine.isEmpty() ? Component.translatable("screen.justenoughstructures.your_notes.add") : Component.literal(mine);
+        List<FormattedCharSequence> lines = font.split(written, textWidth());
+        int notesHeight = Math.max(1, lines.size()) * (font.lineHeight + 1);
+        boolean overNotes = inside(mouseX, mouseY, x + 2, cy - 2, width - 4, notesHeight + 2, clipTop, clipHeight);
+        int ink = Gui.label();
+        if (mine.isEmpty()) {
+            ink = overNotes ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
+        } else if (overNotes) {
+            g.fill(x + 2, cy - 2, contentRight - 2, cy + notesHeight, Gui.rowHover());
+        }
+        notesSpot = new int[]{x + PAD + (lines.isEmpty() ? 0 : Math.min(font.width(lines.get(0)), textWidth()) / 2), cy + font.lineHeight / 2};
+        StructureCatalog.Entry noted = entry;
+        hotspots.add(new Hotspot(x + 2, cy - 2, width - 4, notesHeight + 2, () -> onEditNotes.accept(noted.id())));
+        for (FormattedCharSequence line : lines) {
+            g.drawString(font, line, x + PAD, cy, ink, false);
+            cy += font.lineHeight + 1;
+        }
+        cy += 3;
 
         // Everything a datapack author wants and a player doesn't: only with advanced tooltips (F3+H),
         // as vanilla does with ids, and folded away even then.

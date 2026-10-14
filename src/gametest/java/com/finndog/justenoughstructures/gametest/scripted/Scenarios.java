@@ -57,6 +57,7 @@ public final class Scenarios {
             case "lootfixes" -> LootFixesScenario.build(mc);
             case "markers" -> MarkersScenario.build(mc);
             case "favourites" -> FavouritesScenario.build(mc);
+            case "notes" -> NotesScenario.build(mc);
             case "spawners" -> SpawnersScenario.build(mc);
             case "back" -> BackScenario.build(mc);
             case "hover_spin" -> SpinScenario.build(mc);

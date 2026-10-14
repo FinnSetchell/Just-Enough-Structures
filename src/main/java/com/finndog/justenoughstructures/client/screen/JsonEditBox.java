@@ -10,9 +10,10 @@ import net.minecraft.client.gui.screens.Screen;
 //?}
 
 /**
- * The loot editor's JSON box. Before 26.1 a click inside a multi-line box is taken as a click on its
- * scroll area before the cursor is moved, so the cursor stays where it was. This moves it. 26.1 moves
- * it itself, and only makes these boxes through a builder, so there it's a plain one.
+ * The loot editor's JSON box, and the box the player writes notes in. Before 26.1 a click inside a
+ * multi-line box is taken as a click on its scroll area before the cursor is moved, so the cursor
+ * stays where it was. This moves it. 26.1 moves it itself, and only makes these boxes through a
+ * builder, so there it's a plain one.
  */
 //? if >=26.1 {
 /*final class JsonEditBox {
