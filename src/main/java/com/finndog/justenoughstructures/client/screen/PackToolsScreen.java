@@ -576,6 +576,11 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         ((ToolsStructures) sections.get(Section.STRUCTURES)).typeNotes(text);
     }
 
+    /** Where the box for a structure's name is, or null while it isn't shown. */
+    public int[] nameBox() {
+        return ((ToolsStructures) sections.get(Section.STRUCTURES)).nameBoxCentre();
+    }
+
     /** Where a button or link with this label was last drawn, or null. */
     public int[] buttonAt(String label) {
         return ui.centre(label);

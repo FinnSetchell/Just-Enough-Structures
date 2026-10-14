@@ -25,6 +25,7 @@
     "TemplateStructurePieceAccessor"
   ],
   "client": [
+    "ClientPackRepositoryMixin",
     "MultiLineEditBoxAccessor"
   ],
   "injectors": {

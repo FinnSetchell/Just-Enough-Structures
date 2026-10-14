@@ -496,6 +496,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void structureNamesAreKeptInLangFiles(GameTestHelper helper) {
+        NameTests.structureNamesAreKeptInLangFiles(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void structureNamesComeAfterTheList(GameTestHelper helper) {
+        NameTests.structureNamesComeAfterTheList(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsReadTheirFile(GameTestHelper helper) {
         SettingsTests.serverSettingsReadTheirFile(helper);
     }

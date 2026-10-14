@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
 import com.finndog.justenoughstructures.overrides.StructureInfoFiles;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -148,6 +149,16 @@ public final class PackToolsServer {
             return Component.translatable("screen.justenoughstructures.tools.no_structure", id.toString());
         }
         Component reply = StructureInfoFiles.save(server.getResourceManager(), id, notes, secret);
+        JesServer.structuresChanged(server);
+        return reply;
+    }
+
+    /** Gives a structure the name players see in one language, or takes it away, so its mod's own is used. */
+    public static Component saveName(MinecraftServer server, ResourceLocation id, String language, String name) {
+        if (!server.registryAccess().registryOrThrow(Registries.STRUCTURE).containsKey(id)) {
+            return Component.translatable("screen.justenoughstructures.tools.no_structure", id.toString());
+        }
+        Component reply = StructureNameFiles.save(id, language, name);
         JesServer.structuresChanged(server);
         return reply;
     }

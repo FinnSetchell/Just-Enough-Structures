@@ -84,6 +84,8 @@ public final class JesNetwork {
     public static final int TOOLS_RULES = 0;
     public static final int TOOLS_STRUCTURE = 1;
     public static final int TOOLS_RELOAD = 2;
+    /** Gives a structure a name in one language, or takes it away. */
+    public static final int TOOLS_NAME = 3;
 
     private static ServerSender serverSender = (player, channel, buf) -> {
     };

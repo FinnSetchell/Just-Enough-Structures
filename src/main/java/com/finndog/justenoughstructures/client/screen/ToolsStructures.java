@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonElement;
@@ -49,6 +50,12 @@ final class ToolsStructures extends ToolsSection {
     private String notes = "";
     private ResourceLocation notesFor;
     private boolean notesChanged;
+    private EditBox nameBox;
+    /** The name as typed, in the game's language, the structure it's for, and whether it differs from what's saved. */
+    private String name = "";
+    private ResourceLocation nameFor;
+    private boolean nameChanged;
+    private static final int NAME_HEIGHT = 14;
 
     ToolsStructures(PackToolsScreen screen) {
         super(screen);
@@ -92,7 +99,7 @@ final class ToolsStructures extends ToolsSection {
 
     @Override
     void leaving() {
-        saveNotes();
+        saveText();
     }
 
     /** The picked structure, or the browser's if none is picked yet. */
@@ -124,6 +131,7 @@ final class ToolsStructures extends ToolsSection {
         // Shown on its own, a structure is only shown once it's picked.
         ResourceLocation shown = single ? selected : shownStructure();
         notesBox = null;
+        nameBox = null;
         notesHeight = Math.max(28, Math.min(64, h / 5));
         if (shown != null && screen.state() != null) {
             // Put in place, and shown, as it's drawn.
@@ -143,6 +151,23 @@ final class ToolsStructures extends ToolsSection {
                     notesChanged = true;
                 }
             });
+            // Only where the server keeps names, as one from before them would drop what's typed, and
+            // for a language with a code the server takes.
+            if (StructureNames.namesFromServer() && StructureNameFiles.isLanguage(StructureNames.language())) {
+                nameBox = screen.add(new EditBox(font, x, y, detailWidth(w) - 8 - 10, NAME_HEIGHT,
+                        Component.translatable("screen.justenoughstructures.tools.name")));
+                nameBox.setMaxLength(StructureNameFiles.MAX_NAME);
+                nameBox.visible = false;
+                loadName(shown);
+                nameBox.setValue(name);
+                nameBox.setHint(Component.literal(StructureNames.modsOwn(shown)).withStyle(ChatFormatting.DARK_GRAY));
+                nameBox.setResponder(text -> {
+                    if (!text.equals(name)) {
+                        name = text;
+                        nameChanged = true;
+                    }
+                });
+            }
         }
     }
 
@@ -165,6 +190,41 @@ final class ToolsStructures extends ToolsSection {
         }
     }
 
+    private void loadName(ResourceLocation structure) {
+        if (structure.equals(nameFor)) {
+            return;
+        }
+        name = StructureNames.given(structure);
+        nameFor = structure;
+        nameChanged = false;
+    }
+
+    private void saveName() {
+        if (nameChanged && nameFor != null) {
+            ResourceLocation structure = nameFor;
+            String language = StructureNames.language();
+            String typed = name;
+            nameChanged = false;
+            ClientRequests.saveName(structure, language, typed).thenAccept(reply -> {
+                if (JesScreen.replyIs(reply.message(), "tools.structure_saved")) {
+                    StructureNames.saved(structure, language, typed);
+                }
+                screen.replied(reply, "tools.structure_saved");
+            });
+        }
+    }
+
+    /** Saves whatever's been typed and not saved yet, the name and the notes. */
+    private void saveText() {
+        saveName();
+        saveNotes();
+    }
+
+    /** Where the name box is, for the screenshot harness, or null while it isn't shown. */
+    int[] nameBoxCentre() {
+        return nameBox == null || !nameBox.visible ? null : new int[]{nameBox.getX() + nameBox.getWidth() / 2, nameBox.getY() + nameBox.getHeight() / 2};
+    }
+
     /** Types notes as if into the box, for the screenshot harness. */
     void typeNotes(String text) {
         if (notesBox != null) {
@@ -184,11 +244,22 @@ final class ToolsStructures extends ToolsSection {
             notesBox.tick();
             //?}
         }
+        if (nameBox != null) {
+            //? if <1.21 {
+            nameBox.tick();
+            //?}
+        }
         ResourceLocation shown = shownStructure();
         if (shown != null && !shown.equals(notesFor) && screen.state() != null && notesBox != null) {
             saveNotes();
             loadNotes(shown);
             notesBox.setValue(notes);
+        }
+        if (shown != null && !shown.equals(nameFor) && nameBox != null) {
+            saveName();
+            loadName(shown);
+            nameBox.setValue(name);
+            nameBox.setHint(Component.literal(StructureNames.modsOwn(shown)).withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 
@@ -292,6 +363,9 @@ final class ToolsStructures extends ToolsSection {
             if (notesBox != null) {
                 notesBox.visible = false;
             }
+            if (nameBox != null) {
+                nameBox.visible = false;
+            }
             return;
         }
         detail(g, ui, x, y, w, h, entry, settings, state);
@@ -360,9 +434,10 @@ final class ToolsStructures extends ToolsSection {
         StructureInfo info = state.info(id);
         Component shownLabel = Component.translatable("screen.justenoughstructures.tools.shown");
         Component secretLabel = Component.translatable("screen.justenoughstructures.tools.secret");
-        Component save = Component.translatable("screen.justenoughstructures.tools.save_notes");
+        Component save = Component.translatable("screen.justenoughstructures.tools.save");
         int saveW = ui.buttonWidth(save);
-        String status = notesChanged ? Component.translatable("screen.justenoughstructures.tools.notes_unsaved").getString()
+        boolean unsaved = notesChanged || nameChanged;
+        String status = unsaved ? Component.translatable("screen.justenoughstructures.tools.notes_unsaved").getString()
                 : info.notes() == null || state.structures().getOrDefault(id, new PackToolsState.Written(info, false)).fromPack() ? ""
                 : Component.translatable("screen.justenoughstructures.tools.notes_from_mod").getString();
         List<FormattedCharSequence> statusLines = status.isEmpty() ? List.of()
@@ -371,7 +446,9 @@ final class ToolsStructures extends ToolsSection {
 
         // Where everything goes, worked out first so the box can be drawn behind it.
         int checkW = w - 10;
-        int shownY = y + 16;
+        int nameLabelY = y + 16;
+        int nameY = nameLabelY + 9;
+        int shownY = nameBox == null ? y + 16 : nameY + NAME_HEIGHT + 4;
         int secretY = shownY + ui.checkHeight(shownLabel, checkW) + 2;
         int labelY = secretY + ui.checkHeight(secretLabel, checkW) + 3;
         int notesY = labelY + 9;
@@ -381,6 +458,11 @@ final class ToolsStructures extends ToolsSection {
         g.fill(x, y, x + w, y + boxH, 0xFF9A9A9A);
         g.fill(x + 1, y + 1, x + w - 1, y + boxH - 1, 0xFFE8E8E8);
         Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.tools.for_players").getString(), x + 5, y + 4, w - 10, ToolsUi.TEXT, false);
+        if (nameBox != null) {
+            Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.name_in", StructureNames.languageName()).getString(),
+                    x + 5, nameLabelY, w - 10, Gui.labelSoft());
+            placeName(g, x + 5, nameY, w - 10, viewTop, viewBottom);
+        }
         ui.wrappedCheck(g, shownLabel, x + 5, shownY, checkW, !hidden,
                 modHidden ? null : () -> save(ToolsRules.hideStructure(settings, id, !hidden)),
                 Component.translatable(modHidden ? "screen.justenoughstructures.tools.hidden_by_mod" : "screen.justenoughstructures.tools.shown_hint"));
@@ -393,10 +475,10 @@ final class ToolsStructures extends ToolsSection {
         }, Component.translatable("screen.justenoughstructures.tools.secret_hint"));
         Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.notes").getString(), x + 5, labelY, w - 10, Gui.labelSoft());
         placeNotes(g, x + 5, notesY, w - 10, viewTop, viewBottom);
-        ui.button(g, save, x + w - 5 - saveW, saveY, notesChanged, this::saveNotes);
+        ui.button(g, save, x + w - 5 - saveW, saveY, unsaved, this::saveText);
         int sy = saveY + 3;
         for (FormattedCharSequence line : statusLines) {
-            Gui.scaled(g, font, line, x + 5, sy, notesChanged ? ToolsUi.changed() : Gui.labelSoft(), Gui.fineScale());
+            Gui.scaled(g, font, line, x + 5, sy, unsaved ? ToolsUi.changed() : Gui.labelSoft(), Gui.fineScale());
             sy += lineH;
         }
         return y + boxH;
@@ -426,6 +508,22 @@ final class ToolsStructures extends ToolsSection {
             g.drawString(font, line, x + 4, ly, notes.isEmpty() ? 0xCCE0E0E0 : 0xFFE0E0E0, false);
             ly += font.lineHeight;
         }
+        Gui.endScissor(g);
+    }
+
+    /** Puts the name box where it's drawn as the detail scrolls, as the notes box is, with a picture of it while only some is in view. */
+    private void placeName(GuiGraphics g, int x, int y, int w, int viewTop, int viewBottom) {
+        nameBox.setX(x);
+        nameBox.setY(y);
+        nameBox.setWidth(w);
+        nameBox.visible = y >= viewTop && y + NAME_HEIGHT <= viewBottom;
+        if (nameBox.visible || y + NAME_HEIGHT <= viewTop || y >= viewBottom) {
+            return;
+        }
+        g.fill(x, y, x + w, y + NAME_HEIGHT, 0xFFA0A0A0);
+        g.fill(x + 1, y + 1, x + w - 1, y + NAME_HEIGHT - 1, 0xFF000000);
+        Gui.scissor(g, x + 1, y + 1, x + w - 1, y + NAME_HEIGHT - 1);
+        g.drawString(font, name, x + 4, y + (NAME_HEIGHT - 8) / 2, 0xFFE0E0E0, false);
         Gui.endScissor(g);
     }
 

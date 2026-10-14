@@ -6,12 +6,14 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.screen.Nav;
+import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import java.io.ByteArrayOutputStream;
@@ -100,6 +102,7 @@ public final class ClientRequests {
     /** Forget everything tied to the current connection. */
     public static void reset() {
         catalog = null;
+        StructureNames.useGiven(null);
         cancelAll(CAPTURES);
         KEEPING.clear();
         cancelAll(LOOT);
@@ -162,6 +165,19 @@ public final class ClientRequests {
             buf.writeResourceLocation(id);
             buf.writeUtf(notes.length() > Codecs.MAX_NOTES ? notes.substring(0, Codecs.MAX_NOTES) : notes, Codecs.MAX_NOTES);
             buf.writeBoolean(secret);
+        });
+    }
+
+    /** Gives a structure a name in one language, or takes it away when blank. It applies straight away. */
+    public static CompletableFuture<EditReply> saveName(ResourceLocation id, String language, String name) {
+        if (!StructureNameFiles.isLanguage(language)) {
+            return CompletableFuture.completedFuture(new EditReply(Component.translatable("screen.justenoughstructures.tools.no_language", language), null));
+        }
+        String kept = StructureNameFiles.tidy(name);
+        return toolsAction(JesNetwork.TOOLS_NAME, buf -> {
+            buf.writeResourceLocation(id);
+            buf.writeUtf(language, StructureNameFiles.MAX_LANGUAGE);
+            buf.writeUtf(kept, StructureNameFiles.MAX_NAME);
         });
     }
 
@@ -421,6 +437,13 @@ public final class ClientRequests {
         }
     }
 
+    /** Fetches the structure list again when it's next wanted, for the screenshot harness. */
+    public static void forgetCatalog() {
+        if (catalog != null && catalog.isDone()) {
+            catalog = null;
+        }
+    }
+
     public static CompletableFuture<List<StructureCatalog.Entry>> catalog() {
         if (catalog == null || catalog.isCompletedExceptionally() || catalog.isCancelled()) {
             catalog = new CompletableFuture<>();
@@ -567,6 +590,11 @@ public final class ClientRequests {
         if (part.kind() == JesNetwork.KIND_CATALOG) {
             String fingerprint = Codecs.readFingerprint(buf);
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
+            // A server new enough to keep names Pack tools gives structures sends them after the list.
+            Map<String, Map<String, String>> names = buf.isReadable() ? Codecs.readNames(buf) : null;
+            StructureNames.useGiven(names);
+            JesLog.debug("The structure list came with {} structures, and names given in {} languages", entries.size(),
+                    names == null ? "no" : names.size());
             Thumbnails.onCatalog(fingerprint, entries);
             // A world played here saves its own first views, so they're only kept from other computers.
             KeptPreviews.use(fingerprint, !Minecraft.getInstance().hasSingleplayerServer());

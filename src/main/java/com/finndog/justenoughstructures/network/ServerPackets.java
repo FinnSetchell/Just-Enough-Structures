@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.network;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.RequestLimits;
 import com.finndog.justenoughstructures.server.ServerConfig;
@@ -109,6 +110,11 @@ public final class ServerPackets {
                 server.execute(() -> JesServer.onSaveStructure(player, requestId, id, notes, secret));
             } else if (action == JesNetwork.TOOLS_RELOAD) {
                 server.execute(() -> JesServer.onReload(player, requestId));
+            } else if (action == JesNetwork.TOOLS_NAME) {
+                ResourceLocation id = buf.readResourceLocation();
+                String language = buf.readUtf(StructureNameFiles.MAX_LANGUAGE);
+                String name = buf.readUtf(StructureNameFiles.MAX_NAME);
+                server.execute(() -> JesServer.onSaveName(player, requestId, id, language, name));
             }
         });
 

@@ -14,6 +14,7 @@ import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import com.finndog.justenoughstructures.server.PackToolsState;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonObject;
@@ -186,6 +187,16 @@ public final class Codecs {
             out.add(new StructureCatalog.Entry(id, type, definition, sets, info, availability, dimensions));
         }
         return out;
+    }
+
+    /** The names Pack tools gave structures: for each language, each lang key and its name. */
+    public static void writeNames(FriendlyByteBuf buf, Map<String, Map<String, String>> names) {
+        writeMap(buf, names, FriendlyByteBuf::writeUtf, (b, keys) -> writeMap(b, keys, FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeUtf));
+    }
+
+    public static Map<String, Map<String, String>> readNames(FriendlyByteBuf buf) {
+        return readMap(buf, b -> b.readUtf(StructureNameFiles.MAX_LANGUAGE),
+                b -> readMap(b, FriendlyByteBuf::readUtf, c -> c.readUtf(StructureNameFiles.MAX_NAME)));
     }
 
     // ------------------------------------------------------------------ Pack tools

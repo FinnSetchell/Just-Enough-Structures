@@ -22,6 +22,7 @@ import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import com.mojang.datafixers.util.Pair;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -168,6 +169,7 @@ public final class JesServer {
     public static void invalidate() {
         ContainerPatches.reloaded();
         SpawnerPatches.reloaded();
+        StructureNameFiles.forget();
         clearCaptures();
         catalog = null;
         ODDS_CACHE.clear();
@@ -246,6 +248,8 @@ public final class JesServer {
             catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> {
                 Codecs.writeFingerprint(buf, fingerprint);
                 Codecs.writeCatalog(buf, entries);
+                // After the list, where a version from before names stops reading.
+                Codecs.writeNames(buf, StructureNameFiles.all());
             }));
             catalogFingerprint = fingerprint;
         }
@@ -484,6 +488,12 @@ public final class JesServer {
 
     public static void onSaveStructure(ServerPlayer player, int requestId, ResourceLocation id, String notes, boolean secret) {
         Component reply = canEdit(player) ? PackToolsServer.saveStructure(Players.server(player), id, notes, secret)
+                : Component.translatable("screen.justenoughstructures.override.no_permission");
+        sendEditReply(player, requestId, reply, null);
+    }
+
+    public static void onSaveName(ServerPlayer player, int requestId, ResourceLocation id, String language, String name) {
+        Component reply = canEdit(player) ? PackToolsServer.saveName(Players.server(player), id, language, name)
                 : Component.translatable("screen.justenoughstructures.override.no_permission");
         sendEditReply(player, requestId, reply, null);
     }

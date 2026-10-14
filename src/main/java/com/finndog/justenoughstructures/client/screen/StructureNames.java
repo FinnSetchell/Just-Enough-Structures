@@ -3,9 +3,13 @@ package com.finndog.justenoughstructures.client.screen;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.overrides.StructureNameFiles;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.client.resources.language.LanguageInfo;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
@@ -24,26 +28,98 @@ public final class StructureNames {
     /** Names already worked out, as sorting the list asks for each one many times. Dropped when the language changes. */
     private static final Map<ResourceLocation, String> STRUCTURES = new ConcurrentHashMap<>();
     private static Language namedIn;
+    /** The names Pack tools gave structures on the server, each language's by lang key, or null when it sends none. */
+    private static volatile Map<String, Map<String, String>> given;
+    /** Goes up each time they change, so names worked out from the old ones are dropped. */
+    private static volatile int givenChanges;
+    private static int namedWith;
 
     private StructureNames() {
     }
 
-    /** A translation if a mod provides {@code structure.<namespace>.<path>}, otherwise the id tidied up. */
+    /**
+     * The name Pack tools gave it on the server, in the game's language or else in English, then a
+     * translation if a mod provides {@code structure.<namespace>.<path>}, otherwise the id tidied up.
+     */
     public static String structure(ResourceLocation id) {
         Language language = Language.getInstance();
-        if (language != namedIn) {
+        int changes = givenChanges;
+        if (language != namedIn || changes != namedWith) {
             STRUCTURES.clear();
             namedIn = language;
+            namedWith = changes;
         }
         return STRUCTURES.computeIfAbsent(id, StructureNames::name);
     }
 
     private static String name(ResourceLocation id) {
-        String key = "structure." + id.getNamespace() + "." + id.getPath().replace('/', '.');
+        String key = StructureNameFiles.key(id);
+        String named = givenIn(language(), key);
+        if (named == null) {
+            named = givenIn("en_us", key);
+        }
+        return named != null ? named : modsOwn(id);
+    }
+
+    /** What a mod's translation names it, or the id tidied up, leaving out any name Pack tools gave it. */
+    public static String modsOwn(ResourceLocation id) {
+        String key = StructureNameFiles.key(id);
         if (Language.getInstance().has(key)) {
             return I18n.get(key);
         }
         return pretty(id.getPath());
+    }
+
+    private static String givenIn(String language, String key) {
+        Map<String, Map<String, String>> names = given;
+        Map<String, String> inLanguage = names == null ? null : names.get(language);
+        return inLanguage == null ? null : inLanguage.get(key);
+    }
+
+    /** The name Pack tools gave a structure in the game's language, or an empty string. */
+    public static String given(ResourceLocation id) {
+        String named = givenIn(language(), StructureNameFiles.key(id));
+        return named == null ? "" : named;
+    }
+
+    /** The names Pack tools gave structures, as the server sent them, or null from a server that sends none. */
+    public static void useGiven(Map<String, Map<String, String>> names) {
+        given = names;
+        givenChanges++;
+    }
+
+    /** A name just saved, put in use here straight away rather than when the structure list next comes. */
+    public static void saved(ResourceLocation id, String language, String name) {
+        Map<String, Map<String, String>> names = given;
+        if (names == null) {
+            return;
+        }
+        Map<String, Map<String, String>> next = new HashMap<>(names);
+        Map<String, String> inLanguage = new HashMap<>(next.getOrDefault(language, Map.of()));
+        String text = StructureNameFiles.tidy(name);
+        if (text.isEmpty()) {
+            inLanguage.remove(StructureNameFiles.key(id));
+        } else {
+            inLanguage.put(StructureNameFiles.key(id), text);
+        }
+        next.put(language, inLanguage);
+        useGiven(next);
+    }
+
+    /** Whether the server keeps names Pack tools gives structures, which versions from before them don't. */
+    public static boolean namesFromServer() {
+        return given != null;
+    }
+
+    /** The language the game is in, like en_us. */
+    public static String language() {
+        return Minecraft.getInstance().getLanguageManager().getSelected();
+    }
+
+    /** What the game's language is called, like "English (US)". */
+    public static Component languageName() {
+        LanguageInfo info = Minecraft.getInstance().getLanguageManager().getLanguage(language());
+        return info == null ? Component.literal(language()) : info.toComponent();
     }
 
     public static String mod(String namespace) {
