@@ -1147,6 +1147,10 @@ final class InfoPanel {
     private static Component stacks(int count) {
         int full = count / 64;
         int rest = count % 64;
+        if (full == 0) {
+            // Under a stack: just how many, rather than "0 stacks and 9".
+            return Component.literal(String.format("%,d", count));
+        }
         if (rest == 0) {
             return full == 1 ? Component.translatable("screen.justenoughstructures.stack_one")
                     : Component.translatable("screen.justenoughstructures.stacks_only", full);
