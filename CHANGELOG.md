@@ -14,6 +14,7 @@ First release.
 - Arrows above the preview step through structures and jump between mods
 - Back and Forward along the top of every screen go between the structures, tabs, popups and screens you've looked at, with Backspace, Shift+Backspace or your mouse's side buttons
 - Star a structure to keep it in a Favourites section at the top of the list
+- Write your own notes on any structure, from the bottom of its Info tab. They stay on your computer
 - Markers in the preview show where the containers are, or the mobs and spawners while on the Mobs tab, and can be hidden
 - Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again, or every item's chance in it
   - When several share a loot table, the preview rings every one of them, and the arrows go from one to the next, turning the view to each
@@ -66,6 +67,8 @@ First release.
   - Pick a spawner in the browser to give it a different mob, including modded ones, or leave it empty, and undo it later
   - Give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
   - Hide structures or whole mods, keep where a structure's loot is a secret, and write notes for players on its Info tab
+  - Rename a structure, and every player with the mod sees the new name. Names are kept in language files, so each language can have its own
+  - On your own world, Explorer's Compass shows a new name too, after F3+T or a restart
   - Choose who can locate, teleport and use Pack tools, and what players see, without leaving the game
   - It's there in singleplayer with cheats on, and on a server for players given its permission, listed by name, or with a permission level
   - Its button can be hidden in the settings
@@ -74,6 +77,10 @@ First release.
 - Other mods' warnings about their structures stay out of the game log
 - Uses much less memory after the loot index has built, most of all with many structure mods
 - No longer crashes when you point at some modded blocks in a preview
+- Scroll bars can be dragged, and every list that scrolls has one
+- The spawner popup no longer shows a scroll bar when its list fits
+- With EMI, the structures an item is found in are ready after one load when you join, instead of two
+- A structure whose generation never finishes no longer freezes every other preview and the item search
 - Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
