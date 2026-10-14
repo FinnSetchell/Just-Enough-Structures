@@ -12,6 +12,7 @@ First release.
   - The preview turns slowly on its own and stops while your mouse is over it, which can be turned off in the settings
 - The preview can be made to fill the whole screen
 - Arrows above the preview step through structures and jump between mods
+- Up and Down go through the structure list and Pack tools' pickers, and Enter picks in a picker
 - Back and Forward along the top of every screen go between the structures, tabs, popups and screens you've looked at, with Backspace, Shift+Backspace or your mouse's side buttons
 - Star a structure to keep it in a Favourites section at the top of the list
 - Write your own notes on any structure, from the bottom of its Info tab. They stay on your computer
@@ -29,6 +30,7 @@ First release.
 - Search for an item to find the structures whose loot can give it, with the best chance first
   - Item search finds loot in every piece a structure can have
 - The Blocks tab is a material list you can copy
+  - Click a kind of block there are fewer than 20 of to go to each one in the preview
 - Ids and the Info tab's details only show with advanced tooltips (F3+H), as with items
 - Hovering a kind of block, a group of chests or a spawner in the details lights up where they are in the preview, even through walls
 - Hovering a spawner in the preview says what it spawns
@@ -43,7 +45,7 @@ First release.
 - The browser remembers how you left it, like whether the preview fills the screen
 - Text cut short to fit shows in full when you hover over it
 - Every screen fits small and very large windows at any GUI scale
-- Resource packs that restyle Minecraft's menus now restyle the structure browser too
+- Resource packs that restyle Minecraft's menus now restyle the structure browser and Pack tools too
 - With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
 - In Mod Menu, JES links to its Discord, CurseForge and Modrinth pages, and tells you when there's an update
 - Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
@@ -61,6 +63,7 @@ First release.
   - The list's pictures are kept the same way, so changing GUI scale or resource packs redraws them without downloading anything
 - Pack tools, from a button beside the details' tabs, keeps everything a modpack maker or server owner changes in one place
   - Edit any loot table in a form for every pool, entry, function and condition, with every box listing what it can be set to as you type, and see one possible roll and every item's chance as you go
+  - In the loot editor, Delete takes out the picked entry, and entries can be dragged from one pool into another
   - Edits are saved to the config folder and used from the next /reload, so they ship with a modpack, and Reload now puts everything waiting in use
   - When a mod updates a table you've edited, you can see what changed, merge it in, keep yours, or switch to the mod's
   - Pick a chest in the browser to switch it to a different loot table, or a brand new one, and undo it later
@@ -81,6 +84,7 @@ First release.
 - The spawner popup no longer shows a scroll bar when its list fits
 - With EMI, the structures an item is found in are ready after one load when you join, instead of two
 - A structure whose generation never finishes no longer freezes every other preview and the item search
+- Block counts under a stack no longer read "0 stacks and 9"
 - Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
