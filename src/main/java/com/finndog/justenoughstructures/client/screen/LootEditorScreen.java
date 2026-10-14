@@ -927,6 +927,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             save(false);
             return true;
         }
+        // Delete takes out what's picked, as the cross on its row does, while nothing is being typed in.
+        if (key == InputConstants.KEY_DELETE && canStep() && editingId == null && choice == null && selectedPool >= 0
+                && !(getFocused() instanceof EditBox box && box.isFocused())) {
+            removePicked();
+            return true;
+        }
         // What dragging a row does, for the keyboard: Alt with an arrow moves what's picked one place.
         if (hasAltDown() && (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN)
                 && canStep() && editingId == null && selectedPool >= 0) {
@@ -1016,12 +1022,20 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         if (pressedRow != null) {
             int to = dropIndex();
+            int pool = dropPool();
             TreeRow row = pressedRow;
             pressedRow = null;
             if (draggingRow) {
                 draggingRow = false;
-                // The press picked the row, so what's picked is what moves.
-                if (to != row.index()) {
+                if (pool != row.pool()) {
+                    // Into another pool, where it's picked now.
+                    int at = JsonPaths.moveInto(draft, row.path(), JsonPaths.join("pools", pool) + ".entries", to);
+                    if (at >= 0) {
+                        select(pool, at);
+                        changed();
+                    }
+                } else if (to != row.index()) {
+                    // The press picked the row, so what's picked is what moves.
                     moved(JsonPaths.moveTo(draft, row.path(), to));
                 }
                 return true;
@@ -1427,37 +1441,73 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return treeEnd;
     }
 
-    /** The rows of the list the row being dragged is in, in order. */
-    private List<TreeRow> besideDragged() {
-        return treeRows.stream().filter(row -> row.list().equals(pressedRow.list())).toList();
+    /**
+     * The pool the row being dragged would land in. An entry of a pool's own goes into whichever pool's
+     * rows the mouse is among; a pool, and an entry inside another, stay in their own list.
+     */
+    private int dropPool() {
+        if (pressedRow == null || pressedRow.entry() < 0 || !pressedRow.child().isEmpty()) {
+            return pressedRow == null ? -1 : pressedRow.pool();
+        }
+        int pool = -1;
+        for (TreeRow row : treeRows) {
+            if (row.entry() < 0 && (pool < 0 || row.y() <= dragY)) {
+                pool = row.pool();
+            }
+        }
+        return pool < 0 ? pressedRow.pool() : pool;
     }
 
-    /** Where in its list the row being dragged would land if it were let go now, or where it is if it isn't being dragged. */
+    /** The rows of the list the row being dragged would land in, in order: its own, or another pool's entries. */
+    private List<TreeRow> dropList() {
+        int pool = dropPool();
+        if (pool == pressedRow.pool()) {
+            return treeRows.stream().filter(row -> row.list().equals(pressedRow.list())).toList();
+        }
+        return treeRows.stream().filter(row -> row.pool() == pool && row.entry() >= 0 && row.child().isEmpty()).toList();
+    }
+
+    /** Where in the list it would land the row being dragged would go if it were let go now, or where it is if it isn't being dragged. */
     private int dropIndex() {
         if (pressedRow == null || !draggingRow) {
             return pressedRow == null ? -1 : pressedRow.index();
         }
-        List<TreeRow> list = besideDragged();
+        List<TreeRow> list = dropList();
         int[] tops = new int[list.size()];
         int[] bottoms = new int[list.size()];
         for (int i = 0; i < list.size(); i++) {
             tops[i] = list.get(i).y();
             bottoms[i] = blockEnd(list.get(i));
         }
+        if (dropPool() != pressedRow.pool()) {
+            // Among another pool's entries, none of which is the one being dragged.
+            return EntryTree.dropIndex(tops, bottoms, -1, (int) dragY);
+        }
         return Math.min(EntryTree.dropIndex(tops, bottoms, pressedRow.index(), (int) dragY), Math.max(0, list.size() - 1));
     }
 
-    /** While a row is dragged, a line where it would land among the others in its list. */
+    /** While a row is dragged, a line where it would land among the others in the list it would go into. */
     private void dropLine(GuiGraphics g, int x, int w) {
         if (pressedRow == null || !draggingRow) {
             return;
         }
-        List<TreeRow> others = besideDragged().stream().filter(row -> row.index() != pressedRow.index()).toList();
+        int pool = dropPool();
+        boolean own = pool == pressedRow.pool();
+        List<TreeRow> others = dropList().stream().filter(row -> !own || row.index() != pressedRow.index()).toList();
+        int lineY;
         if (others.isEmpty()) {
-            return;
+            if (own) {
+                return;
+            }
+            // A pool with no entries yet: just under its own row.
+            lineY = treeRows.stream().filter(row -> row.pool() == pool && row.entry() < 0).findFirst().map(row -> row.y() + TREE_ROW).orElse(-1);
+            if (lineY < 0) {
+                return;
+            }
+        } else {
+            int to = dropIndex();
+            lineY = to < others.size() ? others.get(to).y() : blockEnd(others.get(others.size() - 1));
         }
-        int to = dropIndex();
-        int lineY = to < others.size() ? others.get(to).y() : blockEnd(others.get(others.size() - 1));
         g.fill(x + 2 + pressedRow.indent(), lineY - 1, x + w - 2, lineY + 1, 0xFFFFFFFF);
     }
 

@@ -353,6 +353,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void entriesMoveBetweenPools(GameTestHelper helper) {
+        EntryTreeTests.entriesMoveBetweenPools(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void copiesGetAnIdAndASequenceOfTheirOwn(GameTestHelper helper) {
         TableCopyTests.copiesGetAnIdAndASequenceOfTheirOwn(helper);
     }

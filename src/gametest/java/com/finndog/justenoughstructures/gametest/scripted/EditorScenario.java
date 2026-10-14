@@ -6,6 +6,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.dragTo;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.wheel;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
@@ -158,6 +159,38 @@ final class EditorScenario {
                         throw new IllegalStateException("Taking the removal, the move and the copy back left " + entries(mc) + " entries");
                     }
                 }))
+                // Delete takes out the picked entry, as its cross does.
+                .then(run(() -> editor(mc).pick(0, 1)))
+                .then(pause(5))
+                .then(pressKey(InputConstants.KEY_DELETE))
+                .then(pause(5))
+                .then(run(() -> {
+                    if (entries(mc) != counted[0] - 1) {
+                        throw new IllegalStateException("Delete left the pool with " + entries(mc) + " entries, where it had " + counted[0]);
+                    }
+                    editor(mc).undoNow();
+                }))
+                // The first pool's last entry is dragged into the second pool, to the top of it. The list
+                // doesn't scroll while a row is held, so it's scrolled to its end first.
+                .then(moveTo(() -> row(mc, 0, 0), 8))
+                .then(wheel(-20))
+                .then(pause(10))
+                .then(run(() -> {
+                    dragged[0] = entry(mc, entries(mc) - 1);
+                    editor(mc).pick(0, entries(mc) - 1);
+                }))
+                .then(pause(5))
+                .then(moveTo(() -> row(mc, entries(mc) - 1, 0), 8))
+                .then(dragTo(() -> poolRow(mc, 1, 7), 20, InputConstants.MOUSE_BUTTON_LEFT))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (entries(mc) != counted[0] - 1 || !entryIn(mc, 1, 0).equals(dragged[0])) {
+                        throw new IllegalStateException("Dragging into the second pool left the first with " + entries(mc)
+                                + " entries and the second's first as " + entryIn(mc, 1, 0));
+                    }
+                }))
+                .then(shoot("e03m_dragged_to_pool_2"))
+                .then(run(() -> editor(mc).undoNow()))
                 .then(run(() -> editor(mc).openItemPicker()))
                 .then(pause(20))
                 .then(shoot("e03c_item_picker"))
@@ -314,6 +347,18 @@ final class EditorScenario {
     /** One of the first pool's entries, as text. */
     private static String entry(Minecraft mc, int index) {
         return JsonParser.parseString(editor(mc).draftText()).getAsJsonObject().getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").get(index).toString();
+    }
+
+    /** One of a pool's entries, as text. */
+    private static String entryIn(Minecraft mc, int pool, int index) {
+        return JsonParser.parseString(editor(mc).draftText()).getAsJsonObject().getAsJsonArray("pools").get(pool).getAsJsonObject()
+                .getAsJsonArray("entries").get(index).toString();
+    }
+
+    /** A point on a pool's own row of the list, {@code dy} down from its middle. */
+    private static int[] poolRow(Minecraft mc, int pool, int dy) {
+        int[] at = editor(mc) == null ? null : editor(mc).rowAt(pool, -1, "");
+        return at == null ? new int[]{0, 0} : new int[]{at[0], at[1] + dy};
     }
 
     /** A point on the row of one of the first pool's entries in the list, {@code dy} down from its middle. */

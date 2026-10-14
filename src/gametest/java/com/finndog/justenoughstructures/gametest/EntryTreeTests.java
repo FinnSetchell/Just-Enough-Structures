@@ -20,6 +20,34 @@ public final class EntryTreeTests {
     }
 
     /**
+     * An entry dragged into another pool goes where it was let go, leaves its own pool's list there even
+     * when that's empty, and gets one in a pool that has none. A list can't be moved into itself or
+     * into something inside the item being moved.
+     */
+    public static void entriesMoveBetweenPools(GameTestHelper helper) {
+        JsonObject table = JsonParser.parseString("""
+                {"type": "minecraft:chest", "pools": [
+                  {"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:bone"},
+                                           {"type": "minecraft:item", "name": "minecraft:coal"}]},
+                  {"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]},
+                  {"rolls": 1}]}
+                """).getAsJsonObject();
+        int at = JsonPaths.moveInto(table, "pools.0.entries.1", "pools.1.entries", 0);
+        helper.assertTrue(at == 0 && "minecraft:coal".equals(JsonPaths.string(table, "pools.1.entries.0.name", null))
+                && "minecraft:stick".equals(JsonPaths.string(table, "pools.1.entries.1.name", null)), "the coal didn't go to the top of the second pool: " + table);
+        at = JsonPaths.moveInto(table, "pools.0.entries.0", "pools.1.entries", 99);
+        helper.assertTrue(at == 2 && "minecraft:bone".equals(JsonPaths.string(table, "pools.1.entries.2.name", null)), "the bone didn't go last: " + table);
+        helper.assertTrue(JsonPaths.array(table, "pools.0.entries") != null && JsonPaths.array(table, "pools.0.entries").isEmpty(),
+                "the first pool lost its list of entries: " + table);
+        at = JsonPaths.moveInto(table, "pools.1.entries.1", "pools.2.entries", 0);
+        helper.assertTrue(at == 0 && "minecraft:stick".equals(JsonPaths.string(table, "pools.2.entries.0.name", null)), "a pool without entries didn't take one: " + table);
+        helper.assertTrue(JsonPaths.moveInto(table, "pools.1.entries.0", "pools.1.entries", 0) == -1, "an entry was moved into its own list");
+        helper.assertTrue(JsonPaths.moveInto(table, "pools.1", "pools.1.entries", 0) == -1, "a pool was moved into itself");
+        helper.assertTrue(JsonPaths.moveInto(table, "pools.1.entries.9", "pools.0.entries", 0) == -1, "an entry that isn't there was moved");
+        helper.succeed();
+    }
+
+    /**
      * Every entry is listed, those inside others after the one they're in and a step deeper, and
      * each one's path leads to it in the table. One changed through its path leaves a table the
      * game loads, and going back in the editor's history remembers which one was picked.

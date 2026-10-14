@@ -193,6 +193,33 @@ public final class JsonPaths {
      * Moves the list item at the path to another place in its list, those between the two each moving
      * one along. Returns where it is now, or -1 if there's no such item or no such place.
      */
+    /**
+     * Moves the list item at the path into another list, to stand at {@code to} there, after the others
+     * when {@code to} is past its end. The list it leaves stays, even when that leaves it empty, and the
+     * one it goes to is made if there isn't one. Returns where it went, or -1 if it can't go.
+     */
+    public static int moveInto(JsonElement root, String path, String list, int to) {
+        int index = indexIn(root, path);
+        JsonArray from = index < 0 ? null : array(root, parent(path));
+        if (from == null || list.equals(parent(path)) || list.startsWith(path + ".")) {
+            return -1;
+        }
+        JsonArray into = array(root, list);
+        if (into == null) {
+            into = new JsonArray();
+            set(root, list, into);
+        }
+        JsonElement moved = from.remove(index);
+        int at = Math.max(0, Math.min(to, into.size()));
+        // Gson's lists can't be put into partway along, so the ones after it move up one.
+        into.add(moved);
+        for (int i = into.size() - 1; i > at; i--) {
+            into.set(i, into.get(i - 1));
+        }
+        into.set(at, moved);
+        return at;
+    }
+
     public static int moveTo(JsonElement root, String path, int to) {
         int index = indexIn(root, path);
         JsonArray array = index < 0 ? null : array(root, parent(path));
