@@ -424,16 +424,28 @@ public final class Gui {
         }
     }
 
-    /** JEI's search box: black, with a thin bevel just inside a black edge. */
+    /** JEI's search box: black, with a thin bevel just inside a black edge, a dim one over a dark panel. */
     static void searchBox(GuiGraphics g, int x, int y, int w, int h) {
+        int lit = ink(0xFFACACAC, 0xFF3C3C3C);
+        int shade = ink(0xFF565655, 0xFF1E1E1E);
+        int corner = ink(0xFF676767, 0xFF2C2C2C);
         g.fill(x, y, x + w, y + h, EDGE);
-        g.fill(x + 1, y + 1, x + w - 1, y + 2, 0xFFACACAC);
-        g.fill(x + 1, y + 1, x + 2, y + h - 1, 0xFFACACAC);
-        g.fill(x + 2, y + h - 2, x + w - 1, y + h - 1, 0xFF565655);
-        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, 0xFF565655);
-        g.fill(x + w - 2, y + 1, x + w - 1, y + 2, 0xFF676767);
-        g.fill(x + 1, y + h - 2, x + 2, y + h - 1, 0xFF676767);
+        g.fill(x + 1, y + 1, x + w - 1, y + 2, lit);
+        g.fill(x + 1, y + 1, x + 2, y + h - 1, lit);
+        g.fill(x + 2, y + h - 2, x + w - 1, y + h - 1, shade);
+        g.fill(x + w - 2, y + 2, x + w - 1, y + h - 1, shade);
+        g.fill(x + w - 2, y + 1, x + w - 1, y + 2, corner);
+        g.fill(x + 1, y + h - 2, x + 2, y + h - 1, corner);
         g.fill(x + 2, y + 2, x + w - 2, y + h - 2, EDGE);
+    }
+
+    /** A box with a one-pixel outline, each drawn once, so see-through colours come out as they should. */
+    static void outlined(GuiGraphics g, int x, int y, int w, int h, int outline, int fill) {
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        g.fill(x, y, x + w, y + 1, outline);
+        g.fill(x, y + h - 1, x + w, y + h, outline);
+        g.fill(x, y + 1, x + 1, y + h - 1, outline);
+        g.fill(x + w - 1, y + 1, x + w, y + h - 1, outline);
     }
 
     /** A button drawn pressed in, JEI's look for a toggle that's on. */

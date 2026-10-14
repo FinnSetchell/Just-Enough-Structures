@@ -1184,7 +1184,7 @@ final class InfoPanel {
         int w = font.width(label) + 10;
         boolean over = inside(mouseX, mouseY, bx, cy, w, 14, clipTop, clipHeight);
         g.fill(bx, cy, bx + w, cy + 14, Gui.EDGE);
-        g.fill(bx + 1, cy + 1, bx + w - 1, cy + 13, over ? 0xFF8D8D8D : 0xFF737373);
+        g.fill(bx + 1, cy + 1, bx + w - 1, cy + 13, over ? Gui.ink(0xFF8D8D8D, 0xFF55535C) : Gui.ink(0xFF737373, 0xFF3C3B42));
         g.drawString(font, label, bx + 5, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
         hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 17;

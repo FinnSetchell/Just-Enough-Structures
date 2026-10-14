@@ -34,6 +34,12 @@ final class ToolsUi {
         return Gui.ink(0xFF2040C0, Gui.LINK_HOVER_ON_DARK);
     }
     static final int SELECTED = 0xFF4B5280;
+    /**
+     * Over a dark panel, see-through shades of whatever the panel is: a list's picked row a little
+     * lighter, and the lines between rows a little darker.
+     */
+    static final int PICKED_ON_DARK = 0x40FFFFFF;
+    static final int LINE_ON_DARK = 0x40000000;
     /** The kinds of {@link #status} bar, by how what it says stands. */
     static final int STATUS_PLAIN = 0;
     static final int STATUS_GOOD = 1;
@@ -255,12 +261,13 @@ final class ToolsUi {
     void toggle(GuiGraphics g, int x, int y, boolean on, Runnable action, Component... tip) {
         g.fill(x, y, x + 17, y + 10, 0xFF000000);
         g.fill(x + 1, y + 1, x + 16, y + 9, on ? 0xFF4F7A3A : 0xFF555555);
+        // The knob is a little piece of the panel, in the chest texture's own colours, so a pack's.
         int knob = on ? x + 9 : x + 1;
-        g.fill(knob, y + 1, knob + 7, y + 9, Gui.PANEL);
-        g.fill(knob, y + 1, knob + 6, y + 2, 0xFFFFFFFF);
-        g.fill(knob, y + 1, knob + 1, y + 8, 0xFFFFFFFF);
-        g.fill(knob + 6, y + 1, knob + 7, y + 9, 0xFF555555);
-        g.fill(knob, y + 8, knob + 7, y + 9, 0xFF555555);
+        Gui.tone(g, knob, y + 1, knob + 7, y + 9, Gui.Tone.PANEL);
+        Gui.tone(g, knob, y + 1, knob + 6, y + 2, Gui.Tone.LIGHT);
+        Gui.tone(g, knob, y + 1, knob + 1, y + 8, Gui.Tone.LIGHT);
+        Gui.tone(g, knob + 6, y + 1, knob + 7, y + 9, Gui.Tone.DARK);
+        Gui.tone(g, knob, y + 8, knob + 7, y + 9, Gui.Tone.DARK);
         if (hovered(x - 1, y - 1, 19, 12)) {
             g.fill(x - 1, y - 1, x + 18, y, 0xFFFFFFFF);
             g.fill(x - 1, y + 10, x + 18, y + 11, 0xFFFFFFFF);
@@ -320,9 +327,9 @@ final class ToolsUi {
         int w = Gui.fineWidth(font, label) + 6;
         int h = Gui.fineLine(font) + 4;
         boolean over = hovered(x, y, w, h);
-        g.fill(x, y, x + w, y + h, on ? 0xFF2B3060 : 0xFF777777);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, on ? SELECTED : over ? 0xFFC0C0C0 : 0xFFA8A8A8);
-        Gui.fine(g, font, label, x + 3, y + 2, on ? 0xFFFFFFFF : 0xFF303030);
+        Gui.outlined(g, x, y, w, h, on ? 0xFF2B3060 : Gui.ink(0xFF777777, 0x80000000),
+                on ? SELECTED : over ? Gui.ink(0xFFC0C0C0, 0x48FFFFFF) : Gui.ink(0xFFA8A8A8, 0x28FFFFFF));
+        Gui.fine(g, font, label, x + 3, y + 2, on ? 0xFFFFFFFF : Gui.ink(0xFF303030, 0xFFE0E0E0));
         spot(x, y, w, h, action);
         tooltip(x, y, w, h, tip);
         return w;
@@ -339,15 +346,16 @@ final class ToolsUi {
         return y + 14;
     }
 
-    /** A status bar's fill and text colours, by its kind. */
+    /** A status bar's fill and text colours, by its kind. Over a dark panel they swap round: a dark bar with light text. */
     static int[] statusColours(int kind) {
-        return switch (kind) {
+        int[] colours = switch (kind) {
             case STATUS_GOOD -> new int[]{0xFFCFE8C0, 0xFF24451A};
             case STATUS_CHANGED -> new int[]{0xFFF1DCAE, 0xFF5A3A00};
             case STATUS_BAD -> new int[]{0xFFF0C0C0, 0xFF6A1010};
             case STATUS_NEW -> new int[]{0xFFC6D4F0, 0xFF1F2F60};
             default -> new int[]{0xFFD6D6D6, 0xFF505050};
         };
+        return Gui.darkPanel() ? new int[]{colours[1], colours[0]} : colours;
     }
 
     /** A coloured bar with a line of text, for how something stands. Returns its height. */

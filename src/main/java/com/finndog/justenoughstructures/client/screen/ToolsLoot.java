@@ -250,7 +250,7 @@ final class ToolsLoot extends ToolsSection {
     private void listRow(GuiGraphics g, ToolsUi ui, int x, int y, int w, ResourceLocation table, LootOverrides.Status status) {
         boolean isSelected = table.equals(selected);
         if (isSelected) {
-            g.fill(x, y, x + w, y + LIST_ROW - 1, 0xFF9D9D9D);
+            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.ink(0xFF9D9D9D, ToolsUi.PICKED_ON_DARK));
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
@@ -263,7 +263,7 @@ final class ToolsLoot extends ToolsSection {
             Gui.fine(g, font, markText, x + w - 3 - Gui.fineWidth(font, markText), y + 2, isSelected ? 0xFFFFFFFF : markColour(status));
         }
         Gui.fineClipped(g, font, table.toString(), x + 3, y + 11, w - 6, isSelected ? 0xFFDDDDDD : Gui.labelSoft());
-        g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, 0xFFB0B0B0);
+        g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
     }
 
     /** The picked table: what it is, how it stands, where it's used, and every item's chance. */

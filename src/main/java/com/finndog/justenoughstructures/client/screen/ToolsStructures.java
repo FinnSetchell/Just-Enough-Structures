@@ -375,7 +375,7 @@ final class ToolsStructures extends ToolsSection {
                               PackToolsState state, boolean isSelected) {
         boolean hidden = settings.hides(e.id());
         if (isSelected) {
-            g.fill(x, y, x + w, y + LIST_ROW - 1, 0xFF9D9D9D);
+            g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.ink(0xFF9D9D9D, ToolsUi.PICKED_ON_DARK));
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
@@ -403,7 +403,7 @@ final class ToolsStructures extends ToolsSection {
         ui.toggle(g, x + w - 19, y + 5, !hidden, modHidden ? null : () -> save(ToolsRules.hideStructure(settings, e.id(), !hidden)),
                 Component.translatable(modHidden ? "screen.justenoughstructures.tools.hidden_by_mod"
                         : hidden ? "screen.justenoughstructures.tools.shown_off" : "screen.justenoughstructures.tools.shown_on"));
-        g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, 0xFFB8B8B8);
+        g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, Gui.ink(0xFFB8B8B8, ToolsUi.LINE_ON_DARK));
     }
 
     /** The picked structure: a way to see it, what players are told, and its definition. */
@@ -455,8 +455,8 @@ final class ToolsStructures extends ToolsSection {
         int saveY = notesY + notesHeight + 2;
         int boxH = saveY + Math.max(ToolsUi.BUTTON, statusLines.size() * lineH) + 4 - y;
 
-        g.fill(x, y, x + w, y + boxH, 0xFF9A9A9A);
-        g.fill(x + 1, y + 1, x + w - 1, y + boxH - 1, 0xFFE8E8E8);
+        // Lighter than the panel, as vanilla's light grey or over a dark panel a shade of the pack's own.
+        Gui.outlined(g, x, y, w, boxH, Gui.ink(0xFF9A9A9A, 0x80000000), Gui.ink(0xFFE8E8E8, 0x18FFFFFF));
         Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.tools.for_players").getString(), x + 5, y + 4, w - 10, ToolsUi.TEXT, false);
         if (nameBox != null) {
             Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.tools.name_in", StructureNames.languageName()).getString(),

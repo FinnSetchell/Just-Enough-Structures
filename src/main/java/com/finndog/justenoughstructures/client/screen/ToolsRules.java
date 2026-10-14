@@ -180,7 +180,7 @@ final class ToolsRules extends ToolsSection {
         Gui.fineClipped(g, font, text, x + w - 2 - Gui.fineWidth(font, shown), under ? y + 15 : y + 6, room, Gui.labelSoft());
         int h = under ? LINE + Gui.fineLine(font) + 3 : LINE;
         hint(ui, x, y, w, h - 1, key);
-        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        g.fill(x, y + h - 1, x + w, y + h, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
         return y + h;
     }
 
@@ -199,7 +199,7 @@ final class ToolsRules extends ToolsSection {
         hint(ui, x, y, under ? w : w - buttonW - 4, under ? 14 : LINE - 1, key);
         int next = level >= 4 ? lowest : level + 1;
         ui.button(g, levelName(level), x + w - buttonW - 2, under ? y + 15 : y + 2, buttonW, ToolsUi.BUTTON, true, () -> save(change.apply(next)));
-        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        g.fill(x, y + h - 1, x + w, y + h, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
         return y + h;
     }
 
@@ -220,7 +220,7 @@ final class ToolsRules extends ToolsSection {
             int noteX = Math.max(x + 2, textX - 26 - Gui.fineWidth(font, noteText));
             Gui.fineClipped(g, font, noteText, noteX, cy + 6, textX - 26 - noteX, ToolsUi.changed());
         }
-        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        g.fill(x, y + h - 1, x + w, y + h, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
         return y + h;
     }
 

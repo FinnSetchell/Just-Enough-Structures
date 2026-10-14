@@ -157,7 +157,7 @@ abstract class ToolsSection {
             h = ROW + lines * (ToolsUi.BUTTON + 2) + 1;
         }
         if (selected) {
-            g.fill(x, y, x + w, y + h - 1, 0xFF9D9D9D);
+            g.fill(x, y, x + w, y + h - 1, Gui.ink(0xFF9D9D9D, ToolsUi.PICKED_ON_DARK));
         } else if (background != 0) {
             g.fill(x, y, x + w, y + h - 1, background);
         } else if (click != null && ui.hovered(x, y, w, h - 1)) {
@@ -199,7 +199,7 @@ abstract class ToolsSection {
         if (detail != null) {
             Gui.fineClipped(g, font, detail, textX, y + 12, Math.max(0, room), selected ? 0xFFDDDDDD : Gui.labelSoft());
         }
-        g.fill(x, y + h - 1, x + w, y + h, 0xFFB0B0B0);
+        g.fill(x, y + h - 1, x + w, y + h, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
         return h;
     }
 
