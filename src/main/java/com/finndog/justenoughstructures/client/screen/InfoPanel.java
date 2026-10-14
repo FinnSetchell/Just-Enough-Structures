@@ -90,6 +90,8 @@ final class InfoPanel {
     }
 
     private static final int TAB_SIZE = 24;
+    /** A kind of block there are fewer of than this in a layout can be clicked, to go through them one at a time. */
+    static final int BLOCK_TOUR = 20;
     private static final int PAD = 2;
     private static final ItemStack SECRET_ICON = new ItemStack(Items.CHEST);
 
@@ -106,6 +108,8 @@ final class InfoPanel {
     private Consumer<String> onOpenMobs = type -> {
     };
     private Runnable beforeMove = () -> {
+    };
+    private Consumer<Block> onOpenBlocks = block -> {
     };
     /** Opens the player's own notes on a structure, to write. */
     private Consumer<ResourceLocation> onEditNotes = id -> {
@@ -209,6 +213,11 @@ final class InfoPanel {
     /** Told the entity id of a row of placed mobs clicked on the Mobs tab, to open all of that kind. */
     void onOpenMobs(Consumer<String> action) {
         onOpenMobs = action;
+    }
+
+    /** Told the kind of block of a row clicked on the Blocks tab, one there are few enough of to go through one by one. */
+    void onOpenBlocks(Consumer<Block> action) {
+        onOpenBlocks = action;
     }
 
     /** Told just before the panel moves somewhere else, like another tab, so Back can return. */
@@ -1147,7 +1156,7 @@ final class InfoPanel {
     }
 
     /** A block's item, or a bucket of it for water and lava, which have none. */
-    private static ItemStack blockIcon(Block block) {
+    static ItemStack blockIcon(Block block) {
         if (block.asItem() != Items.AIR) {
             return new ItemStack(block.asItem());
         }
@@ -1221,6 +1230,9 @@ final class InfoPanel {
                 List<Component> lines = new ArrayList<>();
                 lines.add(block.getName());
                 lines.add(stacks(count).copy().withStyle(ChatFormatting.GRAY));
+                if (count < BLOCK_TOUR) {
+                    lines.add(Component.translatable("screen.justenoughstructures.blocks_tour").withStyle(ChatFormatting.GRAY));
+                }
                 if (Minecraft.getInstance().options.advancedItemTooltips) {
                     lines.add(Component.literal(BuiltInRegistries.BLOCK.getKey(block).toString()).withStyle(ChatFormatting.DARK_GRAY));
                 }
@@ -1230,13 +1242,16 @@ final class InfoPanel {
                 }
             }
             highlightRows.put("block:" + BuiltInRegistries.BLOCK.getKey(block), new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
+            if (count < BLOCK_TOUR) {
+                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenBlocks.accept(block)));
+            }
             cy += rowHeight;
         }
         return cy;
     }
 
     /** Where every block of a kind is in a snapshot. */
-    private static LongSet positionsOf(StructureSnapshot snapshot, Block block) {
+    static LongSet positionsOf(StructureSnapshot snapshot, Block block) {
         boolean[] matches = new boolean[snapshot.palette().size()];
         for (int i = 0; i < matches.length; i++) {
             matches[i] = snapshot.palette().get(i).is(block);

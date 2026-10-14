@@ -63,6 +63,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -119,6 +120,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** A spawner's popup. Only one popup is open at a time, this or {@link #popup}. */
     private SpawnerPopup spawnerPopup;
     private MobPopup mobPopup;
+    /** One of a kind of block there are only a few of, from the Blocks tab. Only one popup is open at a time. */
+    private BlockPopup blockPopup;
     private FoundInPopup foundIn;
     /** The player's own notes on a structure, open over the browser, or null. */
     private NotesPopup notes;
@@ -282,6 +285,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             info.onOpenTable(this::openTable);
             info.onOpenSpawner(this::openSpawnerPopup);
             info.onOpenMobs(this::openMobs);
+            info.onOpenBlocks(this::openBlocks);
             info.onMove(Nav::remember);
             info.onEditNotes(this::openNotes);
         }
@@ -831,6 +835,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         List<StructureSnapshot.Container> same = sameTable(container);
         spawnerPopup = null;
         mobPopup = null;
+        blockPopup = null;
         ChestPopup previous = popup;
         ChestPopup.View keep = previous != null && previous.container != null ? previous.view : ChestPopup.View.ROLL;
         popup = ChestPopup.forContainer(container, containerTitle(container), containerSize(container),
@@ -994,6 +999,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             stepMob(direction);
             return;
         }
+        if (blockPopup != null) {
+            stepBlock(direction);
+            return;
+        }
         if (popup == null || popup.container == null) {
             return;
         }
@@ -1042,6 +1051,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawner);
         popup = null;
         mobPopup = null;
+        blockPopup = null;
         BlockPos pos = spawner.pos();
         Component title = view != null ? view.rawState(pos.getX(), pos.getY(), pos.getZ()).getBlock().getName()
                 : Component.translatable("block.minecraft.spawner");
@@ -1108,6 +1118,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         List<Entity> same = sameMobs(mob);
         popup = null;
         spawnerPopup = null;
+        blockPopup = null;
         mobPopup = new MobPopup(mob, all && same.size() > 1 ? -1 : same.indexOf(mob), same.size());
         mobPopup.placeAt(besideX(SidePopup.WIDTH), height, font);
         layoutPopupButtons();
@@ -1138,9 +1149,64 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return out;
     }
 
-    /** The spawner's or mob's popup that's open, or null. */
+    /**
+     * Opens every block of a kind there are only a few of, as clicking its row on the Blocks tab does,
+     * to go through them one at a time.
+     */
+    private void openBlocks(Block block) {
+        if (result == null || !result.succeeded() || view == null) {
+            return;
+        }
+        List<BlockPos> same = sameBlocks(block);
+        if (same.isEmpty()) {
+            return;
+        }
+        Nav.remember();
+        showBlock(same.get(0), true);
+        if (!blockPopup.overview()) {
+            lookAt(same.get(0));
+        }
+    }
+
+    /** Shows a block, or with {@code all}, every block of its kind, the one at {@code pos} standing for them. */
+    private void showBlock(BlockPos pos, boolean all) {
+        BlockState state = view.rawState(pos.getX(), pos.getY(), pos.getZ());
+        List<BlockPos> same = sameBlocks(state.getBlock());
+        popup = null;
+        spawnerPopup = null;
+        mobPopup = null;
+        blockPopup = new BlockPopup(state, pos, all && same.size() > 1 ? -1 : same.indexOf(pos), same.size());
+        blockPopup.placeAt(besideX(SidePopup.WIDTH), height, font);
+        layoutPopupButtons();
+    }
+
+    private void stepBlock(int direction) {
+        if (view == null) {
+            return;
+        }
+        List<BlockPos> same = sameBlocks(blockPopup.state.getBlock());
+        if (same.size() > 1) {
+            // From all of them, the first step goes to the first or the last.
+            int at = blockPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(blockPopup.pos);
+            BlockPos next = same.get(Math.floorMod(at + direction, same.size()));
+            showBlock(next, false);
+            lookAt(next);
+        }
+    }
+
+    /** Where the layout has blocks of a kind, bottom layer first, so the arrows go through them in an order that can be followed. */
+    private List<BlockPos> sameBlocks(Block block) {
+        List<BlockPos> out = new ArrayList<>();
+        for (long packed : InfoPanel.positionsOf(result.snapshot(), block)) {
+            out.add(BlockPos.of(packed));
+        }
+        out.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY).thenComparingInt(BlockPos::getZ).thenComparingInt(BlockPos::getX));
+        return out;
+    }
+
+    /** The spawner's, mob's or block's popup that's open, or null. */
     private SidePopup side() {
-        return spawnerPopup != null ? spawnerPopup : mobPopup;
+        return spawnerPopup != null ? spawnerPopup : mobPopup != null ? mobPopup : blockPopup;
     }
 
     /** Shows the structures whose loot can give this item. */
@@ -1210,6 +1276,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
+    /** A block's popup, found again by its kind and where it is. */
+    private record BlockPlace(Block block, BlockPos pos, Component title, boolean all) implements Popup {
+        @Override
+        public Object key() {
+            return List.of("block", BuiltInRegistries.BLOCK.getKey(block), pos);
+        }
+    }
+
     private record FoundInList(ItemStack item) implements Popup {
         @Override
         public Object key() {
@@ -1257,6 +1331,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, spawner.title());
         } else if (open instanceof MobPlace mob) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, mob.title());
+        } else if (open instanceof BlockPlace block) {
+            label = Component.translatable("screen.justenoughstructures.nav.part", name, block.title());
         } else if (open instanceof TablePopup table) {
             label = Component.translatable("screen.justenoughstructures.nav.part", name, StructureNames.lootTable(table.table()));
         } else if (info.tab() != InfoPanel.Tab.OVERVIEW) {
@@ -1290,6 +1366,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         if (mobPopup != null) {
             return new MobPlace(mobPopup.mob.getType(), mobBlock(mobPopup.mob), mobPopup.title, mobPopup.overview());
+        }
+        if (blockPopup != null) {
+            return new BlockPlace(blockPopup.state.getBlock(), blockPopup.pos, blockPopup.title, blockPopup.overview());
         }
         if (popup != null) {
             return popup.container != null
@@ -1399,6 +1478,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                     return;
                 }
             }
+        } else if (open instanceof BlockPlace wanted && result.succeeded() && view != null && sameBlocks(wanted.block()).contains(wanted.pos())) {
+            showBlock(wanted.pos(), wanted.all());
         }
     }
 
@@ -1447,6 +1528,18 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             wanted = s -> {
                 LongSet out = new LongOpenHashSet();
                 same.forEach(mob -> out.add(mobBlock(mob).asLong()));
+                if (showing != null) {
+                    out.remove(showing.asLong());
+                }
+                return out;
+            };
+        } else if (blockPopup != null && blockPopup.count > 1 && foundIn == null) {
+            // And for a block's: every one of its kind but the one on show.
+            Block block = blockPopup.state.getBlock();
+            BlockPos showing = blockPopup.overview() ? null : blockPopup.pos;
+            key = "block_popup:" + BuiltInRegistries.BLOCK.getKey(block) + "|" + showing;
+            wanted = s -> {
+                LongSet out = new LongOpenHashSet(InfoPanel.positionsOf(s, block));
                 if (showing != null) {
                     out.remove(showing.asLong());
                 }
@@ -1538,6 +1631,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (mobPopup != null && !mobPopup.overview()) {
             return mobBlock(mobPopup.mob);
         }
+        if (blockPopup != null && !blockPopup.overview()) {
+            return blockPopup.pos;
+        }
         if (popup != null && popup.container != null && !popup.overview()) {
             return popup.container.pos();
         }
@@ -1569,6 +1665,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
             icon = mobIcon(mob);
             at = viewport.project(mob.getX(), mob.getY() + mob.getBbHeight() + 0.2, mob.getZ());
+        } else if (blockPopup != null) {
+            icon = InfoPanel.blockIcon(blockPopup.state.getBlock());
+            at = viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
         } else {
             StructureSnapshot.Container container = popup.container;
             if (markerRects.stream().anyMatch(m -> m.containers().contains(container))) {
@@ -1896,6 +1995,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return new int[]{b.getX() + b.getWidth() / 2, b.getY() + b.getHeight() / 2};
     }
 
+    /** Which block of how many the block popup shows, -1 while it shows all of them, or null without one. For the screenshot harness. */
+    public int[] blockPopupStep() {
+        return blockPopup == null ? null : new int[]{blockPopup.index, blockPopup.count};
+    }
+
     public int[] tab(String name) {
         return info.tabCentre(InfoPanel.Tab.valueOf(name.toUpperCase(Locale.ROOT)));
     }
@@ -1966,6 +2070,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         popup = null;
         spawnerPopup = null;
         mobPopup = null;
+        blockPopup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
             // Back to the zoom and centre from before, but keeping whatever angle the player turned to.

@@ -175,6 +175,7 @@
   "screen.justenoughstructures.stacks_only": "%s stacks",
   "screen.justenoughstructures.stack_one": "1 stack",
   "screen.justenoughstructures.blocks_copy": "Copy list",
+  "screen.justenoughstructures.blocks_tour": "Click to go to each one",
   "screen.justenoughstructures.copied": "Copied the list to your clipboard",
 
   "_comment.mobs_tab": "Mobs tab",
