@@ -195,6 +195,11 @@ public final class StructureViewport implements AutoCloseable {
         return view;
     }
 
+    /** The block entities, mobs and blocks this preview gave up on drawing or asking. For the screenshot harness. */
+    public List<Object> leftOut() {
+        return List.copyOf(failed);
+    }
+
     public boolean meshing() {
         return mesh != null && mesh.building();
     }
@@ -256,7 +261,8 @@ public final class StructureViewport implements AutoCloseable {
             *///?} else {
             return state.isSolidRender(view, pos);
             //?}
-        } catch (RuntimeException | LinkageError e) {
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             failed.add(state.getBlock());
             RenderFailures.shapeFailed(state.getBlock(), e);
             return false;
@@ -532,16 +538,17 @@ public final class StructureViewport implements AutoCloseable {
         return camera;
     }
 
+    /^* Returns false if it failed, which can leave {@code pose} pushed or popped. ^/
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private void submitBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose, SubmitNodeStorage nodes, CameraRenderState camera) {
+    private boolean submitBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose, SubmitNodeStorage nodes, CameraRenderState camera) {
         BlockPos pos = be.getBlockPos();
         if (pos.getY() >= slice || failed.contains(be)) {
-            return;
+            return true;
         }
         BlockEntityRenderDispatcher dispatcher = minecraft.getBlockEntityRenderDispatcher();
         BlockEntityRenderer renderer = dispatcher.getRenderer(be);
         if (renderer == null) {
-            return;
+            return true;
         }
         pose.pushPose();
         pose.translate(pos.getX(), pos.getY(), pos.getZ());
@@ -550,17 +557,20 @@ public final class StructureViewport implements AutoCloseable {
             renderer.extractRenderState(be, state, partialTick, camera.pos, null);
             state.lightCoords = FULL_BRIGHT;
             dispatcher.submit(state, pose, nodes, camera);
-        } catch (RuntimeException | LinkageError e) {
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             failed.add(be);
             RenderFailures.failed("Drawing a block entity", be.getBlockState().getBlock(), e);
-        } finally {
-            pose.popPose();
+            return false;
         }
+        pose.popPose();
+        return true;
     }
 
-    private void submitEntity(Entity entity, int slice, EntityRenderDispatcher entities, PoseStack pose, SubmitNodeStorage nodes, CameraRenderState camera) {
+    /^* Returns false if it failed, which can leave {@code pose} pushed or popped. ^/
+    private boolean submitEntity(Entity entity, int slice, EntityRenderDispatcher entities, PoseStack pose, SubmitNodeStorage nodes, CameraRenderState camera) {
         if (entity.getY() >= slice || failed.contains(entity)) {
-            return;
+            return true;
         }
         try {
             // Always at their current pose. They never tick, so their "last tick" rotations stay
@@ -571,10 +581,13 @@ public final class StructureViewport implements AutoCloseable {
             // A shadow would fall on whatever the real world has at these positions.
             state.shadowPieces.clear();
             entities.submit(state, camera, entity.getX(), entity.getY(), entity.getZ(), pose, nodes);
-        } catch (RuntimeException | LinkageError e) {
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             failed.add(entity);
             RenderFailures.failed("Drawing an entity", EntityType.getKey(entity.getType()), e);
+            return false;
         }
+        return true;
     }
 
     private void blit(GuiGraphics graphics) {
@@ -633,39 +646,52 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    private void drawBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose, MultiBufferSource buffers) {
+    /**
+     * Returns false if it failed, which can leave {@code pose} pushed or popped. What the frame had
+     * drawn so far is thrown away then, as the renderer may have stopped part way through a vertex.
+     */
+    private boolean drawBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose) {
         BlockPos pos = be.getBlockPos();
         if (pos.getY() >= slice || failed.contains(be)) {
-            return;
+            return true;
         }
         BlockEntityRenderer<BlockEntity> renderer = minecraft.getBlockEntityRenderDispatcher().getRenderer(be);
         if (renderer == null) {
-            return;
+            return true;
         }
         pose.pushPose();
         pose.translate(pos.getX(), pos.getY(), pos.getZ());
         try {
-            renderer.render(be, partialTick, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
-        } catch (RuntimeException | LinkageError e) {
+            renderer.render(be, partialTick, pose, PreviewBuffers.source(), LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             failed.add(be);
+            PreviewBuffers.discard();
             RenderFailures.failed("Drawing a block entity", be.getBlockState().getBlock(), e);
+            return false;
         }
         pose.popPose();
+        return true;
     }
 
-    private void drawEntity(Entity entity, int slice, EntityRenderDispatcher entities, PoseStack pose, MultiBufferSource buffers) {
+    /** As {@link #drawBlockEntity}, for a mob or other entity. */
+    private boolean drawEntity(Entity entity, int slice, EntityRenderDispatcher entities, PoseStack pose) {
         if (entity.getY() >= slice || failed.contains(entity)) {
-            return;
+            return true;
         }
         try {
             // Always at their current pose. They never tick, so their "last tick" rotations stay
             // at whatever loading left them (0 for a mob's head and body), and blending towards
             // those by a different amount each frame made them shake.
-            entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, buffers, LightTexture.FULL_BRIGHT);
-        } catch (RuntimeException | LinkageError e) {
+            entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, PreviewBuffers.source(), LightTexture.FULL_BRIGHT);
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             failed.add(entity);
+            PreviewBuffers.discard();
             RenderFailures.failed("Drawing an entity", EntityType.getKey(entity.getType()), e);
+            return false;
         }
+        return true;
     }
     //?}
 
@@ -677,15 +703,24 @@ public final class StructureViewport implements AutoCloseable {
 
     private void drawDynamic(GpuTextureView color, GpuTextureView depth, float partialTick, Collection<BlockPos> outlines, boolean everything) {
         // The camera is in the model-view matrix, so these are drawn where they are in the structure.
-        PoseStack pose = new PoseStack();
+        // A renderer that fails can leave its poses pushed or popped, so the rest start from a new stack.
+        PoseStack[] partPose = {new PoseStack()};
         minecraft.gameRenderer.lighting().setupFor(Lighting.Entry.LEVEL);
         FeatureRenderDispatcher features = minecraft.gameRenderer.featureRenderDispatcher();
         CameraRenderState camera = cameraState();
         int slice = view.sliceY();
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        drawParts(everything, be -> submitBlockEntity(be, slice, partialTick, pose, nodes, camera),
-                entity -> submitEntity(entity, slice, entities, pose, nodes, camera));
+        drawParts(everything, be -> {
+            if (!submitBlockEntity(be, slice, partialTick, partPose[0], nodes, camera)) {
+                partPose[0] = new PoseStack();
+            }
+        }, entity -> {
+            if (!submitEntity(entity, slice, entities, partPose[0], nodes, camera)) {
+                partPose[0] = new PoseStack();
+            }
+        });
 
+        PoseStack pose = new PoseStack();
         if (groundY >= 0 && groundY < slice) {
             float gy = groundY + 0.002f;
             nodes.submitCustomGeometry(pose, RenderTypes.debugQuads(), (at, quads) -> groundQuads((gx, gz, alpha) ->
@@ -701,11 +736,60 @@ public final class StructureViewport implements AutoCloseable {
         }
         try {
             renderFeatures(features, color, depth);
-        } catch (RuntimeException | LinkageError e) {
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
             // One of them couldn't be drawn after all. What it left behind goes with the old queue.
             nodes = new SubmitNodeStorage();
+            // The vertices first, as closing the frame could otherwise fail on them and leave it open.
+            dropSpoiltVertex(features);
             endFrame(features);
             RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
+        }
+    }
+
+    // What the game's feature drawing writes vertices into, which it keeps from one frame to the next.
+    // Geometry that stops part way through a vertex leaves it there, and the game would fail on it in
+    // every frame after, drawing the world included. None of it is reachable any other way, so it's
+    // looked up once, and a game where it can't be found says so.
+    private static final java.lang.reflect.Field STAGED = field(FeatureRenderDispatcher.class, "stagedVertexBuffer");
+    private static final java.lang.reflect.Field STAGED_BUILDER = field(net.minecraft.client.renderer.StagedVertexBuffer.class, "lastVertexBuilder");
+    private static final java.lang.reflect.Field STAGED_DRAW = field(net.minecraft.client.renderer.StagedVertexBuffer.class, "lastBuildingDraw");
+    private static final java.lang.reflect.Field STAGED_MEMORY = field(net.minecraft.client.renderer.StagedVertexBuffer.class, "stagingBuffer");
+
+    private static java.lang.reflect.Field field(Class<?> owner, String name) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.warnOnce("staged-vertices", "Couldn't find where the game's feature drawing keeps its vertices, so a renderer that fails part way through one in a preview could end the game: {}",
+                    e.toString());
+            return null;
+        }
+    }
+
+    /^*
+     * Lets go of the vertices the game's feature drawing was writing when a preview's frame failed. The
+     * frame is given up on, so nothing in them was going to be drawn, and they may end part way through
+     * a vertex. What they wrote is let go of too, as it would be drawn as part of the next ones there.
+     ^/
+    private static void dropSpoiltVertex(FeatureRenderDispatcher features) {
+        if (STAGED == null || STAGED_BUILDER == null || STAGED_DRAW == null || STAGED_MEMORY == null) {
+            return;
+        }
+        try {
+            Object staged = STAGED.get(features);
+            if (STAGED_BUILDER.get(staged) == null) {
+                return;
+            }
+            STAGED_BUILDER.set(staged, null);
+            STAGED_DRAW.set(staged, null);
+            com.mojang.blaze3d.vertex.ByteBufferBuilder.Result left = ((com.mojang.blaze3d.vertex.ByteBufferBuilder) STAGED_MEMORY.get(staged)).build();
+            if (left != null) {
+                left.close();
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.warnOnce("staged-vertices-drop", "Couldn't let go of what a failed renderer left in the game's feature drawing: {}", e.toString());
         }
     }
 
@@ -745,15 +829,23 @@ public final class StructureViewport implements AutoCloseable {
 
     private void drawDynamic(GpuTextureView color, GpuTextureView depth, float partialTick, Collection<BlockPos> outlines, boolean everything) {
         // The camera is in the model-view matrix, so these are drawn where they are in the structure.
-        PoseStack pose = new PoseStack();
+        // A renderer that fails can leave its poses pushed or popped, so the rest start from a new stack.
+        PoseStack[] partPose = {new PoseStack()};
         minecraft.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
         FeatureRenderDispatcher features = minecraft.gameRenderer.getFeatureRenderDispatcher();
         SubmitNodeStorage nodes = features.getSubmitNodeStorage();
         CameraRenderState camera = cameraState();
         int slice = view.sliceY();
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        drawParts(everything, be -> submitBlockEntity(be, slice, partialTick, pose, nodes, camera),
-                entity -> submitEntity(entity, slice, entities, pose, nodes, camera));
+        drawParts(everything, be -> {
+            if (!submitBlockEntity(be, slice, partialTick, partPose[0], nodes, camera)) {
+                partPose[0] = new PoseStack();
+            }
+        }, entity -> {
+            if (!submitEntity(entity, slice, entities, partPose[0], nodes, camera)) {
+                partPose[0] = new PoseStack();
+            }
+        });
         // What the game draws itself, like chests and mobs, goes into the preview too.
         GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
         GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
@@ -762,12 +854,16 @@ public final class StructureViewport implements AutoCloseable {
         try {
             try {
                 features.renderAllFeatures();
-            } catch (RuntimeException | LinkageError e) {
-                // One of them couldn't be drawn after all. What it left behind mustn't end up in the world.
+            } catch (Throwable e) {
+                RenderFailures.rethrowIfFatal(e);
+                // One of them couldn't be drawn after all. What it left behind mustn't end up in the world:
+                // what it handed over and wasn't drawn yet, and half a vertex in the game's buffers.
                 features.clearSubmitNodes();
+                dropSpoiltBatches(minecraft.renderBuffers().bufferSource());
                 RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
             }
 
+            PoseStack pose = new PoseStack();
             MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
             if (groundY >= 0 && groundY < slice) {
                 float gy = groundY + 0.002f;
@@ -787,6 +883,57 @@ public final class StructureViewport implements AutoCloseable {
         } finally {
             RenderSystem.outputColorTextureOverride = keepColor;
             RenderSystem.outputDepthTextureOverride = keepDepth;
+        }
+    }
+
+    // The memory under the game's buffers, for letting go of what a batch that failed to draw wrote
+    // there. Looked up once, and a game where it can't be found says so.
+    private static final java.lang.reflect.Field SHARED_MEMORY = bufferMemory("sharedBuffer");
+    private static final java.lang.reflect.Field FIXED_MEMORY = bufferMemory("fixedBuffers");
+
+    private static java.lang.reflect.Field bufferMemory(String name) {
+        try {
+            java.lang.reflect.Field field = MultiBufferSource.BufferSource.class.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.warnOnce("buffer-memory", "Couldn't find the memory under the game's buffers, so a renderer that fails in a preview can leave something drawn wrong for a frame: {}",
+                    e.toString());
+            return null;
+        }
+    }
+
+    /^*
+     * Draws what's waiting in the game's buffers after a renderer failed while the game drew what a
+     * preview handed it. A batch it left part way through a vertex fails to draw, which takes it out of
+     * the buffers, so they're drawn until nothing fails. What such a batch wrote stays in the memory
+     * under them, where it would be drawn as part of the next batch there, so that's let go of too.
+     ^/
+    @SuppressWarnings("unchecked")
+    private static void dropSpoiltBatches(MultiBufferSource.BufferSource buffers) {
+        for (int tries = 0; tries < 64; tries++) {
+            try {
+                buffers.endBatch();
+                break;
+            } catch (Throwable e) {
+                RenderFailures.rethrowIfFatal(e);
+            }
+        }
+        if (SHARED_MEMORY == null || FIXED_MEMORY == null) {
+            return;
+        }
+        try {
+            java.util.List<com.mojang.blaze3d.vertex.ByteBufferBuilder> memory =
+                    new java.util.ArrayList<>(((java.util.Map<?, com.mojang.blaze3d.vertex.ByteBufferBuilder>) FIXED_MEMORY.get(buffers)).values());
+            memory.add((com.mojang.blaze3d.vertex.ByteBufferBuilder) SHARED_MEMORY.get(buffers));
+            for (com.mojang.blaze3d.vertex.ByteBufferBuilder written : memory) {
+                com.mojang.blaze3d.vertex.ByteBufferBuilder.Result left = written.build();
+                if (left != null) {
+                    left.close();
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.warnOnce("buffer-memory-read", "Couldn't let go of what a failed renderer left in the game's buffers: {}", e.toString());
         }
     }
     *///?}
@@ -879,23 +1026,32 @@ public final class StructureViewport implements AutoCloseable {
 
     //? if <26.1 {
     private void drawDynamic(float partialTick, Collection<BlockPos> outlines, boolean everything) {
-        PoseStack pose = new PoseStack();
         //? if >=1.21 {
-        /*pose.mulPose(viewMatrix);
-        Lighting.setupLevel();
+        /*Lighting.setupLevel();
         *///?} else {
-        pose.mulPoseMatrix(viewMatrix);
         Lighting.setupLevel(new Matrix4f(viewMatrix));
         //?}
-        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        // A renderer that fails can leave its poses pushed or popped, so the rest start from a new stack.
+        PoseStack[] partPose = {cameraPose()};
         int slice = view.sliceY();
         EntityRenderDispatcher entities = minecraft.getEntityRenderDispatcher();
-        drawParts(everything, be -> drawBlockEntity(be, slice, partialTick, pose, buffers), entity -> {
+        drawParts(everything, be -> {
+            if (!drawBlockEntity(be, slice, partialTick, partPose[0])) {
+                partPose[0] = cameraPose();
+            }
+        }, entity -> {
             entities.setRenderShadow(false);
-            drawEntity(entity, slice, entities, pose, buffers);
-            entities.setRenderShadow(true);
+            try {
+                if (!drawEntity(entity, slice, entities, partPose[0])) {
+                    partPose[0] = cameraPose();
+                }
+            } finally {
+                entities.setRenderShadow(true);
+            }
         });
 
+        PoseStack pose = cameraPose();
+        MultiBufferSource.BufferSource buffers = PreviewBuffers.source();
         if (groundY >= 0 && groundY < slice) {
             float gy = groundY + 0.002f;
             Matrix4f m = pose.last().pose();
@@ -914,7 +1070,35 @@ public final class StructureViewport implements AutoCloseable {
                         pos.getX() + 1.002, pos.getY() + 1.002, pos.getZ() + 1.002, 1f, 1f, 1f, 1f);
             }
         }
-        buffers.endBatch();
+        endBatch(buffers);
+        // Some renderers draw into the game's own buffers rather than the ones they're handed. That
+        // goes into the preview too, as it always has.
+        endBatch(minecraft.renderBuffers().bufferSource());
+    }
+
+    /**
+     * Draws what's waiting in {@code buffers}. Another mod's render type can fail to be set up or
+     * drawn, which costs this frame its block entities and mobs.
+     */
+    private static void endBatch(MultiBufferSource.BufferSource buffers) {
+        try {
+            buffers.endBatch();
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
+            PreviewBuffers.discard();
+            RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
+        }
+    }
+
+    /** A pose with the camera's view in it, which block entities and mobs are drawn from. */
+    private PoseStack cameraPose() {
+        PoseStack pose = new PoseStack();
+        //? if >=1.21 {
+        /*pose.mulPose(viewMatrix);
+        *///?} else {
+        pose.mulPoseMatrix(viewMatrix);
+        //?}
+        return pose;
     }
 
     private void blit(GuiGraphics graphics) {
@@ -1058,7 +1242,8 @@ public final class StructureViewport implements AutoCloseable {
         if (!failed.contains(state.getBlock())) {
             try {
                 return view.clipWithInteractionOverride(from, to, pos, state.getShape(view, pos), state);
-            } catch (RuntimeException | LinkageError e) {
+            } catch (Throwable e) {
+                RenderFailures.rethrowIfFatal(e);
                 failed.add(state.getBlock());
                 RenderFailures.shapeFailed(state.getBlock(), e);
             }

@@ -16,6 +16,7 @@ import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.render.Highlight;
+import com.finndog.justenoughstructures.client.render.RenderFailures;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonElement;
@@ -1598,7 +1599,8 @@ final class InfoPanel {
                 if (picked != null && !picked.isEmpty()) {
                     found = picked.copyWithCount(1);
                 }
-            } catch (RuntimeException | LinkageError e) {
+            } catch (Throwable e) {
+                RenderFailures.rethrowIfFatal(e);
                 JesLog.debug("Couldn't make a {} to find its item", BuiltInRegistries.ENTITY_TYPE.getKey(type), e);
             }
         }

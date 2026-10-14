@@ -266,7 +266,8 @@ public final class SnapshotMesh implements AutoCloseable {
                             blocks.tesselateBlock(ModelBlockRenderer.forceOpaque(cutoutLeaves, state) ? solid : output,
                                     x, y, z, view, pos, state, models.get(state), state.getSeed(pos));
                         }
-                    } catch (RuntimeException | LinkageError e) {
+                    } catch (Throwable e) {
+                        RenderFailures.rethrowIfFatal(e);
                         RenderFailures.failed("Building the model of a block", state.getBlock(), e);
                     }
                 }
@@ -281,7 +282,21 @@ public final class SnapshotMesh implements AutoCloseable {
 
         Map<ChunkSectionLayer, Buffer> out = new EnumMap<>(ChunkSectionLayer.class);
         for (Map.Entry<ChunkSectionLayer, BufferBuilder> e : started.entrySet()) {
-            try (MeshData mesh = e.getValue().build()) {
+            MeshData built;
+            try {
+                built = e.getValue().build();
+            } catch (Throwable failure) {
+                RenderFailures.rethrowIfFatal(failure);
+                // A block stopped part way through a vertex, so this part of the layer can't be
+                // finished. Its buffer still holds what was written, so it's freed and made again.
+                ByteBufferBuilder spoilt = BUILDERS.remove(e.getKey());
+                if (spoilt != null) {
+                    spoilt.close();
+                }
+                RenderFailures.failed("Finishing part of a layer", e.getKey(), failure);
+                continue;
+            }
+            try (MeshData mesh = built) {
                 if (mesh == null) {
                     continue;
                 }
@@ -673,7 +688,8 @@ public final class SnapshotMesh implements AutoCloseable {
                         pose.popPose();
                         //?}
                     }
-                } catch (RuntimeException | LinkageError e) {
+                } catch (Throwable e) {
+                    RenderFailures.rethrowIfFatal(e);
                     // A fresh pose, as one left pushed by the failure would move every block after it.
                     pose = new PoseStack();
                     RenderFailures.failed("Building the model of a block", state.getBlock(), e);
@@ -688,7 +704,20 @@ public final class SnapshotMesh implements AutoCloseable {
         Map<RenderType, VertexBuffer> out = new HashMap<>();
         for (Map.Entry<RenderType, BufferBuilder> e : started.entrySet()) {
             //? if >=1.21 {
-            /*MeshData mesh = e.getValue().build();
+            /*MeshData mesh;
+            try {
+                mesh = e.getValue().build();
+            } catch (Throwable failure) {
+                RenderFailures.rethrowIfFatal(failure);
+                // A block stopped part way through a vertex, so this part of the layer can't be
+                // finished. Its buffer still holds what was written, so it's freed and made again.
+                ByteBufferBuilder spoilt = BUILDERS.remove(e.getKey());
+                if (spoilt != null) {
+                    spoilt.close();
+                }
+                RenderFailures.failed("Finishing part of a layer", e.getKey(), failure);
+                continue;
+            }
             if (mesh == null) {
                 continue;
             }

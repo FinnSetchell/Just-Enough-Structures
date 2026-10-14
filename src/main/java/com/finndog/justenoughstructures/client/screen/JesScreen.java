@@ -2057,6 +2057,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return view == null ? List.of() : List.copyOf(view.entities());
     }
 
+    /** What the preview gave up on drawing or asking because it failed, for the screenshot harness. */
+    public List<Object> leftOut() {
+        return viewport.leftOut();
+    }
+
     /** Shows only the bottom {@code shown} layers, as dragging the slider there would. */
     public void setLayers(int shown) {
         if (view != null) {

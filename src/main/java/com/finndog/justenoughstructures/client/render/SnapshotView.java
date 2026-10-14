@@ -104,7 +104,8 @@ public final class SnapshotView implements BlockAndTintGetter {
                         be.setLevel(level);
                         blockEntities.put(pos, be);
                     }
-                } catch (RuntimeException | LinkageError e) {
+                } catch (Throwable e) {
+                    RenderFailures.rethrowIfFatal(e);
                     RenderFailures.failed("Loading a block entity", Nbt.string(tag, "id"), e);
                 }
             }
@@ -125,7 +126,8 @@ public final class SnapshotView implements BlockAndTintGetter {
                         *///?}
                         entities.add(entity);
                     });
-                } catch (RuntimeException | LinkageError e) {
+                } catch (Throwable e) {
+                    RenderFailures.rethrowIfFatal(e);
                     RenderFailures.failed("Loading an entity", Nbt.string(tag, "id"), e);
                 }
             }

@@ -11,6 +11,9 @@
     "NearMiddleRegionMixin",
     "ThrowingShapesMixin"
   ],
+  "client": [
+    "FaultyFluidsMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
