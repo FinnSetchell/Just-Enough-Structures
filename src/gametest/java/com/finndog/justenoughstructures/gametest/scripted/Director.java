@@ -281,7 +281,13 @@ public final class Director {
     }
 
     void key(int key) {
-        //? if >=26.1 {
+        //? if >=26.3 {
+        /*// Through SDL a press says both where the key is and what it types, as the game's own presses
+        // do (SDLEventHandler), and text boxes go by what it types, like a new line for Return.
+        int typed = org.lwjgl.sdl.SDLKeyboard.SDL_GetKeyFromScancode(key, (short) 0, true);
+        call("keyPress", mc.keyboardHandler, window(), InputConstants.PRESS, new KeyEvent(key, typed, 0));
+        call("keyPress", mc.keyboardHandler, window(), InputConstants.RELEASE, new KeyEvent(key, typed, 0));
+        *///?} else if >=26.1 {
         /*call("keyPress", mc.keyboardHandler, window(), InputConstants.PRESS, new KeyEvent(key, 0, 0));
         call("keyPress", mc.keyboardHandler, window(), InputConstants.RELEASE, new KeyEvent(key, 0, 0));
         *///?} else {
