@@ -337,7 +337,42 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
+        // Up and Down move the pick through the list, while typing in the search too, and Enter uses it.
+        if (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN) {
+            movePick(key == InputConstants.KEY_DOWN ? 1 : -1);
+            return true;
+        }
+        if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) && use != null && use.active) {
+            apply(false);
+            return true;
+        }
         return navBar.keyPressed(key, modifiers) || super.keyPressed(key, scanCode, modifiers);
+    }
+
+    /** Moves the pick one row up or down, or to the first or last row when nothing's picked, keeping it in view. */
+    private void movePick(int dir) {
+        if (shown.isEmpty()) {
+            return;
+        }
+        int at = picked == null ? -1 : shown.indexOf(picked);
+        int to = at < 0 ? (dir > 0 ? 0 : shown.size() - 1) : Math.max(0, Math.min(shown.size() - 1, at + dir));
+        picked = shown.get(to);
+        problem = null;
+        updateUse();
+        fitScroll();
+        int top = to * ROW;
+        int room = listBottom() - listTop() - 4;
+        if (top < scroll.offset()) {
+            scroll.to(top);
+        } else if (top + ROW > scroll.offset() + room) {
+            scroll.to(top + ROW - room);
+        }
+        fitScroll();
+    }
+
+    /** Which row is picked, or -1. For the screenshot harness. */
+    public int pickedRow() {
+        return picked == null ? -1 : shown.indexOf(picked);
     }
 
     @Override

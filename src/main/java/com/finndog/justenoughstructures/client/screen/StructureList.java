@@ -58,6 +58,11 @@ final class StructureList {
     private ResourceLocation selected;
     private Row hovered;
     private boolean starHovered;
+    /**
+     * The row the arrow keys or a click last went to. A favourite is listed twice, so the keys go on
+     * from the copy they're at rather than always the first.
+     */
+    private int keyRow = -1;
 
     void setEntries(List<StructureCatalog.Entry> entries) {
         this.all = entries;
@@ -110,6 +115,46 @@ final class StructureList {
         List<String> mods = ordered.stream().map(e -> e.id().getNamespace()).distinct().toList();
         String next = mods.get(Math.floorMod(mods.indexOf(ordered.get(at).id().getNamespace()) + dir, mods.size()));
         return ordered.stream().filter(e -> e.id().getNamespace().equals(next)).findFirst();
+    }
+
+    /**
+     * The structure {@code dir} rows on from {@code current} among the rows the list shows now, for the
+     * arrow keys, or empty past either end. With none of them picked, Down goes to the first and Up to
+     * the last.
+     */
+    Optional<StructureCatalog.Entry> next(ResourceLocation current, int dir) {
+        int at = -1;
+        if (keyRow >= 0 && keyRow < rows.size() && rows.get(keyRow).entry() != null && rows.get(keyRow).entry().id().equals(current)) {
+            at = keyRow;
+        } else {
+            for (int i = 0; i < rows.size(); i++) {
+                if (rows.get(i).entry() != null && rows.get(i).entry().id().equals(current)) {
+                    at = i;
+                    break;
+                }
+            }
+        }
+        for (int i = at >= 0 ? at + dir : dir > 0 ? 0 : rows.size() - 1; i >= 0 && i < rows.size(); i += dir) {
+            if (rows.get(i).entry() != null) {
+                keyRow = i;
+                return Optional.of(rows.get(i).entry());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Scrolls just enough to show the row the arrow keys went to. */
+    void revealKeyRow() {
+        if (keyRow < 0 || keyRow >= rows.size()) {
+            return;
+        }
+        Row row = rows.get(keyRow);
+        if (row.top() < scroll.offset()) {
+            scroll.to(row.top());
+        } else if (row.top() + ROW > scroll.offset() + height - 2) {
+            scroll.to(row.top() + ROW - height + 2);
+        }
+        clampScroll();
     }
 
     Optional<StructureCatalog.Entry> firstShown() {
@@ -344,6 +389,7 @@ final class StructureList {
                     rebuild();
                     return Optional.of(new Pick(null, ItemStack.EMPTY));
                 }
+                keyRow = rows.indexOf(row);
                 return Optional.of(new Pick(row.entry(), ItemStack.EMPTY));
             }
             if (row.item() != null) {

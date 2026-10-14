@@ -90,6 +90,16 @@ final class PackToolsScenario {
                     }
                 }))
                 .then(shoot("p09b_picker_dragged"))
+                // Down picks the first row, then the second, and the list scrolls back up to show it.
+                .then(pressKey(InputConstants.KEY_DOWN))
+                .then(pressKey(InputConstants.KEY_DOWN))
+                .then(pause(5))
+                .then(run(() -> {
+                    if (tablePicker(mc).pickedRow() != 1 || tablePicker(mc).scrolled() > 40) {
+                        throw new IllegalStateException("Down twice picked row " + tablePicker(mc).pickedRow() + ", scrolled to " + tablePicker(mc).scrolled());
+                    }
+                }))
+                .then(shoot("p09c_picker_keys"))
                 // Back out to the browser one screen at a time, the picker, then Pack tools, then the
                 // chest that opened them, waiting for each: a busy pack can be a frame or two behind.
                 .then(pressKey(InputConstants.KEY_ESCAPE))

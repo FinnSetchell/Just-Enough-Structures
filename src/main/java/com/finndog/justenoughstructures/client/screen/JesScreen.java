@@ -1803,7 +1803,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /** The structure on show, or null. */
-    ResourceLocation selectedStructure() {
+    public ResourceLocation selectedStructure() {
         return selected == null ? null : selected.id();
     }
 
@@ -3082,6 +3082,17 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 openFoundIn(hovered);
                 return true;
             }
+        }
+        // Up and Down go through the list as it's shown now, while typing in the search too.
+        if ((key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN) && popup == null && side() == null && foundIn == null) {
+            list.next(selected == null ? null : selected.id(), key == InputConstants.KEY_DOWN ? 1 : -1).ifPresent(e -> {
+                if (e != selected) {
+                    Nav.remember();
+                    select(e, defaultSeed(e.id()));
+                }
+                list.revealKeyRow();
+            });
+            return true;
         }
         if (search.isFocused()) {
             if (key == InputConstants.KEY_RETURN) {
