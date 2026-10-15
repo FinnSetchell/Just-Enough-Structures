@@ -2884,6 +2884,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // A click anywhere but the search lets go of it, as a text box does, so the keys pressed next
+        // are the browser's own again, like R for a new layout, rather than more typing.
+        if (search.isFocused() && !search.isMouseOver(mouseX, mouseY)) {
+            setFocused(null);
+        }
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
