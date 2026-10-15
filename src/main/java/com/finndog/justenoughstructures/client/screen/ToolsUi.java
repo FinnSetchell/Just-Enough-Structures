@@ -5,6 +5,7 @@ import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * Pack tools' controls, drawn as they're laid out each frame: buttons, links, switches, check boxes
@@ -255,6 +256,50 @@ final class ToolsUi {
         spot(x, y - 1, w, h + 2, action, text);
         tooltip(x, y - 1, w, h + 2, tip);
         return w;
+    }
+
+    /** The same with a 9 pixel icon before the words, in their colour, as "Add" links have. Returns its width. */
+    int link(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, boolean fine, Runnable action, Component... tip) {
+        String text = label.getString();
+        int textW = fine ? Gui.fineWidth(font, text) : font.width(text);
+        int h = fine ? Gui.fineLine(font) : font.lineHeight;
+        int w = Icons.SMALL + 2 + textW;
+        boolean over = hovered(x, y - 1, w, h + 2);
+        int colour = over ? linkHovered() : link();
+        Gui.icon(g, icon, x, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, colour);
+        int textX = x + Icons.SMALL + 2;
+        if (fine) {
+            Gui.fine(g, font, text, textX, y, colour);
+        } else {
+            g.drawString(font, text, textX, y, colour, false);
+        }
+        if (over) {
+            g.fill(textX, y + h, textX + textW, y + h + 1, linkHovered());
+        }
+        spot(x, y - 1, w, h + 2, action, text);
+        tooltip(x, y - 1, w, h + 2, tip);
+        return w;
+    }
+
+    /**
+     * A 9 pixel icon that's a button, its top left at x, y. The box behind it lights up in {@code lit}
+     * under the mouse. {@code name} is its tooltip, and {@code label}, when there is one, finds it for
+     * the screenshot harness.
+     */
+    void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, Component name, String label, Runnable action) {
+        iconButton(g, x, y, icon, lit, 0xFFFFFFFF, name, label, action);
+    }
+
+    /** The same, drawn in {@code ink} until the mouse is over it, for one on a light panel. */
+    void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, Component name, String label, Runnable action) {
+        if (hovered(x - 1, y - 2, 11, 12)) {
+            g.fill(x - 1, y - 2, x + 10, y + 10, lit);
+            Gui.icon(g, icon, x, y, Icons.SMALL);
+        } else {
+            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink);
+        }
+        spot(x - 1, y - 2, 11, 12, action, label);
+        tooltip(x - 1, y - 2, 11, 12, name);
     }
 
     /** A sliding switch, 16 by 9, green when on. */

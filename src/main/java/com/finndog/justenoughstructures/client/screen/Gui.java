@@ -350,6 +350,25 @@ public final class Gui {
         //?}
     }
 
+    /** A whole icon file, {@code size} pixels square, drawn as it is. */
+    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int size) {
+        blit(g, texture, x, y, 0, 0, size, size, size, size);
+    }
+
+    /**
+     * A whole icon file, {@code w} by {@code h}, with its white drawn in {@code colour}, as on a light
+     * panel where white would hardly show. Its shadow darkens with it.
+     */
+    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour) {
+        //? if >=26.1 {
+        /*g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, w, h, colour);
+        *///?} else {
+        g.setColor((colour >> 16 & 0xFF) / 255f, (colour >> 8 & 0xFF) / 255f, (colour & 0xFF) / 255f, (colour >>> 24) / 255f);
+        g.blit(texture, x, y, 0, 0, w, h, w, h);
+        g.setColor(1f, 1f, 1f, 1f);
+        //?}
+    }
+
     /** Draws a widget that a screen draws itself, rather than through its list of widgets. */
     public static void render(GuiGraphics g, Renderable widget, int mouseX, int mouseY, float partialTick) {
         //? if >=26.1 {

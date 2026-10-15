@@ -200,7 +200,7 @@ final class LootForm {
             JsonArray children = JsonPaths.array(draft(), JsonPaths.join(path, "children"));
             y = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.children", children == null ? 0 : children.size()),
                     x + 4, y + 1, w - 8, Gui.labelSoft()) + 2;
-            ui.link(g, text("add_item"), x + 4, y + 1, true, () -> {
+            ui.link(g, Icons.ADD, text("add_item"), x + 4, y + 1, true, () -> {
                 String inside = JsonPaths.join(path, "children");
                 if (JsonPaths.array(draft(), inside) == null) {
                     JsonPaths.set(draft(), inside, new JsonArray());
@@ -432,7 +432,7 @@ final class LootForm {
             case "inverted" -> {
                 String term = at(path, "term");
                 if (JsonPaths.object(draft(), term) == null) {
-                    ui.link(g, text("add_condition"), x + 4, y + 2, true, () -> set(term, LootTypes.condition("minecraft:random_chance")));
+                    ui.link(g, Icons.ADD, text("add_condition"), x + 4, y + 2, true, () -> set(term, LootTypes.condition("minecraft:random_chance")));
                     y += Gui.fineLine(font) + 6;
                 } else {
                     y = conditionCard(g, x + INDENT, y, w - INDENT * 2, term) + 3;
@@ -507,7 +507,7 @@ final class LootForm {
             y = labelled(g, x, y, w, StructureNames.pretty(key), (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, JsonPaths.key(key))));
         }
         if (!path.equals(naming)) {
-            ui.link(g, text("add_setting"), x + 4, y + 1, true, () -> {
+            ui.link(g, Icons.ADD, text("add_setting"), x + 4, y + 1, true, () -> {
                 naming = path;
                 pendingEdit = path + "#setting";
             });
@@ -772,7 +772,7 @@ final class LootForm {
                     Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.labelSoft());
                 }
                 Component link = text("add");
-                ui.link(g, link, cx + cw - Gui.fineWidth(font, link.getString()), y() + 3, true, add);
+                ui.link(g, Icons.ADD, link, cx + cw - addLinkWidth(link), y() + 3, true, add);
             });
         }
         return y;
@@ -808,8 +808,8 @@ final class LootForm {
         String countText = count == 0 ? text("none").getString() : String.valueOf(count);
         Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.labelSoft());
         Component add = text(functions ? "add_function" : "add_condition");
-        int addW = Gui.fineWidth(font, add.getString());
-        ui.link(g, add, x + w - 4 - addW, y + 2, true,
+        int addW = addLinkWidth(add);
+        ui.link(g, Icons.ADD, add, x + w - 4 - addW, y + 2, true,
                 () -> append(path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance")));
         y += font.lineHeight + 3;
         for (int i = 0; i < count; i++) {
@@ -844,29 +844,28 @@ final class LootForm {
         host.changed();
     }
 
-    /** A letter-sized spot in a function's or condition's heading, like the x that takes it away. */
-    private void headSpot(GuiGraphics g, int x, int y, String sign, int colour, Runnable action, Component tip) {
-        boolean over = ui.hovered(x - 2, y + 2, 10, 12);
-        g.drawString(font, sign, x, y + 4, over ? 0xFFFFFF55 : colour, false);
-        ui.spot(x - 2, y + 2, 10, 12, action);
-        ui.tooltip(x - 2, y + 2, 10, 12, tip);
-    }
-
-    /** The top of a function or condition card: which kind it is, to pick another, and an x to take it away. */
+    /**
+     * The top of a function or condition card: which kind it is, to pick another, and the list's own
+     * buttons to take it away, copy it and move it, as its order matters. Unnamed for the screenshot
+     * harness, which finds the list's buttons by their names.
+     */
     private int typeHead(GuiGraphics g, int x, int y, int w, String id, List<String> options, String kind, String current,
                          Consumer<String> pick, String path) {
         g.fill(x, y, x + w, y + 16, 0xFF9D9D9D);
-        // Room at the right for the x, and before it a + to copy this one and arrows to move it, as its order matters.
         dropdown(g, x + 2, y + 1, Math.min(w - 58, 150), id, options, option -> LootTypes.name(kind, option), current, pick);
-        int rx = x + w - 10;
-        headSpot(g, rx, y, "x", 0xFF6A1010, () -> remove(path), text(kind.equals("function") ? "remove_function" : "remove_condition"));
-        headSpot(g, rx - 12, y, "+", 0xFF202020, () -> listChange(JsonPaths.duplicate(draft(), path), null), text("duplicate"));
+        int rx = x + w - 11;
+        ui.iconButton(g, rx, y + 4, Icons.REMOVE, LootEditorScreen.REMOVE_LIT, text(kind.equals("function") ? "remove_function" : "remove_condition"),
+                null, () -> remove(path));
+        ui.iconButton(g, rx - 12, y + 4, Icons.COPY_SMALL, LootEditorScreen.BUTTON_LIT, text("duplicate"), null,
+                () -> listChange(JsonPaths.duplicate(draft(), path), null));
         int index = JsonPaths.indexIn(draft(), path);
         if (index < JsonPaths.siblings(draft(), path) - 1) {
-            headSpot(g, rx - 24, y, "v", 0xFF202020, () -> listChange(JsonPaths.move(draft(), path, 1), null), text("move_down"));
+            ui.iconButton(g, rx - 24, y + 4, Icons.MOVE_DOWN, LootEditorScreen.BUTTON_LIT, text("move_down"), null,
+                    () -> listChange(JsonPaths.move(draft(), path, 1), null));
         }
         if (index > 0) {
-            headSpot(g, rx - 36, y, "^", 0xFF202020, () -> listChange(JsonPaths.move(draft(), path, -1), null), text("move_up"));
+            ui.iconButton(g, rx - 36, y + 4, Icons.MOVE_UP, LootEditorScreen.BUTTON_LIT, text("move_up"), null,
+                    () -> listChange(JsonPaths.move(draft(), path, -1), null));
         }
         return y + 19;
     }
@@ -984,9 +983,7 @@ final class LootForm {
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, over ? 0xFF7A7A7A : 0xFF6D6D6D);
         Gui.drawClipped(g, font, names.apply(current), x + 4, y + 3, w - 16, 0xFFFFFFFF, true);
         // A small arrow pointing down, at the right.
-        for (int i = 0; i < 4; i++) {
-            g.fill(x + w - 10 + i, y + 5 + i, x + w - 3 - i, y + 6 + i, 0xFFFFFFFF);
-        }
+        Gui.blit(g, Icons.DROPDOWN, x + w - 10, y + 5, 0, 0, Icons.DROPDOWN_W, Icons.DROPDOWN_H, Icons.DROPDOWN_W, Icons.DROPDOWN_H);
         ui.spot(x, y, w, FIELD, () -> host.choose(rect, options, names, current, pick));
     }
 
@@ -1094,7 +1091,7 @@ final class LootForm {
         return row(g, x, y, w, key, (cx, cw) -> {
             Component add = text("add");
             boolean listable = !current.isBlank() && !current.startsWith("#");
-            int addW = listable ? Gui.fineWidth(font, add.getString()) + 6 : 0;
+            int addW = listable ? addLinkWidth(add) + 6 : 0;
             int boxW = cw - addW - (current.isBlank() ? 0 : 12);
             pickBox(g, cx, y(), boxW, path, current, one, typed -> {
                 if (typed.isBlank()) {
@@ -1110,7 +1107,7 @@ final class LootForm {
                 removeX(g, cx + boxW + 4, y(), () -> remove(path));
             }
             if (listable) {
-                ui.link(g, add, cx + cw - addW + 6, y() + 3, true, () -> {
+                ui.link(g, Icons.ADD, add, cx + cw - addW + 6, y() + 3, true, () -> {
                     JsonArray list = new JsonArray();
                     list.add(current);
                     list.add("");
@@ -1175,7 +1172,7 @@ final class LootForm {
         y += 2;
         Gui.fineClipped(g, font, text("field." + key).getString(), x + 4, y + 1, w - 60, Gui.labelSoft());
         Component add = text("add");
-        ui.link(g, add, x + w - 4 - Gui.fineWidth(font, add.getString()), y + 1, true, () -> append(path, fresh.get()));
+        ui.link(g, Icons.ADD, add, x + w - 4 - addLinkWidth(add), y + 1, true, () -> append(path, fresh.get()));
         y += Gui.fineLine(font) + 4;
         for (int i = 0; i < count; i++) {
             String itemPath = JsonPaths.join(path, i);
@@ -1191,12 +1188,14 @@ final class LootForm {
         return y;
     }
 
-    /** A small x that takes something out. */
+    /** How wide a link to add something is: its icon and its words. */
+    private int addLinkWidth(Component add) {
+        return Icons.SMALL + 2 + Gui.fineWidth(font, add.getString());
+    }
+
+    /** The remove icon, dark red on the card, that takes something out. */
     private void removeX(GuiGraphics g, int x, int y, Runnable action) {
-        boolean over = ui.hovered(x - 2, y + 1, 10, 12);
-        g.drawString(font, "x", x, y + 3, over ? 0xFFFFFF55 : 0xFF6A1010, false);
-        ui.spot(x - 2, y + 1, 10, 12, action);
-        ui.tooltip(x - 2, y + 1, 10, 12, text("remove"));
+        ui.iconButton(g, x - 1, y + 3, Icons.REMOVE, LootEditorScreen.REMOVE_LIT, 0xFF6A1010, text("remove"), null, action);
     }
 
     /**
@@ -1244,19 +1243,30 @@ final class LootForm {
                 id -> id.isEmpty() ? text("not_set").getString() : StructureNames.pretty(id), colour,
                 picked -> set(path, TextStyle.with(value, "color", picked.isEmpty() ? null : new JsonPrimitive(picked)))));
         ui.tooltip(sx, y + 2, 10, 10, text("text_colour", colour.isEmpty() ? text("not_set") : Component.literal(StructureNames.pretty(colour))));
-        styleToggle(g, sx + 13, y, path, value, "bold", "B");
-        styleToggle(g, sx + 24, y, path, value, "italic", "I");
+        styleToggle(g, sx + 13, y, path, value, "bold", Icons.BOLD);
+        styleToggle(g, sx + 24, y, path, value, "italic", Icons.ITALIC);
     }
 
     /**
-     * A letter for whether text is bold or italic: dark green for yes, dark red for no, and grey where
-     * it's left to the game, which slants names and lore by itself. Each click moves it on to the next.
+     * Whether text is bold or italic, as its icon: pressed in on green for yes, dark red and struck
+     * through for no, and faint where it's left to the game, which slants names and lore by itself. The
+     * shape says which as well as the colour. Each click moves it on to the next.
      */
-    private void styleToggle(GuiGraphics g, int x, int y, String path, JsonElement value, String key, String letter) {
+    private void styleToggle(GuiGraphics g, int x, int y, String path, JsonElement value, String key, ResourceLocation icon) {
         Boolean now = TextStyle.flag(value, key);
         host.drawn(path + "#" + key, new int[]{x, y + 1, 9, 12});
         boolean over = ui.hovered(x, y + 1, 9, 12);
-        g.drawString(font, letter, x + 2, y + 3, over ? 0xFFFFFF55 : now == null ? 0xFF707070 : now ? 0xFF106A10 : 0xFF6A1010, false);
+        if (Boolean.TRUE.equals(now)) {
+            g.fill(x, y + 2, x + 10, y + 13, 0xFF000000);
+            g.fill(x + 1, y + 3, x + 10, y + 13, 0xFF2E5B1D);
+        }
+        int ink = over ? 0xFFFFFF55 : now == null ? 0xFF707070 : now ? 0xFFFFFFFF : 0xFF6A1010;
+        Gui.icon(g, icon, x + 1, y + 3, Icons.SMALL, Icons.SMALL, ink);
+        if (Boolean.FALSE.equals(now)) {
+            for (int i = 0; i < 9; i++) {
+                g.fill(x + 1 + i, y + 11 - i, x + 2 + i, y + 12 - i, 0xFF6A1010);
+            }
+        }
         ui.spot(x, y + 1, 9, 12, () -> set(path, TextStyle.with(value, key, now == null ? new JsonPrimitive(true) : now ? new JsonPrimitive(false) : null)));
         ui.tooltip(x, y + 1, 9, 12, text("text_" + key + (now == null ? "_unset" : now ? "_yes" : "_no")));
     }

@@ -1,7 +1,6 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
-import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootFormat;
@@ -57,11 +56,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int TREE_ROW = 18;
-    /** The picked row's buttons and the grip that says it can be dragged, nine pixels square. Placeholders. */
-    private static final ResourceLocation ROW_COPY = JustEnoughStructures.id("textures/gui/row_copy.png");
-    private static final ResourceLocation ROW_REMOVE = JustEnoughStructures.id("textures/gui/row_remove.png");
-    private static final ResourceLocation ROW_GRIP = JustEnoughStructures.id("textures/gui/row_grip.png");
-    /** The room those take at the right of the row. */
+    /** What lights up behind a small icon button under the mouse: red for one that takes something out. */
+    static final int REMOVE_LIT = 0xFFB04040;
+    static final int BUTTON_LIT = 0xFF6D6D6D;
+    /** The room the picked row's buttons and grip take at its right. */
     private static final int ROW_ACTIONS = 38;
     /** The widest the tree, form and chances are together. */
     private static final int MOST_CONTENT = 1100;
@@ -586,23 +584,21 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         int undoX = left + buttonWidth(raw ? "form" : "json") + 4;
         undoButton = null;
         redoButton = null;
-        if (!raw && x - undoX >= buttonWidth("undo") + buttonWidth("redo") + 8) {
-            undoButton = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.undo"), b -> undo())
-                    .bounds(undoX, y, buttonWidth("undo"), 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.undo_hint"))).build());
-            redoButton = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.redo"), b -> redo())
-                    .bounds(undoX + buttonWidth("undo") + 4, y, buttonWidth("redo"), 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.redo_hint"))).build());
+        if (!raw && x - undoX >= 44) {
+            undoButton = addRenderableWidget(new IconButton(undoX, y, Icons.UNDO, toolbarTip("undo"), b -> undo()));
+            redoButton = addRenderableWidget(new IconButton(undoX + 24, y, Icons.REDO, toolbarTip("redo"), b -> redo()));
         }
         // In the JSON view the same room takes Copy and Paste, to carry a table to another tool or bring one in.
-        if (raw && x - undoX >= buttonWidth("copy_json") + buttonWidth("paste_json") + 8) {
-            addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.copy_json"), b -> copyJson())
-                    .bounds(undoX, y, buttonWidth("copy_json"), 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.copy_json_hint"))).build());
-            addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.editor.paste_json"), b -> pasteJson())
-                    .bounds(undoX + buttonWidth("copy_json") + 4, y, buttonWidth("paste_json"), 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.paste_json_hint"))).build());
+        if (raw && x - undoX >= 44) {
+            addRenderableWidget(new IconButton(undoX, y, Icons.COPY, toolbarTip("copy_json"), b -> copyJson()));
+            addRenderableWidget(new IconButton(undoX + 24, y, Icons.PASTE, toolbarTip("paste_json"), b -> pasteJson()));
         }
+    }
+
+    /** What a toolbar button that's an icon is called, over what it does. */
+    private static Component toolbarTip(String key) {
+        return Component.translatable("screen.justenoughstructures.editor." + key).append("\n")
+                .append(Component.translatable("screen.justenoughstructures.editor." + key + "_hint"));
     }
 
     /**
@@ -1337,14 +1333,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 }
             }
             Component add = Component.translatable("screen.justenoughstructures.editor.add_item");
-            ui.link(g, add, x + 12, y + 2, true, () -> {
+            ui.link(g, Icons.ADD, add, x + 12, y + 2, true, () -> {
                 int index = JsonPaths.append(draft, poolPath + ".entries", LootTypes.entry("minecraft:item", null));
                 select(pool, index);
                 changed();
             });
             y += Gui.fineLine(font) + 6;
         }
-        ui.link(g, Component.translatable("screen.justenoughstructures.editor.add_pool"), x + 4, y + 2, true, () -> {
+        ui.link(g, Icons.ADD, Component.translatable("screen.justenoughstructures.editor.add_pool"), x + 4, y + 2, true, () -> {
             JsonObject pool = new JsonObject();
             pool.addProperty("rolls", 1);
             pool.add("entries", new JsonArray());
@@ -1366,20 +1362,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         int right = x + w - 3;
         // The grip isn't among them: a press on it starts a drag like a press anywhere else on the row.
         rowButtons = new int[]{right - 24, y, 24, TREE_ROW};
-        rowButton(g, right - 10, y, ROW_REMOVE, 0xFFB04040, Component.translatable("screen.justenoughstructures.editor." + removeKey), this::removePicked);
-        rowButton(g, right - 22, y, ROW_COPY, 0xFF6D6D6D, Component.translatable("screen.justenoughstructures.editor.duplicate"),
+        Component remove = Component.translatable("screen.justenoughstructures.editor." + removeKey);
+        ui.iconButton(g, right - 10, y + 5, Icons.REMOVE, REMOVE_LIT, remove, remove.getString(), this::removePicked);
+        Component duplicate = Component.translatable("screen.justenoughstructures.editor.duplicate");
+        ui.iconButton(g, right - 22, y + 5, Icons.COPY_SMALL, BUTTON_LIT, duplicate, duplicate.getString(),
                 () -> moved(JsonPaths.duplicate(draft, pickedPath())));
-        Gui.blit(g, ROW_GRIP, right - 32, y + 5, 0, 0, 9, 9, 9, 9);
+        Gui.icon(g, Icons.GRIP, right - 32, y + 5, Icons.SMALL);
         ui.tooltip(right - 34, y + 3, 11, 12, Component.translatable("screen.justenoughstructures.editor.drag_row"));
-    }
-
-    private void rowButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, Component name, Runnable action) {
-        if (ui.hovered(x - 1, y + 3, 11, 12)) {
-            g.fill(x - 1, y + 3, x + 10, y + 15, lit);
-        }
-        Gui.blit(g, icon, x, y + 5, 0, 0, 9, 9, 9, 9);
-        ui.spot(x - 1, y + 3, 11, 12, action, name.getString());
-        ui.tooltip(x - 1, y + 3, 11, 12, name);
     }
 
     /** Where in the table what's picked is: a pool, or an entry of one. */

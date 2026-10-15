@@ -69,7 +69,7 @@ final class EditorScenario {
                     }
                 }))
                 .then(shoot("e03a_field_help"))
-                .then(moveTo(() -> at(mc, "+ Add function"), 8))
+                .then(moveTo(() -> at(mc, "Add function"), 8))
                 .then(click())
                 .then(pause(30))
                 .then(shoot("e03b_function_added"))
@@ -254,7 +254,7 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(run(() -> editor(mc).pick(0, 0)))
                 .then(pause(10))
-                .then(moveTo(() -> at(mc, "+ Add setting"), 8))
+                .then(moveTo(() -> at(mc, "Add setting"), 8))
                 .then(click())
                 .then(pause(5))
                 .then(type("power", 2))
