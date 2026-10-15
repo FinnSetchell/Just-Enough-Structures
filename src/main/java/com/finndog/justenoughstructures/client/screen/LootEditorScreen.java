@@ -1333,14 +1333,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 }
             }
             Component add = Component.translatable("screen.justenoughstructures.editor.add_item");
-            ui.link(g, Icons.ADD, add, x + 12, y + 2, true, () -> {
+            ui.link(g, add, x + 12, y + 2, true, () -> {
                 int index = JsonPaths.append(draft, poolPath + ".entries", LootTypes.entry("minecraft:item", null));
                 select(pool, index);
                 changed();
             });
             y += Gui.fineLine(font) + 6;
         }
-        ui.link(g, Icons.ADD, Component.translatable("screen.justenoughstructures.editor.add_pool"), x + 4, y + 2, true, () -> {
+        ui.link(g, Component.translatable("screen.justenoughstructures.editor.add_pool"), x + 4, y + 2, true, () -> {
             JsonObject pool = new JsonObject();
             pool.addProperty("rolls", 1);
             pool.add("entries", new JsonArray());

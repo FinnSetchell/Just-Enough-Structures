@@ -20,7 +20,6 @@ final class Icons {
     static final ResourceLocation GRIP = icon("row_grip");
     static final ResourceLocation MOVE_UP = icon("move_up");
     static final ResourceLocation MOVE_DOWN = icon("move_down");
-    static final ResourceLocation ADD = icon("add");
     static final ResourceLocation BOLD = icon("bold");
     static final ResourceLocation ITALIC = icon("italic");
     /** 7 by 4: the arrow of a dropdown. */

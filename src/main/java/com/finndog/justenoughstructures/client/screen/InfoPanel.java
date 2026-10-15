@@ -461,16 +461,9 @@ final class InfoPanel {
         notesSpot = new int[]{x + PAD + (lines.isEmpty() ? 0 : Math.min(font.width(lines.get(0)), textWidth()) / 2), cy + font.lineHeight / 2};
         StructureCatalog.Entry noted = entry;
         hotspots.add(new Hotspot(x + 2, cy - 2, width - 4, notesHeight + 2, () -> onEditNotes.accept(noted.id())));
-        if (mine.isEmpty()) {
-            // A link to write some, the add icon before it.
-            Gui.icon(g, Icons.ADD, x + PAD, cy, Icons.SMALL, Icons.SMALL, ink);
-            g.drawString(font, written, x + PAD + Icons.SMALL + 2, cy, ink, false);
+        for (FormattedCharSequence line : lines) {
+            g.drawString(font, line, x + PAD, cy, ink, false);
             cy += font.lineHeight + 1;
-        } else {
-            for (FormattedCharSequence line : lines) {
-                g.drawString(font, line, x + PAD, cy, ink, false);
-                cy += font.lineHeight + 1;
-            }
         }
         cy += 3;
 

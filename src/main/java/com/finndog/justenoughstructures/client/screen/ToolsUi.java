@@ -283,29 +283,6 @@ final class ToolsUi {
         return w;
     }
 
-    /** The same with a 9 pixel icon before the words, in their colour, as "Add" links have. Returns its width. */
-    int link(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, boolean fine, Runnable action, Component... tip) {
-        String text = label.getString();
-        int textW = fine ? Gui.fineWidth(font, text) : font.width(text);
-        int h = fine ? Gui.fineLine(font) : font.lineHeight;
-        int w = Icons.SMALL + 2 + textW;
-        boolean over = hovered(x, y - 1, w, h + 2);
-        int colour = over ? linkHovered() : link();
-        Gui.icon(g, icon, x, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, colour);
-        int textX = x + Icons.SMALL + 2;
-        if (fine) {
-            Gui.fine(g, font, text, textX, y, colour);
-        } else {
-            g.drawString(font, text, textX, y, colour, false);
-        }
-        if (over) {
-            g.fill(textX, y + h, textX + textW, y + h + 1, linkHovered());
-        }
-        spot(x, y - 1, w, h + 2, action, text);
-        tooltip(x, y - 1, w, h + 2, tip);
-        return w;
-    }
-
     /**
      * A 9 pixel icon that's a button, its top left at x, y. The box behind it lights up in {@code lit}
      * under the mouse. {@code name} is its tooltip, and {@code label}, when there is one, finds it for

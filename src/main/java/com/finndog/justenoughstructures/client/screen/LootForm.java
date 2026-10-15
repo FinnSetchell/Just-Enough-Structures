@@ -200,7 +200,7 @@ final class LootForm {
             JsonArray children = JsonPaths.array(draft(), JsonPaths.join(path, "children"));
             y = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.editor.children", children == null ? 0 : children.size()),
                     x + 4, y + 1, w - 8, Gui.labelSoft()) + 2;
-            ui.link(g, Icons.ADD, text("add_item"), x + 4, y + 1, true, () -> {
+            ui.link(g, text("add_item"), x + 4, y + 1, true, () -> {
                 String inside = JsonPaths.join(path, "children");
                 if (JsonPaths.array(draft(), inside) == null) {
                     JsonPaths.set(draft(), inside, new JsonArray());
@@ -432,7 +432,7 @@ final class LootForm {
             case "inverted" -> {
                 String term = at(path, "term");
                 if (JsonPaths.object(draft(), term) == null) {
-                    ui.link(g, Icons.ADD, text("add_condition"), x + 4, y + 2, true, () -> set(term, LootTypes.condition("minecraft:random_chance")));
+                    ui.link(g, text("add_condition"), x + 4, y + 2, true, () -> set(term, LootTypes.condition("minecraft:random_chance")));
                     y += Gui.fineLine(font) + 6;
                 } else {
                     y = conditionCard(g, x + INDENT, y, w - INDENT * 2, term) + 3;
@@ -507,7 +507,7 @@ final class LootForm {
             y = labelled(g, x, y, w, StructureNames.pretty(key), (cx, cw) -> raw(g, cx, y(), cw, JsonPaths.join(path, JsonPaths.key(key))));
         }
         if (!path.equals(naming)) {
-            ui.link(g, Icons.ADD, text("add_setting"), x + 4, y + 1, true, () -> {
+            ui.link(g, text("add_setting"), x + 4, y + 1, true, () -> {
                 naming = path;
                 pendingEdit = path + "#setting";
             });
@@ -772,7 +772,7 @@ final class LootForm {
                     Gui.fine(g, font, empty.getString(), cx, y() + 3, Gui.labelSoft());
                 }
                 Component link = text("add");
-                ui.link(g, Icons.ADD, link, cx + cw - addLinkWidth(link), y() + 3, true, add);
+                ui.link(g, link, cx + cw - Gui.fineWidth(font, link.getString()), y() + 3, true, add);
             });
         }
         return y;
@@ -808,8 +808,8 @@ final class LootForm {
         String countText = count == 0 ? text("none").getString() : String.valueOf(count);
         Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.labelSoft());
         Component add = text(functions ? "add_function" : "add_condition");
-        int addW = addLinkWidth(add);
-        ui.link(g, Icons.ADD, add, x + w - 4 - addW, y + 2, true,
+        int addW = Gui.fineWidth(font, add.getString());
+        ui.link(g, add, x + w - 4 - addW, y + 2, true,
                 () -> append(path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance")));
         y += font.lineHeight + 3;
         for (int i = 0; i < count; i++) {
@@ -1091,7 +1091,7 @@ final class LootForm {
         return row(g, x, y, w, key, (cx, cw) -> {
             Component add = text("add");
             boolean listable = !current.isBlank() && !current.startsWith("#");
-            int addW = listable ? addLinkWidth(add) + 6 : 0;
+            int addW = listable ? Gui.fineWidth(font, add.getString()) + 6 : 0;
             int boxW = cw - addW - (current.isBlank() ? 0 : 12);
             pickBox(g, cx, y(), boxW, path, current, one, typed -> {
                 if (typed.isBlank()) {
@@ -1107,7 +1107,7 @@ final class LootForm {
                 removeX(g, cx + boxW + 4, y(), () -> remove(path));
             }
             if (listable) {
-                ui.link(g, Icons.ADD, add, cx + cw - addW + 6, y() + 3, true, () -> {
+                ui.link(g, add, cx + cw - addW + 6, y() + 3, true, () -> {
                     JsonArray list = new JsonArray();
                     list.add(current);
                     list.add("");
@@ -1172,7 +1172,7 @@ final class LootForm {
         y += 2;
         Gui.fineClipped(g, font, text("field." + key).getString(), x + 4, y + 1, w - 60, Gui.labelSoft());
         Component add = text("add");
-        ui.link(g, Icons.ADD, add, x + w - 4 - addLinkWidth(add), y + 1, true, () -> append(path, fresh.get()));
+        ui.link(g, add, x + w - 4 - Gui.fineWidth(font, add.getString()), y + 1, true, () -> append(path, fresh.get()));
         y += Gui.fineLine(font) + 4;
         for (int i = 0; i < count; i++) {
             String itemPath = JsonPaths.join(path, i);
@@ -1186,11 +1186,6 @@ final class LootForm {
             y = end(g, cx, top, y, cw) + 3;
         }
         return y;
-    }
-
-    /** How wide a link to add something is: its icon and its words. */
-    private int addLinkWidth(Component add) {
-        return Icons.SMALL + 2 + Gui.fineWidth(font, add.getString());
     }
 
     /** The remove icon, dark red on the card, that takes something out. */
