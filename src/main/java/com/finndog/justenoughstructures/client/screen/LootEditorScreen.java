@@ -159,6 +159,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private ItemStack hoveredStack = ItemStack.EMPTY;
 
     private MultiLineEditBox rawBox;
+    /** The JSON view's scroll bar and wheel, like the other lists', drawing the box with them. */
+    private BoxBar rawBar;
     /** The one text box for typing in the form, moved to whichever field is clicked. */
     private EditBox inline;
     private String editingId;
@@ -528,9 +530,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             idBox.setResponder(this::idChanged);
         }
         rawBox = null;
+        rawBar = null;
         if (raw) {
-            rawBox = addRenderableWidget(JsonEditBox.create(font, treeX, contentTop, formX + formW - treeX, contentBottom - contentTop,
+            // Narrower by the strip its bar takes on the right. The bar draws it, so it isn't one the screen draws.
+            rawBox = addWidget(JsonEditBox.create(font, treeX, contentTop, formX + formW - treeX - 8, contentBottom - contentTop,
                     Component.empty(), Component.translatable("screen.justenoughstructures.editor.json")));
+            rawBar = new BoxBar(rawBox);
             rawBox.setCharacterLimit(Integer.MAX_VALUE);
             rawBox.setValue(rawText == null ? "" : rawText);
             rawBox.setValueListener(text -> {
@@ -978,6 +983,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (editingId != null && !(inline != null && inline.isMouseOver(mouseX, mouseY))) {
             commitEditing();
         }
+        if (rawBar != null && button == InputConstants.MOUSE_BUTTON_LEFT) {
+            heldBar = rawBar.grab(mouseX, mouseY);
+            if (heldBar != null) {
+                return true;
+            }
+        }
         // A press on a row of the list picks it, and may be the start of dragging it somewhere else in its list.
         TreeRow under = button == InputConstants.MOUSE_BUTTON_LEFT ? rowUnder(mouseX, mouseY) : null;
         if (button == InputConstants.MOUSE_BUTTON_LEFT && ui.click(mouseX, mouseY)) {
@@ -1053,6 +1064,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         if (editingId != null && suggestions != null && suggestions.contains(mouseX, mouseY)) {
             suggestions.scroll(delta);
+            return true;
+        }
+        // The JSON view first: the list and the form it covers keep the places they were last drawn.
+        if (rawBar != null && rawBar.wheel(mouseX, mouseY, delta)) {
             return true;
         }
         if (treeScroll.scroll(mouseX, mouseY, delta) || oddsScroll.scroll(mouseX, mouseY, delta)) {
@@ -1153,6 +1168,9 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             renderOdds(g);
         }
         followField();
+        if (rawBar != null) {
+            rawBar.render(g, mx, my, partialTick);
+        }
         super.render(g, mx, my, partialTick);
 
         if (picker != null || choice != null) {

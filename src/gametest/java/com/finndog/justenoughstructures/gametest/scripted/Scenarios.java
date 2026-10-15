@@ -63,6 +63,7 @@ public final class Scenarios {
             case "list_keys" -> ListKeysScenario.build(mc);
             case "search_focus" -> SearchFocusScenario.build(mc);
             case "inspect_zoom" -> InspectZoomScenario.build(mc);
+            case "json_scroll" -> JsonScrollScenario.build(mc);
             case "faulty_renderer" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.HALF_VERTEX);
             case "faulty_renderer_error" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.OUT_OF_STACK);
             case "faulty_renderer_pose" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.POSES);

@@ -13,7 +13,8 @@ import net.minecraft.client.gui.screens.Screen;
  * The loot editor's JSON box, and the box the player writes notes in. Before 26.1 a click inside a
  * multi-line box is taken as a click on its scroll area before the cursor is moved, so the cursor
  * stays where it was. This moves it. 26.1 moves it itself, and only makes these boxes through a
- * builder, so there it's a plain one.
+ * builder, so there it's a plain one. For a box shown with a {@link BoxBar} it also reads and moves
+ * the box's offset, and leaves out the box's own bar where it can.
  */
 //? if >=26.1 {
 /*final class JsonEditBox {
@@ -23,15 +24,57 @@ import net.minecraft.client.gui.screens.Screen;
     static MultiLineEditBox create(Font font, int x, int y, int width, int height, Component placeholder, Component message) {
         return MultiLineEditBox.builder().setX(x).setY(y).setPlaceholder(placeholder).build(font, width, height, message);
     }
+
+    // Here the box's own bar can't be left out: BoxBar cuts it off as it draws the box.
+    static void hideBar(MultiLineEditBox box) {
+    }
+
+    static double offset(MultiLineEditBox box) {
+        return box.scrollAmount();
+    }
+
+    static int most(MultiLineEditBox box) {
+        return box.maxScrollAmount();
+    }
+
+    static void scrollTo(MultiLineEditBox box, double offset) {
+        box.setScrollAmount(offset);
+    }
 }
 *///?} else {
 final class JsonEditBox extends MultiLineEditBox {
+    private boolean ownBar = true;
+
     private JsonEditBox(Font font, int x, int y, int width, int height, Component placeholder, Component message) {
         super(font, x, y, width, height, placeholder, message);
     }
 
     static MultiLineEditBox create(Font font, int x, int y, int width, int height, Component placeholder, Component message) {
         return new JsonEditBox(font, x, y, width, height, placeholder, message);
+    }
+
+    /** Leaves out the box's own scroll bar, so it takes no presses beside the box either. */
+    static void hideBar(MultiLineEditBox box) {
+        ((JsonEditBox) box).ownBar = false;
+    }
+
+    /** How far the box is scrolled, in pixels. */
+    static double offset(MultiLineEditBox box) {
+        return ((JsonEditBox) box).scrollAmount();
+    }
+
+    /** How far it can be scrolled. */
+    static int most(MultiLineEditBox box) {
+        return ((JsonEditBox) box).getMaxScrollAmount();
+    }
+
+    static void scrollTo(MultiLineEditBox box, double offset) {
+        ((JsonEditBox) box).setScrollAmount(offset);
+    }
+
+    @Override
+    protected boolean scrollbarVisible() {
+        return ownBar && super.scrollbarVisible();
     }
 
     @Override
