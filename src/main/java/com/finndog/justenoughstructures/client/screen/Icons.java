@@ -33,9 +33,8 @@ final class Icons {
     static final ResourceLocation COPY = icon("copy");
     static final ResourceLocation PASTE = icon("paste");
 
-    // The browser's toolbar and popups. A die for a new layout or a new roll of a chest's loot.
+    // The browser's toolbar and popups. A die for a new layout.
     static final ResourceLocation DIE = icon("die");
-    static final ResourceLocation DIE_SMALL = icon("die_small");
     static final ResourceLocation HOUSE = icon("house");
     static final ResourceLocation LAYERS = icon("layers");
     static final ResourceLocation STEP_LEFT = icon("step_left");

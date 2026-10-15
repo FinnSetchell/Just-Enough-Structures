@@ -428,11 +428,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         toolsButton = addRenderableWidget(new ToolsButton(toolsX, TOP + 1, Math.max(20, toolsW), b -> openTools(PackToolsScreen.Section.OVERVIEW, null)));
         updateToolsButton();
 
-        Component rerollLoot = Component.translatable("screen.justenoughstructures.reroll_loot");
-        chestReroll = addRenderableWidget(new LabelledIconButton(0, 0, 70, 20, Icons.DIE_SMALL, Icons.SMALL, rerollLoot, b -> rerollLoot()));
-        if (LabelledIconButton.widthFor(font, rerollLoot, Icons.SMALL) > 70) {
-            chestReroll.setTooltip(Tooltip.create(rerollLoot));
-        }
+        chestReroll = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll_loot"), b -> rerollLoot())
+                .bounds(0, 0, 70, 20).build());
         chestPrev = addRenderableWidget(stepButton(Icons.STEP_LEFT, "popup_previous", -1));
         chestNext = addRenderableWidget(stepButton(Icons.STEP_RIGHT, "popup_next", 1));
         chestClose = addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> closePopup())

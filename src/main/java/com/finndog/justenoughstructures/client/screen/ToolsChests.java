@@ -235,7 +235,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
         if (table != null && roll == null) {
             Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), gx + 6, sy + 4, Gui.labelSoft());
         }
-        ui.button(g, Icons.DIE_SMALL, Component.translatable("screen.justenoughstructures.reroll_loot"), gx + 2, sy + rows * SLOT + 4, gridW - 4, 20, table != null,
+        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), gx + 2, sy + rows * SLOT + 4, gridW - 4, 20, table != null,
                 () -> seed = ThreadLocalRandom.current().nextLong());
         return cy + rows * SLOT + 40;
     }
