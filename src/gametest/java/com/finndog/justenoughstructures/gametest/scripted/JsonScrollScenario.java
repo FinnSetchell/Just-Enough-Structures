@@ -16,6 +16,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.editor;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.resources.ResourceLocation;
@@ -23,9 +24,10 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * The loot editor's JSON view scrolls like the other lists: opened as the form first, as a player does,
  * then switched to JSON, the wheel over it moves it three lines a notch, its bar right of it drags it
- * to the bottom, and once the cursor is out of view, typing brings its line back into view. The view
- * opens at the end of the text, where filling the box leaves the cursor, so the bar first takes it to
- * the top: dragged above the box, which vanilla's bar does too.
+ * to the bottom, a resize keeps it where it was, and once the cursor is out of view, typing brings its
+ * line back into view. It has to open at its top, where filling the box would leave it at the end: that
+ * is checked last, so on older code the bar first takes it to the top, dragged above the box, which
+ * vanilla's bar does too, and the wheel is checked first.
  */
 final class JsonScrollScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");
@@ -38,6 +40,7 @@ final class JsonScrollScenario {
     static Director build(Minecraft mc) {
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         double[] bottom = new double[1];
+        double[] opened = new double[1];
         Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -49,8 +52,9 @@ final class JsonScrollScenario {
                 .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
                 .then(click())
                 .then(pause(20))
+                .then(run(() -> opened[0] = offset(mc)))
                 .then(moveTo(() -> bar(mc, 0.5f), 8))
-                .then(dragTo(() -> new int[]{bar(mc, 0f)[0], box(mc).getY() - 6}, 20, 0))
+                .then(dragTo(() -> new int[]{bar(mc, 0f)[0], box(mc).getY() - 6}, 20, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(10))
                 .then(run(() -> {
                     if (offset(mc) > 1) {
@@ -68,8 +72,23 @@ final class JsonScrollScenario {
                                 + THREE_NOTCHES + ")");
                     }
                 }))
+                // As when the window changes size: the editor is laid out again, the JSON box made anew.
+                .then(run(() -> {
+                    //? if >=26.1 {
+                    /*mc.resizeGui();
+                    *///?} else {
+                    mc.resizeDisplay();
+                    //?}
+                }))
+                .then(pause(10))
+                .then(run(() -> {
+                    double now = offset(mc);
+                    if (Math.abs(now - THREE_NOTCHES) > 1) {
+                        throw new IllegalStateException("Laying the editor out again moved the JSON view from " + THREE_NOTCHES + " to " + now);
+                    }
+                }))
                 .then(moveTo(() -> bar(mc, 0f), 8))
-                .then(dragTo(() -> bar(mc, 1f), 20, 0))
+                .then(dragTo(() -> bar(mc, 1f), 20, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(10))
                 .then(shoot("j02_bar_at_bottom"))
                 .then(run(() -> bottom[0] = offset(mc)))
@@ -87,7 +106,7 @@ final class JsonScrollScenario {
                 .then(moveTo(() -> new int[]{box(mc).getX() + 40, box(mc).getY() + box(mc).getHeight() - 12}, 8))
                 .then(click())
                 .then(moveTo(() -> bar(mc, 1f), 8))
-                .then(dragTo(() -> bar(mc, 0f), 20, 0))
+                .then(dragTo(() -> bar(mc, 0f), 20, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(10))
                 .then(run(() -> {
                     if (offset(mc) > 1) {
@@ -101,6 +120,9 @@ final class JsonScrollScenario {
                     double now = offset(mc);
                     if (now < bottom[0] - box(mc).getHeight()) {
                         throw new IllegalStateException("Typing with the cursor out of view left the JSON view at " + now + ", not near " + bottom[0]);
+                    }
+                    if (opened[0] > 1) {
+                        throw new IllegalStateException("The JSON view opened " + opened[0] + " pixels down, not at its top");
                     }
                 }));
         return d;

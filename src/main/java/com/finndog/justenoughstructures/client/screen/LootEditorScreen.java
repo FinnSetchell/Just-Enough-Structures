@@ -529,6 +529,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             idBox.setValue(tableId.toString());
             idBox.setResponder(this::idChanged);
         }
+        // A rebuild, as when the window is resized, keeps the JSON view where it was; a new one starts at its top.
+        double rawOffset = rawBox != null ? JsonEditBox.offset(rawBox) : 0;
         rawBox = null;
         rawBar = null;
         if (raw) {
@@ -537,7 +539,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     Component.empty(), Component.translatable("screen.justenoughstructures.editor.json")));
             rawBar = new BoxBar(rawBox);
             rawBox.setCharacterLimit(Integer.MAX_VALUE);
-            rawBox.setValue(rawText == null ? "" : rawText);
+            fillJson(rawText == null ? "" : rawText, rawOffset);
             rawBox.setValueListener(text -> {
                 if (!text.equals(rawText)) {
                     rawText = text;
@@ -631,8 +633,17 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             note(Component.translatable("screen.justenoughstructures.editor.nothing_to_paste"), warn());
             return;
         }
-        rawBox.setValue(text);
+        fillJson(text, 0);
         note(Component.translatable("screen.justenoughstructures.editor.pasted_json"), good());
+    }
+
+    /**
+     * Puts text in the JSON view, scrolled {@code offset} pixels down. Filling the box leaves its cursor
+     * after the last character, scrolled to, where a list here would start at its top.
+     */
+    private void fillJson(String text, double offset) {
+        rawBox.setValue(text);
+        JsonEditBox.scrollTo(rawBox, offset);
     }
 
     private int buttonWidth(String key) {
@@ -2178,7 +2189,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             toggleMode();
         }
         if (rawBox != null) {
-            rawBox.setValue(text);
+            fillJson(text, 0);
         }
     }
 
