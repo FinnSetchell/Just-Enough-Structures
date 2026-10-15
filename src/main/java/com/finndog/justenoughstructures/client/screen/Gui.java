@@ -430,19 +430,6 @@ public final class Gui {
         //?}
     }
 
-    /** A small white arrow with a dark shadow, as on JEI's page buttons, pointing left or right. */
-    static void arrow(GuiGraphics g, int x, int y, boolean left) {
-        arrowShape(g, x + 1, y + 1, left, 0xFF383838);
-        arrowShape(g, x, y, left, 0xFFFFFFFF);
-    }
-
-    private static void arrowShape(GuiGraphics g, int x, int y, boolean left, int color) {
-        for (int i = 0; i < 4; i++) {
-            int column = left ? x + i : x + 3 - i;
-            g.fill(column, y + 3 - i, column + 1, y + 4 + i, color);
-        }
-    }
-
     /** JEI's search box: black, with a thin bevel just inside a black edge, a dim one over a dark panel. */
     static void searchBox(GuiGraphics g, int x, int y, int w, int h) {
         int lit = ink(0xFFACACAC, 0xFF3C3C3C);

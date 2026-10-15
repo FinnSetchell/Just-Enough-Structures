@@ -200,6 +200,25 @@ final class ToolsUi {
         return w;
     }
 
+    /** The same with a 9 pixel icon before its words, or the icon alone where they don't fit, the words then its tooltip. */
+    int button(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, int w, int h, boolean active, Runnable action, Component... tip) {
+        boolean over = hovered(x, y, w, h);
+        Gui.buttonBackground(g, x, y, w, h, !active ? 0 : over ? 2 : 1);
+        int colour = active ? 0xFFFFFFFF : 0xFFA0A0A0;
+        boolean words = Icons.SMALL + 3 + font.width(label) + 6 <= w;
+        int contentW = words ? Icons.SMALL + 3 + font.width(label) : Icons.SMALL;
+        int left = x + (w - contentW) / 2;
+        Gui.icon(g, icon, left, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, colour);
+        if (words) {
+            g.drawString(font, label, left + Icons.SMALL + 3, y + (h - 8) / 2, colour, true);
+        }
+        if (active) {
+            spot(x, y, w, h, action, label.getString());
+        }
+        tooltip(x, y, w, h, words || tip.length > 0 ? tip : new Component[]{label});
+        return w;
+    }
+
     int backButtonWidth(Component label) {
         return font.width(label) + 19;
     }

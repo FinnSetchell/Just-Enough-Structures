@@ -6,8 +6,8 @@ import net.minecraft.network.chat.Component;
 
 /** Hides every layer at or above the chosen height. */
 final class LayerSlider extends AbstractSliderButton {
-    /** How wide it has to be for its full label; narrower, it only shows the numbers. */
-    static final int LABEL_WIDTH = 100;
+    /** How wide it has to be for its full label, "12 of 34"; narrower, it shows "12/34". */
+    static final int LABEL_WIDTH = 76;
 
     private int layers = 1;
     private final IntConsumer onChange;

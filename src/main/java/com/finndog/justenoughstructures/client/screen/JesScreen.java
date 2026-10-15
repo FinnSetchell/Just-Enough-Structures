@@ -78,10 +78,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private static final int TOP = NavBar.TOP;
     /** How far the details panel sits down to make room for its tabs, as JEI's recipe panel does. */
     private static final int TABS = 21;
-    private static final ResourceLocation RESET_ICON = JustEnoughStructures.id("textures/gui/reset_view.png");
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack MOB_MARKERS_ICON = new ItemStack(Items.SPAWNER);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
+    /** Room left of the layer slider for its icon. */
+    private static final int LAYERS_ICON_ROOM = 12;
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
     private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
     /** How long a locate that found nothing stays in the header. */
@@ -337,10 +338,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         viewW = centreW - 12;
         // When the buttons leave the layer slider too little room for its label, it gets a row of its
         // own under them, as wide as the preview, rather than spilling past the panel's edge. "New
-        // layout" is shortened to "New" only when that keeps the slider beside the buttons.
+        // layout" is shortened to its die alone only when that keeps the slider beside the buttons.
+        Component rerollLabel = Component.translatable("screen.justenoughstructures.reroll");
+        int rerollWide = LabelledIconButton.widthFor(font, rerollLabel, Icons.LARGE);
         int others = 22 + 22 + 24;
-        boolean sliderRow = viewW - (36 + others) < LayerSlider.LABEL_WIDTH;
-        boolean roomy = sliderRow ? viewW >= 68 + others - 4 : viewW - (68 + others) >= LayerSlider.LABEL_WIDTH;
+        int sliderRoom = LayerSlider.LABEL_WIDTH + LAYERS_ICON_ROOM;
+        boolean sliderRow = viewW - (22 + others) < sliderRoom;
+        boolean roomy = sliderRow ? viewW >= rerollWide + 2 + others - 4 : viewW - (rerollWide + 2 + others) >= sliderRoom;
         int buttonsY = sliderRow ? toolbarY - 22 : toolbarY;
         viewH = buttonsY - 4 - viewY;
         if (viewW != lastViewW || viewH != lastViewH) {
@@ -381,11 +385,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         updateCompassButton();
 
         int bx = viewX;
-        rerollButton = addRenderableWidget(Button.builder(Component.translatable(roomy ? "screen.justenoughstructures.reroll" : "screen.justenoughstructures.reroll_short"), b -> reroll())
-                .bounds(bx, buttonsY, roomy ? 66 : 34, 20).tooltip(Tooltip.create(
-                        Component.translatable("screen.justenoughstructures.reroll_tooltip"))).build());
-        bx += roomy ? 68 : 36;
-        addRenderableWidget(new IconButton(bx, buttonsY, RESET_ICON,
+        int rerollW = roomy ? rerollWide : 20;
+        rerollButton = addRenderableWidget(new LabelledIconButton(bx, buttonsY, rerollW, 20, Icons.DIE, Icons.LARGE, rerollLabel, b -> reroll()));
+        // Its tooltip gives the shortcut, and its name as well while the die stands alone.
+        Component shortcut = Component.translatable("screen.justenoughstructures.reroll_tooltip");
+        rerollButton.setTooltip(Tooltip.create(roomy ? shortcut : rerollLabel.copy().append("\n").append(shortcut)));
+        bx += rerollW + 2;
+        addRenderableWidget(new IconButton(bx, buttonsY, Icons.HOUSE,
                 Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
         bx += 22;
         markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> markerKind() == MarkerKind.MOBS ? MOB_MARKERS_ICON : MARKERS_ICON,
@@ -404,12 +410,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             updateGround();
         }));
         bx += 24;
-        int sliderX = sliderRow ? viewX : bx;
+        // Its label is just the numbers, beside the layers icon drawn to its left.
+        int sliderX = (sliderRow ? viewX : bx) + LAYERS_ICON_ROOM;
         slider = addRenderableWidget(new LayerSlider(sliderX, toolbarY, viewX + viewW - sliderX, 20, shown -> {
             if (view != null) {
                 view.setSliceY(shown);
             }
         }));
+        slider.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.layers_tooltip")));
         updateSlider();
 
         // The details panel starts lower, so its tabs can sit on top of it the way JEI's do.
@@ -420,10 +428,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         toolsButton = addRenderableWidget(new ToolsButton(toolsX, TOP + 1, Math.max(20, toolsW), b -> openTools(PackToolsScreen.Section.OVERVIEW, null)));
         updateToolsButton();
 
-        chestReroll = addRenderableWidget(Button.builder(Component.translatable("screen.justenoughstructures.reroll_loot"), b -> rerollLoot())
-                .bounds(0, 0, 70, 20).build());
-        chestPrev = addRenderableWidget(Button.builder(Component.literal("<"), b -> stepContainer(-1)).bounds(0, 0, 20, 20).build());
-        chestNext = addRenderableWidget(Button.builder(Component.literal(">"), b -> stepContainer(1)).bounds(0, 0, 20, 20).build());
+        Component rerollLoot = Component.translatable("screen.justenoughstructures.reroll_loot");
+        chestReroll = addRenderableWidget(new LabelledIconButton(0, 0, 70, 20, Icons.DIE_SMALL, Icons.SMALL, rerollLoot, b -> rerollLoot()));
+        if (LabelledIconButton.widthFor(font, rerollLoot, Icons.SMALL) > 70) {
+            chestReroll.setTooltip(Tooltip.create(rerollLoot));
+        }
+        chestPrev = addRenderableWidget(stepButton(Icons.STEP_LEFT, "popup_previous", -1));
+        chestNext = addRenderableWidget(stepButton(Icons.STEP_RIGHT, "popup_next", 1));
         chestClose = addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> closePopup())
                 .bounds(0, 0, 44, 20).build());
         if (popup != null) {
@@ -1093,6 +1104,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (!mobPopup.overview()) {
             lookAt(mob);
         }
+    }
+
+    /** A popup's arrow to the previous or next of its kind: the arrow alone, its words as its tooltip. */
+    private LabelledIconButton stepButton(ResourceLocation icon, String key, int step) {
+        Component label = Component.translatable("screen.justenoughstructures." + key);
+        LabelledIconButton button = new LabelledIconButton(0, 0, 20, 20, icon, Icons.SMALL, label, b -> stepContainer(step));
+        button.setTooltip(Tooltip.create(label));
+        return button;
     }
 
     /** Opens a mob's popup, as clicking it in the preview does. For the screenshot harness. */
@@ -2255,6 +2274,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
         for (Button b : new Button[]{chestReroll, chestPrev, chestNext, chestClose}) {
             b.visible = false;
+        }
+        if (slider.visible) {
+            Gui.icon(g, Icons.LAYERS, slider.getX() - LAYERS_ICON_ROOM + 1, slider.getY() + 5, Icons.SMALL, Icons.SMALL,
+                    slider.active ? Gui.label() : Gui.labelSoft());
         }
         super.render(g, mx, my, partialTick);
 

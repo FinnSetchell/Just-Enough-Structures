@@ -26,6 +26,8 @@ final class ChestPopup {
     /** How tall the list of chances is, so it's the same size whatever the container. */
     private static final int ODDS_HEIGHT = 108;
     private static final int TAB_HEIGHT = 11;
+    /** One of the tabs by the popup's name: room for its icon. */
+    private static final int TAB_WIDTH = Icons.SMALL + 4;
 
     enum View { ROLL, ODDS }
 
@@ -200,7 +202,7 @@ final class ChestPopup {
             room -= Math.max(all, last) + 4;
         }
         if (hasTabs()) {
-            room -= tabWidth(font, "popup_roll") + 3 + tabWidth(font, "popup_odds") + 4;
+            room -= TAB_WIDTH + 3 + TAB_WIDTH + 4;
         }
         return room;
     }
@@ -312,8 +314,8 @@ final class ChestPopup {
             right -= 4;
         }
         if (hasTabs()) {
-            right = tab(g, font, Action.ODDS, "popup_odds", view == View.ODDS, right, mouseX, mouseY);
-            right = tab(g, font, Action.ROLL, "popup_roll", view == View.ROLL, right - 3, mouseX, mouseY);
+            right = tab(g, Action.ODDS, "popup_odds", Icons.CHANCES, view == View.ODDS, right, mouseX, mouseY);
+            right = tab(g, Action.ROLL, "popup_roll", Icons.ONE_ROLL, view == View.ROLL, right - 3, mouseX, mouseY);
         }
         if (header > 17 && titleBelow(font)) {
             Gui.drawClipped(g, font, title.getString(), x + 8, y + 6 + font.lineHeight + 1, WIDTH - 16, Gui.label(), false);
@@ -493,14 +495,9 @@ final class ChestPopup {
         g.fill(left - 1, top - 1, left + size + 1, top + size + 1, 0xFFFFF2B0);
     }
 
-    /** A tab by the popup's name, its right edge at {@code right}. Returns its left edge. */
-    private static int tabWidth(Font font, String key) {
-        return Gui.fineWidth(font, Component.translatable("screen.justenoughstructures." + key).getString()) + 8;
-    }
-
-    private int tab(GuiGraphics g, Font font, Action action, String key, boolean on, int right, int mouseX, int mouseY) {
-        String text = Component.translatable("screen.justenoughstructures." + key).getString();
-        int w = tabWidth(font, key);
+    /** A tab by the popup's name, its icon on it and its words as its tooltip, its right edge at {@code right}. Returns its left edge. */
+    private int tab(GuiGraphics g, Action action, String key, ResourceLocation icon, boolean on, int right, int mouseX, int mouseY) {
+        int w = TAB_WIDTH;
         int left = right - w;
         int top = y + 4;
         boolean over = mouseX >= left && mouseX < right && mouseY >= top && mouseY < top + TAB_HEIGHT;
@@ -509,8 +506,11 @@ final class ChestPopup {
         if (over && !on) {
             g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, 0x48FFFFFF);
         }
-        Gui.fine(g, font, text, left + 4, top + (TAB_HEIGHT - Gui.fineLine(font)) / 2 + 1, on ? Gui.label() : 0xFF404040);
+        Gui.icon(g, icon, left + 2, top + 1, Icons.SMALL, Icons.SMALL, on ? Gui.label() : 0xFF404040);
         links.put(action, left, top, w, TAB_HEIGHT);
+        if (over) {
+            hoveredTip = List.of(Component.translatable("screen.justenoughstructures." + key));
+        }
         if (over && !on) {
             hoveredAction = action;
         }

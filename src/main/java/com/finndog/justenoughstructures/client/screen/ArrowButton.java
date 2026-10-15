@@ -4,7 +4,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
-/** JEI's small previous and next buttons: a 13 pixel stone button with a white arrow on it. */
+/** JEI's small previous and next buttons: a 13 pixel stone button with the step arrow's icon on it. */
 final class ArrowButton extends JesButton {
     static final int SIZE = 13;
     private final boolean left;
@@ -18,6 +18,6 @@ final class ArrowButton extends JesButton {
     @Override
     protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.renderWidget(g, mouseX, mouseY, partialTick);
-        Gui.arrow(g, getX() + 4, getY() + 3, left);
+        Gui.icon(g, left ? Icons.STEP_LEFT : Icons.STEP_RIGHT, getX() + 2, getY() + 2, Icons.SMALL);
     }
 }

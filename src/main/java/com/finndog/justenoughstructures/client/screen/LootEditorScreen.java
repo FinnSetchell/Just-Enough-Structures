@@ -1673,7 +1673,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 hoveredStack = stack;
             }
         }
-        ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll);
+        ui.button(g, Icons.DIE_SMALL, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll);
     }
 
     /** Every item's chance in a container, from rolling the edit as it stands. */
