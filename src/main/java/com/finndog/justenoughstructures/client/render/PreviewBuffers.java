@@ -73,9 +73,25 @@ final class PreviewBuffers {
         }
         // Made directly, not through the game's factory, which other mods replace with sources that
         // draw from buffers of their own.
-        source = new MultiBufferSource.BufferSource(shared, fixed) {
-        };
+        source = new OwnSource(shared, fixed);
         return source;
+    }
+
+    /**
+     * The game's own kind of buffer source, whose constructor is protected. A named class with a
+     * constructor of its own, as the compiler makes an anonymous one's constructor itself, and against
+     * the game as some builds make it, that came out with two parameters of the same name.
+     */
+    private static final class OwnSource extends MultiBufferSource.BufferSource {
+        //? if >=1.21 {
+        /*OwnSource(ByteBufferBuilder shared, SequencedMap<RenderType, ByteBufferBuilder> fixed) {
+            super(shared, fixed);
+        }
+        *///?} else {
+        OwnSource(BufferBuilder shared, Map<RenderType, BufferBuilder> fixed) {
+            super(shared, fixed);
+        }
+        //?}
     }
 
     /**
