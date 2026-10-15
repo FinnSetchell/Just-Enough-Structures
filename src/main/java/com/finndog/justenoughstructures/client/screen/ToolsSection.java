@@ -128,9 +128,7 @@ abstract class ToolsSection {
             "screen.justenoughstructures.container.undo", Icons.UNDO_SMALL,
             "screen.justenoughstructures.editor.remove", Icons.REMOVE,
             "screen.justenoughstructures.tools.remove_edit", Icons.REMOVE,
-            "screen.justenoughstructures.tools.copy_table", Icons.COPY_SMALL,
-            "screen.justenoughstructures.tools.show_in_browser", Icons.BROWSER,
-            "screen.justenoughstructures.tools.open_in_browser", Icons.BROWSER);
+            "screen.justenoughstructures.tools.copy_table", Icons.COPY_SMALL);
 
     /** A button on a row: what it says, what it does, and a tooltip, or null. A null action greys it out. */
     record RowButton(Component label, Runnable action, Component tip) {

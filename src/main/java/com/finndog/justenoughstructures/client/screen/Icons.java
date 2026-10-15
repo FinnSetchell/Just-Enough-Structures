@@ -53,7 +53,6 @@ final class Icons {
     static final ResourceLocation EDIT = icon("edit");
     static final ResourceLocation OPEN = icon("open");
     static final ResourceLocation UNDO_SMALL = icon("undo_small");
-    static final ResourceLocation BROWSER = icon("browser");
     static final ResourceLocation EDITED = icon("edited");
     static final ResourceLocation EDITED_CHANGED = icon("edited_changed");
     static final ResourceLocation EDITED_BROKEN = icon("edited_broken");
