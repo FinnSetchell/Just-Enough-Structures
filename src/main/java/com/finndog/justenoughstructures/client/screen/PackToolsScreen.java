@@ -23,6 +23,8 @@ import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * Pack tools: everything a pack maker or server owner changes, in one place. Loot tables, the
@@ -43,6 +45,18 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
         Component label() {
             return Component.translatable("screen.justenoughstructures.tools.section." + name().toLowerCase(Locale.ROOT));
+        }
+
+        /** The item drawn small before its name in the menu: vanilla's, so a resource pack restyles it. */
+        ItemStack icon() {
+            return new ItemStack(switch (this) {
+                case OVERVIEW -> Items.BOOK;
+                case LOOT -> Items.PAPER;
+                case CHESTS -> Items.CHEST;
+                case SPAWNERS -> Items.SPAWNER;
+                case STRUCTURES -> Items.FILLED_MAP;
+                case RULES -> Items.COMMAND_BLOCK;
+            });
         }
     }
 
@@ -413,7 +427,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         int y = TOP + 22;
         for (Section s : Section.values()) {
             String count = state == null ? "" : sections.get(s).count();
-            ui.choice(g, s.label(), count, menuX, y, menuW, 16, s == section, () -> {
+            ui.choice(g, s.icon(), s.label(), count, menuX, y, menuW, 16, s == section, () -> {
                 if (s != section) {
                     go(s, null);
                 }

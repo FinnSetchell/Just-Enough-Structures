@@ -91,13 +91,12 @@ final class ToolsRules extends ToolsSection {
             Gui.fine(g, font, Component.translatable("screen.justenoughstructures.tools.nobody_listed").getString(), cx, cy + 2, Gui.labelSoft());
         }
         for (String player : players) {
-            String label = player + "  x";
-            int chipW = Gui.fineWidth(font, label) + 6;
+            int chipW = ui.removableChipWidth(player);
             if (cx > x + 2 && cx + chipW > x + cw) {
                 cx = x + 2;
                 cy += ui.chipHeight() + 2;
             }
-            cx += ui.chip(g, label, cx, cy, false, () -> removePlayer(player),
+            cx += ui.removableChip(g, player, cx, cy, () -> removePlayer(player),
                     Component.translatable("screen.justenoughstructures.tools.unlist", player)) + 3;
         }
         cy += ui.chipHeight() + 4;

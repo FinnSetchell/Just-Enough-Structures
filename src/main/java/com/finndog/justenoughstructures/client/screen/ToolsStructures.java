@@ -391,9 +391,10 @@ final class ToolsStructures extends ToolsSection {
         }
         int right = x + w - 22;
         for (int i = marks.size() - 1; i >= 0; i--) {
-            String mark = Component.translatable("screen.justenoughstructures.tools.mark." + marks.get(i)).getString();
-            right -= Gui.fineWidth(font, mark);
-            Gui.fine(g, font, mark, right, y + 7, isSelected ? 0xFFFFFFFF : marks.get(i).equals("notes") ? ToolsUi.good() : ToolsUi.changed());
+            Component mark = Component.translatable("screen.justenoughstructures.tools.mark." + marks.get(i));
+            right -= badgeWidth(font, mark);
+            badge(g, font, mark, right, y + 6, isSelected ? 0xFFFFFFFF : marks.get(i).equals("notes") ? ToolsUi.good() : ToolsUi.changed());
+            ui.tooltip(right, y + 6, badgeWidth(font, mark), Icons.SMALL, mark);
             right -= 4;
         }
         String name = StructureNames.structure(e.id());

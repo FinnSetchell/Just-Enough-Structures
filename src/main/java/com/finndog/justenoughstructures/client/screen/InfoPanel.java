@@ -1092,9 +1092,9 @@ final class InfoPanel {
         if (mark == null) {
             return 0;
         }
-        String text = mark.getString();
-        int width = Gui.fineWidth(font, text);
-        Gui.fine(g, font, text, right - width, top, ToolsSection.markColour(status));
+        // The row's tooltip says how the edit stands, in words.
+        int width = ToolsSection.badgeWidth(font, mark);
+        ToolsSection.badge(g, font, mark, right - width, top - 1, ToolsSection.markColour(status));
         return width + 4;
     }
 

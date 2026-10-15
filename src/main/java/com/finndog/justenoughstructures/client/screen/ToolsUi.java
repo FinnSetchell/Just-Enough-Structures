@@ -6,6 +6,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Pack tools' controls, drawn as they're laid out each frame: buttons, links, switches, check boxes
@@ -238,8 +239,8 @@ final class ToolsUi {
         return w;
     }
 
-    /** A button lit up while it's the one chosen, like the section on show. */
-    void choice(GuiGraphics g, Component label, String count, int x, int y, int w, int h, boolean chosen, Runnable action) {
+    /** A button lit up while it's the one chosen, like the section on show, with an item drawn small before its label. */
+    void choice(GuiGraphics g, ItemStack icon, Component label, String count, int x, int y, int w, int h, boolean chosen, Runnable action) {
         if (chosen) {
             g.fill(x, y, x + w, y + h, 0xFF000000);
             g.fill(x + 1, y + 1, x + w - 1, y + h - 1, SELECTED);
@@ -251,7 +252,12 @@ final class ToolsUi {
             Gui.buttonBackground(g, x, y, w, h, over ? 2 : 1);
         }
         int countWidth = count.isEmpty() ? 0 : Gui.fineWidth(font, count) + 4;
-        Gui.drawClipped(g, font, label.getString(), x + 5, y + (h - 8) / 2, w - 10 - countWidth, 0xFFFFFFFF, true);
+        Gui.push(g);
+        Gui.translate(g, x + 3, y + (h - 12) / 2f);
+        Gui.scale(g, 0.75f);
+        g.renderItem(icon, 0, 0);
+        Gui.pop(g);
+        Gui.drawClipped(g, font, label.getString(), x + 18, y + (h - 8) / 2, w - 23 - countWidth, 0xFFFFFFFF, true);
         if (!count.isEmpty()) {
             Gui.fine(g, font, count, x + w - 4 - Gui.fineWidth(font, count), y + (h - Gui.fineLine(font)) / 2 + 1, 0xFFFFD27A);
         }
@@ -379,11 +385,49 @@ final class ToolsUi {
         g.fill(x, y, x + 9, y + 9, over ? 0xFFFFFFFF : 0xFFA0A0A0);
         g.fill(x + 1, y + 1, x + 8, y + 8, 0xFF000000);
         if (on) {
-            for (int i = 0; i < 5; i++) {
-                g.fill(x + 2 + i, y + 2 + i, x + 3 + i, y + 3 + i, 0xFFFFFFFF);
-                g.fill(x + 6 - i, y + 2 + i, x + 7 - i, y + 3 + i, 0xFFFFFFFF);
-            }
+            Gui.icon(g, Icons.TICK, x, y, Icons.SMALL);
         }
+    }
+
+    /** How wide a button that's an icon alone is: room for a 9 pixel icon. */
+    static final int ICON_BUTTON = Icons.SMALL + 6;
+
+    /**
+     * A {@link #BUTTON} high button that's an icon alone: its words are its tooltip, over {@code tip}
+     * when there is one, and its name for the screenshot harness. Returns its width.
+     */
+    int iconOnlyButton(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, boolean active, Runnable action, Component tip) {
+        boolean over = hovered(x, y, ICON_BUTTON, BUTTON);
+        Gui.buttonBackground(g, x, y, ICON_BUTTON, BUTTON, !active ? 0 : over ? 2 : 1);
+        Gui.icon(g, icon, x + 3, y + (BUTTON - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, active ? 0xFFFFFFFF : 0xFFA0A0A0);
+        if (active) {
+            spot(x, y, ICON_BUTTON, BUTTON, action, label.getString());
+        }
+        if (tip == null) {
+            tooltip(x, y, ICON_BUTTON, BUTTON, label);
+        } else {
+            tooltip(x, y, ICON_BUTTON, BUTTON, label, tip);
+        }
+        return ICON_BUTTON;
+    }
+
+    /** How wide {@link #removableChip} is with this label. */
+    int removableChipWidth(String label) {
+        return Gui.fineWidth(font, label) + 6 + Icons.SMALL + 1;
+    }
+
+    /** A small tag with the remove icon after its label, which takes it away. Returns its width. */
+    int removableChip(GuiGraphics g, String label, int x, int y, Runnable action, Component... tip) {
+        int w = removableChipWidth(label);
+        int h = Gui.fineLine(font) + 4;
+        boolean over = hovered(x, y, w, h);
+        Gui.outlined(g, x, y, w, h, Gui.ink(0xFF777777, 0x80000000), over ? Gui.ink(0xFFC0C0C0, 0x48FFFFFF) : Gui.ink(0xFFA8A8A8, 0x28FFFFFF));
+        int ink = Gui.ink(0xFF303030, 0xFFE0E0E0);
+        Gui.fine(g, font, label, x + 3, y + 2, ink);
+        Gui.icon(g, Icons.REMOVE, x + w - Icons.SMALL - 2, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, over ? bad() : ink);
+        spot(x, y, w, h, action);
+        tooltip(x, y, w, h, tip);
+        return w;
     }
 
     /** A small tag, lit up when on. Returns its width. */

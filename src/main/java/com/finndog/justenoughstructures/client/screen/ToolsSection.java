@@ -6,10 +6,12 @@ import com.finndog.justenoughstructures.overrides.LootOverrides;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -116,6 +118,20 @@ abstract class ToolsSection {
     private static final ItemStack MAP = new ItemStack(Items.FILLED_MAP);
     static final ItemStack CHEST = new ItemStack(Items.CHEST);
 
+    /**
+     * The row buttons drawn as an icon alone, by the key of their words, which are then their tooltip:
+     * the ones an icon says as well as words do.
+     */
+    private static final Map<String, ResourceLocation> ROW_ICONS = Map.of(
+            "screen.justenoughstructures.tools.edit", Icons.EDIT,
+            "screen.justenoughstructures.tools.open", Icons.OPEN,
+            "screen.justenoughstructures.container.undo", Icons.UNDO_SMALL,
+            "screen.justenoughstructures.editor.remove", Icons.REMOVE,
+            "screen.justenoughstructures.tools.remove_edit", Icons.REMOVE,
+            "screen.justenoughstructures.tools.copy_table", Icons.COPY_SMALL,
+            "screen.justenoughstructures.tools.show_in_browser", Icons.BROWSER,
+            "screen.justenoughstructures.tools.open_in_browser", Icons.BROWSER);
+
     /** A button on a row: what it says, what it does, and a tooltip, or null. A null action greys it out. */
     record RowButton(Component label, Runnable action, Component tip) {
         RowButton(Component label, Runnable action) {
@@ -124,6 +140,25 @@ abstract class ToolsSection {
 
         static RowButton of(String key, Runnable action) {
             return new RowButton(Component.translatable("screen.justenoughstructures." + key), action);
+        }
+
+        /** The icon it's drawn as, or null to draw its words. */
+        ResourceLocation icon() {
+            return label.getContents() instanceof TranslatableContents words ? ROW_ICONS.get(words.getKey()) : null;
+        }
+
+        int width(ToolsUi ui) {
+            return icon() != null ? ToolsUi.ICON_BUTTON : ui.buttonWidth(label);
+        }
+
+        /** Draws it with its top left at x, y, at most {@code w} wide. */
+        void draw(GuiGraphics g, ToolsUi ui, int x, int y, int w) {
+            ResourceLocation icon = icon();
+            if (icon != null) {
+                ui.iconOnlyButton(g, icon, label, x, y, action != null, action, tip);
+            } else {
+                ui.button(g, label, x, y, w, ToolsUi.BUTTON, action != null, action, tip);
+            }
         }
     }
 
@@ -135,11 +170,10 @@ abstract class ToolsSection {
     int row(GuiGraphics g, ToolsUi ui, int x, int y, int w, Icon icon, String name, Component mark, int markColour,
             String detail, List<RowButton> buttons, Runnable click, int background, boolean selected) {
         int textX = x + 22;
-        String markText = mark == null ? "" : mark.getString();
-        int markW = markText.isEmpty() ? 0 : Gui.fineWidth(font, markText) + 4;
+        int markW = mark == null ? 0 : badgeWidth(font, mark) + 4;
         int buttonsW = 0;
         for (RowButton b : buttons) {
-            buttonsW += ui.buttonWidth(b.label()) + 2;
+            buttonsW += b.width(ui) + 2;
         }
         boolean below = !buttons.isEmpty() && x + w - buttonsW - 2 - textX < Math.min(70, font.width(name) + markW);
         int h = ROW;
@@ -147,7 +181,7 @@ abstract class ToolsSection {
             int lines = 1;
             int bx = textX;
             for (RowButton b : buttons) {
-                int bw = ui.buttonWidth(b.label());
+                int bw = b.width(ui);
                 if (bx > textX && bx + bw > x + w - 2) {
                     lines++;
                     bx = textX;
@@ -169,20 +203,20 @@ abstract class ToolsSection {
             int bx = textX;
             int by = y + ROW;
             for (RowButton b : buttons) {
-                int bw = ui.buttonWidth(b.label());
+                int bw = b.width(ui);
                 if (bx > textX && bx + bw > x + w - 2) {
                     bx = textX;
                     by += ToolsUi.BUTTON + 2;
                 }
-                ui.button(g, b.label(), bx, by, Math.min(bw, x + w - 2 - bx), ToolsUi.BUTTON, b.action() != null, b.action(), b.tip());
+                b.draw(g, ui, bx, by, Math.min(bw, x + w - 2 - bx));
                 bx += bw + 2;
             }
         } else {
             for (int i = buttons.size() - 1; i >= 0; i--) {
                 RowButton b = buttons.get(i);
-                int bw = ui.buttonWidth(b.label());
+                int bw = b.width(ui);
                 right -= bw;
-                ui.button(g, b.label(), right, y + 4, b.action() != null, b.action(), b.tip());
+                b.draw(g, ui, right, y + 4, bw);
                 right -= 2;
             }
         }
@@ -192,9 +226,10 @@ abstract class ToolsSection {
         }
         String shown = Gui.clip(font, name, Math.max(0, room - markW));
         Gui.drawClipped(g, font, name, textX, y + 2, Math.max(0, room - markW), selected ? 0xFFFFFFFF : ToolsUi.TEXT, selected);
-        if (!markText.isEmpty()) {
+        if (mark != null) {
             int markX = textX + font.width(shown) + 4;
-            Gui.fineClipped(g, font, markText, markX, y + 3, x + w - markX, selected ? 0xFFFFFFFF : markColour);
+            badge(g, font, mark, markX, y + 2, selected ? 0xFFFFFFFF : markColour);
+            ui.tooltip(markX, y + 2, badgeWidth(font, mark), Icons.SMALL, mark);
         }
         if (detail != null) {
             Gui.fineClipped(g, font, detail, textX, y + 12, Math.max(0, room), selected ? 0xFFDDDDDD : Gui.labelSoft());
@@ -240,6 +275,37 @@ abstract class ToolsSection {
             default -> "edited";
         };
         return Component.translatable("screen.justenoughstructures.loot." + key);
+    }
+
+    /** The badge for a mark after a name, by what it says, or null for one that has none. */
+    static ResourceLocation markIcon(Component mark) {
+        if (!(mark.getContents() instanceof TranslatableContents words)) {
+            return null;
+        }
+        return switch (words.getKey()) {
+            case "screen.justenoughstructures.loot.edited" -> Icons.EDITED;
+            case "screen.justenoughstructures.loot.edited_changed" -> Icons.EDITED_CHANGED;
+            case "screen.justenoughstructures.loot.edited_broken" -> Icons.EDITED_BROKEN;
+            case "screen.justenoughstructures.tools.after_reload" -> Icons.AFTER_RELOAD;
+            case "screen.justenoughstructures.tools.mark.notes" -> Icons.NOTES;
+            case "screen.justenoughstructures.tools.mark.secret" -> Icons.SECRET;
+            default -> null;
+        };
+    }
+
+    static int badgeWidth(Font font, Component mark) {
+        return markIcon(mark) != null ? Icons.SMALL : Gui.fineWidth(font, mark.getString());
+    }
+
+    /** A mark after a name as its badge in {@code colour}, its top left at x, y, or its words where it has none. Returns its width. */
+    static int badge(GuiGraphics g, Font font, Component mark, int x, int y, int colour) {
+        ResourceLocation icon = markIcon(mark);
+        if (icon == null) {
+            Gui.fine(g, font, mark.getString(), x, y + 1, colour);
+        } else {
+            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, colour);
+        }
+        return badgeWidth(font, mark);
     }
 
     static int markColour(LootOverrides.Status status) {

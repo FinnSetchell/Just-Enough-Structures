@@ -351,7 +351,7 @@ final class ChestPopup {
         }
         cy += labelRow(font);
         String tableName = table == null ? Component.translatable("screen.justenoughstructures.prefilled").getString() : StructureNames.lootTable(table);
-        int mark = packTools ? editedMark(g, font, table, x + WIDTH - 7, cy + 1) : 0;
+        int mark = packTools ? editedMark(g, font, table, x + WIDTH - 7, cy + 1, mouseX, mouseY) : 0;
         Gui.drawClipped(g, font, tableName, x + 7, cy, WIDTH - 14 - mark, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
         cy += font.lineHeight + 1;
         if (Gui.advanced() && table != null) {
@@ -517,16 +517,18 @@ final class ChestPopup {
         return left;
     }
 
-    /** The note on an edited table at the right of its line, for players who see Pack tools. Returns the room it took. */
-    private static int editedMark(GuiGraphics g, Font font, String table, int right, int top) {
+    /** The badge on an edited table at the right of its line, for players who see Pack tools, its words its tooltip. Returns the room it took. */
+    private int editedMark(GuiGraphics g, Font font, String table, int right, int top, int mouseX, int mouseY) {
         LootOverrides.Status status = ClientRequests.overrideStatus(table);
         Component mark = ToolsSection.editedMark(status);
         if (mark == null) {
             return 0;
         }
-        String text = mark.getString();
-        int width = Gui.fineWidth(font, text);
-        Gui.fine(g, font, text, right - width, top, ToolsSection.markColour(status));
+        int width = ToolsSection.badgeWidth(font, mark);
+        ToolsSection.badge(g, font, mark, right - width, top - 1, ToolsSection.markColour(status));
+        if (mouseX >= right - width && mouseX < right && mouseY >= top - 1 && mouseY < top + Icons.SMALL - 1) {
+            hoveredTip = List.of(mark);
+        }
         return width + 4;
     }
 
