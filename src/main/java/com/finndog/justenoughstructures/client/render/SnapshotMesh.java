@@ -1,7 +1,8 @@
 package com.finndog.justenoughstructures.client.render;
 
 //? if >=26.1 {
-/*import com.mojang.blaze3d.buffers.GpuBuffer;
+/*import com.finndog.justenoughstructures.JesLog;
+import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.CommandEncoder;
@@ -67,6 +68,10 @@ public final class SnapshotMesh implements AutoCloseable {
     private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
     /^* The most indices a piece without its own needs, from the shared list of them. ^/
     private int sharedIndices;
+    // What the layers have put on the GPU, and the most each kind of layer needed in one piece, which
+    // is what the building buffers grow to. For the debug log.
+    private long gpuBytes;
+    private final Map<ChunkSectionLayer, Long> mostInOnePiece = new EnumMap<>(ChunkSectionLayer.class);
 
     public SnapshotMesh(SnapshotView view) {
         this.view = view;
@@ -97,10 +102,28 @@ public final class SnapshotMesh implements AutoCloseable {
                     layers.add(List.copyOf(current));
                     current.clear();
                     nextRow = 0;
+                    if (!building()) {
+                        logSize();
+                    }
                 }
             }
         } finally {
             view.setSliceY(keepSlice);
+        }
+    }
+
+    /^* Notes a piece's kind of layer going to the GPU: {@code bytes} of vertices and its own indices. ^/
+    private void counted(ChunkSectionLayer layer, long bytes) {
+        gpuBytes += bytes;
+        mostInOnePiece.merge(layer, bytes, Math::max);
+    }
+
+    /^* Says in the debug log what the finished mesh takes, which nothing else measures. ^/
+    private void logSize() {
+        if (JesLog.enabled()) {
+            long building = mostInOnePiece.values().stream().mapToLong(Long::longValue).sum();
+            JesLog.debug("Mesh of {}: {} KB on the GPU in {} pieces, and its building buffers needed {} KB",
+                    view.snapshot().structureId(), gpuBytes / 1024, layers.stream().mapToInt(List::size).sum(), building / 1024);
         }
     }
 
@@ -303,6 +326,10 @@ public final class SnapshotMesh implements AutoCloseable {
                 // Sorted into the same buffer the mesh was built in, as the game sorts chunk sections.
                 MeshData.SortState sort = e.getKey() == ChunkSectionLayer.TRANSLUCENT
                         ? mesh.sortQuads(BUILDERS.get(ChunkSectionLayer.TRANSLUCENT), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
+                // The cap, built with no deadline, is left out: it's made again as the slider moves.
+                if (deadline != Long.MAX_VALUE) {
+                    counted(e.getKey(), mesh.vertexBuffer().remaining() + (mesh.indexBuffer() == null ? 0 : mesh.indexBuffer().remaining()));
+                }
                 Buffer buffer = Buffer.upload(mesh, sort);
                 out.put(e.getKey(), buffer);
                 if (sort != null) {
@@ -388,6 +415,7 @@ public final class SnapshotMesh implements AutoCloseable {
     }
 }
 *///?} else {
+import com.finndog.justenoughstructures.JesLog;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -457,6 +485,10 @@ public final class SnapshotMesh implements AutoCloseable {
     private final Map<VertexBuffer, BufferBuilder.SortState> translucent = new HashMap<>();
     //?}
     private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
+    // What the layers have put on the GPU, and the most each kind of layer needed in one piece, which
+    // is what the building buffers grow to. For the debug log.
+    private long gpuBytes;
+    private final Map<RenderType, Long> mostInOnePiece = new HashMap<>();
 
     public SnapshotMesh(SnapshotView view) {
         this.view = view;
@@ -487,10 +519,28 @@ public final class SnapshotMesh implements AutoCloseable {
                     layers.add(List.copyOf(current));
                     current.clear();
                     nextRow = 0;
+                    if (!building()) {
+                        logSize();
+                    }
                 }
             }
         } finally {
             view.setSliceY(keepSlice);
+        }
+    }
+
+    /** Notes a piece's kind of layer going to the GPU: {@code bytes} of vertices and its own indices. */
+    private void counted(RenderType type, long bytes) {
+        gpuBytes += bytes;
+        mostInOnePiece.merge(type, bytes, Math::max);
+    }
+
+    /** Says in the debug log what the finished mesh takes, which nothing else measures. */
+    private void logSize() {
+        if (JesLog.enabled()) {
+            long building = mostInOnePiece.values().stream().mapToLong(Long::longValue).sum();
+            JesLog.debug("Mesh of {}: {} KB on the GPU in {} pieces, and its building buffers needed {} KB",
+                    view.snapshot().structureId(), gpuBytes / 1024, layers.stream().mapToInt(List::size).sum(), building / 1024);
         }
     }
 
@@ -724,6 +774,10 @@ public final class SnapshotMesh implements AutoCloseable {
             // Sorted into the same buffer the mesh was built in, as vanilla sorts chunk sections.
             MeshData.SortState sortState = e.getKey() == RenderType.translucent()
                     ? mesh.sortQuads(BUILDERS.get(RenderType.translucent()), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
+            // The cap, built with no deadline, is left out: it's made again as the slider moves.
+            if (deadline != Long.MAX_VALUE) {
+                counted(e.getKey(), mesh.vertexBuffer().remaining() + (mesh.indexBuffer() == null ? 0 : mesh.indexBuffer().remaining()));
+            }
             VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
             buffer.bind();
             buffer.upload(mesh);
@@ -737,6 +791,10 @@ public final class SnapshotMesh implements AutoCloseable {
             BufferBuilder.RenderedBuffer rendered = builder.endOrDiscardIfEmpty();
             if (rendered == null) {
                 continue;
+            }
+            // The cap, built with no deadline, is left out: it's made again as the slider moves.
+            if (deadline != Long.MAX_VALUE) {
+                counted(e.getKey(), rendered.vertexBuffer().remaining() + (rendered.drawState().sequentialIndex() ? 0 : rendered.indexBuffer().remaining()));
             }
             VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
             buffer.bind();
