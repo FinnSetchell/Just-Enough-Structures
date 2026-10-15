@@ -81,8 +81,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack MOB_MARKERS_ICON = new ItemStack(Items.SPAWNER);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
-    /** Room left of the layer slider for its icon. */
-    private static final int LAYERS_ICON_ROOM = 12;
+    /** Room left of the layer slider for the dark end that holds its icon. */
+    private static final int LAYERS_ICON_ROOM = 14;
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
     private static final ResourceLocation RESTORE_ICON = JustEnoughStructures.id("textures/gui/restore.png");
     /** How long a locate that found nothing stays in the header. */
@@ -2273,8 +2273,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             b.visible = false;
         }
         if (slider.visible) {
-            Gui.icon(g, Icons.LAYERS, slider.getX() - LAYERS_ICON_ROOM + 1, slider.getY() + 5, Icons.SMALL, Icons.SMALL,
-                    slider.active ? Gui.label() : Gui.labelSoft(), false);
+            // The icon sits on a dark end of the slider's own texture, white with a shadow like the
+            // slider's numbers, so it reads the same on light panels and dark ones. The end is a pixel
+            // wider than its room: the slider's left edge covers its right one, so they share a line.
+            int endX = slider.getX() - LAYERS_ICON_ROOM;
+            Gui.sliderTrack(g, endX, slider.getY(), LAYERS_ICON_ROOM + 1, slider.getHeight());
+            Gui.icon(g, Icons.LAYERS, endX + 3, slider.getY() + 5, Icons.SMALL, Icons.SMALL,
+                    slider.active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
         }
         super.render(g, mx, my, partialTick);
 
