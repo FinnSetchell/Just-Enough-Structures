@@ -19,6 +19,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.FormattedCharSequence;
+//? if <26.1 {
+import com.mojang.blaze3d.systems.RenderSystem;
+//?}
 //? if >=26.1 {
 /*import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.MouseButtonInfo;
@@ -386,22 +389,28 @@ public final class Gui {
     }
 
     /**
-     * A whole icon file, {@code w} by {@code h}, its white drawn in {@code colour}. The files hold only
-     * the shape. With {@code shadow} it gets one here, a quarter as bright, one pixel down and right, as
-     * vanilla gives words on a button; without, it's flat, as words are on a light panel. A dark icon
-     * goes without, or its shadow would swallow it.
+     * A whole icon file, {@code w} by {@code h}, its white drawn in {@code colour} over a shadow one pixel
+     * down and right. The files hold only the shape, so the shadow is drawn here. On a button it's the
+     * colour a quarter as bright, as vanilla gives the words there. On a light panel, where the icon is
+     * dark, it's a soft see-through black, so the icon still stands apart from it on any panel a pack draws.
      */
-    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour, boolean shadow) {
-        if (shadow) {
-            tinted(g, texture, x + 1, y + 1, w, h, (colour & 0xFCFCFC) >> 2 | colour & 0xFF000000);
-        }
+    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour, boolean onButton) {
+        int shadow = onButton ? (colour & 0xFCFCFC) >> 2 | colour & 0xFF000000
+                : (int) (SOFT_SHADOW_ALPHA * ((colour >>> 24) / 255f)) << 24;
+        tinted(g, texture, x + 1, y + 1, w, h, shadow);
         tinted(g, texture, x, y, w, h, colour);
     }
+
+    /** How dark the shadow under an icon on a light panel is: black at 55%. */
+    private static final int SOFT_SHADOW_ALPHA = 0x8C;
 
     private static void tinted(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour) {
         //? if >=26.1 {
         /*g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, w, h, colour);
         *///?} else {
+        // A see-through colour, like the soft shadow, needs blending on. Vanilla's widgets leave it on too.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
         g.setColor((colour >> 16 & 0xFF) / 255f, (colour >> 8 & 0xFF) / 255f, (colour & 0xFF) / 255f, (colour >>> 24) / 255f);
         g.blit(texture, x, y, 0, 0, w, h, w, h);
         g.setColor(1f, 1f, 1f, 1f);

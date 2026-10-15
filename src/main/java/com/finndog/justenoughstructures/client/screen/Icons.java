@@ -5,9 +5,9 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * The browser's own small pictures, each a file of its own in textures/gui so a resource pack can
- * draw it again. Each file is the white shape alone: on a button it's drawn with a shadow, as the
- * words there are, and on a light panel flat, in the colour the words there have. The 9 pixel ones
- * sit level with a line of text.
+ * draw it again. Each file is the white shape alone, and its shadow is drawn with it: on a button
+ * like the words there, and on a light panel a soft one under the icon in the colour the words there
+ * have. The 9 pixel ones sit level with a line of text.
  */
 final class Icons {
     /** 9 pixels square. */

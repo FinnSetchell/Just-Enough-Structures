@@ -1256,7 +1256,7 @@ final class LootForm {
             g.fill(x + 1, y + 3, x + 10, y + 13, 0xFF2E5B1D);
         }
         int ink = over ? 0xFFFFFF55 : now == null ? 0xFF707070 : now ? 0xFFFFFFFF : 0xFF6A1010;
-        // White on the green of a yes, it's a pressed button and has a shadow; on the panel it's flat.
+        // White on the green of a yes, it's a pressed button and has a button's shadow; on the panel, the soft one.
         Gui.icon(g, icon, x + 1, y + 3, Icons.SMALL, Icons.SMALL, ink, Boolean.TRUE.equals(now));
         if (Boolean.FALSE.equals(now)) {
             for (int i = 0; i < 9; i++) {

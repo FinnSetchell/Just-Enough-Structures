@@ -273,17 +273,17 @@ final class ToolsUi {
         iconButton(g, x, y, icon, lit, 0xFFFFFFFF, true, name, label, action);
     }
 
-    /** The same, drawn flat in {@code ink} until the mouse is over it, for one on a light panel. */
+    /** The same, drawn in {@code ink} with the soft shadow until the mouse is over it, for one on a light panel. */
     void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, Component name, String label, Runnable action) {
         iconButton(g, x, y, icon, lit, ink, false, name, label, action);
     }
 
-    private void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, boolean shadow, Component name, String label, Runnable action) {
+    private void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, boolean onButton, Component name, String label, Runnable action) {
         if (hovered(x - 1, y - 2, 11, 12)) {
             g.fill(x - 1, y - 2, x + 10, y + 10, lit);
             Gui.icon(g, icon, x, y, Icons.SMALL);
         } else {
-            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink, shadow);
+            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink, onButton);
         }
         spot(x - 1, y - 2, 11, 12, action, label);
         tooltip(x - 1, y - 2, 11, 12, name);
