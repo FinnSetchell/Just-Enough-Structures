@@ -22,12 +22,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * in the area being captured, and none anywhere else. Code that then insists on a chunk fails, which
  * fails the preview rather than touching the world. Other threads never see any of this.
  *
- * <p>It answers before the game's own code runs, as Lithium, Canary and C2ME replace or cut short
- * {@code getChunk}. A mixin can only add to a method another has replaced if it comes after it, so
- * this one goes after the usual priority. {@link StructureCapture#checkChunkGuard} checks at start-up
- * that it's in place with the mods installed.
+ * <p>It answers before anything else in {@code getChunk} runs. Lithium and Canary replace the method,
+ * and every mod's replacements go in before any mod adds to the start of a method, so this lands in
+ * theirs. C2ME adds to the start of it too and answers other threads itself. What's added there runs
+ * in the order of the mixins' priorities, and a tie goes to the mod that loads first. C2ME's mixins
+ * are at 1100, from its config, and a real Fabric instance loads mods by id, so C2ME's came first
+ * when this was at 1100 as well. Below the usual priority, this one comes first.
+ * {@link StructureCapture#checkChunkGuard} checks at start-up that it's in place with the mods
+ * installed.
  */
-@Mixin(value = ServerChunkCache.class, priority = 1100)
+@Mixin(value = ServerChunkCache.class, priority = 900)
 public abstract class ServerChunkCacheGuardMixin {
     @Shadow
     @Final
