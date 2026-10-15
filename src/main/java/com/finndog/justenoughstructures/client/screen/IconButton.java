@@ -23,9 +23,14 @@ final class IconButton extends JesButton {
         this(x, y, (g, ix, iy) -> g.renderItem(icon.get(), ix, iy), on, label, onPress);
     }
 
-    /** A plain 16x16 texture, for items that would animate, like a recovery compass with nowhere to point. */
-    IconButton(int x, int y, ResourceLocation texture, Component label, OnPress onPress) {
-        this(x, y, (g, ix, iy) -> Gui.blit(g, texture, ix, iy, 0, 0, 16, 16, 16, 16), null, label, onPress);
+    /** One of the browser's own 16x16 icons, white with its shadow. */
+    IconButton(int x, int y, ResourceLocation icon, Component label, OnPress onPress) {
+        this(x, y, (g, ix, iy) -> Gui.icon(g, icon, ix, iy, Icons.LARGE), null, label, onPress);
+    }
+
+    /** A plain 16x16 texture as it is, for items that would animate, like a recovery compass with nowhere to point. */
+    static IconButton itemTexture(int x, int y, ResourceLocation texture, Component label, OnPress onPress) {
+        return new IconButton(x, y, (g, ix, iy) -> Gui.blit(g, texture, ix, iy, 0, 0, 16, 16, 16, 16), null, label, onPress);
     }
 
     private IconButton(int x, int y, Icon icon, Supplier<Boolean> on, Component label, OnPress onPress) {

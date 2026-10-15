@@ -367,13 +367,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             ClientState.save();
             rebuildWidgets();
         }));
-        locateButton = addRenderableWidget(new IconButton(overlayRight - 42, viewY + 2, LOCATE_ICON, Component.empty(),
+        locateButton = addRenderableWidget(IconButton.itemTexture(overlayRight - 42, viewY + 2, LOCATE_ICON, Component.empty(),
                 b -> locate(hasControlDown() && ClientRequests.canTeleport())));
         locateAccess = -1;
         updateLocateButton();
         // With a structure compass mod installed, hands the structure over to the compass in your hand.
         CompassLink compass = CompassLink.get();
-        compassButton = compass == null ? null : addRenderableWidget(new IconButton(overlayRight - 64, viewY + 2, compass.icon(),
+        compassButton = compass == null ? null : addRenderableWidget(IconButton.itemTexture(overlayRight - 64, viewY + 2, compass.icon(),
                 Component.empty(), b -> {
             if (hasControlDown() && ClientRequests.canPointCompass()) {
                 pointCompass();
@@ -2274,7 +2274,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         if (slider.visible) {
             Gui.icon(g, Icons.LAYERS, slider.getX() - LAYERS_ICON_ROOM + 1, slider.getY() + 5, Icons.SMALL, Icons.SMALL,
-                    slider.active ? Gui.label() : Gui.labelSoft());
+                    slider.active ? Gui.label() : Gui.labelSoft(), false);
         }
         super.render(g, mx, my, partialTick);
 

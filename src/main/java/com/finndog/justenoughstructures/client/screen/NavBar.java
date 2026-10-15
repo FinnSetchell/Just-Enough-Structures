@@ -173,8 +173,8 @@ final class NavBar {
         }
     }
 
-    /** The chevron icon in {@code colour}, its arrow head five wide and seven tall where a letter at x, y would be. */
+    /** The chevron icon in {@code colour} with a shadow, as a button's words, its arrow head five wide and seven tall where a letter at x, y would be. */
     static void chevron(GuiGraphics g, int x, int y, int colour, boolean pointsBack) {
-        Gui.icon(g, pointsBack ? Icons.CHEVRON_LEFT : Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, colour);
+        Gui.icon(g, pointsBack ? Icons.CHEVRON_LEFT : Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, colour, true);
     }
 }

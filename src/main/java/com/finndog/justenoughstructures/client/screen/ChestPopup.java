@@ -506,7 +506,7 @@ final class ChestPopup {
         if (over && !on) {
             g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, 0x48FFFFFF);
         }
-        Gui.icon(g, icon, left + 2, top + 1, Icons.SMALL, Icons.SMALL, on ? Gui.label() : 0xFF404040);
+        Gui.icon(g, icon, left + 2, top + 1, Icons.SMALL, Icons.SMALL, on ? Gui.label() : 0xFF404040, false);
         links.put(action, left, top, w, TAB_HEIGHT);
         if (over) {
             hoveredTip = List.of(Component.translatable("screen.justenoughstructures." + key));

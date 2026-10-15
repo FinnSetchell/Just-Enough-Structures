@@ -367,16 +367,25 @@ public final class Gui {
         //?}
     }
 
-    /** A whole icon file, {@code size} pixels square, drawn as it is. */
+    /** A whole icon file, {@code size} pixels square, white with its shadow, as words on a button are. */
     static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int size) {
-        blit(g, texture, x, y, 0, 0, size, size, size, size);
+        icon(g, texture, x, y, size, size, 0xFFFFFFFF, true);
     }
 
     /**
-     * A whole icon file, {@code w} by {@code h}, with its white drawn in {@code colour}, as on a light
-     * panel where white would hardly show. Its shadow darkens with it.
+     * A whole icon file, {@code w} by {@code h}, its white drawn in {@code colour}. The files hold only
+     * the shape. With {@code shadow} it gets one here, a quarter as bright, one pixel down and right, as
+     * vanilla gives words on a button; without, it's flat, as words are on a light panel. A dark icon
+     * goes without, or its shadow would swallow it.
      */
-    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour) {
+    static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour, boolean shadow) {
+        if (shadow) {
+            tinted(g, texture, x + 1, y + 1, w, h, (colour & 0xFCFCFC) >> 2 | colour & 0xFF000000);
+        }
+        tinted(g, texture, x, y, w, h, colour);
+    }
+
+    private static void tinted(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour) {
         //? if >=26.1 {
         /*g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, w, h, colour);
         *///?} else {

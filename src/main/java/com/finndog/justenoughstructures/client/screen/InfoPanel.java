@@ -476,7 +476,7 @@ final class InfoPanel {
         Component toggle = Component.translatable("screen.justenoughstructures.details");
         boolean over = inside(mouseX, mouseY, x + 2, cy - 1, width - 4, font.lineHeight + 3, clipTop, clipHeight);
         int linkInk = over ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
-        Gui.icon(g, ClientState.details ? Icons.FOLD_OPEN : Icons.FOLD_CLOSED, x + PAD - 1, cy - 1, Icons.SMALL, Icons.SMALL, linkInk);
+        Gui.icon(g, ClientState.details ? Icons.FOLD_OPEN : Icons.FOLD_CLOSED, x + PAD - 1, cy - 1, Icons.SMALL, Icons.SMALL, linkInk, false);
         g.drawString(font, toggle, x + PAD + 9, cy, linkInk, false);
         hotspots.add(new Hotspot(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> {
             ClientState.details = !ClientState.details;
@@ -1202,7 +1202,7 @@ final class InfoPanel {
         g.fill(bx, cy, bx + w, cy + 14, Gui.EDGE);
         g.fill(bx + 1, cy + 1, bx + w - 1, cy + 13, over ? Gui.ink(0xFF8D8D8D, 0xFF55535C) : Gui.ink(0xFF737373, 0xFF3C3B42));
         int buttonInk = over ? 0xFFFFFFA0 : 0xFFE0E0E0;
-        Gui.icon(g, Icons.COPY_SMALL, bx + 5, cy + 3, Icons.SMALL, Icons.SMALL, buttonInk);
+        Gui.icon(g, Icons.COPY_SMALL, bx + 5, cy + 3, Icons.SMALL, Icons.SMALL, buttonInk, true);
         g.drawString(font, label, bx + 5 + Icons.SMALL + 3, cy + 3, buttonInk, true);
         hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 17;
@@ -1630,6 +1630,6 @@ final class InfoPanel {
 
     /** The chevron at the end of a row that opens something, where a letter at x, y would be. */
     private static void opens(GuiGraphics g, int x, int y, boolean hovered) {
-        Gui.icon(g, Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, hovered ? Gui.label() : Gui.labelSoft());
+        Gui.icon(g, Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, hovered ? Gui.label() : Gui.labelSoft(), false);
     }
 }

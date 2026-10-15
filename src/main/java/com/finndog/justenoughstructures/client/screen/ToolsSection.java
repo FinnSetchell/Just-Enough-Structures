@@ -303,7 +303,7 @@ abstract class ToolsSection {
         if (icon == null) {
             Gui.fine(g, font, mark.getString(), x, y + 1, colour);
         } else {
-            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, colour);
+            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, colour, false);
         }
         return badgeWidth(font, mark);
     }

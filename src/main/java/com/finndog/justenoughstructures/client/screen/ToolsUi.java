@@ -270,16 +270,20 @@ final class ToolsUi {
      * the screenshot harness.
      */
     void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, Component name, String label, Runnable action) {
-        iconButton(g, x, y, icon, lit, 0xFFFFFFFF, name, label, action);
+        iconButton(g, x, y, icon, lit, 0xFFFFFFFF, true, name, label, action);
     }
 
-    /** The same, drawn in {@code ink} until the mouse is over it, for one on a light panel. */
+    /** The same, drawn flat in {@code ink} until the mouse is over it, for one on a light panel. */
     void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, Component name, String label, Runnable action) {
+        iconButton(g, x, y, icon, lit, ink, false, name, label, action);
+    }
+
+    private void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, int ink, boolean shadow, Component name, String label, Runnable action) {
         if (hovered(x - 1, y - 2, 11, 12)) {
             g.fill(x - 1, y - 2, x + 10, y + 10, lit);
             Gui.icon(g, icon, x, y, Icons.SMALL);
         } else {
-            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink);
+            Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink, shadow);
         }
         spot(x - 1, y - 2, 11, 12, action, label);
         tooltip(x - 1, y - 2, 11, 12, name);
@@ -357,7 +361,7 @@ final class ToolsUi {
     int iconOnlyButton(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, boolean active, Runnable action, Component tip) {
         boolean over = hovered(x, y, ICON_BUTTON, BUTTON);
         Gui.buttonBackground(g, x, y, ICON_BUTTON, BUTTON, !active ? 0 : over ? 2 : 1);
-        Gui.icon(g, icon, x + 3, y + (BUTTON - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, active ? 0xFFFFFFFF : 0xFFA0A0A0);
+        Gui.icon(g, icon, x + 3, y + (BUTTON - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
         if (active) {
             spot(x, y, ICON_BUTTON, BUTTON, action, label.getString());
         }
@@ -382,7 +386,7 @@ final class ToolsUi {
         Gui.outlined(g, x, y, w, h, Gui.ink(0xFF777777, 0x80000000), over ? Gui.ink(0xFFC0C0C0, 0x48FFFFFF) : Gui.ink(0xFFA8A8A8, 0x28FFFFFF));
         int ink = Gui.ink(0xFF303030, 0xFFE0E0E0);
         Gui.fine(g, font, label, x + 3, y + 2, ink);
-        Gui.icon(g, Icons.REMOVE, x + w - Icons.SMALL - 2, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, over ? bad() : ink);
+        Gui.icon(g, Icons.REMOVE, x + w - Icons.SMALL - 2, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, over ? bad() : ink, false);
         spot(x, y, w, h, action);
         tooltip(x, y, w, h, tip);
         return w;
