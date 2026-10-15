@@ -389,8 +389,22 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void zoom(double amount) {
-        glide = null;
-        distance = Math.max(2f, Math.min(homeDistance * 4f, distance * (float) Math.pow(0.88, amount)));
+        float factor = (float) Math.pow(0.88, amount);
+        if (glide != null) {
+            // Mid-glide the zoom goes to where the glide is heading, so it still ends centred on what it turned to.
+            glide = new Camera(glide.yaw(), glide.pitch(), zoomed(glide.distance(), factor), glide.focusX(), glide.focusY(), glide.focusZ());
+            return;
+        }
+        distance = zoomed(distance, factor);
+    }
+
+    private float zoomed(float from, float factor) {
+        return Math.max(2f, Math.min(homeDistance * 4f, from * factor));
+    }
+
+    /** How far the camera is from what it looks at, or will be once the glide it's in ends. */
+    public float targetDistance() {
+        return glide != null ? glide.distance() : distance;
     }
 
     /**

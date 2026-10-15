@@ -162,6 +162,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private boolean refitAfterTour;
     /** How far from a container the arrows bring the camera, the same for every one. */
     private static final float TOUR_DISTANCE = 10f;
+    /** How far the wheel took the camera from what a popup has it turned to, kept for the next one the arrows go to, or 0. */
+    private float tourZoom;
     /** Set when the preview was let go because another screen opened over this one. */
     private boolean dropped;
     /** What the markers button last said it was about, to change what it says when that changes. */
@@ -918,11 +920,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             return;
         }
         StructureViewport.Camera now = viewport.camera();
+        // The first one is seen from the same distance every time; going on to the next keeps a zoom the player chose.
+        float distance = tourFrom != null && tourZoom > 0 ? tourZoom : TOUR_DISTANCE;
         if (tourFrom == null) {
             tourFrom = now;
             tourSlice = view.sliceY();
         }
-        StructureViewport.Camera to = new StructureViewport.Camera(now.yaw(), now.pitch(), TOUR_DISTANCE, (float) x, (float) y, (float) z);
+        StructureViewport.Camera to = new StructureViewport.Camera(now.yaw(), now.pitch(), distance, (float) x, (float) y, (float) z);
         int keep = top > tourSlice ? view.size().getY() : tourSlice;
         int slice = viewport.blocked(to, target, keep) ? top : keep;
         if (slice != view.sliceY()) {
@@ -2124,6 +2128,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         tourSlice = -1;
         refitAfterTour = false;
+        tourZoom = 0;
     }
 
     private void layoutPopupButtons() {
@@ -3071,6 +3076,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
+    /** Zooms on what a popup has the camera turned to, and keeps the zoom for the next one the arrows go to. */
+    private void zoomOnTour(double delta) {
+        viewport.zoom(delta);
+        if (tourFrom != null) {
+            tourZoom = viewport.targetDistance();
+        }
+    }
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (notes != null) {
@@ -3083,12 +3096,22 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             foundIn.scroll(delta);
             return true;
         }
+        // With a popup open, the wheel over the preview zooms on what's being looked at, wherever a drag
+        // would turn around it; anywhere else it scrolls the popup.
         if (side() != null) {
-            side().scroll(mouseX, mouseY, delta);
+            if (!side().contains(mouseX, mouseY, font) && view != null && viewport.contains(mouseX, mouseY)) {
+                zoomOnTour(delta);
+            } else {
+                side().scroll(mouseX, mouseY, delta);
+            }
             return true;
         }
         if (popup != null) {
-            popup.scroll(mouseX, mouseY, delta);
+            if (popup.container != null && !popup.contains(mouseX, mouseY, font) && view != null && viewport.contains(mouseX, mouseY)) {
+                zoomOnTour(delta);
+            } else {
+                popup.scroll(mouseX, mouseY, delta);
+            }
             return true;
         }
         if (view != null && viewport.contains(mouseX, mouseY)) {
