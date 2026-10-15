@@ -420,8 +420,6 @@ final class InfoPanel {
             StructureSnapshot s = result.snapshot();
             cy = field(g, cy, "size", Component.translatable("screen.justenoughstructures.size_blocks",
                     s.size().getX(), s.size().getY(), s.size().getZ()).getString());
-            cy = field(g, cy, "loot_here", entry.info().hideLootLocations()
-                    ? Component.translatable("screen.justenoughstructures.loot_secret").getString() : lootSummary(s));
         }
 
         // What a compass in the player's hand says about it.
@@ -591,21 +589,6 @@ final class InfoPanel {
             cy += line + 1;
         }
         return cy + 1;
-    }
-
-    private String lootSummary(StructureSnapshot s) {
-        Map<String, Integer> kinds = new LinkedHashMap<>();
-        for (StructureSnapshot.Container c : s.containers()) {
-            if (c.lootTable() != null) {
-                kinds.merge(containerIcon(s, c).getHoverName().getString(), 1, Integer::sum);
-            }
-        }
-        if (kinds.isEmpty()) {
-            return Component.translatable("screen.justenoughstructures.loot_none").getString();
-        }
-        List<String> parts = new ArrayList<>();
-        kinds.forEach((name, count) -> parts.add(Component.translatable("screen.justenoughstructures.times_name", count, name).getString()));
-        return String.join("\n", parts);
     }
 
     /** The structure's biomes, from a tag, a list or a single id in its definition. */
