@@ -461,9 +461,16 @@ final class InfoPanel {
         notesSpot = new int[]{x + PAD + (lines.isEmpty() ? 0 : Math.min(font.width(lines.get(0)), textWidth()) / 2), cy + font.lineHeight / 2};
         StructureCatalog.Entry noted = entry;
         hotspots.add(new Hotspot(x + 2, cy - 2, width - 4, notesHeight + 2, () -> onEditNotes.accept(noted.id())));
-        for (FormattedCharSequence line : lines) {
-            g.drawString(font, line, x + PAD, cy, ink, false);
+        if (mine.isEmpty()) {
+            // A link to write some, the add icon before it.
+            Gui.icon(g, Icons.ADD, x + PAD, cy, Icons.SMALL, Icons.SMALL, ink);
+            g.drawString(font, written, x + PAD + Icons.SMALL + 2, cy, ink, false);
             cy += font.lineHeight + 1;
+        } else {
+            for (FormattedCharSequence line : lines) {
+                g.drawString(font, line, x + PAD, cy, ink, false);
+                cy += font.lineHeight + 1;
+            }
         }
         cy += 3;
 
@@ -473,9 +480,11 @@ final class InfoPanel {
             return cy;
         }
         cy += 2;
-        Component toggle = Component.translatable(ClientState.details ? "screen.justenoughstructures.details_hide" : "screen.justenoughstructures.details_show");
+        Component toggle = Component.translatable("screen.justenoughstructures.details");
         boolean over = inside(mouseX, mouseY, x + 2, cy - 1, width - 4, font.lineHeight + 3, clipTop, clipHeight);
-        g.drawString(font, toggle, x + PAD, cy, over ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK), false);
+        int linkInk = over ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
+        Gui.icon(g, ClientState.details ? Icons.FOLD_OPEN : Icons.FOLD_CLOSED, x + PAD - 1, cy - 1, Icons.SMALL, Icons.SMALL, linkInk);
+        g.drawString(font, toggle, x + PAD + 9, cy, linkInk, false);
         hotspots.add(new Hotspot(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> {
             ClientState.details = !ClientState.details;
             ClientState.save();
@@ -785,7 +794,7 @@ final class InfoPanel {
                 Gui.fitted(g, font, name, x + PAD + 23, cy + 3, textWidth, Gui.label());
                 int mark = editedMark(g, table, x + PAD + 23 + textWidth, cy + 13);
                 Gui.fineClipped(g, font, detail, x + PAD + 23, cy + 13, textWidth - mark, Gui.labelSoft());
-                g.drawString(font, ">", contentRight - 9, cy + (rowHeight - 8) / 2, hovered ? Gui.label() : Gui.labelSoft(), false);
+                opens(g, contentRight - 9, cy + (rowHeight - 8) / 2, hovered);
                 String key = "loot:" + table + "|" + first.id();
                 if (hovered) {
                     List<Component> lines = new ArrayList<>(List.of(Component.literal(name)));
@@ -821,7 +830,7 @@ final class InfoPanel {
                 g.renderItem(SECRET_ICON, x + PAD + 2, cy + 2);
                 int mark = editedMark(g, table, contentRight - 12, cy + 7);
                 Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12 - mark, Gui.label());
-                g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? Gui.label() : Gui.labelSoft(), false);
+                opens(g, contentRight - 9, cy + 6, hovered);
                 if (hovered) {
                     List<Component> lines = new ArrayList<>(List.of(Component.literal(StructureNames.lootTable(table))));
                     if (Gui.advanced()) {
@@ -880,7 +889,7 @@ final class InfoPanel {
             int mark = editedMark(g, table, contentRight - 12 - font.width(count) - 4, cy + 7);
             Gui.fitted(g, font, name, x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 16 - font.width(count) - mark, Gui.label());
             g.drawString(font, count, contentRight - 12 - font.width(count), cy + 6, Gui.labelSoft(), false);
-            g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? Gui.label() : Gui.labelSoft(), false);
+            opens(g, contentRight - 9, cy + 6, hovered);
             String key = "trial_drop:" + table;
             if (hovered) {
                 List<Component> lines = new ArrayList<>(List.of(Component.literal(name)));
@@ -1062,7 +1071,7 @@ final class InfoPanel {
             g.renderItem(SECRET_ICON, x + PAD + 2, cy + 2);
             int mark = editedMark(g, table, contentRight - 12, cy + 7);
             Gui.fitted(g, font, StructureNames.lootTable(table), x + PAD + 23, cy + 6, contentRight - x - PAD - 23 - 12 - mark, Gui.label());
-            g.drawString(font, ">", contentRight - 9, cy + 6, hovered ? Gui.label() : Gui.labelSoft(), false);
+            opens(g, contentRight - 9, cy + 6, hovered);
             if (hovered && Gui.advanced()) {
                 hoveredText = List.of(Component.literal(StructureNames.lootTable(table)), Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
             }
@@ -1195,11 +1204,13 @@ final class InfoPanel {
 
         Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
         int bx = x + PAD;
-        int w = font.width(label) + 10;
+        int w = Icons.SMALL + 3 + font.width(label) + 10;
         boolean over = inside(mouseX, mouseY, bx, cy, w, 14, clipTop, clipHeight);
         g.fill(bx, cy, bx + w, cy + 14, Gui.EDGE);
         g.fill(bx + 1, cy + 1, bx + w - 1, cy + 13, over ? Gui.ink(0xFF8D8D8D, 0xFF55535C) : Gui.ink(0xFF737373, 0xFF3C3B42));
-        g.drawString(font, label, bx + 5, cy + 3, over ? 0xFFFFFFA0 : 0xFFE0E0E0, true);
+        int buttonInk = over ? 0xFFFFFFA0 : 0xFFE0E0E0;
+        Gui.icon(g, Icons.COPY_SMALL, bx + 5, cy + 3, Icons.SMALL, Icons.SMALL, buttonInk);
+        g.drawString(font, label, bx + 5 + Icons.SMALL + 3, cy + 3, buttonInk, true);
         hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
         cy += 17;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
@@ -1223,14 +1234,20 @@ final class InfoPanel {
             Gui.slot(g, x + PAD - 1, cy);
             g.renderItem(stack, x + PAD, cy + 1);
             int textX = x + PAD + 21;
-            Gui.fitted(g, font, block.getName().getString(), textX, cy + 1, contentRight - 2 - textX, Gui.label());
+            // A block there are few enough of to go through one by one has a chevron to say so.
+            boolean tour = count < BLOCK_TOUR;
+            int room = contentRight - 2 - textX - (tour ? 12 : 0);
+            Gui.fitted(g, font, block.getName().getString(), textX, cy + 1, room, Gui.label());
             String number = String.format("%,d", count);
             String amount = count >= 64 ? Component.translatable("screen.justenoughstructures.block_amount", number, stacks(count)).getString() : number;
             // Just the number when the stacks don't fit beside it: the tooltip has them.
-            if (Gui.fineWidth(font, amount) > contentRight - 2 - textX) {
+            if (Gui.fineWidth(font, amount) > room) {
                 amount = number;
             }
-            Gui.fineClipped(g, font, amount, textX, cy + 11, contentRight - 2 - textX, Gui.labelSoft());
+            Gui.fineClipped(g, font, amount, textX, cy + 11, room, Gui.labelSoft());
+            if (tour) {
+                opens(g, contentRight - 9, cy + (rowHeight - 8) / 2, hovered);
+            }
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
                 lines.add(block.getName());
@@ -1555,7 +1572,7 @@ final class InfoPanel {
         Gui.fitted(g, font, name.getString(), x + PAD + 23, cy + 7, rightEdge - x - PAD - 26 - font.width(right), Gui.label());
         g.drawString(font, right, rightEdge - font.width(right), cy + 7, Gui.labelSoft(), false);
         if (opens) {
-            g.drawString(font, ">", contentRight - 9, cy + 7, hovered ? Gui.label() : Gui.labelSoft(), false);
+            opens(g, contentRight - 9, cy + 7, hovered);
         }
         return cy + 23;
     }
@@ -1616,5 +1633,10 @@ final class InfoPanel {
 
     private static boolean inside(int mx, int my, int x, int y, int w, int h, int clipTop, int clipHeight) {
         return mx >= x && mx < x + w && my >= y && my < y + h && my >= clipTop && my < clipTop + clipHeight;
+    }
+
+    /** The chevron at the end of a row that opens something, where a letter at x, y would be. */
+    private static void opens(GuiGraphics g, int x, int y, boolean hovered) {
+        Gui.icon(g, Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, hovered ? Gui.label() : Gui.labelSoft());
     }
 }

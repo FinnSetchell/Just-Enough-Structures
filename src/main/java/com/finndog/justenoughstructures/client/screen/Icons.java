@@ -44,6 +44,12 @@ final class Icons {
     static final ResourceLocation ONE_ROLL = icon("one_roll");
     static final ResourceLocation CHANCES = icon("chances");
 
+    // The list, the details panel and Back and Forward. A chevron at the end of a row says it opens something.
+    static final ResourceLocation CHEVRON_LEFT = icon("chevron_left");
+    static final ResourceLocation CHEVRON_RIGHT = icon("chevron_right");
+    static final ResourceLocation FOLD_CLOSED = icon("fold_closed");
+    static final ResourceLocation FOLD_OPEN = icon("fold_open");
+
     private Icons() {
     }
 

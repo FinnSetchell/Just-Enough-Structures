@@ -295,13 +295,18 @@ final class StructureList {
                 hovered = row;
             }
             if (row.header() != null) {
-                String label = row.header().equals(LOOT_HEADER)
-                        ? Component.translatable("screen.justenoughstructures.loot_matches").getString()
-                        : (COLLAPSED.contains(row.header()) && query.isBlank() ? "+ " : "- ") + row.name();
-                // JEI's title rows: white text on a translucent dark band.
-                g.fill(x, top, rowRight, top + HEADER - 1, over && !row.header().equals(LOOT_HEADER) ? 0x50000000 : Gui.BAND);
+                boolean loot = row.header().equals(LOOT_HEADER);
+                String label = loot ? Component.translatable("screen.justenoughstructures.loot_matches").getString() : row.name();
+                // JEI's title rows: white text on a translucent dark band, a mod's with a triangle that folds it.
+                g.fill(x, top, rowRight, top + HEADER - 1, over && !loot ? 0x50000000 : Gui.BAND);
+                int textX = x + 3;
+                if (!loot) {
+                    boolean folded = COLLAPSED.contains(row.header()) && query.isBlank();
+                    Gui.icon(g, folded ? Icons.FOLD_CLOSED : Icons.FOLD_OPEN, x, top + 1, Icons.SMALL);
+                    textX = x + 10;
+                }
                 String count = String.valueOf(row.count());
-                Gui.drawClipped(g, font, label, x + 3, top + 3, rowRight - x - 12 - font.width(count), 0xFFFFFFFF, true);
+                Gui.drawClipped(g, font, label, textX, top + 3, rowRight - textX - 9 - font.width(count), 0xFFFFFFFF, true);
                 g.drawString(font, count, rowRight - 3 - font.width(count), top + 3, 0xFFE0E0E0, true);
                 continue;
             }

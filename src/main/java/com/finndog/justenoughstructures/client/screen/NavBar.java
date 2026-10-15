@@ -173,17 +173,8 @@ final class NavBar {
         }
     }
 
-    /** An arrow head five wide, two pixels thick and seven tall, like a letter, with a shadow like one. */
+    /** The chevron icon in {@code colour}, its arrow head five wide and seven tall where a letter at x, y would be. */
     static void chevron(GuiGraphics g, int x, int y, int colour, boolean pointsBack) {
-        int shadow = (colour & 0xFF000000) | ((colour & 0xFCFCFC) >> 2);
-        for (int pass = 0; pass < 2; pass++) {
-            int offset = pass == 0 ? 1 : 0;
-            int c = pass == 0 ? shadow : colour;
-            for (int row = 0; row < 7; row++) {
-                int dx = Math.abs(3 - row);
-                int px = pointsBack ? x + dx : x + 3 - dx;
-                g.fill(px + offset, y + row + offset, px + 2 + offset, y + row + 1 + offset, c);
-            }
-        }
+        Gui.icon(g, pointsBack ? Icons.CHEVRON_LEFT : Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, colour);
     }
 }
