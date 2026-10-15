@@ -343,7 +343,7 @@ final class ToolsUi {
         g.fill(x, y, x + 9, y + 9, over ? 0xFFFFFFFF : 0xFFA0A0A0);
         g.fill(x + 1, y + 1, x + 8, y + 8, 0xFF000000);
         if (on) {
-            Gui.icon(g, Icons.TICK, x, y, Icons.SMALL);
+            Gui.checkmark(g, x, y);
         }
     }
 

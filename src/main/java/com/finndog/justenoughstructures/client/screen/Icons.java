@@ -48,8 +48,7 @@ final class Icons {
     static final ResourceLocation FOLD_CLOSED = icon("fold_closed");
     static final ResourceLocation FOLD_OPEN = icon("fold_open");
 
-    // Pack tools: a check box's tick, its rows' buttons, and the badges after names that say how they stand.
-    static final ResourceLocation TICK = icon("tick");
+    // Pack tools: its rows' buttons, and the badges after names that say how they stand.
     static final ResourceLocation EDIT = icon("edit");
     static final ResourceLocation OPEN = icon("open");
     static final ResourceLocation UNDO_SMALL = icon("undo_small");

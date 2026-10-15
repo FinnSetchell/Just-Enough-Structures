@@ -336,6 +336,23 @@ public final class Gui {
         blit(g, STAR, x, y, hovered ? 8 : 0, favourite ? 0 : 8, 8, 8, 16, 16);
     }
 
+    //? if >=1.21 {
+    /*private static final ResourceLocation CHECKMARK = Ids.parse("icon/checkmark");
+    *///?} else {
+    private static final ResourceLocation CHECKMARK = Ids.parse("textures/gui/checkmark.png");
+    //?}
+
+    /** Vanilla's green tick, 9 by 8, its top left at x, y. It's the game's own, so a pack restyles it. */
+    static void checkmark(GuiGraphics g, int x, int y) {
+        //? if >=26.1 {
+        /*g.blitSprite(RenderPipelines.GUI_TEXTURED, CHECKMARK, x, y, 9, 8);
+        *///?} else if >=1.21 {
+        /*g.blitSprite(CHECKMARK, x, y, 9, 8);
+        *///?} else {
+        blit(g, CHECKMARK, x, y, 0, 0, 9, 8, 9, 8);
+        //?}
+    }
+
     /** Part of a texture 256 pixels square, as GUI textures used to be. */
     public static void blit(GuiGraphics g, ResourceLocation texture, int x, int y, int u, int v, int w, int h) {
         blit(g, texture, x, y, u, v, w, h, 256, 256);
