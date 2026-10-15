@@ -2057,6 +2057,16 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return view == null ? List.of() : List.copyOf(view.entities());
     }
 
+    /** The mob at a point of the preview, or null, for the screenshot harness. */
+    public Entity mobAt(int x, int y) {
+        return viewport.pick(x, y).map(StructureViewport.Hit::entity).orElse(null);
+    }
+
+    /** What the preview's hover text says at a point of it, or nothing, for the screenshot harness. */
+    public List<Component> hoverTextAt(int x, int y) {
+        return viewport.pick(x, y).map(this::hoverLines).orElse(List.of());
+    }
+
     /** What the preview gave up on drawing or asking because it failed, for the screenshot harness. */
     public List<Object> leftOut() {
         return viewport.leftOut();
@@ -2676,7 +2686,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         StructureSnapshot.Container container = containerAt(hit);
         boolean details = Gui.advanced();
         if (hit.entity() != null) {
-            lines.add(hit.entity().getName());
+            lines.add(StructureNames.mobName(hit.entity()));
         } else {
             BlockState state = hit.state();
             lines.add(state.getBlock().getName());

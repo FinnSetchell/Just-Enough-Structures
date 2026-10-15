@@ -1,8 +1,10 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.client.render.RenderFailures;
 import com.finndog.justenoughstructures.overrides.StructureNameFiles;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,6 +17,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.alchemy.Potion;
 //? if >=26.1 {
@@ -151,6 +154,21 @@ public final class StructureNames {
             return Regs.value(BuiltInRegistries.ENTITY_TYPE, parsed).getDescription();
         }
         return Component.literal(parsed == null ? id : pretty(parsed.getPath()));
+    }
+
+    /**
+     * What a mob placed in a preview calls itself, or the name of its kind if asking fails, as it can
+     * for another mod's mob: a preview makes its mobs without putting them in a world.
+     */
+    static Component mobName(Entity mob) {
+        try {
+            return mob.getName();
+        } catch (Throwable e) {
+            RenderFailures.rethrowIfFatal(e);
+            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType());
+            JesLog.warnOnce("mob-name:" + id + "|" + e.getClass().getName(), "A {} in a preview failed when asked for its name, so the name of its kind is shown", id, e);
+            return mob.getType().getDescription();
+        }
     }
 
     /** An item's own name. */

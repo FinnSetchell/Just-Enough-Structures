@@ -51,5 +51,8 @@ public final class GameTestMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".FaultyFluidsMixin")) {
             FaultyFluids.hooked = true;
         }
+        if (mixinClassName.endsWith(".ThrowingNamesMixin")) {
+            ThrowingNames.hooked = true;
+        }
     }
 }

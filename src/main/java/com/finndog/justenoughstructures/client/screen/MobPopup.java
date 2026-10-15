@@ -30,7 +30,7 @@ final class MobPopup extends SidePopup {
     private final List<Component> details;
 
     MobPopup(Entity mob, int index, int count) {
-        super(index < 0 || mob.hasCustomName() ? mob.getType().getDescription() : mob.getName(), index, count);
+        super(index < 0 || mob.hasCustomName() ? mob.getType().getDescription() : StructureNames.mobName(mob), index, count);
         this.mob = mob;
         items = overview() ? List.of() : items(mob);
         details = overview() ? List.of() : details(mob);
