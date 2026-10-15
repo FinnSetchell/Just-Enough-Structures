@@ -23,7 +23,9 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * The loot editor's JSON view scrolls like the other lists: opened as the form first, as a player does,
  * then switched to JSON, the wheel over it moves it three lines a notch, its bar right of it drags it
- * to the bottom, and once the cursor is out of view, typing brings its line back into view.
+ * to the bottom, and once the cursor is out of view, typing brings its line back into view. The view
+ * opens at the end of the text, where filling the box leaves the cursor, so the bar first takes it to
+ * the top: dragged above the box, which vanilla's bar does too.
  */
 final class JsonScrollScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");
@@ -47,6 +49,14 @@ final class JsonScrollScenario {
                 .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
                 .then(click())
                 .then(pause(20))
+                .then(moveTo(() -> bar(mc, 0.5f), 8))
+                .then(dragTo(() -> new int[]{bar(mc, 0f)[0], box(mc).getY() - 6}, 20, 0))
+                .then(pause(10))
+                .then(run(() -> {
+                    if (offset(mc) > 1) {
+                        throw new IllegalStateException("Dragging the JSON view's bar above it left it at " + offset(mc) + ", not the top");
+                    }
+                }))
                 .then(moveTo(() -> new int[]{box(mc).getX() + box(mc).getWidth() / 2, box(mc).getY() + box(mc).getHeight() / 2}, 8))
                 .then(wheel(-3))
                 .then(pause(10))
