@@ -19,7 +19,7 @@ First release.
 - Markers in the preview show where the containers are, or the mobs and spawners while on the Mobs tab, and can be hidden
 - Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again, or every item's chance in it
   - When several share a loot table, the preview rings every one of them, and the arrows go from one to the next, turning the view to each
-  - The view turns to the chest you open, you can drag to look around it, and closing it takes you back out
+  - The view turns to the chest you open, you can drag to look around it and zoom with the wheel, and closing it takes you back out
 - The Info tab says where a structure spawns and in which biomes
   - It also says when a structure won't generate in new worlds and why, like another mod putting its own in its place, and the list greys it out
 - The Loot tab lists the containers in the layout and every item's chance of turning up anywhere in the structure, from thousands of rolls of the real loot tables
@@ -79,12 +79,15 @@ First release.
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
 - Other mods' warnings about their structures stay out of the game log
 - Uses much less memory after the loot index has built, most of all with many structure mods
-- No longer crashes when you point at some modded blocks in a preview
+- No longer crashes when you point at or click some modded blocks or mobs in a preview
+- A block or mob from another mod that fails to draw in a preview is now left out on its own, instead of crashing the game or taking other blocks with it
 - Scroll bars can be dragged, and every list that scrolls has one
 - The spawner popup no longer shows a scroll bar when its list fits
 - With EMI, the structures an item is found in are ready after one load when you join, instead of two
 - A structure whose generation never finishes no longer freezes every other preview and the item search
 - Block counts under a stack no longer read "0 stacks and 9"
+- More of the browser and Pack tools uses small icons, with the words in their tooltips
+- Clicking away from the search box stops typing into it
 - Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
 - Has to be installed on the server as well
   - The browser says when the server has a different version of it
