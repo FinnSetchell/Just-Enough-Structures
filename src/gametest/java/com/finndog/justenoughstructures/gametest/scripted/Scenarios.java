@@ -59,6 +59,7 @@ public final class Scenarios {
             case "favourites" -> FavouritesScenario.build(mc);
             case "notes" -> NotesScenario.build(mc);
             case "names" -> NamesScenario.build(mc);
+            case "names_contested" -> NamesContestedScenario.build(mc);
             case "block_tour" -> BlockTourScenario.build(mc);
             case "list_keys" -> ListKeysScenario.build(mc);
             case "search_focus" -> SearchFocusScenario.build(mc);

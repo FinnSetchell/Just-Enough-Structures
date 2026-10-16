@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -72,6 +74,34 @@ public final class StructureNameFiles {
     /** Reads the files again next time, as after a /reload they may have been changed by hand. */
     public static void forget() {
         names = null;
+    }
+
+    /**
+     * The game's strings for these languages with the names saved here laid over them, a language at
+     * a time in the order given, which is the order the game loads them in: English, then the
+     * player's language. So a name saved in the player's language comes first, then one saved in
+     * English, then a mod's own, as in the browser, whatever namespace a mod names the structure
+     * under. The files are read again each time, as the names pack's are, and the strings are only
+     * copied when there's a name to lay over them. Anything going wrong leaves them as they were.
+     */
+    public static Map<String, String> laidOver(Map<String, String> strings, List<String> languages) {
+        try {
+            Map<String, Map<String, String>> saved = read(folder(LootOverrides.folder()));
+            Map<String, String> out = strings;
+            for (String language : languages) {
+                Map<String, String> inLanguage = saved.get(language);
+                if (inLanguage != null) {
+                    if (out == strings) {
+                        out = new HashMap<>(strings);
+                    }
+                    out.putAll(inLanguage);
+                }
+            }
+            return out;
+        } catch (RuntimeException e) {
+            JesLog.warnOnce("names-laid-over", "Couldn't put the saved structure names over the game's own: {}", e.toString());
+            return strings;
+        }
     }
 
     static Map<String, Map<String, String>> read(Path folder) {

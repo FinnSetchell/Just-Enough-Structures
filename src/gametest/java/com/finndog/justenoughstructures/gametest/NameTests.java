@@ -15,6 +15,7 @@ import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.RegistryAccess;
@@ -66,6 +67,39 @@ public final class NameTests {
             StructureNameFiles.save(Ids.parse("igloo"), "en_us", "x".repeat(StructureNameFiles.MAX_NAME + 10));
             helper.assertTrue(StructureNameFiles.all().get("en_us").get("structure.minecraft.igloo").length() == StructureNameFiles.MAX_NAME,
                     "a long name wasn't cut");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary folder", e);
+        } finally {
+            LootOverrides.setFolder(null);
+            StructureNameFiles.forget();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * On the player's own game the names saved here go over every mod's names for the languages being
+     * loaded, a name in the player's language over one in English, whatever namespace a mod names the
+     * structure under.
+     */
+    public static void savedNamesGoOverModsOwn(GameTestHelper helper) {
+        try {
+            Path root = Files.createTempDirectory("jes-names");
+            LootOverrides.setFolder(root);
+            StructureNameFiles.forget();
+            Map<String, String> game = new HashMap<>(Map.of("structure.minecraft.igloo", "Igloo by a mod",
+                    "structure.test.ruins.tower", "Tower by a mod", "item.test.thing", "Thing"));
+            helper.assertTrue(StructureNameFiles.laidOver(game, List.of("en_us", "fr_fr")) == game, "the game's strings were copied with no names saved");
+
+            StructureNameFiles.save(Ids.parse("igloo"), "en_us", "Snow House");
+            StructureNameFiles.save(Ids.parse("igloo"), "fr_fr", "Maison de neige");
+            StructureNameFiles.save(Ids.of("test", "ruins/tower"), "en_us", "Tall Tower");
+            Map<String, String> english = StructureNameFiles.laidOver(game, List.of("en_us"));
+            helper.assertTrue(english.equals(Map.of("structure.minecraft.igloo", "Snow House", "structure.test.ruins.tower", "Tall Tower",
+                    "item.test.thing", "Thing")), "in English the game would have " + english);
+            Map<String, String> french = StructureNameFiles.laidOver(game, List.of("en_us", "fr_fr"));
+            helper.assertTrue(french.equals(Map.of("structure.minecraft.igloo", "Maison de neige", "structure.test.ruins.tower", "Tall Tower",
+                    "item.test.thing", "Thing")), "in French the game would have " + french);
+            helper.assertTrue("Igloo by a mod".equals(game.get("structure.minecraft.igloo")), "the game's own strings were changed");
         } catch (IOException e) {
             throw new AssertionError("couldn't use a temporary folder", e);
         } finally {

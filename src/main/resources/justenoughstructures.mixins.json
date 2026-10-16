@@ -25,6 +25,7 @@
     "TemplateStructurePieceAccessor"
   ],
   "client": [
+    "ClientLanguageMixin",
     "ClientPackRepositoryMixin",
     "MultiLineEditBoxAccessor"
   ],

@@ -506,6 +506,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void savedNamesGoOverModsOwn(GameTestHelper helper) {
+        NameTests.savedNamesGoOverModsOwn(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void structureNamesComeAfterTheList(GameTestHelper helper) {
         NameTests.structureNamesComeAfterTheList(helper);
     }
