@@ -17,8 +17,10 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.mojang.blaze3d.platform.InputConstants;
+import java.lang.reflect.Method;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -136,9 +138,19 @@ final class JsonScrollScenario {
         return (AbstractWidget) box;
     }
 
-    /** How far the box is scrolled, by the field vanilla keeps it in. */
+    /**
+     * How far the box is scrolled, from the mod's own reading of it. Vanilla's field for it has another
+     * name in a real game, where the game's names are remapped, and the mod's names aren't.
+     */
     private static double offset(Minecraft mc) {
-        return ((Number) Reflect.get(box(mc), "scrollAmount")).doubleValue();
+        try {
+            Method offset = Class.forName("com.finndog.justenoughstructures.client.screen.JsonEditBox")
+                    .getDeclaredMethod("offset", MultiLineEditBox.class);
+            offset.setAccessible(true);
+            return (double) offset.invoke(null, box(mc));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /** A point part of the way down the strip right of the box, where its scroll bar is. */
