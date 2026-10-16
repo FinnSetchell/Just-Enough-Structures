@@ -13,7 +13,8 @@
     "ThrowingShapesMixin"
   ],
   "client": [
-    "FaultyFluidsMixin"
+    "FaultyFluidsMixin",
+    "LeaveTheMouseMixin"
   ],
   "injectors": {
     "defaultRequire": 1
