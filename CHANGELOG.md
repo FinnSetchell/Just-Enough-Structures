@@ -71,7 +71,6 @@ First release.
   - Give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
   - Hide structures or whole mods, keep where a structure's loot is a secret, and write notes for players on its Info tab
   - Rename a structure, and every player with the mod sees the new name. Names are kept in language files, so each language can have its own
-  - On your own world, Explorer's Compass shows a new name too, after F3+T or a restart
   - Choose who can locate, teleport and use Pack tools, and what players see, without leaving the game
   - It's there in singleplayer with cheats on, and on a server for players given its permission, listed by name, or with a permission level
   - Its button can be hidden in the settings
