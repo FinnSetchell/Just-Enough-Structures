@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.LevelRandom;
@@ -12,8 +13,12 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.mixin.StructureTemplateManagerAccessor;
 import com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.Vec3i;
@@ -60,6 +66,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.message.SimpleMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -429,7 +436,77 @@ public final class CaptureTests {
         helper.assertTrue(results[1] == Filter.Result.DENY, "a repeat of an error went to the game log");
         helper.assertTrue(results[2] == Filter.Result.DENY, "another mod's warning went to the game log");
         helper.assertTrue(results[3] != Filter.Result.DENY, "asking whether errors are wanted was turned down");
+        checkErrorsLoggedFilledIn(helper, context, filter);
         helper.succeed();
+    }
+
+    /**
+     * The game often fills an error in before logging it, so each line of a kind has a text of its
+     * own. These are real lines that reached the game log dozens of times a session, each with its
+     * own coordinates or saved data: old sculk data in Prominence II's structures on 1.20.1, and
+     * pieces with inverted bounds in Better MC 5 on 1.21.1. Only the first of each should, with the
+     * rest in the debug log as before, while an error about something else still gets through.
+     */
+    private static void checkErrorsLoggedFilledIn(GameTestHelper helper, LoggerContext context, Filter filter) {
+        // Loggers of their own, so no line from earlier in the run counts against them.
+        String run = " " + UUID.randomUUID();
+        org.apache.logging.log4j.core.Logger sensor = context.getLogger("SculkSensorBlockEntity" + run);
+        org.apache.logging.log4j.core.Logger shrieker = context.getLogger("SculkShriekerBlockEntity" + run);
+        org.apache.logging.log4j.core.Logger allay = context.getLogger("Allay" + run);
+        org.apache.logging.log4j.core.Logger box = context.getLogger("BoundingBox" + run);
+        org.apache.logging.log4j.core.Logger item = context.getLogger("ItemStack" + run);
+        String sensorFirst = "No key selector in MapLike[{event_delay:0,event_distance:3.602844f,range:8,source:{pos:[I;-404,-59,-499],"
+                + "type:\"minecraft:block\"}}]";
+        String sensorAgain = "No key selector in MapLike[{event_delay:0,event_distance:7.8740077f,range:8,source:{pos:[I;-150,-54,-359],"
+                + "type:\"minecraft:block\"}}]";
+        String allayFirst = "No key selector in MapLike[{event_delay:0,event_distance:0.0f,range:16,source:{source_entity:"
+                + "[I;-1557865216,467357503,-1241624730,1927450015],type:\"minecraft:entity\",y_offset:0.36f}}]";
+        String allayAgain = "No key selector in MapLike[{event_delay:0,event_distance:0.0f,range:16,source:{source_entity:"
+                + "[I;-357299381,-608220948,-2025138656,1613578342],type:\"minecraft:entity\",y_offset:0.36f}}]";
+        String boxFirst = "Invalid bounding box data, inverted bounds for: BoundingBox{minX=-16, minY=0, minZ=0, maxX=-1, maxY=-41, maxZ=15}";
+        String boxAgain = "Invalid bounding box data, inverted bounds for: BoundingBox{minX=0, minY=0, minZ=0, maxX=15, maxY=-41, maxZ=15}";
+        // From Cobbleverse, and the last as if for two items whose names differ only in a number.
+        String noId = "Tried to load invalid item: 'No key id in MapLike[{}]'";
+        String unknown = "Tried to load invalid item: 'Unknown registry key in ResourceKey[minecraft:root / minecraft:item]: mega_showdown:spookyplate'";
+        String unknownFirst = unknown.replace("spookyplate", "spookyplate_1");
+        String unknownSecond = unknown.replace("spookyplate", "spookyplate_2");
+        Filter.Result[] results = JesLog.quietly(() -> new Filter.Result[]{
+                // As the game logs them, which asks with the text alone.
+                filter.filter(sensor, Level.ERROR, null, sensorFirst),
+                filter.filter(sensor, Level.ERROR, null, sensorAgain),
+                filter.filter(shrieker, Level.ERROR, null, sensorAgain),
+                filter.filter(allay, Level.ERROR, null, allayFirst),
+                filter.filter(allay, Level.ERROR, null, allayAgain),
+                // And as a message made already.
+                filter.filter(box, Level.ERROR, null, new SimpleMessage(boxFirst), (Throwable) null),
+                filter.filter(box, Level.ERROR, null, new SimpleMessage(boxAgain), (Throwable) null),
+                filter.filter(item, Level.ERROR, null, noId),
+                filter.filter(item, Level.ERROR, null, unknown),
+                filter.filter(item, Level.ERROR, null, unknownFirst),
+                filter.filter(item, Level.ERROR, null, unknownSecond)});
+        helper.assertTrue(results[0] != Filter.Result.DENY, "the first sculk sensor error was dropped");
+        helper.assertTrue(results[1] == Filter.Result.DENY, "a sculk sensor error with other values went to the game log again");
+        helper.assertTrue(results[2] != Filter.Result.DENY, "a sculk shrieker error was taken for a repeat of a sensor's");
+        helper.assertTrue(results[3] != Filter.Result.DENY, "the first allay error was dropped");
+        helper.assertTrue(results[4] == Filter.Result.DENY, "an allay error with other values went to the game log again");
+        helper.assertTrue(results[5] != Filter.Result.DENY, "the first bounding box error was dropped");
+        helper.assertTrue(results[6] == Filter.Result.DENY, "a bounding box error with other coordinates went to the game log again");
+        helper.assertTrue(results[7] != Filter.Result.DENY && results[8] != Filter.Result.DENY,
+                "an item error was taken for a repeat of a different one");
+        helper.assertTrue(results[9] != Filter.Result.DENY && results[10] != Filter.Result.DENY,
+                "errors about two items whose names differ only in a number were taken for one");
+        if (JesLog.enabled()) {
+            // What the game log didn't get is in the debug log, values and all.
+            Set<String> missing = new HashSet<>(List.of("(" + sensor.getName() + ") " + sensorAgain, "(" + allay.getName() + ") " + allayAgain,
+                    "(" + box.getName() + ") " + boxAgain));
+            try (Stream<String> lines = Files.lines(JustEnoughStructures.debugLogFile(), StandardCharsets.UTF_8)) {
+                lines.forEach(line -> missing.removeIf(line::endsWith));
+            } catch (IOException | UncheckedIOException e) {
+                helper.fail("couldn't read the debug log: " + e);
+                return;
+            }
+            helper.assertTrue(missing.isEmpty(), "repeats missing from the debug log: " + missing);
+        }
     }
 
     private static List<String> attempts(CaptureResult result) {
