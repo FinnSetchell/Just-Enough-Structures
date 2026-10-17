@@ -2087,6 +2087,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return viewport.pick(x, y).map(this::hoverLines).orElse(List.of());
     }
 
+    /** Whether a marker in the preview, as last drawn, stands for {@code mob}, for the screenshot harness. */
+    public boolean marked(Entity mob) {
+        return markerRects.stream().anyMatch(m -> m.marks(mob));
+    }
+
     /** What the preview gave up on drawing or asking because it failed, for the screenshot harness. */
     public List<Object> leftOut() {
         return viewport.leftOut();
@@ -2631,6 +2636,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private MarkerKind groupedKind;
     private int groupedSlice;
     private double groupedReach;
+    private int groupedLeftOut;
     private List<List<Spot>> grouped = List.of();
 
     /** Everything a kind of marker marks in the layout on show. */
@@ -2641,7 +2647,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         } else {
             s.spawners().forEach(spawner -> out.add(new Spot(spawner.pos(), spawner)));
             for (Entity entity : view.entities()) {
-                if (entity instanceof Mob) {
+                // None for a mob the preview left out: its marker would stand over an empty spot.
+                if (entity instanceof Mob && !viewport.leftOut(entity)) {
                     out.add(new Spot(mobBlock(entity), entity));
                 }
             }
@@ -2650,11 +2657,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Things close enough in the structure to share a marker. Only zooming, the layer slider or
-     * another kind of marker changes the answer, so it's worked out again only then, not every frame.
+     * Things close enough in the structure to share a marker. Only zooming, the layer slider, another
+     * kind of marker or the preview leaving something out changes the answer, so it's worked out again
+     * only then, not every frame.
      */
     private List<List<Spot>> markerGroups(StructureSnapshot s, MarkerKind kind, double reach) {
-        if (s == groupedFor && kind == groupedKind && view.sliceY() == groupedSlice && reach == groupedReach) {
+        if (s == groupedFor && kind == groupedKind && view.sliceY() == groupedSlice && reach == groupedReach
+                && viewport.leftOutCount() == groupedLeftOut) {
             return grouped;
         }
         List<Spot> shown = new ArrayList<>();
@@ -2690,6 +2699,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         groupedKind = kind;
         groupedSlice = view.sliceY();
         groupedReach = reach;
+        groupedLeftOut = viewport.leftOutCount();
         return grouped;
     }
 

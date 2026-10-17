@@ -200,6 +200,16 @@ public final class StructureViewport implements AutoCloseable {
         return List.copyOf(failed);
     }
 
+    /** Whether this preview gave up on drawing {@code entity}, which then isn't there to point at. */
+    public boolean leftOut(Entity entity) {
+        return failed.contains(entity);
+    }
+
+    /** How many things this preview has given up on. It only grows, until the preview shows another view. */
+    public int leftOutCount() {
+        return failed.size();
+    }
+
     public boolean meshing() {
         return mesh != null && mesh.building();
     }
@@ -1194,7 +1204,10 @@ public final class StructureViewport implements AutoCloseable {
         return height / (2f * distance * (float) Math.tan(Math.toRadians(FOV / 2f)));
     }
 
-    /** What's under the mouse: an entity if one is closer than the first block hit. */
+    /**
+     * What's under the mouse: an entity if one is closer than the first block hit. One the preview
+     * gave up on drawing isn't there, so the mouse finds what's behind where it stands.
+     */
     public Optional<Hit> pick(double mouseX, double mouseY) {
         if (view == null || !contains(mouseX, mouseY)) {
             return Optional.empty();
@@ -1227,7 +1240,7 @@ public final class StructureViewport implements AutoCloseable {
         Entity nearest = null;
         double entityDistance = blockDistance;
         for (Entity entity : view.entities()) {
-            if (entity.getY() >= view.sliceY()) {
+            if (entity.getY() >= view.sliceY() || failed.contains(entity)) {
                 continue;
             }
             Optional<Vec3> clip = entity.getBoundingBox().clip(from, to);
