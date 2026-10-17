@@ -55,7 +55,7 @@ public final class ScriptRun {
     public void tick(Minecraft mc) {
         stepTicks++;
         if (step != Step.DONE) {
-            String lost = TestWindow.check(mc);
+            String lost = TestWindow.check(mc, hide);
             if (lost != null) {
                 JustEnoughStructures.LOGGER.error("The test window can't be put back, as {}, so the run stops", lost);
                 end(mc, "window minimised: " + lost);

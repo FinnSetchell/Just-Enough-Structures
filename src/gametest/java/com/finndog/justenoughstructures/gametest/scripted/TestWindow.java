@@ -17,38 +17,53 @@ import org.lwjgl.glfw.GLFWNativeWin32;
  * seconds it shows while the game loads, and once the run has hidden it, it stays that way. The game
  * then has no size to go by: the mouse positions the harness sends come out as NaN, so every click,
  * hover, drag and wheel misses while keys still work, and from 26.2 it can draw at 1x1, so a check
- * that waits for a picture waits out its time. A minimised window is put back as it was, shown or
- * hidden, without taking the focus from whoever is at the computer. A run whose window can't be put
- * back stops and says so, rather than failing every check after.
+ * that waits for a picture waits out its time. A minimised window is put back, and hidden again when
+ * the run hides it, without taking the focus from whoever is at the computer. A run whose window can't
+ * be put back stops and says so, rather than failing every check after.
  */
 final class TestWindow {
     /** How many times a run puts its window back. Any more, and something keeps minimising it. */
     private static final int MOST = 3;
+    /**
+     * How long the window stays minimised before it's put back, in ticks. Something outside the game that
+     * minimises it while the game is busy is only done once the game next reads its window's messages,
+     * which it does once a frame, and a window put back before then is left shown at a minimised
+     * window's size. Seen on 1.20.1, whose first ticks come before it first reads them. The game runs at
+     * most ten ticks a frame.
+     */
+    private static final int SETTLE_TICKS = 40;
     /** How long a window that isn't minimised may have no size, in ticks, as it can be a frame behind. */
     private static final int SIZELESS_TICKS = 100;
 
     private static int putBack;
+    private static int minimised;
     private static int sizeless;
     private static boolean sayWhenBack;
 
     private TestWindow() {
     }
 
-    /** Puts the window back if it's minimised. Returns why the run can't go on, or null when it can. */
-    static String check(Minecraft mc) {
+    /**
+     * Puts the window back once it has been minimised a while, hidden again if {@code hidden}. Returns why
+     * the run can't go on, or null when it can.
+     */
+    static String check(Minecraft mc, boolean hidden) {
         Window window = mc.getWindow();
         long hwnd = hwnd(window);
         if (hwnd != 0 && User32.IsIconic(hwnd)) {
             sizeless = 0;
+            if (++minimised < SETTLE_TICKS) {
+                return null;
+            }
+            minimised = 0;
             if (putBack == MOST) {
                 return "it has been minimised " + (MOST + 1) + " times";
             }
             putBack++;
             JustEnoughStructures.LOGGER.warn("The test window is minimised; putting it back ({})", sizes(window));
-            boolean shown = User32.IsWindowVisible(hwnd);
             // Back to its own size, without the focus that GLFW's own restore takes (it uses SW_RESTORE).
             User32.ShowWindow(hwnd, User32.SW_SHOWNOACTIVATE);
-            if (!shown) {
+            if (hidden) {
                 User32.ShowWindow(hwnd, User32.SW_HIDE);
             }
             if (User32.IsIconic(hwnd)) {
@@ -57,6 +72,7 @@ final class TestWindow {
             sayWhenBack = true;
             return null;
         }
+        minimised = 0;
         if (window.getScreenWidth() <= 0 || window.getScreenHeight() <= 0 || window.getWidth() <= 1 || window.getHeight() <= 1) {
             // Off Windows a minimised window has no size either, and can't be put back without the focus.
             if (sizeless++ == 0) {
