@@ -14,6 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
@@ -38,6 +42,10 @@ public final class IndexStoreTests {
      * so, then word of how far the rest has got, then the finished index, which holds everything the
      * early one did and says it's finished. Someone asking after that is sent the finished one and
      * nothing about progress.
+     *
+     * <p>Straight after the early index the server is held up until every structure is done, as a
+     * busy server can be, so word of progress that was on its way by then only goes out once they
+     * are. It still has to say there's more to come, or the early index would pass for the finished one.
      */
     public static void indexIsHandedOutEarlyThenFinished(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -45,6 +53,22 @@ public final class IndexStoreTests {
         ServerPlayer player = TestPlayers.mock(helper);
         List<Sent> sent = new CopyOnWriteArrayList<>();
         Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
+        // How many structures there are, from what the player is told, and how holding the server up went.
+        AtomicInteger structures = new AtomicInteger(Integer.MAX_VALUE);
+        AtomicBoolean holding = new AtomicBoolean();
+        AtomicBoolean waited = new AtomicBoolean();
+        CountDownLatch allDone = new CountDownLatch(1);
+        List<Boolean> held = new CopyOnWriteArrayList<>();
+        LootIndexStore.watchProgress(d -> {
+            // On the index's thread. Progress is said every couple of seconds at most, so once the
+            // server is held, a wait as long has the next structure's word of it on its way.
+            if (holding.get() && waited.compareAndSet(false, true)) {
+                pause(2100);
+            }
+            if (d >= structures.get()) {
+                allDone.countDown();
+            }
+        });
         JesNetwork.ServerSender before = JesNetwork.serverSender();
         JesNetwork.setServerSender((target, channel, buf) -> {
             if (target != player) {
@@ -52,6 +76,13 @@ public final class IndexStoreTests {
             } else if (channel.equals(JesNetwork.INDEX_PROGRESS)) {
                 Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
                 sent.add(new Sent(null, null, progress.done(), progress.total()));
+                if (progress.total() > 0) {
+                    structures.set(progress.total());
+                }
+                if (sent.stream().anyMatch(s -> s.index() != null) && holding.compareAndSet(false, true)) {
+                    // Told straight after the early index: the server waits here until the rest are done.
+                    held.add(await(allDone, 240));
+                }
             } else if (channel.equals(JesNetwork.TRANSFER)) {
                 Blobs.Part part = Blobs.Part.read(buf);
                 if (part.kind() != JesNetwork.KIND_INDEX) {
@@ -80,7 +111,7 @@ public final class IndexStoreTests {
                 if (sentIndexes < 2) {
                     // The build takes the time it takes, and a test server with nothing else to do gets
                     // through its ticks in no time at all, so each look waits a moment first.
-                    pause();
+                    pause(50);
                 }
                 helper.assertTrue(sentIndexes >= 2, "the player has been sent " + sentIndexes + " indexes so far");
                 // Asking now gets the finished index, and nothing more about progress.
@@ -89,6 +120,7 @@ public final class IndexStoreTests {
                 seen.add(all);
                 seen.add(List.copyOf(sent.subList(had, sent.size())));
                 JesNetwork.setServerSender(before);
+                LootIndexStore.watchProgress(null);
                 // Back to how a started server has it: what is saved is looked for, and built if it isn't there.
                 LootIndexStore.refresh(server);
             }
@@ -113,6 +145,7 @@ public final class IndexStoreTests {
             // EMI, which loads all over again for each index, goes by these to wait for the finished one.
             helper.assertTrue(Boolean.TRUE.equals(indexes.get(0).early()), "the early index was sent saying " + indexes.get(0).early() + " to it being early");
             helper.assertTrue(Boolean.FALSE.equals(indexes.get(1).early()), "the finished index was sent saying " + indexes.get(1).early() + " to it being early");
+            helper.assertTrue(held.equals(List.of(true)), "the server was held up after the early index " + held + ", not once until every structure was done");
             // Told how far along it was straight after the early index, with some still to do, and again as it went.
             List<Sent> between = all.subList(firstIndex + 1, lastIndex);
             helper.assertTrue(!between.isEmpty() && between.stream().allMatch(s -> s.total() > 0 && s.done() < s.total()),
@@ -160,11 +193,21 @@ public final class IndexStoreTests {
         helper.succeed();
     }
 
-    private static void pause() {
+    private static void pause(long millis) {
         try {
-            Thread.sleep(50);
+            Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Waits for {@code latch} up to {@code seconds}, and says whether it got there. */
+    private static boolean await(CountDownLatch latch, long seconds) {
+        try {
+            return latch.await(seconds, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 }

@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.RegistryAccess;
@@ -96,6 +97,9 @@ public final class LootIndexStore {
     private static volatile int total;
     // For the debug log: what each source file hashed to last time, to say which ones changed.
     private static volatile Map<String, HashCode> lastFiles = Map.of();
+    // For tests: told how many structures are done, each time another one is.
+    private static volatile IntConsumer progressWatcher = d -> {
+    };
 
     private LootIndexStore() {
     }
@@ -180,6 +184,15 @@ public final class LootIndexStore {
         });
     }
 
+    /**
+     * Has {@code watcher} told on the index's thread how many structures are done, each time another
+     * one is and after players have been told. Null for nobody. For tests.
+     */
+    public static void watchProgress(IntConsumer watcher) {
+        progressWatcher = watcher != null ? watcher : d -> {
+        };
+    }
+
     /** When the server stops: drops everything and stops any work in progress. */
     public static void stop() {
         GENERATION.incrementAndGet();
@@ -202,7 +215,7 @@ public final class LootIndexStore {
             JesServer.sendIndex(player, payload);
             if (partial) {
                 // It's an early index, so they're told there's more to come and how far that has got.
-                JesServer.sendIndexProgress(player, done, total);
+                tellProgress(player);
             }
             return;
         }
@@ -210,7 +223,17 @@ public final class LootIndexStore {
         if (!checking && !building && !broken) {
             build(Players.server(player), GENERATION.get());
         }
-        JesServer.sendIndexProgress(player, done, total);
+        tellProgress(player);
+    }
+
+    /**
+     * Tells a player how far the build has got, but never that all of it is done: the finished index
+     * says that by arriving, and a player told so beside an early one would take it for the finished
+     * one. Every structure can be done a while before the finished index is ready, and the index's
+     * thread can get there before the server gets round to saying how far it had got. Server thread.
+     */
+    private static void tellProgress(ServerPlayer player) {
+        JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total);
     }
 
     private static void build(MinecraftServer server, int generation) {
@@ -227,6 +250,7 @@ public final class LootIndexStore {
             StructureScan scanned = LootIndex.scan(server, ids, d -> {
                         done = d;
                         sayProgress(server, generation);
+                        progressWatcher.accept(d);
                     }, () -> generation != GENERATION.get() || !server.isRunning(), failed,
                     (id, firstView) -> SavedPreviews.offer(server, id, StructureCapture.defaultSeed(id), firstView),
                     early -> publishEarly(server, generation, early, started));
@@ -291,7 +315,7 @@ public final class LootIndexStore {
             index = soon;
             partial = true;
             send(server);
-            Players.forEachOnline(server, WAITING, player -> JesServer.sendIndexProgress(player, done, total));
+            Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
         });
     }
 
@@ -305,7 +329,7 @@ public final class LootIndexStore {
         progressSaid = now;
         server.execute(() -> {
             if (generation == GENERATION.get() && partial) {
-                Players.forEachOnline(server, WAITING, player -> JesServer.sendIndexProgress(player, done, total));
+                Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
             }
         });
     }
