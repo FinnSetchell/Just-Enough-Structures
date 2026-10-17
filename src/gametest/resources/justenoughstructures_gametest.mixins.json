@@ -9,6 +9,7 @@
     "HeldLoadsMixin",
     "LegacyRandomSourceMixin",
     "NearMiddleRegionMixin",
+    "QuietProgressMixin",
     "ThrowingNamesMixin",
     "ThrowingShapesMixin"
   ],
