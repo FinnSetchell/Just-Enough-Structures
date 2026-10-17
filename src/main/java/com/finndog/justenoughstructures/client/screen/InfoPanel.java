@@ -1022,11 +1022,7 @@ final class InfoPanel {
         Set<ResourceLocation> tables = FoundIn.tablesIn(entry.id());
         if (tables == null) {
             ClientRequests.index();
-            float progress = ClientRequests.indexProgress();
-            Component text = progress < 0
-                    ? Component.translatable("screen.justenoughstructures.indexing")
-                    : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
-            return Gui.fineWrapped(g, font, text, x + PAD, cy, textWidth(), Gui.labelSoft());
+            return Gui.fineWrapped(g, font, ClientRequests.indexWaitText(), x + PAD, cy, textWidth(), Gui.labelSoft());
         }
         if (tables.isEmpty()) {
             return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.loot_secret_none"), x + PAD, cy, textWidth(), Gui.labelSoft());

@@ -102,22 +102,24 @@ final class FoundInPopup {
         List<Row> list = rows();
         int top = y + 30;
         if (list == null) {
-            float progress = ClientRequests.indexProgress();
             Component text = rows != null ? Component.translatable("screen.justenoughstructures.found_in_working", known(), rows.size())
-                    : progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
-                    : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
+                    : ClientRequests.indexWaitText();
             Gui.wrapped(g, font, text, x + 8, top + 4, WIDTH - 16, Gui.labelSoft());
             return;
         }
-        // With an early index the list can still grow, so it says how far the server has got with the rest.
+        // With an early index the list can still grow, so it says how far the server has got with the
+        // rest, or that the rest couldn't be found.
         boolean filling = ClientRequests.indexFilling();
+        boolean cutShort = ClientRequests.indexCutShort();
         int percent = filling ? Math.round(ClientRequests.indexProgress() * 100) : 0;
         Component under = filling ? Component.translatable("screen.justenoughstructures.found_in_so_far", list.size(), percent)
+                : cutShort ? Component.translatable("screen.justenoughstructures.found_in_cut_short", list.size())
                 : Component.translatable("screen.justenoughstructures.found_in_chance", list.size());
         Gui.smallClipped(g, font, under.getString(), x + 30, y + 17, WIDTH - 38, Gui.labelSoft());
         Gui.inset(g, x + 6, top - 1, WIDTH - 12, VISIBLE_ROWS * ROW + 2, Gui.Tone.WELL);
         if (list.isEmpty()) {
             Component nowhere = filling ? Component.translatable("screen.justenoughstructures.found_nowhere_yet", percent)
+                    : cutShort ? Component.translatable("screen.justenoughstructures.found_nowhere_cut_short")
                     : Component.translatable("screen.justenoughstructures.found_nowhere");
             Gui.wrapped(g, font, nowhere, x + 10, top + 4, WIDTH - 20, Gui.labelSoft());
         }

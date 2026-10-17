@@ -212,7 +212,7 @@ public final class LootIndexStore {
         WAITING.clear();
     }
 
-    /** Sends the index if it's ready. Otherwise starts it if nothing else will, and says how far along it is. */
+    /** Sends the index if it's ready. Otherwise starts it if nothing else will, and says how far along it is, or that it failed. */
     public static void request(ServerPlayer player) {
         WAITING.add(player.getUUID());
         if (payload != null) {
@@ -234,10 +234,12 @@ public final class LootIndexStore {
      * Tells a player how far the build has got, but never that all of it is done: the finished index
      * says that by arriving, and a player told so beside an early one would take it for the finished
      * one. Every structure can be done a while before the finished index is ready, and the index's
-     * thread can get there before the server gets round to saying how far it had got. Server thread.
+     * thread can get there before the server gets round to saying how far it had got. Once the build
+     * has failed it says that too, after the figure it stopped at, which a version from before goes
+     * on showing as it always has. Server thread.
      */
     private static void tellProgress(ServerPlayer player) {
-        JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total);
+        JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total, broken);
     }
 
     private static void build(MinecraftServer server, int generation) {
@@ -297,6 +299,11 @@ public final class LootIndexStore {
                         checking = false;
                         building = false;
                         broken = true;
+                        // Whoever is waiting for an index, or for the rest of an early one, is told
+                        // that none is coming. Those with a finished one from before go on using it.
+                        if (payload == null || partial) {
+                            Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
+                        }
                     }
                 });
             }

@@ -271,11 +271,11 @@ final class StructureList {
             }
             Component message = Component.translatable("screen.justenoughstructures.no_matches");
             if (query.contains("$") && !FoundIn.ready()) {
-                float progress = ClientRequests.indexProgress();
-                message = progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
-                        : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
+                message = ClientRequests.indexWaitText();
             } else if (query.contains("$") && ClientRequests.indexFilling()) {
                 message = Component.translatable("screen.justenoughstructures.no_matches_yet", Math.round(ClientRequests.indexProgress() * 100));
+            } else if (query.contains("$") && ClientRequests.indexCutShort()) {
+                message = Component.translatable("screen.justenoughstructures.no_matches_cut_short");
             }
             Gui.wrapped(g, font, message, x + 5, y + 5, width - 10, Gui.labelSoft());
             return;

@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -33,9 +34,10 @@ public final class IndexStoreTests {
 
     /**
      * Something the player was sent: an index, and what the byte after it said of it being early
-     * (null when there wasn't that one byte after it), or how far the build had got.
+     * (null when there wasn't that one byte after it), or how far the build had got, and whether it
+     * had failed there.
      */
-    private record Sent(LootIndex index, Boolean early, int done, int total) {
+    private record Sent(LootIndex index, Boolean early, int done, int total, boolean failed) {
     }
 
     /**
@@ -194,6 +196,95 @@ public final class IndexStoreTests {
     }
 
     /**
+     * Once a build has failed, nothing more is built until the next /reload, and a player waiting for
+     * the index, or for the rest of an early one, is told so: when it fails, and again whenever they
+     * ask. Told only how far it had got, the browser would show that figure for ever, and the search
+     * would look stuck partway. The figure still comes first, as before, for a version from before,
+     * which reads no further. The build is made to fail twice: at the first structure, with no index
+     * yet, and once the player has the early one, with the rest still to come.
+     */
+    public static void aFailedBuildSaysSo(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<Sent> sent = new CopyOnWriteArrayList<>();
+        // 0 while the first build is made to fail at its first structure, 1 for the one after the early index.
+        AtomicInteger round = new AtomicInteger();
+        AtomicBoolean failed = new AtomicBoolean();
+        // How much the player had been sent when each build was made to fail.
+        List<Integer> failedAt = new CopyOnWriteArrayList<>();
+        LootIndexStore.watchProgress(d -> {
+            // On the index's thread. What this throws ends the build there, as any error would.
+            boolean due = round.get() == 0 || sent.stream().anyMatch(s -> s.index() != null);
+            if (due && failed.compareAndSet(false, true)) {
+                failedAt.add(sent.size());
+                throw new IllegalStateException("A loot index build made to fail by a game test");
+            }
+        });
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        // As on a server that has only just started, with nothing saved to read.
+        LootIndexStore.stop();
+        JesServer.onRequestIndex(player);
+        // For each failure: what the player was told as it failed, then what asking after it brought.
+        List<List<Sent>> whenFailed = new ArrayList<>();
+        List<List<Sent>> askedAfter = new ArrayList<>();
+        int[] looks = {-1};
+        AtomicBoolean reported = new AtomicBoolean();
+        helper.succeedWhen(() -> {
+            if (askedAfter.size() < 2) {
+                if (!failed.get()) {
+                    // The build takes the time it takes, so each look waits a moment first.
+                    pause(50);
+                }
+                helper.assertTrue(failed.get(), "the build hasn't been made to fail yet in round " + round.get());
+                if (looks[0] < 0) {
+                    // The index's thread logs what was thrown and then leaves word of it for the
+                    // server, which takes that up between ticks, up to a few ticks late.
+                    pause(500);
+                }
+                looks[0]++;
+                helper.assertTrue(looks[0] > 5, "the server may not have heard the build failed yet");
+                int had = sent.size();
+                whenFailed.add(List.copyOf(sent.subList(failedAt.get(round.get()), had)));
+                JesServer.onRequestIndex(player);
+                askedAfter.add(List.copyOf(sent.subList(had, sent.size())));
+                looks[0] = -1;
+                if (round.incrementAndGet() == 1) {
+                    // A build from nothing again, which this time fails after the early index.
+                    sent.clear();
+                    failed.set(false);
+                    LootIndexStore.stop();
+                    JesServer.onRequestIndex(player);
+                } else {
+                    JesNetwork.setServerSender(before);
+                    LootIndexStore.watchProgress(null);
+                    // Back to how a started server has it, with nothing failed and no build going on into the tests after it.
+                    LootIndexStore.stop();
+                    LootIndexStore.refresh(server);
+                }
+            }
+            helper.assertTrue(askedAfter.size() == 2, "the build has been made to fail " + askedAfter.size() + " times so far, not twice");
+            String told = "when the build failed at its first structure the player was told " + described(whenFailed.get(0))
+                    + " and asking after it brought " + described(askedAfter.get(0)) + "; when it failed after the early index, "
+                    + described(whenFailed.get(1)) + " and " + described(askedAfter.get(1));
+            if (!reported.getAndSet(true)) {
+                // The game's own summary of a failed test leaves out why on some versions.
+                JustEnoughStructures.LOGGER.info("In the test of a failed loot index build: {}", told);
+            }
+            for (int i = 0; i < 2; i++) {
+                // Told as it failed, and in answer to asking after: every word of progress then says it failed.
+                helper.assertTrue(whenFailed.get(i).stream().anyMatch(Sent::failed), told);
+                List<Sent> progress = askedAfter.get(i).stream().filter(s -> s.index() == null).toList();
+                helper.assertTrue(!progress.isEmpty() && progress.stream().allMatch(s -> s.failed() && s.total() > 0 && s.done() < s.total()), told);
+            }
+            // Asked after the early index, the player is still sent that, as it's all there is; with none, nothing.
+            helper.assertTrue(askedAfter.get(0).stream().noneMatch(s -> s.index() != null), told);
+            helper.assertTrue(!askedAfter.get(1).isEmpty() && Boolean.TRUE.equals(askedAfter.get(1).get(0).early()), told);
+        });
+    }
+
+    /**
      * Whether an index is early comes after the index itself, where a version from before stops
      * reading, so the two versions still get on: one byte, and from a server before it nothing at
      * all, which reads as not early.
@@ -237,7 +328,7 @@ public final class IndexStoreTests {
                 others.send(target, channel, buf);
             } else if (channel.equals(JesNetwork.INDEX_PROGRESS)) {
                 Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
-                sent.add(new Sent(null, null, progress.done(), progress.total()));
+                sent.add(new Sent(null, null, progress.done(), progress.total(), progress.failed()));
                 onProgress.accept(progress);
             } else if (channel.equals(JesNetwork.TRANSFER)) {
                 Blobs.Part part = Blobs.Part.read(buf);
@@ -251,10 +342,15 @@ public final class IndexStoreTests {
                     FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
                     LootIndex index = Codecs.readIndex(message);
                     Boolean early = message.readableBytes() == 1 ? Codecs.readIndexEarly(message) : null;
-                    sent.add(new Sent(index, early, 0, 0));
+                    sent.add(new Sent(index, early, 0, 0, false));
                 }
             }
         };
+    }
+
+    /** What a player was sent, as "an index" or how far the build had got, and "failed" when it had. */
+    private static List<String> described(List<Sent> sent) {
+        return sent.stream().map(s -> s.index() != null ? "an index" : s.done() + "/" + s.total() + (s.failed() ? " failed" : "")).toList();
     }
 
     private static void pause(long millis) {

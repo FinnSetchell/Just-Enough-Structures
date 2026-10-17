@@ -42,7 +42,7 @@ public final class ClientPackets {
 
         on(JesNetwork.INDEX_PROGRESS, (client, buf) -> {
             Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
-            client.execute(() -> ClientRequests.onIndexProgress(progress.done(), progress.total()));
+            client.execute(() -> ClientRequests.onIndexProgress(progress.done(), progress.total(), progress.failed()));
         });
 
         on(JesNetwork.LOCATE, (client, buf) -> {

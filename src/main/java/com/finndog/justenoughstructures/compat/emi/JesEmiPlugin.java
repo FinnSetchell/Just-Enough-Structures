@@ -84,6 +84,8 @@ public final class JesEmiPlugin implements EmiPlugin {
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesEmiPlugin::arrived);
+            // A server whose build fails sends nothing after an early index, so EMI takes that one now.
+            ClientRequests.onIndexStopped(JesEmiPlugin::listen);
             ClientRequests.wantIndex();
         }
         LootIndex latest = ClientRequests.latestIndex();

@@ -645,21 +645,33 @@ public final class Codecs {
 
     // ------------------------------------------------------------------ small messages
     // Each of these is a whole packet. Changing what one carries, or the order it's in, means
-    // JesNetwork.PROTOCOL goes up.
+    // JesNetwork.PROTOCOL goes up. Something added at the very end is the one exception: a version
+    // from before stops reading where its message ended and leaves the rest, as every loader hands
+    // JES the whole packet to read, and nothing minds bytes left over in it.
 
-    /** How far the loot index has got: structures done, out of how many. */
-    public record IndexProgress(int done, int total) {
+    /**
+     * How far the loot index has got: structures done, out of how many. {@code failed} when the build
+     * stopped there, so no more is coming until the next /reload.
+     */
+    public record IndexProgress(int done, int total, boolean failed) {
+        public IndexProgress(int done, int total) {
+            this(done, total, false);
+        }
     }
 
+    // Whether the build failed comes last, where a version from before stops reading. One byte, and
+    // from a server before it nothing, which reads as not failed.
     public static void writeIndexProgress(FriendlyByteBuf buf, IndexProgress progress) {
         buf.writeVarInt(progress.done());
         buf.writeVarInt(progress.total());
+        buf.writeBoolean(progress.failed());
     }
 
     public static IndexProgress readIndexProgress(FriendlyByteBuf buf) {
         int done = buf.readVarInt();
         int total = buf.readVarInt();
-        return new IndexProgress(done, total);
+        boolean failed = buf.isReadable() && buf.readBoolean();
+        return new IndexProgress(done, total, failed);
     }
 
     /**

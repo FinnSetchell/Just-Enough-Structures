@@ -39,20 +39,40 @@ public final class MessageTests {
     private MessageTests() {
     }
 
+    /**
+     * Whether the build failed comes after how far it got, where a version from before stops reading,
+     * so the two versions still get on: it reads how far the build got as it always did, and leaves
+     * the one byte after. From a server before it there's nothing after, which reads as not failed.
+     */
     public static void indexProgressReadsBack(GameTestHelper helper) {
-        Codecs.IndexProgress progress = new Codecs.IndexProgress(3, 898);
-        byte[] written = bytes(helper, buf -> Codecs.writeIndexProgress(buf, progress));
-        same(helper, written, bytes(helper, buf -> {
+        for (boolean failed : new boolean[]{false, true}) {
+            Codecs.IndexProgress progress = new Codecs.IndexProgress(3, 898, failed);
+            byte[] written = bytes(helper, buf -> Codecs.writeIndexProgress(buf, progress));
+            same(helper, written, bytes(helper, buf -> {
+                buf.writeVarInt(3);
+                buf.writeVarInt(898);
+                buf.writeBoolean(failed);
+            }), "the loot index's progress");
+            Codecs.IndexProgress back = read(helper, written, Codecs::readIndexProgress);
+            helper.assertTrue(back.equals(progress), "sent " + progress + " but read " + back);
+            // Read as a version from before reads it: how far, out of how many, and no further.
+            FriendlyByteBuf old = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
+            int done = old.readVarInt();
+            int total = old.readVarInt();
+            helper.assertTrue(done == 3 && total == 898 && old.readableBytes() == 1,
+                    "read as a version from before reads it, " + progress + " was " + done + " of " + total + " with " + old.readableBytes() + " bytes after");
+        }
+        byte[] fromBefore = bytes(helper, buf -> {
             buf.writeVarInt(3);
             buf.writeVarInt(898);
-        }), "the loot index's progress");
-        Codecs.IndexProgress back = read(helper, written, Codecs::readIndexProgress);
-        helper.assertTrue(back.equals(progress), "sent " + progress + " but read " + back);
+        });
+        Codecs.IndexProgress back = read(helper, fromBefore, Codecs::readIndexProgress);
+        helper.assertTrue(back.equals(new Codecs.IndexProgress(3, 898, false)), "progress from a server before builds said they failed read as " + back);
 
         ServerPlayer player = TestPlayers.mock(helper);
-        byte[] sent = only(helper, sent(player, JesNetwork.INDEX_PROGRESS, () -> JesServer.sendIndexProgress(player, 41, 1200)), "index progress");
+        byte[] sent = only(helper, sent(player, JesNetwork.INDEX_PROGRESS, () -> JesServer.sendIndexProgress(player, 41, 1200, true)), "index progress");
         Codecs.IndexProgress told = read(helper, sent, Codecs::readIndexProgress);
-        helper.assertTrue(told.equals(new Codecs.IndexProgress(41, 1200)), "the server was 41 of 1200 through but said " + told);
+        helper.assertTrue(told.equals(new Codecs.IndexProgress(41, 1200, true)), "the server's build failed 41 of 1200 through but it said " + told);
         helper.succeed();
     }
 

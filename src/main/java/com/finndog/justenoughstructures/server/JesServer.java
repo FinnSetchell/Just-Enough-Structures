@@ -234,9 +234,9 @@ public final class JesServer {
         }
     }
 
-    public static void sendIndexProgress(ServerPlayer player, int done, int total) {
+    public static void sendIndexProgress(ServerPlayer player, int done, int total, boolean failed) {
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        Codecs.writeIndexProgress(buf, new Codecs.IndexProgress(done, total));
+        Codecs.writeIndexProgress(buf, new Codecs.IndexProgress(done, total, failed));
         JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
     }
 

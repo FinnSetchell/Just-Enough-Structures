@@ -231,7 +231,7 @@ final class ToolsLoot extends ToolsSection {
         }
         if (tables.isEmpty()) {
             Component none = Component.translatable(FoundIn.ready() || filter != Filter.USED ? "screen.justenoughstructures.tools.no_match"
-                    : "screen.justenoughstructures.indexing");
+                    : ClientRequests.indexFailed() ? "screen.justenoughstructures.index_failed" : "screen.justenoughstructures.indexing");
             Gui.fineWrapped(g, font, none, x + 4, ry + 3, rw - 8, Gui.labelSoft());
             ry += 20;
         }

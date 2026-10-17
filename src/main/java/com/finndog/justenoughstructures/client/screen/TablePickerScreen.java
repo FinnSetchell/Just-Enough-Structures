@@ -150,7 +150,8 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
 
     @Override
     protected Component nothingShown() {
-        return FoundIn.ready() ? super.nothingShown() : Component.translatable("screen.justenoughstructures.indexing");
+        return FoundIn.ready() ? super.nothingShown() : Component.translatable(ClientRequests.indexFailed() ? "screen.justenoughstructures.index_failed"
+                : "screen.justenoughstructures.indexing");
     }
 
     @Override

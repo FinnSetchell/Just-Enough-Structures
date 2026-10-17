@@ -64,9 +64,12 @@ public final class ClientRequests {
     private static final Map<Integer, CompletableFuture<Component>> LOCATES = new HashMap<>();
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
     private static final List<Consumer<LootIndex>> INDEX_LISTENERS = new ArrayList<>();
+    private static final List<Runnable> STOPPED_LISTENERS = new ArrayList<>();
     private static CompletableFuture<LootIndex> index;
     private static int indexDone;
     private static int indexTotal;
+    // The server said its build of the index failed, so nothing more of it is coming until it reloads.
+    private static boolean indexFailed;
     private static long lastIndexPoll;
     // What the server needs to locate and teleport. Until it says, the same as /locate and /tp.
     private static int locatePermission = 2;
@@ -122,6 +125,7 @@ public final class ClientRequests {
         ARRIVAL.forget();
         indexDone = 0;
         indexTotal = 0;
+        indexFailed = false;
         FoundIn.clear();
         locatePermission = 2;
         teleportPermission = 2;
@@ -355,6 +359,11 @@ public final class ClientRequests {
         INDEX_LISTENERS.add(listener);
     }
 
+    /** Runs {@code listener} each time the server says its build of the index failed, so nothing more of it is coming. */
+    public static void onIndexStopped(Runnable listener) {
+        STOPPED_LISTENERS.add(listener);
+    }
+
     public static boolean indexReady() {
         return index != null && index.isDone() && !index.isCompletedExceptionally() && !index.isCancelled();
     }
@@ -394,7 +403,27 @@ public final class ClientRequests {
      * by sending how far it has got after the index, which it never does after a finished one.
      */
     public static boolean indexFilling() {
-        return indexReady() && indexTotal > 0 && indexDone < indexTotal;
+        return indexReady() && !indexFailed && indexTotal > 0 && indexDone < indexTotal;
+    }
+
+    /** Whether the server said its build of the index failed, so it has none to send, or nothing after the early one, until it reloads. */
+    public static boolean indexFailed() {
+        return indexFailed;
+    }
+
+    /** Whether the index that's here is an early one whose rest the server couldn't find, so some structures' loot is missing from it. */
+    public static boolean indexCutShort() {
+        return indexReady() && indexFailed;
+    }
+
+    /** What to say while there's no index to go by: how far the server has got with it, or that it couldn't build one. */
+    public static Component indexWaitText() {
+        if (indexFailed) {
+            return Component.translatable("screen.justenoughstructures.index_failed");
+        }
+        float progress = indexProgress();
+        return progress < 0 ? Component.translatable("screen.justenoughstructures.indexing")
+                : Component.translatable("screen.justenoughstructures.indexing_progress", Math.round(progress * 100));
     }
 
     public static void tick() {
@@ -439,11 +468,18 @@ public final class ClientRequests {
         });
     }
 
-    public static void onIndexProgress(int done, int total) {
+    public static void onIndexProgress(int done, int total, boolean failed) {
         indexDone = done;
         indexTotal = total;
-        if (total > 0 && done < total) {
+        boolean stopped = failed && !indexFailed;
+        indexFailed = failed;
+        if (failed) {
+            ARRIVAL.failed();
+        } else if (total > 0 && done < total) {
             ARRIVAL.building();
+        }
+        if (stopped) {
+            STOPPED_LISTENERS.forEach(Runnable::run);
         }
     }
 
@@ -621,6 +657,7 @@ public final class ClientRequests {
             // What was said of progress so far was about the wait for this one.
             indexDone = 0;
             indexTotal = 0;
+            indexFailed = false;
             ARRIVAL.arrived(built, early);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
@@ -768,6 +805,7 @@ public final class ClientRequests {
             ARRIVAL.forget();
             indexDone = 0;
             indexTotal = 0;
+            indexFailed = false;
             FoundIn.clear();
             if (!INDEX_LISTENERS.isEmpty()) {
                 index();

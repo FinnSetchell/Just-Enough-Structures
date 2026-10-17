@@ -53,6 +53,14 @@ public final class IndexArrivalTests {
         long waited = millisSince(started);
         helper.assertTrue(got == null && waited < SOON, "an index the server is still building was waited for, for " + waited + " ms");
 
+        // The server says its build failed, so none is coming.
+        arrival.asked();
+        later(arrival::failed);
+        started = System.nanoTime();
+        got = arrival.await(10_000);
+        waited = millisSince(started);
+        helper.assertTrue(got == null && waited < SOON, "an index whose build had failed was waited for, for " + waited + " ms");
+
         // The server never answers: the wait ends when its time is up, and not before.
         arrival.asked();
         started = System.nanoTime();
@@ -95,6 +103,12 @@ public final class IndexArrivalTests {
         // Then it says nothing more, as when its build has stopped.
         pause(QUIET + 200);
         helper.assertTrue(arrival.finishedWait(QUIET) == 0, "the finished index was still waited for after the server had said nothing for " + (QUIET + 200) + " ms");
+
+        // The server says the build of the rest failed, so the early one is all there is.
+        arrival.arrived(early, true);
+        arrival.building();
+        arrival.failed();
+        helper.assertTrue(arrival.finishedWait(QUIET) == 0 && arrival.now() == early, "the finished index was waited for after its build had failed");
 
         // The finished one, or one from a server that doesn't say, is nothing to wait for.
         arrival.arrived(early, true);

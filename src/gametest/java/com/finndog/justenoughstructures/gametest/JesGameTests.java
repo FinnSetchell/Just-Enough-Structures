@@ -816,6 +816,12 @@ public final class JesGameTests {
         IndexStoreTests.progressFromTheLastWorldIsForgotten(helper);
     }
 
+    // Makes two loot index builds fail, and leaves none going, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_broken", timeoutTicks = 6000)
+    public void aFailedBuildSaysSo(GameTestHelper helper) {
+        IndexStoreTests.aFailedBuildSaysSo(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
     public void spawnerPatchesApplyOnReload(GameTestHelper helper) {

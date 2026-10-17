@@ -32,6 +32,16 @@ public final class IndexArrival {
         heard = System.nanoTime();
     }
 
+    /**
+     * The server says its build failed, so nothing more is coming until it reloads: no index if there
+     * isn't one here, and nothing after an early one, which is then all there is.
+     */
+    public void failed() {
+        coming = false;
+        early = false;
+        heard = System.nanoTime();
+    }
+
     /** An index has come: {@code early} when the server says it's an early one, with the finished one to follow. */
     public void arrived(LootIndex arrived, boolean early) {
         this.early = early;
