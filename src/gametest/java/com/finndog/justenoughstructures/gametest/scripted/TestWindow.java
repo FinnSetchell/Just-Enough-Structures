@@ -81,6 +81,11 @@ final class TestWindow {
             }
             putBack++;
             JustEnoughStructures.LOGGER.warn("The test window is minimised; putting it back ({})", sizes(window));
+            // Hidden first: a minimised window that's shown took the focus for a moment as it was put
+            // back, told not to or not (1.20.1, 17 October 2026), and a hidden one never did.
+            if (User32.IsWindowVisible(hwnd)) {
+                User32.ShowWindow(hwnd, User32.SW_HIDE);
+            }
             // Back to its own size, without the focus that GLFW's own restore takes (it uses SW_RESTORE).
             User32.ShowWindow(hwnd, User32.SW_SHOWNOACTIVATE);
             if (hidden) {
