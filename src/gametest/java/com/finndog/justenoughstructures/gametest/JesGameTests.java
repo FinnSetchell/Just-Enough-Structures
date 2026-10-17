@@ -699,6 +699,16 @@ public final class JesGameTests {
         IndexArrivalTests.indexThatIsntComingIsntWaitedFor(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void earlyIndexWaitsForTheFinishedOne(GameTestHelper helper) {
+        IndexArrivalTests.earlyIndexWaitsForTheFinishedOne(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void earlyMarkComesAfterTheIndex(GameTestHelper helper) {
+        IndexStoreTests.earlyMarkComesAfterTheIndex(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
     public void previewsLeaveTheRealWorldAlone(GameTestHelper helper) {
         RealWorldTests.previewsLeaveTheRealWorldAlone(helper);

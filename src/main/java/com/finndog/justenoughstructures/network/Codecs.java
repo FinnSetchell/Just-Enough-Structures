@@ -509,6 +509,19 @@ public final class Codecs {
         return new LootIndex(readIdMap(buf), readIdMap(buf));
     }
 
+    /**
+     * After the index in the message that sends it: whether it's an early one, with the finished
+     * one still to come. A version from before this stops reading at the end of the index.
+     */
+    public static void writeIndexEarly(FriendlyByteBuf buf, boolean early) {
+        buf.writeBoolean(early);
+    }
+
+    /** Whether the index just read is an early one. A server from before this sends nothing after it, which reads as no. */
+    public static boolean readIndexEarly(FriendlyByteBuf buf) {
+        return buf.isReadable() && buf.readBoolean();
+    }
+
     /** The saved half of the loot index, for the server's cache. */
     public static void writeScan(FriendlyByteBuf buf, StructureScan scan) {
         writeIdMap(buf, scan.tables());

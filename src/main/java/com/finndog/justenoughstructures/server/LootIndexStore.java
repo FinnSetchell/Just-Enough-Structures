@@ -60,7 +60,8 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * <p>A build with no index from before to go on using hands one out early: what every structure's
  * template pools hold and the whole of the structures without pools, which is most of the loot and
  * quick to find. The rest, one generation of each structure with pools, takes many times longer in
- * a big pack. Players are told how far that has got, and get the finished index when it's done.
+ * a big pack. The early index says it's early, players are told how far the rest has got, and they
+ * get the finished index when it's done.
  */
 public final class LootIndexStore {
     /**
@@ -319,7 +320,13 @@ public final class LootIndexStore {
     /** Works out what players get from the index as it stands, leaving hidden structures out, and sends it to everyone who asked. */
     private static void send(MinecraftServer server) {
         LootIndex shown = visible(index);
-        payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> Codecs.writeIndex(buf, shown)));
+        boolean early = partial;
+        payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> {
+            Codecs.writeIndex(buf, shown);
+            // After the index, where a version from before stops reading. An early one says so, for
+            // EMI, which loads all over again for each index and so waits for the finished one.
+            Codecs.writeIndexEarly(buf, early);
+        }));
         Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
     }
 

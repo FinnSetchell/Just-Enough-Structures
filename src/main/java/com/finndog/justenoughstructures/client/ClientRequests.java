@@ -373,6 +373,16 @@ public final class ClientRequests {
         return Minecraft.getInstance().isSameThread() ? ARRIVAL.now() : ARRIVAL.await(millis);
     }
 
+    /**
+     * For a recipe viewer that loads all over again to take each new index: how long yet to wait
+     * for the finished index, in ms, while the one here is an early one, until the server has said
+     * nothing more of it for {@code quiet} ms. 0 when there's nothing to wait for, which is always
+     * the case on a server from before early indexes said so.
+     */
+    public static long finishedIndexWait(long quiet) {
+        return ARRIVAL.finishedWait(quiet);
+    }
+
     /** How much of the index is built, from 0 to 1, or -1 before the server has said. */
     public static float indexProgress() {
         return indexTotal <= 0 ? -1f : (float) indexDone / indexTotal;
@@ -605,10 +615,13 @@ public final class ClientRequests {
             catalog.complete(entries);
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
             LootIndex built = Codecs.readIndex(buf);
+            // A server new enough to say so marks an early index, with the finished one to come.
+            boolean early = Codecs.readIndexEarly(buf);
+            JesLog.debug("The loot index came with {} structures{}", built.tablesByStructure().size(), early ? ", an early one" : "");
             // What was said of progress so far was about the wait for this one.
             indexDone = 0;
             indexTotal = 0;
-            ARRIVAL.arrived(built);
+            ARRIVAL.arrived(built, early);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
             if (index == null || index.isDone()) {

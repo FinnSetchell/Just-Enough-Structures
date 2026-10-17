@@ -86,6 +86,8 @@ public final class Scenarios {
             case "pack_tour" -> PackTourScenario.build(mc);
             case "emi_once" -> EmiScenario.once(mc);
             case "emi_same" -> EmiScenario.same(mc);
+            case "emi_early" -> EmiScenario.early(mc);
+            case "emi_quiet" -> EmiScenario.quiet(mc);
             case "index_filling" -> IndexFillingScenario.build(mc);
             case "suite" -> suite(mc, System.getProperty("jes.autoshot.suite", "pack_tour,pack_tools"));
             default -> {
