@@ -78,13 +78,16 @@ First release.
 - Mods and modpacks can add their own notes to a structure, shown on its Info tab
 - Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
 - Other mods' warnings about their structures stay out of the game log
+- The game log no longer repeats the same error from previews dozens of times, as with old sculk data in some modded structures
 - Uses much less memory after the loot index has built, most of all with many structure mods
 - No longer crashes when you point at or click some modded blocks or mobs in a preview
 - A block or mob from another mod that fails to draw in a preview is now left out on its own, instead of crashing the game or taking other blocks with it
+  - A mob left out this way no longer shows its name, opens its popup or gets a marker at the empty spot where it stood
 - Scroll bars can be dragged, and every list that scrolls has one
 - The spawner popup no longer shows a scroll bar when its list fits
 - With EMI, the structures an item is found in are ready after one load when you join, instead of two
 - The first time you play after changing mods, EMI reloads once when the loot scan finishes, instead of twice
+- The search and Found in pages no longer briefly say nothing gives an item just before the last of the loot results arrive
 - A structure whose generation never finishes no longer freezes every other preview and the item search
 - Block counts under a stack no longer read "0 stacks and 9"
 - More of the browser and Pack tools uses small icons, with the words in their tooltips
