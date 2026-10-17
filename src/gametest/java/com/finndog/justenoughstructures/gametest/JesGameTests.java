@@ -719,7 +719,7 @@ public final class JesGameTests {
         RealWorldTests.chunkGuardCheckWaitsForTheWorld(helper);
     }
 
-    // Waits for two threads that are each given a quarter of a second, longer than a test usually gets.
+    // Waits for four threads that are each given a quarter of a second, longer than a test usually gets.
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
     public void structureCodeThatNeverReturnsIsStopped(GameTestHelper helper) {
         RealWorldTests.structureCodeThatNeverReturnsIsStopped(helper);

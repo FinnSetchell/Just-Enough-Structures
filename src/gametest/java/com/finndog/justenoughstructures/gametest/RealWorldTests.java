@@ -3,13 +3,16 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import com.finndog.justenoughstructures.capture.StructureCapture;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
+import java.util.function.BiPredicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
@@ -24,11 +27,11 @@ import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.animal.Pig;
 //?}
 import net.minecraft.world.entity.decoration.ArmorStand;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 
 /** Loader-neutral test bodies for keeping captures away from the real world. */
@@ -38,48 +41,72 @@ public final class RealWorldTests {
 
     /**
      * Structure code that never returns is stopped once it has had its time. Here it's a piece
-     * walking up to find a roof, which the sandbox doesn't have: past the top of the world there's
-     * only more air. Once through the sandbox it was handed, and once through the real level, which
-     * answers from the sandbox. Each on a thread of its own, as captures are, so one that isn't
-     * stopped fails this test rather than hanging the server.
+     * looking for what the sandbox doesn't have: walking up to find a roof, where past the top of the
+     * world there's only more air, through the sandbox it was handed and through the real level,
+     * which answers from the sandbox; walking up to find water; and asking the height of the ground
+     * until it's higher than the world goes. The ones through the sandbox each read its chunks a way
+     * of their own, which Lithium and Canary on 1.20.1 answer without asking the sandbox for the
+     * chunk. Each on a thread of its own, as captures are, so one that isn't stopped fails this test
+     * rather than hanging the server.
      */
     public static void structureCodeThatNeverReturnsIsStopped(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos real = helper.absolutePos(new BlockPos(1, 2, 1));
         ChunkPos centre = new ChunkPos(SectionPos.blockToSectionCoord(real.getX()), SectionPos.blockToSectionCoord(real.getZ()));
-        CompletableFuture<String> handed = walkUpForEver(level, centre, sandbox -> sandbox);
-        CompletableFuture<String> reached = walkUpForEver(level, centre, sandbox -> level);
-        for (CompletableFuture<String> walk : List.of(handed, reached)) {
-            String how = walk == handed ? "the sandbox" : "the real level";
+        // Set once the test has its answer, so a walk that wasn't stopped doesn't go on for the rest of the run.
+        AtomicBoolean over = new AtomicBoolean();
+        Map<String, CompletableFuture<String>> walks = new LinkedHashMap<>();
+        walks.put("a walk up through the sandbox", forEver(level, centre, over, (sandbox, pos) -> sandbox.getBlockState(pos.move(Direction.UP)).isAir()));
+        walks.put("a walk up through the real level", forEver(level, centre, over, (sandbox, pos) -> level.getBlockState(pos.move(Direction.UP)).isAir()));
+        walks.put("a walk up looking for water", forEver(level, centre, over, (sandbox, pos) -> sandbox.getFluidState(pos.move(Direction.UP)).isEmpty()));
+        walks.put("waiting for the ground to rise", forEver(level, centre, over,
+                (sandbox, pos) -> sandbox.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX(), pos.getZ()) <= Levels.maxY(sandbox) + 1));
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        List<String> notStopped = new ArrayList<>();
+        walks.forEach((what, walk) -> {
             String ended;
             try {
-                ended = walk.get(20, TimeUnit.SECONDS);
+                ended = walk.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
             } catch (TimeoutException e) {
-                ended = "it was still walking after 20 seconds";
+                ended = "still going after 20 seconds";
             } catch (InterruptedException | ExecutionException e) {
                 ended = String.valueOf(e);
             }
-            helper.assertTrue(ended.equals("stopped"), "a walk up through " + how + " that never ends wasn't stopped: " + ended);
-        }
+            if (!ended.equals("stopped")) {
+                notStopped.add(what + ": " + ended);
+            }
+        });
+        over.set(true);
+        helper.assertTrue(notStopped.isEmpty(), "structure code that never returns wasn't stopped: " + String.join("; ", notStopped));
         helper.succeed();
     }
 
-    /** A quarter of a second of walking up from above the ground, looking for anything that isn't air. */
-    private static CompletableFuture<String> walkUpForEver(ServerLevel level, ChunkPos centre, Function<WorldGenLevel, BlockGetter> through) {
+    /**
+     * Structure code in a sandbox around {@code centre}, given a quarter of a second, taking one step
+     * after another from above the ground for as long as {@code step} says to go on.
+     */
+    private static CompletableFuture<String> forEver(ServerLevel level, ChunkPos centre, AtomicBoolean over,
+                                                     BiPredicate<WorldGenLevel, BlockPos.MutableBlockPos> step) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return StructureCapture.inSandbox(level, centre, 250_000_000L, sandbox -> {
-                    BlockGetter blocks = through.apply(sandbox);
                     BlockPos.MutableBlockPos pos = centre.getMiddleBlockPosition(200).mutable();
-                    while (blocks.getBlockState(pos).isAir()) {
-                        pos.move(Direction.UP);
+                    while (step.test(sandbox, pos)) {
+                        if (over.get()) {
+                            return "still going when the test ended";
+                        }
                     }
-                    return "it found " + blocks.getBlockState(pos) + " at " + pos;
+                    return "it ended by itself at " + pos;
                 });
             } catch (RuntimeException e) {
                 // The exception that stops it is the capture's own, and not one a test can name.
                 return e.getClass().getSimpleName().equals("TookTooLong") ? "stopped" : String.valueOf(e);
             }
+        }, walk -> {
+            // A thread each, so they all run at once however few processors the test server has.
+            Thread thread = new Thread(walk, "jes-test-endless-code");
+            thread.setDaemon(true);
+            thread.start();
         });
     }
 

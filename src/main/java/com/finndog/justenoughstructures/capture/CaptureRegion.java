@@ -87,6 +87,24 @@ final class CaptureRegion extends WorldGenRegion {
         StructureCapture.tick();
         return super.getChunk(chunkX, chunkZ, status, load);
     }
+
+    // Lithium, and Canary on Forge, put their own in place of these three in every region: they take
+    // the chunk from a list they keep and never come to the method above, which would let code that
+    // never returns read on for good. Here they come through it, as the game's own do.
+    @Override
+    public ChunkAccess getChunk(int chunkX, int chunkZ) {
+        return getChunk(chunkX, chunkZ, ChunkStatus.EMPTY, true);
+    }
+
+    @Override
+    public ChunkAccess getChunk(BlockPos pos) {
+        return getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+    }
+
+    @Override
+    public BlockState getBlockState(BlockPos pos) {
+        return getChunk(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())).getBlockState(pos);
+    }
     //?}
 
     /**
