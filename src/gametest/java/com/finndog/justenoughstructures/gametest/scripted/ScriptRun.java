@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.Gallery;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -14,7 +15,9 @@ import net.minecraft.client.gui.GuiGraphics;
  * A scripted screenshot run, the same on every loader: makes a superflat world, or joins the server
  * the game was started with, plays one of the {@link Scenarios} in it, writes a summary and quits.
  * The loader's test mod calls {@link #tick} every client tick, and {@link #afterScreen} and
- * {@link #afterHud} once those are drawn, as the scripts draw a cursor and count frames there.
+ * {@link #afterHud} once those are drawn, as the scripts draw a cursor and count frames there. Each
+ * tick first puts the window back if it has been minimised ({@link TestWindow}), and a run whose
+ * window can't be put back stops there.
  */
 public final class ScriptRun {
     private enum Step { START, WAIT_WORLD, SCRIPT, DONE }
@@ -51,6 +54,14 @@ public final class ScriptRun {
 
     public void tick(Minecraft mc) {
         stepTicks++;
+        if (step != Step.DONE) {
+            String lost = TestWindow.check(mc);
+            if (lost != null) {
+                JustEnoughStructures.LOGGER.error("The test window can't be put back, as {}, so the run stops", lost);
+                end(mc, "window minimised: " + lost);
+                return;
+            }
+        }
         switch (step) {
             case START -> {
                 if (hide && stepTicks == 1) {
@@ -78,12 +89,7 @@ public final class ScriptRun {
             case SCRIPT -> {
                 director.tick();
                 if (director.done() || stepTicks > 20 * 60 * Integer.getInteger("jes.autoshot.minutes", 10)) {
-                    JsonObject row = new JsonObject();
-                    row.addProperty("mode", mode);
-                    row.addProperty("finished", director.done());
-                    row.addProperty("frames", director.recordedFrames());
-                    summary.add(row);
-                    finish(mc);
+                    end(mc, null);
                 }
             }
             case DONE -> {
@@ -130,6 +136,19 @@ public final class ScriptRun {
     private void go(Step next) {
         step = next;
         stepTicks = 0;
+    }
+
+    /** Says how the script went in the summary, and why it was cut short if it was, then quits. */
+    private void end(Minecraft mc, String stopped) {
+        JsonObject row = new JsonObject();
+        row.addProperty("mode", mode);
+        row.addProperty("finished", director != null && director.done());
+        row.addProperty("frames", director == null ? 0 : director.recordedFrames());
+        if (stopped != null) {
+            row.addProperty("stopped", stopped);
+        }
+        summary.add(row);
+        finish(mc);
     }
 
     private void finish(Minecraft mc) {
