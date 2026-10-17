@@ -84,6 +84,7 @@ First release.
 - Scroll bars can be dragged, and every list that scrolls has one
 - The spawner popup no longer shows a scroll bar when its list fits
 - With EMI, the structures an item is found in are ready after one load when you join, instead of two
+- The first time you play after changing mods, EMI reloads once when the loot scan finishes, instead of twice
 - A structure whose generation never finishes no longer freezes every other preview and the item search
 - Block counts under a stack no longer read "0 stacks and 9"
 - More of the browser and Pack tools uses small icons, with the words in their tooltips
