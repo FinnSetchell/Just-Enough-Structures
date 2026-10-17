@@ -54,12 +54,20 @@ final class ContainerScenario {
                 .then(until(() -> tablePicker(mc).ready(), 3600))
                 .then(pause(10))
                 .then(shoot("k02_picker"))
-                .then(type("igloo", 2))
+                // A table typed in full is picked whether the loot index has it yet or not. "igloo" found
+                // nothing in a game without other mods, whose index can miss the igloo's basement and its
+                // chest, so nothing was picked and Use it did nothing.
+                .then(type("minecraft:chests/buried_treasure", 1))
                 .then(run(() -> tablePicker(mc).pick(0)))
                 .then(pause(10))
                 .then(shoot("k03_picked"))
                 .then(run(() -> tablePicker(mc).useIt()))
                 .then(until(() -> tools(mc) != null && tools(mc).loaded(), 100))
+                .then(run(() -> {
+                    if (tools(mc) == null) {
+                        throw new IllegalStateException("Use it left " + mc.screen + " open, not Pack tools");
+                    }
+                }))
                 .then(pause(30))
                 .then(shoot("k04_saved"))
                 .then(run(() -> reload(mc)))
