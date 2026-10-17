@@ -34,11 +34,22 @@ final class TestWindow {
     private static final int SETTLE_TICKS = 40;
     /** How long a window that isn't minimised may have no size, in ticks, as it can be a frame behind. */
     private static final int SIZELESS_TICKS = 100;
+    /**
+     * Whether a minimised window that keeps its size is put back. From 26.3 the window is SDL's, which
+     * keeps its size when minimised, and the checks pass as it is; put back once the run has hidden it
+     * through SDL, it stayed minimised (26.3 Fabric, 17 October 2026).
+     */
+    //? if >=26.3 {
+    /*private static final boolean PUT_BACK = false;
+    *///?} else {
+    private static final boolean PUT_BACK = true;
+    //?}
 
     private static int putBack;
     private static int minimised;
     private static int sizeless;
     private static boolean sayWhenBack;
+    private static boolean saidLeft;
 
     private TestWindow() {
     }
@@ -50,7 +61,16 @@ final class TestWindow {
     static String check(Minecraft mc, boolean hidden) {
         Window window = mc.getWindow();
         long hwnd = hwnd(window);
-        if (hwnd != 0 && User32.IsIconic(hwnd)) {
+        boolean iconic = hwnd != 0 && User32.IsIconic(hwnd);
+        boolean sized = window.getScreenWidth() > 0 && window.getScreenHeight() > 0 && window.getWidth() > 1 && window.getHeight() > 1;
+        if (iconic && sized && !PUT_BACK) {
+            if (!saidLeft) {
+                saidLeft = true;
+                JustEnoughStructures.LOGGER.warn("The test window is minimised; it keeps its size, so it's left as it is ({})", sizes(window));
+            }
+            return null;
+        }
+        if (iconic) {
             sizeless = 0;
             if (++minimised < SETTLE_TICKS) {
                 return null;
@@ -73,7 +93,7 @@ final class TestWindow {
             return null;
         }
         minimised = 0;
-        if (window.getScreenWidth() <= 0 || window.getScreenHeight() <= 0 || window.getWidth() <= 1 || window.getHeight() <= 1) {
+        if (!sized) {
             // Off Windows a minimised window has no size either, and can't be put back without the focus.
             if (sizeless++ == 0) {
                 JustEnoughStructures.LOGGER.warn("The test window has no size ({})", sizes(window));
