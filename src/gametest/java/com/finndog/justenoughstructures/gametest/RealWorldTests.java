@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Levels;
 import com.finndog.justenoughstructures.capture.RealWorldGuard;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -12,6 +13,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -28,9 +30,12 @@ import net.minecraft.world.entity.animal.Pig;
 //?}
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 
@@ -118,6 +123,66 @@ public final class RealWorldTests {
     public static void chunkGuardCheckWaitsForTheWorld(GameTestHelper helper) {
         helper.assertFalse(StructureCapture.checkChunkGuard((ServerLevel) null), "a chunk guard check with no overworld yet counted as done");
         helper.succeed();
+    }
+
+    /**
+     * The chunk guard check asks about a chunk the server has loaded, wherever that is. A hook that
+     * comes before the guard can answer for loaded chunks only and leave the rest to it, as C2ME's
+     * does from 1.21, so asking about one that isn't loaded misses it, as asking about 0,0 did in a
+     * world whose spawn is far from there. Here the only chunk loaded in the End is one forced far
+     * out, and what the check says must match what a capture there is handed. In a run given the real
+     * C2ME (-Pc2me) that's C2ME's hook against the guard. The check loads nothing.
+     */
+    public static void chunkGuardCheckAsksAboutALoadedChunk(GameTestHelper helper) {
+        ServerLevel end = helper.getLevel().getServer().getLevel(Level.END);
+        helper.assertTrue(end != null, "the test world has no End to try");
+        helper.assertFalse(end.getChunkSource().hasChunk(0, 0), "chunk 0,0 is loaded in the End, so this can't tell");
+        int x = 1500;
+        int z = -1500;
+        end.setChunkForced(x, z, true);
+        AtomicReference<CompletableFuture<String>> problem = new AtomicReference<>();
+        helper.succeedWhen(() -> {
+            if (problem.get() == null) {
+                LevelChunk real = end.getChunkSource().getChunkNow(x, z);
+                helper.assertTrue(real != null, "the forced chunk hasn't loaded");
+                CompletableFuture<Boolean> said = StructureCapture.chunkGuardHolds(end);
+                helper.assertTrue(said != null, "the chunk guard check found no loaded chunk to ask about");
+                problem.set(said.thenCombine(handedOver(end, real), (guarded, handed) -> {
+                    // The game's own summary of a failed test leaves out why on some versions.
+                    JustEnoughStructures.LOGGER.info("In the test of the chunk guard check: it said the guard {}, and a capture at {}, {} in the End was handed {}",
+                            guarded ? "comes first" : "doesn't come first", x, z, handed);
+                    if (guarded && !handed.equals("the sandbox's own chunk")) {
+                        return "the chunk guard check said the guard comes first, but a capture there was handed " + handed;
+                    }
+                    if (!guarded && handed.equals("the sandbox's own chunk")) {
+                        return "the chunk guard check said a mod comes before the guard, but a capture there was handed the sandbox's own chunk";
+                    }
+                    return null;
+                }));
+            }
+            helper.assertTrue(problem.get().isDone(), "the chunk guard check is still running");
+            end.setChunkForced(x, z, false);
+            String found = problem.get().join();
+            helper.assertTrue(found == null, String.valueOf(found));
+            helper.assertFalse(end.getChunkSource().hasChunk(0, 0), "chunk 0,0 was loaded in the End");
+        });
+    }
+
+    /** What the chunk source hands a capture's code in a sandbox around {@code real}, on a thread of its own as captures run. */
+    private static CompletableFuture<String> handedOver(ServerLevel level, LevelChunk real) {
+        ChunkPos pos = real.getPos();
+        return CompletableFuture.supplyAsync(() -> StructureCapture.inSandbox(level, pos, () -> {
+            ChunkAccess handed = level.getChunkSource().getChunk(Levels.chunkX(pos), Levels.chunkZ(pos), ChunkStatus.FULL, false);
+            if (handed == real) {
+                return "the real chunk";
+            }
+            return handed != null && handed == RealWorldGuard.current().chunk(level, Levels.chunkX(pos), Levels.chunkZ(pos))
+                    ? "the sandbox's own chunk" : "something else: " + handed;
+        }), check -> {
+            Thread thread = new Thread(check, "jes-test-chunk-guard");
+            thread.setDaemon(true);
+            thread.start();
+        });
     }
 
     /**

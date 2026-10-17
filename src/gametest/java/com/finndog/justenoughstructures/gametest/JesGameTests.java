@@ -719,6 +719,12 @@ public final class JesGameTests {
         RealWorldTests.chunkGuardCheckWaitsForTheWorld(helper);
     }
 
+    // Waits for a chunk to generate and load, which a busy test server can take a while over.
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void chunkGuardCheckAsksAboutALoadedChunk(GameTestHelper helper) {
+        RealWorldTests.chunkGuardCheckAsksAboutALoadedChunk(helper);
+    }
+
     // Waits for four threads that are each given a quarter of a second, longer than a test usually gets.
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
     public void structureCodeThatNeverReturnsIsStopped(GameTestHelper helper) {

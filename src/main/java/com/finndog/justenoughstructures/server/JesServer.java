@@ -242,6 +242,10 @@ public final class JesServer {
 
     public static void onRequestCatalog(ServerPlayer player) {
         MinecraftServer server = Players.server(player);
+        // A server with no chunk loaded when it started has one now, around this player.
+        if (!guardChecked) {
+            guardChecked = StructureCapture.checkChunkGuard(server);
+        }
         if (catalog == null) {
             List<StructureCatalog.Entry> entries = visibleCatalog(server);
             String fingerprint = LootIndexStore.knownFingerprint();

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -44,6 +45,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
@@ -60,6 +62,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkStatus;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
 import net.minecraft.world.level.chunk.ProtoChunk;
@@ -270,40 +273,99 @@ public final class StructureCapture {
     }
 
     /**
-     * Checks once the server's up that the chunk guard is in place with the mods installed: from a
-     * thread of its own, as captures run, inside a sandbox, the overworld's chunk source must hand
-     * over the sandbox's chunk. Only a chunk that's already there is asked for, so nothing is loaded
-     * either way. A mod that replaces how the game looks chunks up can leave the guard out, and that's
-     * worth saying, as a preview's structure code could then load real chunks.
+     * Checks once the server's up that the chunk guard is in place with the mods installed, in the
+     * first world with a chunk loaded to ask about. A mod that replaces how the game looks chunks up
+     * can leave the guard out, and that's worth saying, as a preview's structure code could then load
+     * real chunks. False if no world has a chunk loaded yet, as a server without spawn chunks starts
+     * out with nobody on it: nothing is checked, and it's asked again when someone opens the browser.
      */
     public static boolean checkChunkGuard(MinecraftServer server) {
-        return checkChunkGuard(server.overworld());
+        for (ServerLevel level : server.getAllLevels()) {
+            if (checkChunkGuard(level)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
-     * The same for the server's overworld. False if that's null, as it is on a datapack reload that
-     * comes while the server is still starting: nothing is checked, and the next reload asks again.
+     * The same for one world. False if that's null, as the overworld is on a datapack reload that
+     * comes while the server is still starting, or if it has no chunk loaded: nothing is checked.
      */
     public static boolean checkChunkGuard(ServerLevel level) {
-        if (level == null) {
+        CompletableFuture<Boolean> guarded = chunkGuardHolds(level);
+        if (guarded == null) {
             return false;
         }
+        guarded.thenAccept(held -> {
+            if (!held) {
+                JustEnoughStructures.LOGGER.warn("A mod here changes how the game looks chunks up, so structure code building a preview could load real chunks");
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Whether the chunk guard answers first: from a thread of its own, as captures run, inside a
+     * sandbox around a chunk {@code level} has loaded, its chunk source must hand over the sandbox's
+     * chunk and not the real one. It has to be a loaded one, as a hook that comes before the guard
+     * can answer for those only and leave the rest to it, as C2ME's does from 1.21. Only a chunk
+     * that's already there is asked for, so nothing is loaded either way. Null if there's no world or
+     * no chunk loaded in it. On the server thread.
+     */
+    public static CompletableFuture<Boolean> chunkGuardHolds(ServerLevel level) {
+        if (level == null) {
+            return null;
+        }
+        LevelChunk real = loadedChunk(level);
+        if (real == null) {
+            return null;
+        }
+        ChunkPos pos = real.getPos();
+        CompletableFuture<Boolean> guarded = new CompletableFuture<>();
         Thread check = new Thread(() -> {
             try {
-                boolean guarded = inSandbox(level, new ChunkPos(0, 0), () -> {
-                    ChunkAccess own = RealWorldGuard.current().chunk(level, 0, 0);
-                    return own != null && level.getChunkSource().getChunk(0, 0, ChunkStatus.FULL, false) == own;
-                });
-                if (!guarded) {
-                    JustEnoughStructures.LOGGER.warn("A mod here changes how the game looks chunks up, so structure code building a preview could load real chunks");
-                }
+                guarded.complete(inSandbox(level, pos, () -> {
+                    ChunkAccess own = RealWorldGuard.current().chunk(level, Levels.chunkX(pos), Levels.chunkZ(pos));
+                    return own != null && level.getChunkSource().getChunk(Levels.chunkX(pos), Levels.chunkZ(pos), ChunkStatus.FULL, false) == own;
+                }));
             } catch (RuntimeException | LinkageError e) {
                 JesLog.debug("Couldn't check the chunk guard", e);
+                guarded.completeExceptionally(e);
             }
         }, "Just Enough Structures chunk guard check");
         check.setDaemon(true);
         check.start();
-        return true;
+        return guarded;
+    }
+
+    /**
+     * A chunk {@code level} has loaded, never loading one: one a player is in, one that's forced, or
+     * up to 1.21 the overworld's spawn chunk. Null if none of those is. On the server thread.
+     */
+    private static LevelChunk loadedChunk(ServerLevel level) {
+        LongArrayList chunks = new LongArrayList();
+        for (ServerPlayer player : level.players()) {
+            chunks.add(Levels.pack(player.chunkPosition()));
+        }
+        //? if >=26.1 {
+        /*chunks.addAll(level.getForceLoadedChunks());
+        *///?} else {
+        chunks.addAll(level.getForcedChunks());
+        // From 1.21.9 there are no spawn chunks.
+        if (level.dimension() == Level.OVERWORLD) {
+            BlockPos spawn = level.getSharedSpawnPos();
+            chunks.add(Levels.pack(SectionPos.blockToSectionCoord(spawn.getX()), SectionPos.blockToSectionCoord(spawn.getZ())));
+        }
+        //?}
+        for (int i = 0; i < chunks.size(); i++) {
+            long chunk = chunks.getLong(i);
+            LevelChunk loaded = level.getChunkSource().getChunkNow(ChunkPos.getX(chunk), ChunkPos.getZ(chunk));
+            if (loaded != null) {
+                return loaded;
+            }
+        }
+        return null;
     }
 
     /** Runs {@code action} as though this thread were placing a capture with {@code random} as its own. For tests. */
