@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
@@ -25,7 +26,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
-/** What a player is sent while the server builds its loot index from nothing. */
+/** What a player is sent while the server builds its loot index from nothing, and once that server has stopped. */
 public final class IndexStoreTests {
     private IndexStoreTests() {
     }
@@ -52,7 +53,6 @@ public final class IndexStoreTests {
         RegistryAccess registries = server.registryAccess();
         ServerPlayer player = TestPlayers.mock(helper);
         List<Sent> sent = new CopyOnWriteArrayList<>();
-        Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
         // How many structures there are, from what the player is told, and how holding the server up went.
         AtomicInteger structures = new AtomicInteger(Integer.MAX_VALUE);
         AtomicBoolean holding = new AtomicBoolean();
@@ -70,35 +70,15 @@ public final class IndexStoreTests {
             }
         });
         JesNetwork.ServerSender before = JesNetwork.serverSender();
-        JesNetwork.setServerSender((target, channel, buf) -> {
-            if (target != player) {
-                before.send(target, channel, buf);
-            } else if (channel.equals(JesNetwork.INDEX_PROGRESS)) {
-                Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
-                sent.add(new Sent(null, null, progress.done(), progress.total()));
-                if (progress.total() > 0) {
-                    structures.set(progress.total());
-                }
-                if (sent.stream().anyMatch(s -> s.index() != null) && holding.compareAndSet(false, true)) {
-                    // Told straight after the early index: the server waits here until the rest are done.
-                    held.add(await(allDone, 240));
-                }
-            } else if (channel.equals(JesNetwork.TRANSFER)) {
-                Blobs.Part part = Blobs.Part.read(buf);
-                if (part.kind() != JesNetwork.KIND_INDEX) {
-                    return;
-                }
-                ByteArrayOutputStream bytes = parts.computeIfAbsent(part.transferId(), id -> new ByteArrayOutputStream());
-                bytes.writeBytes(part.data());
-                if (part.index() == part.count() - 1) {
-                    parts.remove(part.transferId());
-                    FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
-                    LootIndex index = Codecs.readIndex(message);
-                    Boolean early = message.readableBytes() == 1 ? Codecs.readIndexEarly(message) : null;
-                    sent.add(new Sent(index, early, 0, 0));
-                }
+        JesNetwork.setServerSender(recorder(player, registries, before, sent, progress -> {
+            if (progress.total() > 0) {
+                structures.set(progress.total());
             }
-        });
+            if (sent.stream().anyMatch(s -> s.index() != null) && holding.compareAndSet(false, true)) {
+                // Told straight after the early index: the server waits here until the rest are done.
+                held.add(await(allDone, 240));
+            }
+        }));
         // As on a server that has only just started, with nothing saved to read: the build under way, if any, is dropped.
         LootIndexStore.stop();
         JesServer.onRequestIndex(player);
@@ -163,6 +143,57 @@ public final class IndexStoreTests {
     }
 
     /**
+     * In singleplayer, opening another world stops the server and starts the next one in the same
+     * game, so what the index kept from before is still there. A player who asks the next server
+     * before it has checked its own index is told that nothing is known yet, not how far the build
+     * before got: told that one was all but done, the browser would show its percentage, and EMI
+     * would stop waiting for the index the next server is about to send. That index then follows.
+     */
+    public static void progressFromTheLastWorldIsForgotten(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<Sent> sent = new CopyOnWriteArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        // The last world's index, built from nothing and to the end.
+        LootIndexStore.stop();
+        JesServer.onRequestIndex(player);
+        // What asking the next server brought.
+        List<List<Sent>> seen = new ArrayList<>();
+        helper.succeedWhen(() -> {
+            if (seen.isEmpty()) {
+                boolean finished = sent.stream().anyMatch(s -> Boolean.FALSE.equals(s.early()));
+                if (!finished) {
+                    // The build takes the time it takes, and a test server with nothing else to do gets
+                    // through its ticks in no time at all, so each look waits a moment first.
+                    pause(50);
+                }
+                helper.assertTrue(finished, "the last world's index isn't finished yet");
+                // What the server stopping and the next one starting do with the index (JesServer's
+                // stop and reload). The next one checks its index in the background, so asked in
+                // the same tick it hasn't yet.
+                LootIndexStore.stop();
+                LootIndexStore.refresh(server);
+                int had = sent.size();
+                JesServer.onRequestIndex(player);
+                seen.add(List.copyOf(sent.subList(had, sent.size())));
+                JesNetwork.setServerSender(before);
+            }
+            List<Sent> told = seen.get(0);
+            helper.assertTrue(told.size() == 1 && told.get(0).index() == null && told.get(0).done() == 0 && told.get(0).total() == 0,
+                    "asked before the next server had checked its index, the player was told "
+                            + told.stream().map(s -> s.index() != null ? "an index" : s.done() + "/" + s.total()).toList() + ", not 0/0");
+            // Its own index is there before the test ends, so no build goes on into the tests after it.
+            boolean ready = LootIndexStore.ready();
+            if (!ready) {
+                pause(50);
+            }
+            helper.assertTrue(ready, "the next server's index isn't ready yet");
+        });
+    }
+
+    /**
      * Whether an index is early comes after the index itself, where a version from before stops
      * reading, so the two versions still get on: one byte, and from a server before it nothing at
      * all, which reads as not early.
@@ -191,6 +222,39 @@ public final class IndexStoreTests {
         Codecs.readIndex(old);
         helper.assertFalse(Codecs.readIndexEarly(old), "an index with nothing after it read as early");
         helper.succeed();
+    }
+
+    /**
+     * Stands in for sending to {@code player}: what it's sent goes in {@code sent}, and
+     * {@code onProgress} is told of each word of progress once it's there, on the thread that sent
+     * it. Anything for anyone else goes on to {@code others}.
+     */
+    private static JesNetwork.ServerSender recorder(ServerPlayer player, RegistryAccess registries, JesNetwork.ServerSender others,
+            List<Sent> sent, Consumer<Codecs.IndexProgress> onProgress) {
+        Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
+        return (target, channel, buf) -> {
+            if (target != player) {
+                others.send(target, channel, buf);
+            } else if (channel.equals(JesNetwork.INDEX_PROGRESS)) {
+                Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
+                sent.add(new Sent(null, null, progress.done(), progress.total()));
+                onProgress.accept(progress);
+            } else if (channel.equals(JesNetwork.TRANSFER)) {
+                Blobs.Part part = Blobs.Part.read(buf);
+                if (part.kind() != JesNetwork.KIND_INDEX) {
+                    return;
+                }
+                ByteArrayOutputStream bytes = parts.computeIfAbsent(part.transferId(), id -> new ByteArrayOutputStream());
+                bytes.writeBytes(part.data());
+                if (part.index() == part.count() - 1) {
+                    parts.remove(part.transferId());
+                    FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
+                    LootIndex index = Codecs.readIndex(message);
+                    Boolean early = message.readableBytes() == 1 ? Codecs.readIndexEarly(message) : null;
+                    sent.add(new Sent(index, early, 0, 0));
+                }
+            }
+        };
     }
 
     private static void pause(long millis) {

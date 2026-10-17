@@ -810,6 +810,12 @@ public final class JesGameTests {
         IndexStoreTests.indexIsHandedOutEarlyThenFinished(helper);
     }
 
+    // Builds the whole loot index, then stops it and starts it again as opening another world does, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_switch", timeoutTicks = 6000)
+    public void progressFromTheLastWorldIsForgotten(GameTestHelper helper) {
+        IndexStoreTests.progressFromTheLastWorldIsForgotten(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
     public void spawnerPatchesApplyOnReload(GameTestHelper helper) {

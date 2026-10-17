@@ -205,6 +205,10 @@ public final class LootIndexStore {
         broken = false;
         wanted = false;
         partial = false;
+        // In singleplayer the next world's server starts in the same game, and a player asking it
+        // before it has started a build of its own would be told how far this one got.
+        done = 0;
+        total = 0;
         WAITING.clear();
     }
 
