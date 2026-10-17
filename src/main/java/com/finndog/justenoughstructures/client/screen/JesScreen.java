@@ -144,6 +144,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private Highlight highlight;
     private String highlightKey;
     private StructureSnapshot highlightFor;
+    private int highlightLeftOut;
 
     private Component locateText;
     private boolean locateFound;
@@ -185,6 +186,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** The scroll bar a press took hold of, until the button comes up. */
     private HeldBar heldBar;
     private final List<Marker> markerRects = new ArrayList<>();
+    /** Where a marker of its own went over something highlighted, or shown in a popup, as last drawn. */
+    private final List<BlockPos> loneMarkers = new ArrayList<>();
 
     /** What the player is picking in the preview for Pack tools, if anything. */
     enum Picking {
@@ -1586,11 +1589,16 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             clearHighlight();
             return null;
         }
-        if (!key.equals(highlightKey) || shown != highlightFor) {
+        if (!key.equals(highlightKey) || shown != highlightFor || viewport.leftOutCount() != highlightLeftOut) {
             clearHighlight();
             highlightKey = key;
             highlightFor = shown;
+            highlightLeftOut = viewport.leftOutCount();
             LongSet positions = wanted.apply(shown);
+            // Not where a chest minecart the preview left out stood: the tint and its marker would be over an empty spot.
+            if (positions != null && (key.startsWith("popup:") || key.startsWith("loot:"))) {
+                positions = withoutLeftOut(shown, positions);
+            }
             // Mobs are found by their markers alone: a block-sized box over one hides it.
             boolean mobs = key.startsWith("mob_popup:") || key.startsWith("placed:");
             highlight = positions == null || positions.isEmpty() || positions.size() > Highlight.MAX_BLOCKS ? null : new Highlight(positions, !mobs);
@@ -1630,7 +1638,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             ItemStack icon = mob != null ? mobIcon(mob) : new ItemStack(view.rawState(pos.getX(), pos.getY(), pos.getZ()).getBlock());
             Optional<float[]> at = mob != null ? viewport.project(mob.getX(), mob.getY() + mob.getBbHeight() + 0.2, mob.getZ())
                     : viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
-            at.ifPresent(p -> drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, LIT, 1));
+            at.ifPresent(p -> {
+                drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, LIT, 1);
+                loneMarkers.add(pos);
+            });
         }
     }
 
@@ -1690,13 +1701,17 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             at = viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
         } else {
             StructureSnapshot.Container container = popup.container;
-            if (markerRects.stream().anyMatch(m -> m.containers().contains(container))) {
+            // None for a chest minecart the preview left out, which isn't there to mark.
+            if (leftOut(container) || markerRects.stream().anyMatch(m -> m.containers().contains(container))) {
                 return;
             }
             icon = InfoPanel.containerIcon(s, container);
             at = viewport.project(pos.getX() + 0.5, pos.getY() + 1.1, pos.getZ() + 0.5);
         }
-        at.ifPresent(p -> drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, SHOWING, 1));
+        at.ifPresent(p -> {
+            drawMarker(g, p[0] - size / 2f, p[1] - size, size, icon, SHOWING, 1);
+            loneMarkers.add(pos);
+        });
     }
 
     /** A marker: {@code icon} in a dark box with its top left at left, top, edged in {@code edge}, and how many it stands for when that's more than one. */
@@ -2092,6 +2107,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return markerRects.stream().anyMatch(m -> m.marks(mob));
     }
 
+    /**
+     * Whether a marker in the preview, as last drawn, stands for {@code container}: one of the markers,
+     * or one on its own while it's highlighted or a popup shows it. For the screenshot harness.
+     */
+    public boolean marked(StructureSnapshot.Container container) {
+        return markerRects.stream().anyMatch(m -> m.containers().contains(container)) || loneMarkers.contains(container.pos());
+    }
+
     /** What the preview gave up on drawing or asking because it failed, for the screenshot harness. */
     public List<Object> leftOut() {
         return viewport.leftOut();
@@ -2451,6 +2474,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         Gui.inset(g, viewX - 1, viewY - 1, viewW + 2, viewH + 2, Gui.Tone.SLOT_DARK);
         g.fillGradient(viewX, viewY, viewX + viewW, viewY + viewH, Gui.VIEW_TOP, Gui.VIEW_BOTTOM);
         markerRects.clear();
+        loneMarkers.clear();
 
         if (catalogError != null) {
             centred(g, Component.translatable(catalogError));
@@ -2643,7 +2667,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private List<Spot> spots(StructureSnapshot s, MarkerKind kind) {
         List<Spot> out = new ArrayList<>();
         if (kind == MarkerKind.CONTAINERS) {
-            s.containers().forEach(c -> out.add(new Spot(c.pos(), c)));
+            for (StructureSnapshot.Container c : s.containers()) {
+                // None for a chest minecart the preview left out, as for a mob.
+                if (!leftOut(c)) {
+                    out.add(new Spot(c.pos(), c));
+                }
+            }
         } else {
             s.spawners().forEach(spawner -> out.add(new Spot(spawner.pos(), spawner)));
             for (Entity entity : view.entities()) {
@@ -2651,6 +2680,38 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 if (entity instanceof Mob && !viewport.leftOut(entity)) {
                     out.add(new Spot(mobBlock(entity), entity));
                 }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Whether the preview left out the chest minecart or other entity a container is, which leaves
+     * nothing where it stood. A container that's a block keeps its marker: the block is still drawn
+     * when its block entity can't be, and from 26.1 the block alone doesn't say whether that leaves
+     * anything to see, as a chest's model is empty.
+     */
+    private boolean leftOut(StructureSnapshot.Container container) {
+        if (!container.entity() || view == null || viewport.leftOutCount() == 0) {
+            return false;
+        }
+        for (Entity entity : view.entities()) {
+            if (entity instanceof Container && entity.blockPosition().equals(container.pos())) {
+                return viewport.leftOut(entity);
+            }
+        }
+        return false;
+    }
+
+    /** {@code positions} less where containers the preview left out stood. */
+    private LongSet withoutLeftOut(StructureSnapshot s, LongSet positions) {
+        if (viewport.leftOutCount() == 0) {
+            return positions;
+        }
+        LongSet out = new LongOpenHashSet(positions);
+        for (StructureSnapshot.Container c : s.containers()) {
+            if (leftOut(c)) {
+                out.remove(c.pos().asLong());
             }
         }
         return out;

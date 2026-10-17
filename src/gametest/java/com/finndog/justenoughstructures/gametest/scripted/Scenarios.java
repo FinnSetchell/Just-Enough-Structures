@@ -71,6 +71,7 @@ public final class Scenarios {
             case "faulty_renderer_pose" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.POSES);
             case "faulty_fluid" -> FaultyFluidScenario.build(mc);
             case "faulty_mob_name" -> MobNameScenario.build(mc);
+            case "faulty_minecart" -> LeftOutMinecartScenario.build(mc);
             case "spawners" -> SpawnersScenario.build(mc);
             case "back" -> BackScenario.build(mc);
             case "hover_spin" -> SpinScenario.build(mc);
