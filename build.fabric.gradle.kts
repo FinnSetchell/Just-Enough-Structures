@@ -140,10 +140,12 @@ val devMods = mapOf(
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
 // Performance mods that change how the game looks chunks up, for checking previews still work with
 // them: -Pperformance_mods. A Modrinth version id: Lithium 0.15.4. C2ME keeps its parts inside its
-// jar, which the development game can't load, so the tests check it with a stand-in instead.
+// jar, which the development game only loads from a mods folder, so the game tests get it with -Pc2me.
 val performanceMods = mapOf(
     "1.21.1" to listOf("lithium:N08Z8wog"),
 )
+// The real C2ME in the game test run, with -Pc2me (GameTestMods.kt).
+val gameTestMods = GameTestMods(project)
 // LuckPerms, for trying the Pack tools permission on a development server: -Pluckperms. Modrinth
 // version ids: LuckPerms 5.4.140, and the Fabric Permissions API 0.3.1 it keeps inside its jar.
 val luckPerms = mapOf(
@@ -233,6 +235,14 @@ loom {
             vmArg("-Djes.perf.room=${findProperty("perf_room") ?: ""}")
             // The mod's own debug log, in build/gametest/logs.
             vmArg("-Djustenoughstructures.debug=true")
+            // Whether the run has the real C2ME, which the tests check it does.
+            vmArg("-Djes.gametest.c2me=${gameTestMods.c2me}")
+            // A real instance loads mods sorted by id, where the development game shuffles them, and
+            // which of C2ME's hooks and JES's runs first once came down to that order. So with C2ME
+            // the run loads them as a real instance does, unless it's -Pc2me=shuffled.
+            if (gameTestMods.c2me && !gameTestMods.shuffled) {
+                vmArg("-Dfabric.debug.disableModShuffle=true")
+            }
         }
         // Opens the structure browser in a throwaway superflat world, saves screenshots to
         // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
@@ -290,14 +300,12 @@ loom {
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
         from(gametest.output)
-        exclude(standInsToLeaveOut)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }
 } else {
     val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
         from(gametest.output)
-        exclude(standInsToLeaveOut)
         filesMatching("justenoughstructures_gametest.mixins.json") {
             filter { line -> realGameMixinLine(line) }
         }
@@ -306,9 +314,8 @@ if (loomx.isUnobfuscated) {
     }
     tasks.register<net.fabricmc.loom.task.RemapJarTask>("gametestJar") {
         inputFile = gametestDevJar.flatMap { it.archiveFile }
-        // The test mod reaches the game through the mod's own classes, which remapping has to see. It
-        // has to see the stand-ins too, though the jar leaves them out, to rename the calls made on them.
-        classpath.from(sourceSets.main.get().output, gametest.output.classesDirs)
+        // The test mod reaches the game through the mod's own classes, which remapping has to see.
+        classpath.from(sourceSets.main.get().output)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }
@@ -371,10 +378,15 @@ tasks {
         }
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
+    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or
+    // fail, and with only the mods it was asked for in its mods folder.
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
-        doFirst { delete(world) }
+        val mods = layout.buildDirectory.dir("gametest/mods")
+        doFirst {
+            delete(world)
+            gameTestMods.fill(mods.get().asFile)
+        }
     }
 
     // IntelliJ 2026.2 turns the dots in a node's name into underscores when it names modules

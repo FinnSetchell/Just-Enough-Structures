@@ -58,7 +58,9 @@ Every node has the same three tasks:
 `-Pdev_mods=false` leaves them out.
 
 `runGameTest` generates every vanilla structure headlessly and checks the loot, the network format
-and that previews leave the world untouched. CI runs it on every node.
+and that previews leave the world untouched. CI runs it on every node. `-Pc2me` runs it with the real
+C2ME on the Fabric and NeoForge nodes, to check JES's hooks against it. On Fabric the mods then load
+in the order a real instance loads them; `-Pc2me=shuffled` keeps the development game's random order.
 
 `runAutoshot` opens the browser in a throwaway world, saves a screenshot of a list of structures to
 `versions/<node>/build/autoshot/screenshots` and quits. Pick the structures with

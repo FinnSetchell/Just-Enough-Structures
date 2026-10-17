@@ -173,7 +173,6 @@ dependencies {
 // script can run against a release build in a launcher instance. Never shipped.
 val gametestJar = tasks.register<Jar>("gametestJar") {
     from(gametest.output)
-    exclude(standInsToLeaveOut)
     // A real game reads a jar's mixin configs from its manifest, and only gets the mixin it needs.
     filesMatching("${modId}_gametest.mixins.json") {
         filter { line -> realGameMixinLine(line) }
@@ -192,9 +191,7 @@ tasks.register<net.neoforged.moddevgradle.legacyforge.tasks.RemapJar>("reobfGame
     archiveBaseName = base.archivesName
     archiveVersion = version.toString()
     archiveClassifier = "gametest"
-    // The test classes too, for the stand-ins the jar leaves out: the calls made on those can't be
-    // renamed without seeing what they extend.
-    libraries.from(gametest.compileClasspath, gametest.output.classesDirs)
+    libraries.from(gametest.compileClasspath)
     obfuscation.configureNamedToSrgOperation(remapOperation)
 }
 
@@ -260,12 +257,16 @@ tasks {
     }
 
     // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
+    // Forge has no C2ME, so -Pc2me stops the run here rather than letting it pass without (GameTestMods.kt).
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")
         val log = layout.buildDirectory.file("gametest/logs/latest.log")
+        val mods = layout.buildDirectory.dir("gametest/mods")
+        val gameTestMods = GameTestMods(project)
         doFirst {
             prepareGameTestWorld(world.get().asFile, properties.get().asFile)
+            gameTestMods.fill(mods.get().asFile)
         }
         doLast {
             requireGameTestsPassed(log.get().asFile)

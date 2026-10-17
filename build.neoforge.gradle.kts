@@ -131,6 +131,8 @@ val devMods = mapOf(
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
+// The real C2ME in the game test run, with -Pc2me (GameTestMods.kt).
+val gameTestMods = GameTestMods(project)
 // Which recipe viewer the dev runtime has: -Pviewer=jei (the default), emi or rei.
 val viewer = findProperty("viewer")?.toString() ?: "jei"
 
@@ -166,6 +168,8 @@ neoForge {
             systemProperty("jes.perf", hasProperty("perf").toString())
             // The mod's own debug log, in build/gametest/logs.
             systemProperty("justenoughstructures.debug", "true")
+            // Whether the run has the real C2ME, which the tests check it does.
+            systemProperty("jes.gametest.c2me", gameTestMods.c2me.toString())
         }
         // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
         // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
@@ -221,7 +225,6 @@ dependencies {
 // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
 tasks.register<Jar>("gametestJar") {
     from(gametest.output)
-    exclude(standInsToLeaveOut)
     archiveClassifier = "gametest"
     destinationDirectory = layout.buildDirectory.dir("testlibs")
 }
@@ -278,13 +281,16 @@ tasks {
         dependsOn("stonecutterGenerate")
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
+    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or
+    // fail, and with only the mods it was asked for in its mods folder.
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")
         val log = layout.buildDirectory.file("gametest/logs/latest.log")
+        val mods = layout.buildDirectory.dir("gametest/mods")
         doFirst {
             prepareGameTestWorld(world.get().asFile, properties.get().asFile)
+            gameTestMods.fill(mods.get().asFile)
         }
         doLast {
             requireGameTestsPassed(log.get().asFile)

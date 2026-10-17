@@ -12,7 +12,6 @@ import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
 import com.finndog.justenoughstructures.mixin.StructureTemplateManagerAccessor;
-import com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
@@ -369,26 +368,26 @@ public final class CaptureTests {
     /**
      * While a capture places a structure, drawing from the world's random, as bees do as they're made,
      * takes from the capture's own instead, so the world's is never drawn from on two threads at
-     * once. Checked with the game's own and with C2ME's, which refuses to be drawn from on any thread
-     * but the server's, by way of a stand-in under its name.
+     * once. Checked with the game's own, and in a run given the real C2ME (-Pc2me) with C2ME's: it
+     * gives each world a random of its own, which refuses to be drawn from on any thread but the
+     * server's.
      */
     public static void worldRandomIsTheCapturesWhilePlacing(GameTestHelper helper) {
-        Thread serverThread = Thread.currentThread();
-        // One that isn't a world's is left alone: every world draws from its own as it's made, before
-        // anything has marked it.
-        new CheckedThreadLocalRandom(2L, () -> serverThread).nextInt();
-        CheckedThreadLocalRandom c2me = new CheckedThreadLocalRandom(1L, () -> serverThread);
-        ((LevelRandom) c2me).justenoughstructures$markLevelRandom();
+        RandomSource world = helper.getLevel().getRandom();
+        // A run meant to have C2ME that doesn't would pass without checking it.
+        boolean c2me = world.getClass().getName().equals(TestMods.C2ME_RANDOM);
+        helper.assertTrue(c2me == TestMods.c2me(), TestMods.c2me() ? "the run was given C2ME, but the world's random is "
+                + world.getClass().getName() : "the world's random is C2ME's, though the run wasn't given C2ME");
+        helper.assertTrue(world instanceof LevelRandom level && level.justenoughstructures$isLevelRandom(),
+                "the world's random, " + world.getClass().getSimpleName() + ", isn't marked as a world's");
         ExecutorService pool = Executors.newSingleThreadExecutor();
         try {
-            for (RandomSource world : List.of(helper.getLevel().getRandom(), c2me)) {
-                Callable<List<Integer>> draws = () -> StructureCapture.withSandboxRandom(new XoroshiroRandomSource(7),
-                        () -> IntStream.range(0, 8).mapToObj(i -> world.nextInt(1000)).toList());
-                List<Integer> first = pool.submit(draws).get(1, TimeUnit.MINUTES);
-                List<Integer> second = pool.submit(draws).get(1, TimeUnit.MINUTES);
-                helper.assertTrue(first.equals(second), "draws from " + world.getClass().getSimpleName() + " came out as " + first + " and then "
-                        + second + ", not from the capture's own");
-            }
+            Callable<List<Integer>> draws = () -> StructureCapture.withSandboxRandom(new XoroshiroRandomSource(7),
+                    () -> IntStream.range(0, 8).mapToObj(i -> world.nextInt(1000)).toList());
+            List<Integer> first = pool.submit(draws).get(1, TimeUnit.MINUTES);
+            List<Integer> second = pool.submit(draws).get(1, TimeUnit.MINUTES);
+            helper.assertTrue(first.equals(second), "draws from " + world.getClass().getSimpleName() + " came out as " + first + " and then "
+                    + second + ", not from the capture's own");
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             helper.fail("drawing from the world's random while placing failed: " + e);
             return;

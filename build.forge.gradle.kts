@@ -290,13 +290,17 @@ tasks {
     }
 
     // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
-    // ForgeGradle registers its run tasks late, so these are found by name once they are.
+    // ForgeGradle registers its run tasks late, so these are found by name once they are. Forge has
+    // no C2ME, so -Pc2me stops the run here rather than letting it pass without (GameTestMods.kt).
     matching { it.name == "runGametestGameTestServer" }.configureEach {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")
         val log = layout.buildDirectory.file("gametest/logs/latest.log")
+        val mods = layout.buildDirectory.dir("gametest/mods")
+        val gameTestMods = GameTestMods(project)
         doFirst {
             prepareGameTestWorld(world.get().asFile, properties.get().asFile)
+            gameTestMods.fill(mods.get().asFile)
         }
         doLast {
             requireGameTestsPassed(log.get().asFile)
@@ -314,7 +318,6 @@ tasks {
     // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
     register<Jar>("gametestJar") {
         from(gametest.output)
-        exclude(standInsToLeaveOut)
         // A real game reads a jar's mixin configs from its manifest, and only gets the mixin it needs.
         filesMatching("${modId}_gametest.mixins.json") {
             filter { line -> realGameMixinLine(line) }
