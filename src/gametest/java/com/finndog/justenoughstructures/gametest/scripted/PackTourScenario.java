@@ -41,7 +41,8 @@ import net.minecraft.resources.ResourceLocation;
  * A tour of the browser in whatever modpack it runs in, recorded into screenshots/tour: a structure
  * from each of the mods with the most, found by filtering the list to that mod, with a chest's loot,
  * the Loot and Mobs tabs, an item search across every structure, and Pack tools. The structures are
- * picked from what the pack has, so nothing here names one.
+ * picked from what the pack has, so nothing here names one. Without other mods' structures it tours
+ * vanilla's.
  */
 final class PackTourScenario {
     private static final int MODS = 4;
@@ -98,13 +99,32 @@ final class PackTourScenario {
         return d;
     }
 
-    /** A structure from each of the mods with the most, from the middle of that mod's list. */
+    /**
+     * A structure from each of the mods with the most, from the middle of that mod's list. With no
+     * other mod's structures, as in the dev game without its mods, vanilla's stand in, spread over its
+     * list, so each step still has one to show.
+     */
     private static List<ResourceLocation> choose() {
         Map<String, List<ResourceLocation>> byMod = new LinkedHashMap<>();
+        List<ResourceLocation> vanilla = new ArrayList<>();
         for (StructureCatalog.Entry e : ClientRequests.catalog().join()) {
-            if (!e.id().getNamespace().equals("minecraft")) {
+            if (e.id().getNamespace().equals("minecraft")) {
+                vanilla.add(e.id());
+            } else {
                 byMod.computeIfAbsent(e.id().getNamespace(), k -> new ArrayList<>()).add(e.id());
             }
+        }
+        if (byMod.isEmpty()) {
+            int n = Math.min(MODS, vanilla.size());
+            List<ResourceLocation> out = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                out.add(vanilla.get(vanilla.size() * (2 * i + 1) / (2 * n)));
+            }
+            if (out.isEmpty()) {
+                throw new IllegalStateException("TOUR the structure list is empty");
+            }
+            JustEnoughStructures.LOGGER.info("TOUR picks {} from vanilla, as no other mod has structures here", out);
+            return out;
         }
         List<ResourceLocation> out = byMod.values().stream()
                 .sorted(Comparator.comparingInt((List<ResourceLocation> l) -> -l.size()))
@@ -142,7 +162,13 @@ final class PackTourScenario {
     private static Director.Action openChest(Minecraft mc) {
         int[][] marker = new int[1][];
         return chain(
-                run(() -> marker[0] = chestMarker(mc)),
+                run(() -> {
+                    marker[0] = chestMarker(mc);
+                    if (marker[0] == null) {
+                        JustEnoughStructures.LOGGER.info("TOUR no chest on its own with a loot table in {}, so none is opened",
+                                browser(mc).selectedId());
+                    }
+                }),
                 skipIf(() -> marker[0] == null, chain(
                         moveTo(() -> marker[0], 24),
                         pause(10),
