@@ -89,6 +89,7 @@ First release.
 - The first time you play after changing mods, EMI reloads once when the loot scan finishes, instead of twice
 - The search and Found in pages no longer briefly say nothing gives an item just before the last of the loot results arrive
 - Right after opening another world, the loot search no longer shows how far the last world had got
+- Finding structures by item now says when the server couldn't look through the structures' loot, instead of looking stuck partway
 - A structure whose generation never finishes no longer freezes every other preview and the item search
 - Block counts under a stack no longer read "0 stacks and 9"
 - More of the browser and Pack tools uses small icons, with the words in their tooltips
