@@ -54,7 +54,28 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
 
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
-    private static final int SEEDS = 4;
+    private static final int MOST_LAYOUTS = 16;
+    /**
+     * A structure without pools is done once the layouts after its first that turned up no new loot
+     * table have placed this many pieces between them. One placed in a piece or a few, like the
+     * igloo, whose basement and its chest come with about one igloo in two, gets many layouts, which
+     * are quick. One placed in many pieces, like a mineshaft, rolls for its rare parts many times in
+     * each layout, and gets as few as two, which take far longer.
+     */
+    private static final int QUIET_PIECES = 16;
+    /** The same in blocks, for a big structure placed in a few pieces. */
+    private static final long QUIET_BLOCKS = 50_000;
+    /**
+     * The layouts whose seeds follow on from the first one's, as every layout's did when there were
+     * at most this many, so the index still finds what it found with them.
+     */
+    private static final int NEXT_SEEDS = 4;
+    /**
+     * How far apart the seeds of the layouts after those are. A structure's random starts from its
+     * seed, and seeds next to each other draw nearly the same first number, which can be the one that
+     * picks a part.
+     */
+    private static final long LAYOUT_STEP = 0x6A09E667F3BCC909L;
 
     /**
      * Captures every structure and reads every loot table they use. {@code progress} gets the number
@@ -294,17 +315,19 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             found.addAll(fromPools.tables());
             placed.addAll(fromPools.templates());
         }
-        // Otherwise keep generating new layouts until one turns up nothing new.
-        int seeds = fromPools != null ? 1 : SEEDS;
+        // Otherwise keep generating new layouts until enough of them in a row turn up nothing new.
+        int layouts = fromPools != null ? 1 : MOST_LAYOUTS;
         boolean generated = false;
         boolean tryAgain = false;
-        for (int i = 0; i < seeds; i++) {
+        int quietPieces = 0;
+        long quietBlocks = 0;
+        for (int i = 0; i < layouts; i++) {
             if (cancelled.getAsBoolean() || !Memory.waitUntilFree(cancelled, () -> JesLog.warnOnce("loot-index-memory",
                     "The loot index is waiting for the server to have more memory free before it generates more structures"))) {
                 return null;
             }
             try {
-                CaptureResult result = StructureCapture.captureInBackground(server, id, StructureCapture.defaultSeed(id) + i, cancelled);
+                CaptureResult result = StructureCapture.captureInBackground(server, id, layoutSeed(id, i), cancelled);
                 if (result == null) {
                     return null;
                 }
@@ -337,8 +360,15 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         }
                     }
                 }
-                if (i > 0 && found.size() == before) {
-                    break;
+                if (i == 0 || found.size() > before) {
+                    quietPieces = 0;
+                    quietBlocks = 0;
+                } else {
+                    quietPieces += result.snapshot().pieceCount();
+                    quietBlocks += result.snapshot().blockCount();
+                    if (quietPieces >= QUIET_PIECES || quietBlocks >= QUIET_BLOCKS) {
+                        break;
+                    }
                 }
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 // A broken structure from some mod is left out rather than ending the whole index.
@@ -347,6 +377,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
         }
         return new Found(found, placed, generated, tryAgain);
+    }
+
+    /** The seed of a structure's layout for the loot index. The first is the one it's shown with. */
+    public static long layoutSeed(ResourceLocation id, int layout) {
+        long first = StructureCapture.defaultSeed(id);
+        return layout < NEXT_SEEDS ? first + layout : first + layout * LAYOUT_STEP;
     }
 
     /** Every item a table can ever give, found by reading the table rather than rolling it. */

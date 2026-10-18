@@ -67,9 +67,10 @@ import net.minecraft.server.packs.resources.ResourceManager;
 public final class LootIndexStore {
     /**
      * Goes up whenever what's saved changes shape, or what goes in it does, so old files are never
-     * read as new ones. 3: vaults and what trial spawners drop. 4: structures to try again.
+     * read as new ones. 3: vaults and what trial spawners drop. 4: structures to try again. 5: more
+     * layouts of each structure without pools.
      */
-    private static final String FORMAT = "4";
+    private static final String FORMAT = "5";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list");

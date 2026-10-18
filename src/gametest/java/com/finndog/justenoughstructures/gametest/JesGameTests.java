@@ -270,6 +270,16 @@ public final class JesGameTests {
         ScanTests.earlyScanIsPartOfTheFinishedOne(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 800)
+    public void partsPlacedNowAndThenAreIndexed(GameTestHelper helper) {
+        ScanTests.partsPlacedNowAndThenAreIndexed(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void layoutsStartTheirRandomsApart(GameTestHelper helper) {
+        ScanTests.layoutsStartTheirRandomsApart(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
         ServiceTests.hiddenStructuresLeaveTheLootIndex(helper);
