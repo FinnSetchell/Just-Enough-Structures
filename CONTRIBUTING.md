@@ -59,8 +59,9 @@ Every node has the same three tasks:
 
 `runGameTest` generates every vanilla structure headlessly and checks the loot, the network format
 and that previews leave the world untouched. CI runs it on every node. `-Pc2me` runs it with the real
-C2ME on the Fabric and NeoForge nodes, to check JES's hooks against it. On Fabric the mods then load
-in the order a real instance loads them; `-Pc2me=shuffled` keeps the development game's random order.
+C2ME on the Fabric and NeoForge nodes, to check JES's hooks against it, and CI runs that too. On
+Fabric the mods then load in the order a real instance loads them; `-Pc2me=shuffled` keeps the
+development game's random order.
 
 `runAutoshot` opens the browser in a throwaway world, saves a screenshot of a list of structures to
 `versions/<node>/build/autoshot/screenshots` and quits. Pick the structures with
@@ -148,7 +149,8 @@ Translations are welcome. Add a file for your language next to `en_us.json`.
 2. Add its settings to `stonecutter.properties.toml`.
 3. Switch to it and fix whatever doesn't compile, using version blocks.
 4. Run its game tests, and compare a `runAutoshot` of a few structures with the previous version's.
-5. Add its game tests to `.github/workflows/build.yml`.
+5. Add its game tests to `.github/workflows/build.yml`. If C2ME has a build for it, pin that in
+   `buildSrc/src/main/kotlin/GameTestMods.kt` and add the node to the workflow's C2ME job as well.
 6. Add a build for it to each target in `.github/moogs-publish.yml`.
 
 ## Issues
