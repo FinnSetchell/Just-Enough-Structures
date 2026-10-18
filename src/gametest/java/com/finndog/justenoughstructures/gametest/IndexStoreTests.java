@@ -19,7 +19,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
@@ -200,31 +202,54 @@ public final class IndexStoreTests {
      * the index, or for the rest of an early one, is told so: when it fails, and again whenever they
      * ask. Told only how far it had got, the browser would show that figure for ever, and the search
      * would look stuck partway. The figure still comes first, as before, for a version from before,
-     * which reads no further. The build is made to fail twice: at the first structure, with no index
+     * which reads no further. The build is made to fail twice: at its second structure, with no index
      * yet, and once the player has the early one, with the rest still to come.
      */
     public static void aFailedBuildSaysSo(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer player = TestPlayers.mock(helper);
         List<Sent> sent = new CopyOnWriteArrayList<>();
-        // 0 while the first build is made to fail at its first structure, 1 for the one after the early index.
+        // 0 while the first build is made to fail at its second structure, 1 for the one after the early index.
         AtomicInteger round = new AtomicInteger();
         AtomicBoolean failed = new AtomicBoolean();
         // How much the player had been sent when each build was made to fail.
         List<Integer> failedAt = new CopyOnWriteArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        // A build from before, as a test before this one can leave going. It's part way through a
+        // structure when this test starts, and says it has done that one once this test's build has
+        // begun: held here until then, then passed on to what this test watches with.
+        AtomicReference<IntConsumer> watching = new AtomicReference<>(d -> {
+        });
+        CountDownLatch going = new CountDownLatch(1);
+        CountDownLatch replaced = new CountDownLatch(1);
         LootIndexStore.watchProgress(d -> {
-            // On the index's thread. What this throws ends the build there, as any error would.
-            boolean due = round.get() == 0 || sent.stream().anyMatch(s -> s.index() != null);
+            going.countDown();
+            await(replaced, 60);
+            watching.get().accept(d);
+        });
+        LootIndexStore.stop();
+        JesServer.onRequestIndex(player);
+        helper.assertTrue(await(going, 120), "the build from before didn't get through a structure");
+        sent.clear();
+        int[] last = {0};
+        IntConsumer failing = d -> {
+            // On the index's thread. What this throws ends the build there, as any error would. The
+            // first fails at its second structure: a build from before can still say it has done one
+            // after this one has started, but only once, and only this one goes on from 1 to 2.
+            boolean due = round.get() == 0 ? d == 2 && last[0] == 1 : sent.stream().anyMatch(s -> s.index() != null);
+            last[0] = d;
             if (due && failed.compareAndSet(false, true)) {
                 failedAt.add(sent.size());
                 throw new IllegalStateException("A loot index build made to fail by a game test");
             }
-        });
-        JesNetwork.ServerSender before = JesNetwork.serverSender();
-        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
-        }));
+        };
+        watching.set(failing);
+        LootIndexStore.watchProgress(failing);
         // As on a server that has only just started, with nothing saved to read.
         LootIndexStore.stop();
+        replaced.countDown();
         JesServer.onRequestIndex(player);
         // For each failure: what the player was told as it failed, then what asking after it brought.
         List<List<Sent>> whenFailed = new ArrayList<>();
@@ -265,7 +290,7 @@ public final class IndexStoreTests {
                 }
             }
             helper.assertTrue(askedAfter.size() == 2, "the build has been made to fail " + askedAfter.size() + " times so far, not twice");
-            String told = "when the build failed at its first structure the player was told " + described(whenFailed.get(0))
+            String told = "when the build failed at its second structure the player was told " + described(whenFailed.get(0))
                     + " and asking after it brought " + described(askedAfter.get(0)) + "; when it failed after the early index, "
                     + described(whenFailed.get(1)) + " and " + described(askedAfter.get(1));
             if (!reported.getAndSet(true)) {
