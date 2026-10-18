@@ -82,7 +82,7 @@ First release.
 - Uses much less memory after the loot index has built, most of all with many structure mods
 - No longer crashes when you point at or click some modded blocks or mobs in a preview
 - A block or mob from another mod that fails to draw in a preview is now left out on its own, instead of crashing the game or taking other blocks with it
-  - A mob left out this way no longer shows its name, opens its popup or gets a marker at the empty spot where it stood
+  - A mob or chest minecart left out this way no longer shows its name, opens its popup or gets a marker at the empty spot where it stood
 - Scroll bars can be dragged, and every list that scrolls has one
 - The spawner popup no longer shows a scroll bar when its list fits
 - With EMI, the structures an item is found in are ready after one load when you join, instead of two
