@@ -225,6 +225,10 @@ dependencies {
 // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
 tasks.register<Jar>("gametestJar") {
     from(gametest.output)
+    // A real game only gets the mixin it needs: the others are for the game tests.
+    filesMatching("${modId}_gametest.mixins.json") {
+        filter { line -> realGameMixinLine(line) }
+    }
     archiveClassifier = "gametest"
     destinationDirectory = layout.buildDirectory.dir("testlibs")
 }
