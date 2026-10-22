@@ -1,99 +1,17 @@
 # Changelog
 
-## [0.1.0] - Unreleased
+## [1.0.0] - Unreleased
 
-First release.
+First public release.
 
-- Press K to open the structure browser: every structure from vanilla, mods and datapacks, searchable and grouped by mod
-- Structures are built by their own mod's code, so previews match what generates in a world
-  - Previews are built apart from your world, so nothing a structure mod does while building one can change, load or play sounds in it
-  - Each is built on ground like where it spawns, from a shallow or deep sea floor to the Nether's lava sea
-- Turn, zoom and move the preview, generate a new layout, and hide its top layers to see inside
-  - The preview turns slowly on its own and stops while your mouse is over it, which can be turned off in the settings
-- The preview can be made to fill the whole screen
-- Arrows above the preview step through structures and jump between mods
-- Up and Down go through the structure list and Pack tools' pickers, and Enter picks in a picker
-- Back and Forward along the top of every screen go between the structures, tabs, popups and screens you've looked at, with Backspace, Shift+Backspace or your mouse's side buttons
-- Star a structure to keep it in a Favourites section at the top of the list
-- Write your own notes on any structure, from the bottom of its Info tab. They stay on your computer
-- Markers in the preview show where the containers are, or the mobs and spawners while on the Mobs tab, and can be hidden
-- Click a chest, barrel or suspicious block to see a real roll of its loot, and roll it again, or every item's chance in it
-  - When several share a loot table, the preview rings every one of them, and the arrows go from one to the next, turning the view to each
-  - The view turns to the chest you open, you can drag to look around it and zoom with the wheel, and closing it takes you back out
-- The Info tab says where a structure spawns and in which biomes
-  - It also says when a structure won't generate in new worlds and why, like another mod putting its own in its place, and the list greys it out
-- The Loot tab lists the containers in the layout and every item's chance of turning up anywhere in the structure, from thousands of rolls of the real loot tables
-  - Rare items stand out, and hovering an item shows how many usually come and from which containers
-  - Loot tables the structure uses in its other layouts open in a popup of their own
-  - Enchantments and potions an item can come with are listed too
-  - It also shows what's in vaults and what trial spawners drop when beaten, like trial keys, and item search finds them too
-- Search for an item to find the structures whose loot can give it, with the best chance first
-  - Item search finds loot in every piece a structure can have
-- The Blocks tab is a material list you can copy
-  - Click a kind of block there are fewer than 20 of to go to each one in the preview
-- Ids and the Info tab's details only show with advanced tooltips (F3+H), as with items
-- Hovering a kind of block, a group of chests or a spawner in the details lights up where they are in the preview, even through walls
-- Hovering a spawner in the preview says what it spawns
-- Click a spawner to see every mob it can spawn, each one's chance and how often it spawns, with arrows to the other spawners like it
-- The Mobs tab shows what a structure places, its spawners and what keeps spawning there
-  - Spawners that get a random mob list every mob they could have, with each one's chance
-  - Trial spawners show the mobs they spawn, and what they spawn once ominous
-  - Things that aren't mobs, like item frames, armor stands and minecarts, show their item, modded ones included
-- With cheats on, the recovery compass button finds the nearest one of the structure you're looking at, even in another dimension, and Ctrl-clicking it takes you there
-- The list fills in with small pictures of each structure as you scroll
-- Type /jes open to open the browser, or follow it with a structure to go straight to that one
-- The browser remembers how you left it, like whether the preview fills the screen
-- Text cut short to fit shows in full when you hover over it
-- Every screen fits small and very large windows at any GUI scale
-- Resource packs that restyle Minecraft's menus now restyle the structure browser and Pack tools too
-- With Mod Menu and Cloth Config installed, there's a settings screen for the browser and for the worlds you host
-- In Mod Menu, JES links to its Discord, CurseForge and Modrinth pages, and tells you when there's an update
-- Server owners can hide structures or whole mods from the browser, and choose who can locate and teleport
-- With JEI, EMI or REI installed, looking up how to get an item also lists the structures it's found in, and clicking one opens it in the browser
-- With Explorer's Compass installed, you can jump between the compass and the browser
-  - The compass's structure list gets a Preview button that opens the structure in the browser
-  - While holding the compass, a button in the browser opens the compass on the structure you're looking at
-  - Ctrl-click that button to set the compass searching for it straight away
-  - The Info tab shows what the compass in your hand has found
-- Item search and the Found in structures pages are ready straight away after the first time, as the loot scan is saved and only redone when mods or datapacks change
-- The structure list keeps its pictures between sessions
-- Each structure's first preview is saved once it's made, so it opens straight away for everyone, even after a restart
-  - A server makes them all in the background, so they're ready before anyone asks
-  - Your game keeps the ones a server sends you, so they aren't downloaded again unless the structure changes
-  - The list's pictures are kept the same way, so changing GUI scale or resource packs redraws them without downloading anything
-- Pack tools, from a button beside the details' tabs, keeps everything a modpack maker or server owner changes in one place
-  - Edit any loot table in a form for every pool, entry, function and condition, with every box listing what it can be set to as you type, and see one possible roll and every item's chance as you go
-  - In the loot editor, Delete takes out the picked entry, and entries can be dragged from one pool into another
-  - Edits are saved to the config folder and used from the next /reload, so they ship with a modpack, and Reload now puts everything waiting in use
-  - When a mod updates a table you've edited, you can see what changed, merge it in, keep yours, or switch to the mod's
-  - Pick a chest in the browser to switch it to a different loot table, or a brand new one, and undo it later
-  - Pick a spawner in the browser to give it a different mob, including modded ones, or leave it empty, and undo it later
-  - Give a trial spawner another mob, and turn a spawner into a trial spawner or a trial spawner into a spawner
-  - Hide structures or whole mods, keep where a structure's loot is a secret, and write notes for players on its Info tab
-  - Rename a structure, and every player with the mod sees the new name. Names are kept in language files, so each language can have its own
-  - On your own world, Explorer's Compass shows a new name too, after F3+T or a restart
-  - Choose who can locate, teleport and use Pack tools, and what players see, without leaving the game
-  - It's there in singleplayer with cheats on, and on a server for players given its permission, listed by name, or with a permission level
-  - Its button can be hidden in the settings
-- Mods and modpacks can add their own notes to a structure, shown on its Info tab
-- Mods, modpacks and servers can keep where a structure's loot is a secret, while still showing what it can hold
-- Other mods' warnings about their structures stay out of the game log
-- The game log no longer repeats the same error from previews dozens of times, as with old sculk data in some modded structures
-- Uses much less memory after the loot index has built, most of all with many structure mods
-- No longer crashes when you point at or click some modded blocks or mobs in a preview
-- A block or mob from another mod that fails to draw in a preview is now left out on its own, instead of crashing the game or taking other blocks with it
-  - A mob or chest minecart left out this way no longer shows its name, opens its popup or gets a marker at the empty spot where it stood
-- Scroll bars can be dragged, and every list that scrolls has one
-- The spawner popup no longer shows a scroll bar when its list fits
-- With EMI, the structures an item is found in are ready after one load when you join, instead of two
-- The first time you play after changing mods, EMI reloads once when the loot scan finishes, instead of twice
-- The search and Found in pages no longer briefly say nothing gives an item just before the last of the loot results arrive
-- Right after opening another world, the loot search no longer shows how far the last world had got
-- Finding structures by item now says when the server couldn't look through the structures' loot, instead of looking stuck partway
-- A structure whose generation never finishes no longer freezes every other preview and the item search
-- Block counts under a stack no longer read "0 stacks and 9"
-- More of the browser and Pack tools uses small icons, with the words in their tooltips
-- Clicking away from the search box stops typing into it
-- Runs on Minecraft 1.20.1 with Fabric or Forge, and on 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
-- Has to be installed on the server as well
-  - The browser says when the server has a different version of it
+- Press K to browse every structure from vanilla, mods and datapacks, built by their own mod's code
+- Turn, zoom and slice the 3D preview, or make it fill the screen
+- See each structure's loot, with every item's chance from thousands of real rolls
+- Search for an item to find the structures that can give it
+- See a structure's mobs and spawners, where it spawns, and a block list you can copy
+- With cheats on, find the nearest one and teleport there
+- Star favourites and write your own notes on any structure
+- Works with JEI, EMI, REI, Explorer's Compass, Mod Menu and resource packs
+- Pack tools for modpack makers and server owners: edit loot tables, change chest loot and spawner mobs, hide or rename structures, and set who can do what
+- Runs on Minecraft 1.20.1 with Fabric or Forge, and 1.21.1, 26.1.2, 26.2 and 26.3 with Fabric, NeoForge or Forge
+- Required on the client and server
