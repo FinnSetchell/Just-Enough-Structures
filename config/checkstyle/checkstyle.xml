@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  Checks for Just Enough Structures, written for Checkstyle 14.
+
+  Aimed at real mistakes and the project's own rules, not at formatting: the code is
+  laid out with 4-space indents and long lines, and nothing here argues with that.
+  Only the active Stonecutter version (1.20.1 Fabric) is checked; the other versions'
+  code sits in comments.
+
+  To silence one finding where it is right as it is:
+    @SuppressWarnings("checkstyle:CheckName") on the method or class, or
+    // CHECKSTYLE.OFF: CheckName  ...  // CHECKSTYLE.ON: CheckName
+-->
+<module name="Checker">
+    <property name="severity" value="warning"/>
+    <property name="charset" value="UTF-8"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="SuppressWarningsFilter"/>
+    <!-- Game tests may write plain text, e.g. a test sword's name. -->
+    <module name="SuppressionSingleFilter">
+        <property name="files" value="[\\/]gametest[\\/]"/>
+        <property name="id" value="langKeys"/>
+    </module>
+    <module name="SuppressWithPlainTextCommentFilter">
+        <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
+        <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
+        <property name="checkFormat" value="$1"/>
+    </module>
+
+    <!-- Layout: only what the code already does everywhere. -->
+    <module name="FileTabCharacter"/>
+    <module name="LineLength">
+        <property name="max" value="200"/>
+        <!-- Imports, links and mixin method descriptors can't be wrapped. -->
+        <property name="ignorePattern" value="^(package|import) |https?://|\b(method|target) = &quot;"/>
+    </module>
+
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+
+        <!--
+          Imports. Client classes stay out of code a dedicated server loads: see import-control.xml.
+          No UnusedImports: an import used only in another version's commented-out branch looks
+          unused here, and removing it breaks that version's build.
+        -->
+        <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="ImportControl">
+            <property name="file" value="${config_loc}/import-control.xml"/>
+            <property name="path" value="^.*[\\/]src[\\/]main[\\/]java[\\/].*$"/>
+        </module>
+
+        <!-- Likely bugs. -->
+        <module name="EqualsHashCode"/>
+        <module name="CovariantEquals"/>
+        <module name="StringLiteralEquality"/>
+        <module name="FallThrough"/>
+        <module name="DefaultComesLast"/>
+        <module name="EmptyStatement"/>
+        <module name="EmptyCatchBlock">
+            <property name="exceptionVariableName" value="ignored|expected"/>
+        </module>
+        <module name="InnerAssignment"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="IllegalInstantiation">
+            <property name="classes" value="java.lang.Boolean, java.lang.Integer, java.lang.Long"/>
+        </module>
+        <module name="NoFinalizer"/>
+        <module name="SuperClone"/>
+        <module name="UpperEll"/>
+
+        <!-- Readability that costs nothing. (Declarations like int x = 1, y = 2 are fine here.) -->
+        <module name="OneStatementPerLine"/>
+        <module name="ModifierOrder"/>
+        <module name="ArrayTypeStyle"/>
+        <module name="OuterTypeFilename"/>
+        <module name="OneTopLevelClass"/>
+
+        <!-- The project's own rules. -->
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="langKeys"/>
+            <property name="format" value="Component\.literal\(&quot;[^&quot;]*[A-Za-z]"/>
+            <property name="ignoreComments" value="true"/>
+            <property name="message" value="Words players can see go through a lang key (Component.translatable)."/>
+        </module>
+        <module name="RegexpSinglelineJava">
+            <property name="id" value="useTheLog"/>
+            <property name="format" value="System\.(out|err)\.print|\.printStackTrace\(\)"/>
+            <property name="ignoreComments" value="true"/>
+            <property name="message" value="Write to the log (JesLog) instead of the console."/>
+        </module>
+    </module>
+</module>

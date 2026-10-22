@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<!DOCTYPE import-control PUBLIC
+        "-//Checkstyle//DTD ImportControl Configuration 1.4//EN"
+        "https://checkstyle.org/dtds/import_control_1_4.dtd">
+
+<!--
+  Keeps client-only classes out of the code a dedicated server loads. A server has no
+  net.minecraft.client or Blaze3D classes, so loading one there crashes it.
+
+  Everything is allowed unless a rule says otherwise. The client rules below apply to
+  the mod's root package and to every package that doesn't allow them again: today
+  that is capture, catalog, loot, network, overrides and server.
+-->
+<import-control pkg="com.finndog.justenoughstructures" strategyOnMismatch="allowed">
+    <disallow pkg="net.minecraft.client"/>
+    <disallow pkg="com.mojang.blaze3d"/>
+    <disallow pkg="com.finndog.justenoughstructures.client"/>
+
+    <!-- Client code, and the places that hand over to it on the client only. -->
+    <subpackage name="client" strategyOnMismatch="allowed">
+        <allow pkg="net.minecraft.client"/>
+        <allow pkg="com.mojang.blaze3d"/>
+        <allow pkg="com.finndog.justenoughstructures.client"/>
+    </subpackage>
+    <subpackage name="compat" strategyOnMismatch="allowed">
+        <allow pkg="net.minecraft.client"/>
+        <allow pkg="com.mojang.blaze3d"/>
+        <allow pkg="com.finndog.justenoughstructures.client"/>
+    </subpackage>
+    <subpackage name="fabric" strategyOnMismatch="allowed">
+        <allow pkg="net.minecraft.client"/>
+        <allow pkg="com.mojang.blaze3d"/>
+        <allow pkg="com.finndog.justenoughstructures.client"/>
+    </subpackage>
+    <subpackage name="forge" strategyOnMismatch="allowed">
+        <allow pkg="net.minecraft.client"/>
+        <allow pkg="com.mojang.blaze3d"/>
+        <allow pkg="com.finndog.justenoughstructures.client"/>
+    </subpackage>
+    <subpackage name="neoforge" strategyOnMismatch="allowed">
+        <allow pkg="net.minecraft.client"/>
+        <allow pkg="com.mojang.blaze3d"/>
+        <allow pkg="com.finndog.justenoughstructures.client"/>
+    </subpackage>
+    <!--
+      Most mixins are applied on both sides. Only those in the "client" list of
+      justenoughstructures.mixins.json may use client classes; a new one goes here too.
+    -->
+    <subpackage name="mixin">
+        <file name="ClientLanguageMixin">
+            <allow pkg="net.minecraft.client"/>
+        </file>
+        <file name="ClientPackRepositoryMixin">
+            <allow pkg="net.minecraft.client"/>
+        </file>
+        <file name="MultiLineEditBoxAccessor">
+            <allow pkg="net.minecraft.client"/>
+        </file>
+    </subpackage>
+</import-control>
