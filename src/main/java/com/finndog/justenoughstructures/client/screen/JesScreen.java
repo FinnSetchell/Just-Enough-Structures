@@ -2104,6 +2104,16 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return viewport.pick(x, y).map(this::hoverLines).orElse(List.of());
     }
 
+    private StructureViewport.Hit lastHover;
+
+    /**
+     * What the preview answered the mouse with in the last frame drawn, which its tooltip is about: a
+     * block or mob under the mouse, or what a marker under it stands for. Null for nothing.
+     */
+    public StructureViewport.Hit previewHover() {
+        return lastHover;
+    }
+
     /** Whether a marker in the preview, as last drawn, stands for {@code mob}. */
     public boolean marked(Entity mob) {
         return markerRects.stream().anyMatch(m -> m.marks(mob));
@@ -2302,6 +2312,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         boolean beside = foundIn == null && notes == null && (side != null ? !side.contains(mouseX, mouseY, font)
                 : popup != null && popup.container != null && !popup.contains(mouseX, mouseY, font));
         StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
+        lastHover = hover;
         if (sides) {
             info.render(g, mx, my);
         }
@@ -2526,7 +2537,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             placeMarkers(s);
             for (Marker m : markerRects) {
                 // Lit up like one under the mouse while a row about what it marks is hovered, as it hides the block.
-                boolean over = m.contains(mouseX, mouseY) || highlight != null && m.spots().stream().anyMatch(spot -> highlight.contains(spot.pos()));
+                boolean over = onMarker(m, mouseX, mouseY) || highlight != null && m.spots().stream().anyMatch(spot -> highlight.contains(spot.pos()));
                 boolean showing = popup != null && popup.container != null && !popup.overview() && m.containers().contains(popup.container)
                         || spawnerPopup != null && !spawnerPopup.overview() && m.spawner() != null && m.marks(spawnerPopup.spawner.pos())
                         || mobPopup != null && !mobPopup.overview() && m.marks(mobPopup.mob);
@@ -2573,7 +2584,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         Gui.endScissor(g);
 
         for (Marker m : markerRects) {
-            if (m.contains(mouseX, mouseY)) {
+            if (onMarker(m, mouseX, mouseY)) {
                 BlockPos pos = m.spots().get(0).pos();
                 return new StructureViewport.Hit(pos, view.rawState(pos.getX(), pos.getY(), pos.getZ()), m.spawner() == null ? m.mob() : null);
             }
@@ -2649,12 +2660,15 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             placed.add(new Placed(new Marker(at.get()[0] - size / 2f, at.get()[1] - size, size, members), at.get()[2]));
         }
         placed.sort(Comparator.comparingDouble(pl -> -pl.depth()));
-        // None over the buttons in the preview's top right corner, which they'd hide and take clicks from.
+        // Only those at least partly inside the preview: the rest wouldn't show, and would take clicks
+        // from the list, panels and buttons under them. None over the buttons in the preview's top
+        // right corner either, which they'd hide and take clicks from.
         int cornerLeft = overlayLeft() - 1;
         int cornerBottom = viewY + 23;
         for (Placed pl : placed) {
             Marker m = pl.marker();
-            if (m.x() + m.size() < cornerLeft || m.y() > cornerBottom) {
+            boolean inside = m.x() < viewX + viewW && m.x() + m.size() > viewX && m.y() < viewY + viewH && m.y() + m.size() > viewY;
+            if (inside && (m.x() + m.size() < cornerLeft || m.y() > cornerBottom)) {
                 markerRects.add(m);
             }
         }
@@ -2911,6 +2925,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return 0;
     }
 
+    /** Whether the mouse is on a marker. Only its part inside the preview counts, as that's all that shows. */
+    private boolean onMarker(Marker m, double mouseX, double mouseY) {
+        return m.contains(mouseX, mouseY) && viewport.contains(mouseX, mouseY);
+    }
+
     /**
      * With a container's, spawner's, mob's or block's popup open, opens the container, spawner or mob
      * under the mouse in the preview instead, by its marker or by itself. False if there's none.
@@ -3062,7 +3081,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             for (Marker m : markerRects) {
-                if (m.contains(mouseX, mouseY) && openMarker(m)) {
+                if (onMarker(m, mouseX, mouseY) && openMarker(m)) {
                     return true;
                 }
             }
