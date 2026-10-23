@@ -8,8 +8,8 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 *///?}
 
 /**
- * The test mod on Forge, which needs a class of its own. Its tests are found by their annotation,
- * by Forge itself before 26.1 and from then by {@link ForgeGameTests}.
+ * The test mod's entry class on Forge. Its tests are found by their annotation: by Forge itself
+ * before 26.1, and from then by {@link ForgeGameTests}.
  */
 @Mod("justenoughstructures_gametest")
 public final class JesGameTestMod {

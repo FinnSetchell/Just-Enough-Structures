@@ -513,9 +513,8 @@ public final class Gallery {
     *///?}
 
     /**
-     * Hides the game's window. Done on the first tick, as well as when the world's made, so a run in a
-     * launcher instance barely shows while the game loads, and doesn't get in the way of whoever's at
-     * the computer.
+     * Hides the game's window. Done on the first tick, as well as when the world is created, so a run
+     * in a launcher barely shows while the game loads and stays out of the way.
      */
     public static void hideWindow(Minecraft mc) {
         //? if >=26.1 {
@@ -548,7 +547,7 @@ public final class Gallery {
                 rules, WorldDataConfiguration.DEFAULT);
         //?}
         //? if >=26.1 {
-        /*// Made above.
+        /*// World already created above.
         *///?} else if >=1.21 {
         /*mc.createWorldOpenFlows().createFreshLevel("jes-autoshot", settings, new WorldOptions(0L, structures, false),
                 registries -> registries.registryOrThrow(Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions(), mc.screen);

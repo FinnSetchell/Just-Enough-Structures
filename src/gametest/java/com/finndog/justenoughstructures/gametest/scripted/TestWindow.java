@@ -13,31 +13,29 @@ import org.lwjgl.glfw.GLFWNativeWin32;
 //?}
 
 /**
- * Keeps a scripted run's window fit to use. Something outside the game can minimise its window in the
- * seconds it shows while the game loads, and once the run has hidden it, it stays that way. The game
- * then has no size to go by: the mouse positions the harness sends come out as NaN, so every click,
- * hover, drag and wheel misses while keys still work, and from 26.2 it can draw at 1x1, so a check
- * that waits for a picture waits out its time. A minimised window is put back, and hidden again when
- * the run hides it, without taking the focus from whoever is at the computer. A run whose window can't
- * be put back stops and says so, rather than failing every check after.
+ * Keeps a scripted run's window usable. Something outside the game can minimise it while the game
+ * loads, and it stays minimised once the run hides it. A minimised window has no size: the mouse
+ * positions the harness sends come out as NaN, so clicks, hovers, drags and the wheel all miss while
+ * keys still work, and from 26.2 the game can draw at 1x1, so a check that waits for a picture times
+ * out. This puts the window back, hidden again if the run hides it, without taking the focus. A run
+ * whose window can't be put back stops and says so, instead of failing every check after.
  */
 final class TestWindow {
     /** How many times a run puts its window back. Any more, and something keeps minimising it. */
     private static final int MOST = 3;
     /**
-     * How long the window stays minimised before it's put back, in ticks. Something outside the game that
-     * minimises it while the game is busy is only done once the game next reads its window's messages,
-     * which it does once a frame, and a window put back before then is left shown at a minimised
-     * window's size. Seen on 1.20.1, whose first ticks come before it first reads them. The game runs at
-     * most ten ticks a frame.
+     * How long the window stays minimised before it's put back, in ticks. A minimise from outside the
+     * game only completes once the game next reads its window messages, once a frame, and a window put
+     * back before then is left shown at a minimised window's size. 1.20.1 ticks before its first read,
+     * and the game runs at most ten ticks a frame.
      */
     private static final int SETTLE_TICKS = 40;
     /** How long a window that isn't minimised may have no size, in ticks, as it can be a frame behind. */
     private static final int SIZELESS_TICKS = 100;
     /**
-     * Whether a minimised window that keeps its size is put back. From 26.3 the window is SDL's, which
-     * keeps its size when minimised, and the checks pass as it is; put back once the run has hidden it
-     * through SDL, it stayed minimised (26.3 Fabric, 17 October 2026).
+     * Whether a minimised window that keeps its size is put back. False from 26.3: SDL's window keeps
+     * its size when minimised, so the checks pass as it is, and restoring it after SDL has hidden it
+     * leaves it minimised.
      */
     //? if >=26.3 {
     /*private static final boolean PUT_BACK = false;
@@ -81,12 +79,12 @@ final class TestWindow {
             }
             putBack++;
             JustEnoughStructures.LOGGER.warn("The test window is minimised; putting it back ({})", sizes(window));
-            // Hidden first: a minimised window that's shown took the focus for a moment as it was put
-            // back, told not to or not (1.20.1, 17 October 2026), and a hidden one never did.
+            // Hide it first. Restoring a visible minimised window briefly takes the focus, even with
+            // SW_SHOWNOACTIVATE. Restoring a hidden one doesn't.
             if (User32.IsWindowVisible(hwnd)) {
                 User32.ShowWindow(hwnd, User32.SW_HIDE);
             }
-            // Back to its own size, without the focus that GLFW's own restore takes (it uses SW_RESTORE).
+            // Restore its size without taking the focus, which GLFW's restore takes (it uses SW_RESTORE).
             User32.ShowWindow(hwnd, User32.SW_SHOWNOACTIVATE);
             if (hidden) {
                 User32.ShowWindow(hwnd, User32.SW_HIDE);

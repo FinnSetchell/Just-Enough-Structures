@@ -109,7 +109,7 @@ public final class NameTests {
         helper.succeed();
     }
 
-    /** The names come after the structure list, where a version from before them stops reading. */
+    /** The names come after the structure list, where older clients stop reading. */
     public static void structureNamesComeAfterTheList(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         List<StructureCatalog.Entry> entries = List.of(new StructureCatalog.Entry(Ids.parse("igloo"), null, new JsonObject(), List.of(),
@@ -120,7 +120,7 @@ public final class NameTests {
             Codecs.writeCatalog(buf, entries);
             Codecs.writeNames(buf, names);
         });
-        // Read as a version from before names reads it, then on as this one does.
+        // Read as an older client without names reads it, then the rest as this version does.
         FriendlyByteBuf buf = Blobs.fromBytes(registries, sent);
         helper.assertTrue("abc".equals(Codecs.readFingerprint(buf)), "the fingerprint didn't come first");
         List<StructureCatalog.Entry> read = Codecs.readCatalog(buf);
@@ -129,7 +129,7 @@ public final class NameTests {
         helper.assertTrue(Codecs.readNames(buf).equals(names), "the names didn't come back");
         helper.assertFalse(buf.isReadable(), "something was left after the names");
 
-        // From a server before names, nothing comes after the list.
+        // An older server without names sends nothing after the list.
         FriendlyByteBuf old = Blobs.fromBytes(registries, Blobs.toBytes(registries, b -> {
             Codecs.writeFingerprint(b, "abc");
             Codecs.writeCatalog(b, entries);

@@ -16,10 +16,9 @@ import net.minecraftforge.common.MinecraftForge;
 
 /**
  * Runs the screenshot {@link Gallery}, or one of the scripted scenarios through {@link ScriptRun}, on
- * Forge, when {@code -Djes.autoshot=<folder>} asks for it. Forge 1.21 dropped the event for the HUD
- * having been drawn, which the scripts count frames by. From then they go by the one Forge sends as
- * it's about to draw the chat: that comes once for every frame the HUD is drawn in, with the same
- * thing to draw on, before anything has been moved for the chat.
+ * Forge, when {@code -Djes.autoshot=<folder>} asks for it. From 1.21 Forge has no HUD-drawn event,
+ * which the scripts count frames by, so they use the chat overlay event. It fires once per HUD frame,
+ * with the same GuiGraphics, before the chat is positioned.
  */
 final class ForgeAutoshot {
     private ForgeAutoshot() {

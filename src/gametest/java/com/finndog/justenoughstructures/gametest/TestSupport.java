@@ -56,7 +56,7 @@ public final class TestSupport {
         return server.reloadResources(server.getPackRepository().getSelectedIds());
     }
 
-    /** A structure as {@code seed} lays it out, which has to capture. */
+    /** Captures {@code structure} with {@code seed}, failing the test if it doesn't capture. */
     public static StructureSnapshot capture(MinecraftServer server, ResourceLocation structure, long seed) {
         CaptureResult result = StructureCapture.capture(server, structure, seed);
         if (!result.succeeded()) {

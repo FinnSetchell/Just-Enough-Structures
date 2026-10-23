@@ -27,14 +27,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
- * A diagnostic rather than a check: captures every structure the game has, vanilla and modded,
- * then builds the loot index, and writes how long each took and how big it came out to
- * perf.csv in the game test folder. Only runs with -Pperf, since with a lot of structure mods
- * installed it takes minutes. On Fabric, -Pperf=index_first builds the loot index before the captures
- * instead of after, as in a world just opened: with none of the saved pieces loaded yet.
- * It ends by logging what the game is left holding: the heap in use after a collection, and the
- * saved pieces still loaded. How much memory building the loot index went through is logged too,
- * and the index itself is written to perf-index.txt, for comparing one build's with another's.
+ * A diagnostic, run only with -Pperf, since with many structure mods installed it takes minutes.
+ * Captures every structure, vanilla and modded, builds the loot index, writes times and sizes to
+ * perf.csv in the game test folder and the index to perf-index.txt, then logs the memory the index
+ * build allocated, the heap after a collection and the pieces still loaded. On Fabric,
+ * -Pperf=index_first builds the index first, as in a newly opened world with no saved pieces loaded.
+ * Its one check: no capture may draw from a real world's random.
  */
 public final class PerfTests {
     private PerfTests() {
@@ -139,7 +137,7 @@ public final class PerfTests {
         helper.succeed();
     }
 
-    /** What this thread has asked for in memory so far, in bytes. Nought where Java doesn't keep count. */
+    /** Bytes this thread has allocated so far, or 0 where the JVM doesn't track it. */
     private static long allocated() {
         return ManagementFactory.getThreadMXBean() instanceof com.sun.management.ThreadMXBean threads
                 ? threads.getThreadAllocatedBytes(Thread.currentThread().getId()) : 0;

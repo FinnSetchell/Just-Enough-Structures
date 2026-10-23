@@ -80,7 +80,7 @@ public final class ScriptRun {
             }
             case WAIT_WORLD -> {
                 blockedTicks = Gallery.closeJoinScreen(mc, blockedTicks);
-                // On a server, long enough after joining for the notices that pop up then to go.
+                // After joining a server, wait ten seconds for the join notices to clear.
                 if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > (joins ? 200 : 40)) {
                     director = Scenarios.build(mode, mc);
                     go(Step.SCRIPT);
@@ -112,10 +112,10 @@ public final class ScriptRun {
     }
 
     /**
-     * What a loader's drawing event draws with, found by what its getter returns rather than by its
-     * name, so the same code works whatever a loader's version calls it. 26.1's new name for that
-     * class is put in by a text replacement everywhere, which a getter still called by the old name
-     * wouldn't survive.
+     * Gets the GuiGraphics from a loader's render event through the no-argument method that returns
+     * one, since the getter's name differs between loader versions. For 26.1 the class's new name is
+     * put in by a text replacement everywhere, which a getter still called by the old name wouldn't
+     * survive.
      */
     public static GuiGraphics graphics(Object event) {
         Method getter = GRAPHICS.computeIfAbsent(event.getClass(), type -> {

@@ -176,7 +176,7 @@ public final class ContainerTests {
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), fresh), "no_table");
             helper.assertTrue(ContainerPatches.find(TOWER, chest.pos()) == null, "a refused patch was saved");
 
-            // A table just made in the editor can be picked before the /reload that loads it.
+            // A table just made in the editor can be selected before the /reload that loads it.
             Component made = LootOverrides.save(server.getResourceManager(), fresh, DIAMONDS_ONLY);
             helper.assertTrue(key(made).endsWith("override.saved"), "saving a new table got " + made.getString());
             expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), fresh), "container.saved");
@@ -230,7 +230,7 @@ public final class ContainerTests {
 
     /**
      * Changing a container only sends the structures that place its template through the loot index
-     * again. A table only a fresh scan would drop, added to every structure, shows which ones were.
+     * again. A marker table added to every structure shows which ones were regenerated.
      */
     public static void lootIndexUpdatesOnlyWhatChanged(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -315,7 +315,7 @@ public final class ContainerTests {
         });
     }
 
-    /** The scan with a table no structure has added to every structure, which generating one again drops. */
+    /** Returns the scan with a marker table added to every structure; regenerating a structure drops it. */
     private static StructureScan withMarker(StructureScan scan) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         scan.tables().forEach((id, found) -> {
@@ -399,7 +399,7 @@ public final class ContainerTests {
             helper.assertTrue(second.get().isDone(), "still reloading");
             if (seen[1] == null) {
                 seen[1] = at(capture(server, "pillager_outpost"), source);
-                // Were the container's own table now the one the undone change had set, it would be its own.
+                // After the reload the undone change is forgotten, so a container that now holds the table it set has that table as its own.
                 ownAfter[0] = ContainerPatches.ownTable(source.template(), source.pos(), "minecraft:chests/desert_pyramid");
                 leaveFolder();
             }

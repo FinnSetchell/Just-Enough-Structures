@@ -21,10 +21,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The loot editing rough edges a hands-on test turned up: tables from other layouts on the Loot
- * tab, a JSON mistake explained by line, an item that isn't one refused on save, a new table's
- * header with its id, and a table id that doesn't exist typed into a container's picker, which the
- * server refuses and the picker keeps to be fixed.
+ * Loot editing edge cases: tables from other layouts on the Loot tab, a JSON error reported by line,
+ * an unknown item refused on save, a new table's header with its id, and a table id that doesn't
+ * exist typed into a container's picker, which the server refuses and the picker keeps so it can be
+ * fixed.
  */
 final class LootFixesScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/village/village_plains_house");
@@ -72,8 +72,8 @@ final class LootFixesScenario {
                 .then(until(() -> editor(mc) != null && editor(mc).loaded(), 100))
                 .then(pause(20))
                 .then(shoot("f04_new_table"))
-                // A table id that doesn't exist, typed into a chest's picker: picked straight away,
-                // and the server's no stays in the picker to be fixed.
+                // A missing table id typed into a chest's picker is selected at once, and the server's
+                // refusal stays in the picker so it can be fixed.
                 .then(run(() -> mc.setScreen(opened[0])))
                 .then(run(() -> browser(mc).select(Ids.parse("pillager_outpost"))))
                 .then(until(() -> browser(mc).idle() && browser(mc).result() != null, 600))

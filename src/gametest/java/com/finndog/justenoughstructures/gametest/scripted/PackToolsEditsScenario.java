@@ -98,7 +98,7 @@ final class PackToolsEditsScenario {
         return d;
     }
 
-    /** The editor is on a new table, under an id of its own, that starts with what the igloo chest has. */
+    /** Checks the editor opened a copy of the igloo chest's table, under a new id and without its random_sequence. */
     private static void checkCopy(Minecraft mc) {
         String id = String.valueOf(Reflect.get(editor(mc), "tableId"));
         if (!id.equals("justenoughstructures:chests/igloo_chest_copy")) {

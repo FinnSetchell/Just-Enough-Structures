@@ -35,9 +35,8 @@ public final class IndexStoreTests {
     }
 
     /**
-     * Something the player was sent: an index, and what the byte after it said of it being early
-     * (null when there wasn't that one byte after it), or how far the build had got, and whether it
-     * had failed there.
+     * One message the player was sent: an index with its early flag (null if the flag byte was
+     * missing), or progress with done, total and whether the build failed.
      */
     private record Sent(LootIndex index, Boolean early, int done, int total, boolean failed) {
     }
@@ -93,8 +92,7 @@ public final class IndexStoreTests {
                 List<Sent> all = List.copyOf(sent);
                 long sentIndexes = all.stream().filter(s -> s.index() != null).count();
                 if (sentIndexes < 2) {
-                    // The build takes the time it takes, and a test server with nothing else to do gets
-                    // through its ticks in no time at all, so each look waits a moment first.
+                    // The idle test server ticks very fast, so wait a little between looks.
                     pause(50);
                 }
                 helper.assertTrue(sentIndexes >= 2, "the player has been sent " + sentIndexes + " indexes so far");
@@ -169,8 +167,7 @@ public final class IndexStoreTests {
             if (seen.isEmpty()) {
                 boolean finished = sent.stream().anyMatch(s -> Boolean.FALSE.equals(s.early()));
                 if (!finished) {
-                    // The build takes the time it takes, and a test server with nothing else to do gets
-                    // through its ticks in no time at all, so each look waits a moment first.
+                    // The idle test server ticks very fast, so wait a little between looks.
                     pause(50);
                 }
                 helper.assertTrue(finished, "the last world's index isn't finished yet");
@@ -198,12 +195,11 @@ public final class IndexStoreTests {
     }
 
     /**
-     * Once a build has failed, nothing more is built until the next /reload, and a player waiting for
-     * the index, or for the rest of an early one, is told so: when it fails, and again whenever they
-     * ask. Told only how far it had got, the browser would show that figure for ever, and the search
-     * would look stuck partway. The figure still comes first, as before, for a version from before,
-     * which reads no further. The build is made to fail twice: at its second structure, with no index
-     * yet, and once the player has the early one, with the rest still to come.
+     * Once a build fails, nothing more is built until the next /reload. A player waiting for the
+     * index, or for the rest of an early one, is told it failed: when it fails, and again whenever
+     * they ask. Otherwise the browser would show a stuck percentage. Progress still comes first, so
+     * older clients can read it. The build is made to fail twice: at its second structure, with no
+     * index yet, and once the player has the early one, with the rest still to come.
      */
     public static void aFailedBuildSaysSo(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -217,9 +213,9 @@ public final class IndexStoreTests {
         JesNetwork.ServerSender before = JesNetwork.serverSender();
         JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
         }));
-        // A build from before, as a test before this one can leave going. It's part way through a
-        // structure when this test starts, and says it has done that one once this test's build has
-        // begun: held here until then, then passed on to what this test watches with.
+        // A stale build, like one an earlier test can leave running. This watcher holds it as it
+        // reports a finished structure, until this test's build is started, then passes the report on
+        // to the watcher this test checks with.
         AtomicReference<IntConsumer> watching = new AtomicReference<>(d -> {
         });
         CountDownLatch going = new CountDownLatch(1);
@@ -236,8 +232,8 @@ public final class IndexStoreTests {
         int[] last = {0};
         IntConsumer failing = d -> {
             // On the index's thread. What this throws ends the build there, as any error would. The
-            // first fails at its second structure: a build from before can still say it has done one
-            // after this one has started, but only once, and only this one goes on from 1 to 2.
+            // first round fails at its second structure: the stale build can still report one structure
+            // after this one has started, but only once, and only this build goes from 1 to 2.
             boolean due = round.get() == 0 ? d == 2 && last[0] == 1 : sent.stream().anyMatch(s -> s.index() != null);
             last[0] = d;
             if (due && failed.compareAndSet(false, true)) {
@@ -259,7 +255,7 @@ public final class IndexStoreTests {
         helper.succeedWhen(() -> {
             if (askedAfter.size() < 2) {
                 if (!failed.get()) {
-                    // The build takes the time it takes, so each look waits a moment first.
+                    // The idle test server ticks very fast, so wait a little between looks.
                     pause(50);
                 }
                 helper.assertTrue(failed.get(), "the build hasn't been made to fail yet in round " + round.get());
@@ -294,7 +290,7 @@ public final class IndexStoreTests {
                     + " and asking after it brought " + described(askedAfter.get(0)) + "; when it failed after the early index, "
                     + described(whenFailed.get(1)) + " and " + described(askedAfter.get(1));
             if (!reported.getAndSet(true)) {
-                // The game's own summary of a failed test leaves out why on some versions.
+                // The game's summary of a failed test leaves out the reason on some versions.
                 JustEnoughStructures.LOGGER.info("In the test of a failed loot index build: {}", told);
             }
             for (int i = 0; i < 2; i++) {
@@ -310,9 +306,9 @@ public final class IndexStoreTests {
     }
 
     /**
-     * Whether an index is early comes after the index itself, where a version from before stops
-     * reading, so the two versions still get on: one byte, and from a server before it nothing at
-     * all, which reads as not early.
+     * Whether an index is early is one byte after the index itself, where older clients stop reading,
+     * so the versions still work together. An older server sends nothing there, which reads as not
+     * early.
      */
     public static void earlyMarkComesAfterTheIndex(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
@@ -326,14 +322,14 @@ public final class IndexStoreTests {
             });
             helper.assertTrue(sent.length == alone.length + 1 && sent[alone.length] == (early ? 1 : 0),
                     "an index sent as " + (early ? "early" : "finished") + " took " + (sent.length - alone.length) + " more bytes than the index alone, not a 1 or a 0");
-            // Read as a version from before reads it, then on as this one does.
+            // Read as an older client reads it, then the rest as this version does.
             FriendlyByteBuf buf = Blobs.fromBytes(registries, sent);
             helper.assertTrue(Codecs.readIndex(buf).equals(index), "the index didn't read as before");
             helper.assertTrue(Codecs.readIndexEarly(buf) == early, "an index sent as " + (early ? "early" : "finished") + " read as the other");
             helper.assertFalse(buf.isReadable(), "something was left after saying whether the index is early");
         }
 
-        // From a server before early indexes said so, nothing comes after the index.
+        // An older server that doesn't mark early indexes sends nothing after the index.
         FriendlyByteBuf old = Blobs.fromBytes(registries, alone);
         Codecs.readIndex(old);
         helper.assertFalse(Codecs.readIndexEarly(old), "an index with nothing after it read as early");

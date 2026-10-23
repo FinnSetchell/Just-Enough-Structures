@@ -45,14 +45,12 @@ public final class RealWorldTests {
     }
 
     /**
-     * Structure code that never returns is stopped once it has had its time. Here it's a piece
-     * looking for what the sandbox doesn't have: walking up to find a roof, where past the top of the
-     * world there's only more air, through the sandbox it was handed and through the real level,
-     * which answers from the sandbox; walking up to find water; and asking the height of the ground
-     * until it's higher than the world goes. The ones through the sandbox each read its chunks a way
-     * of their own, which Lithium and Canary on 1.20.1 answer without asking the sandbox for the
-     * chunk. Each on a thread of its own, as captures are, so one that isn't stopped fails this test
-     * rather than hanging the server.
+     * Structure code that never returns is stopped once its time is up. Four endless loops run in a
+     * sandbox: walking up to find a roof, through the sandbox and through the real level (which
+     * answers from the sandbox), walking up to find water, and waiting for the ground to rise above
+     * the world. The sandbox loops read its chunks in different ways, which Lithium and Canary on
+     * 1.20.1 answer without asking the sandbox for the chunk. Each runs on a separate thread, as
+     * captures do, so one that isn't stopped fails the test instead of hanging the server.
      */
     public static void structureCodeThatNeverReturnsIsStopped(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -104,7 +102,7 @@ public final class RealWorldTests {
                     return "it ended by itself at " + pos;
                 });
             } catch (RuntimeException e) {
-                // The exception that stops it is the capture's own, and not one a test can name.
+                // The exception that stops it is private to StructureCapture, so it's matched by name.
                 return e.getClass().getSimpleName().equals("TookTooLong") ? "stopped" : String.valueOf(e);
             }
         }, walk -> {
@@ -126,12 +124,10 @@ public final class RealWorldTests {
     }
 
     /**
-     * The chunk guard check asks about a chunk the server has loaded, wherever that is. A hook that
-     * comes before the guard can answer for loaded chunks only and leave the rest to it, as C2ME's
-     * does from 1.21, so asking about one that isn't loaded misses it, as asking about 0,0 did in a
-     * world whose spawn is far from there. Here the only chunk loaded in the End is one forced far
-     * out, and what the check says must match what a capture there is handed. In a run given the real
-     * C2ME (-Pc2me) that's C2ME's hook against the guard. The check loads nothing.
+     * The chunk guard check must ask about a loaded chunk, wherever it is, because a hook ahead of the
+     * guard may answer only for loaded chunks (C2ME's does from 1.21). Here the only loaded End chunk
+     * is one forced far out, and the check's answer must match what a capture there is handed. With
+     * -Pc2me this tests C2ME's real hook. The check loads nothing.
      */
     public static void chunkGuardCheckAsksAboutALoadedChunk(GameTestHelper helper) {
         ServerLevel end = helper.getLevel().getServer().getLevel(Level.END);
@@ -148,7 +144,7 @@ public final class RealWorldTests {
                 CompletableFuture<Boolean> said = StructureCapture.chunkGuardHolds(end);
                 helper.assertTrue(said != null, "the chunk guard check found no loaded chunk to ask about");
                 problem.set(said.thenCombine(handedOver(end, real), (guarded, handed) -> {
-                    // The game's own summary of a failed test leaves out why on some versions.
+                    // The game's summary of a failed test leaves out the reason on some versions.
                     JustEnoughStructures.LOGGER.info("In the test of the chunk guard check: it said the guard {}, and a capture at {}, {} in the End was handed {}",
                             guarded ? "comes first" : "doesn't come first", x, z, handed);
                     if (guarded && !handed.equals("the sandbox's own chunk")) {
@@ -168,7 +164,7 @@ public final class RealWorldTests {
         });
     }
 
-    /** What the chunk source hands a capture's code in a sandbox around {@code real}, on a thread of its own as captures run. */
+    /** What the chunk source hands a capture's code in a sandbox around {@code real}, on a separate thread as captures run. */
     private static CompletableFuture<String> handedOver(ServerLevel level, LevelChunk real) {
         ChunkPos pos = real.getPos();
         return CompletableFuture.supplyAsync(() -> StructureCapture.inSandbox(level, pos, () -> {
@@ -292,8 +288,7 @@ public final class RealWorldTests {
     /** Whether work handed to the server comes back, giving up after a while. */
     private static boolean cameBack(CompletableFuture<Boolean> work) {
         try {
-            // Long enough for a server held up by other tests' captures, which on a busy machine has
-            // been over half a minute.
+            // Generous, because other tests' captures can hold the server up on a busy machine.
             return Boolean.TRUE.equals(work.get(3, TimeUnit.MINUTES));
         } catch (ExecutionException | TimeoutException e) {
             return false;

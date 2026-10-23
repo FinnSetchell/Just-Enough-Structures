@@ -110,10 +110,10 @@ public final class ScanTests {
 
     /**
      * The first layout the index generates of a structure is the one it's shown with, and the next
-     * three have the seeds after it, as they always had, so the index finds at least what it found
-     * with them. The ones after those start the structure's random off differently. The game starts
-     * it from the layout's seed, and seeds next to each other draw nearly the same first number,
-     * which picks the way the igloo faces and could as well pick whether a part is placed.
+     * three use the seeds after it, so the index finds at least what those seeds find. The ones after
+     * those start the structure's random differently. The game starts it from the layout's seed, and
+     * neighbouring seeds draw nearly the same first number, which picks the way the igloo faces and
+     * could just as well pick whether a part is placed.
      */
     public static void layoutsStartTheirRandomsApart(GameTestHelper helper) {
         for (String name : List.of("igloo", "shipwreck", "ocean_ruin_cold", "desert_pyramid")) {

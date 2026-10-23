@@ -97,7 +97,7 @@ public final class Director {
         return current == null && next >= actions.size();
     }
 
-    /** Another script this one is playing through, for a suite of them in one game, and how it's going. */
+    /** The suite script being played, with its name, run time and failure in the fields below. */
     private Director inner;
     private String innerName;
     private int innerTicks;
@@ -115,8 +115,8 @@ public final class Director {
     public static Action play(String name, Supplier<Director> script) {
         return (d, frame) -> {
             if (frame == 0) {
-                // Each starts in the world with nothing open, as it would on its own, whatever the
-                // one before was in the middle of when it was left.
+                // Start each script in the world with no screen open and no button held, however the
+                // last one ended.
                 if (d.pressed) {
                     d.release(0);
                 }
@@ -226,9 +226,8 @@ public final class Director {
     // ------------------------------------------------------------------ raw input
 
     /**
-     * Has the game count its window as the one in use. From 1.21 a screen is only told the mouse
-     * moved, and so that it's dragging, while it is, and a test game's often isn't: something else is
-     * being done on the PC it runs on.
+     * Marks the game window as focused. From 1.21 a screen only gets mouse moves and drags while the
+     * window is focused, and a test game's window often isn't.
      */
     private void useWindow() {
         //? if >=26.1 {
@@ -343,7 +342,7 @@ public final class Director {
                 /*onMove = named(MouseHandler.class, "onMove", "m_91561_", long.class, double.class, double.class);
                 *///?}
                 //? if >=26.1 {
-                /*// 26.1 hands the game each button and key as an event, and keeps the key handler to itself.
+                /*// From 26.1 buttons and keys are passed as event objects, and keyPress is private.
                 onScroll = MouseHandler.class.getDeclaredMethod("onScroll", long.class, double.class, double.class);
                 onPress = MouseHandler.class.getDeclaredMethod("onButton", long.class, MouseButtonInfo.class, int.class);
                 charTyped = KeyboardHandler.class.getDeclaredMethod("charTyped", long.class, CharacterEvent.class);

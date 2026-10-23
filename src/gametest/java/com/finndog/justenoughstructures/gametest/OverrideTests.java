@@ -275,9 +275,9 @@ public final class OverrideTests {
     }
 
     /**
-     * What the editor starts a function, a condition or an entry of any kind with, the game keeps: each
-     * setting written is one this version reads, not one it loads and takes no notice of. Told from
-     * the game's own writing of the table, which there is from 1.20.5.
+     * Every setting the editor writes into a new function, condition or entry is one the game keeps,
+     * not one it loads and ignores. Checked by having the game write the table back, which it can from
+     * 1.20.5.
      */
     public static void whatTheEditorStartsIsKept(GameTestHelper helper) {
         //? if >=1.21 {
@@ -305,8 +305,8 @@ public final class OverrideTests {
     }
 
     /**
-     * The kind of entity in an entity predicate is kept under the key the form writes it to, and not
-     * under the key another version has for it, which this one loads and takes no notice of.
+     * The kind of entity in an entity predicate is kept under the key the form writes it to, not under
+     * another version's key, which this version loads and ignores.
      */
     public static void entityTypesAreKept(GameTestHelper helper) {
         //? if >=1.21 {
@@ -340,7 +340,7 @@ public final class OverrideTests {
             lost.add(what + " (doesn't load: " + (problem == null ? "?" : problem.getString()) + ")");
             return;
         }
-        // Its kind is how it was found, and something with no settings that the game drops can't be told from one it keeps.
+        // Skip the key naming its kind, which is how it was found. An object with no settings that the game drops can't be told from one it keeps.
         String kind = list == null ? "type" : list.substring(0, list.length() - 1);
         for (Map.Entry<String, JsonElement> setting : added.entrySet()) {
             JsonElement value = setting.getValue();
@@ -352,7 +352,7 @@ public final class OverrideTests {
         }
     }
 
-    // A table with one stick entry that has this function or condition, or with this entry alone, in the game's own shape.
+    // A table with one stick entry that has this function or condition, or with this entry alone, in the game's format.
     private static String sent(String list, JsonObject added) {
         JsonObject entry = list == null ? added.deepCopy() : JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}").getAsJsonObject();
         if (list != null) {
@@ -403,7 +403,7 @@ public final class OverrideTests {
             if (type.startsWith("minecraft:")) {
                 JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
                 table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(LootTypes.entry(type, null));
-                // In the game's own shape, as the editor sends a table.
+                // Converted to the game's format, as the editor does before sending a table.
                 Component problem = LootOverrides.check(IGLOO, LootFormat.forGame(table).toString());
                 if (problem != null) {
                     broken.add(type + " (" + problem.getString() + ")");
@@ -465,8 +465,8 @@ public final class OverrideTests {
     }
 
     /**
-     * Whether the game has a kind of table by this name. One it doesn't know loads without a word,
-     * as the kind that can know everything, so what the game writes back is what tells.
+     * Whether the game knows this table type. An unknown type still loads, as minecraft:generic, so
+     * the type the game writes back is what tells.
      */
     private static boolean isTableType(GameTestHelper helper, String type) {
         net.minecraft.world.level.storage.loot.LootTable table = LootOverrides.parse("{\"type\": \"" + type + "\", \"pools\": []}");
@@ -479,13 +479,13 @@ public final class OverrideTests {
         *///?} else {
         JsonObject back = net.minecraft.world.level.storage.loot.LootDataType.TABLE.parser().toJsonTree(table).getAsJsonObject();
         //?}
-        // The kind that can know everything is what's taken when none is given, so the game may leave it out.
+        // minecraft:generic is the default, so the game may leave it out.
         return back.has("type") ? back.get("type").getAsString().equals(type) : type.equals("minecraft:generic");
     }
 
     /**
-     * An id with a dot in it, as some mods' enchantments have, is one step of a path in the form, so
-     * its level is read, changed and taken out where it is and not somewhere of the form's own making.
+     * An id with a dot in it, as some mods' enchantments have, is one path step in the form, so its
+     * level is read, changed and removed in place, not split at the dot.
      */
     public static void idsWithDotsAreOneStep(GameTestHelper helper) {
         JsonObject function = JsonParser.parseString("{\"function\": \"minecraft:set_enchantments\", \"enchantments\": "
@@ -499,7 +499,7 @@ public final class OverrideTests {
         JsonPaths.remove(function, storm);
         helper.assertTrue(function.toString().equals("{\"function\":\"minecraft:set_enchantments\",\"enchantments\":{\"minecraft:sharpness\":1}}"),
                 "taking it out left " + function);
-        // The form's own paths, and a key with the mark itself in it, as before.
+        // Plain paths still work, and so does a key containing a backslash, the escape character.
         helper.assertTrue(JsonPaths.get(function, "enchantments.minecraft:sharpness").getAsInt() == 1, "a plain path stopped working");
         String odd = JsonPaths.join("enchantments", JsonPaths.key("a\\b.c"));
         JsonPaths.set(function, odd, new com.google.gson.JsonPrimitive(3));
@@ -566,9 +566,9 @@ public final class OverrideTests {
     }
 
     /**
-     * Every word the editor lists for who or what a setting is about is one this version of the game
-     * takes there: the entity a condition or a player head is about, and where a name or data is
-     * copied from. A word from another version must be refused, or this test proves nothing.
+     * Every value the editor offers for an entity target or a copy source is one this version accepts:
+     * the entity a condition or a player head is about, and where a name or data is copied from.
+     * Another version's value must be refused, or this test proves nothing.
      */
     public static void listedWordsLoad(GameTestHelper helper) {
         List<String> broken = new ArrayList<>();
@@ -614,8 +614,8 @@ public final class OverrideTests {
         entry.add(list, kinds);
         JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
         table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
-        // In the game's own shape, as the editor sends a table. From 26.3 that isn't the shape it's edited
-        // in, and the game takes no notice of functions and conditions written the old way.
+        // Converted to the game's format, as the editor does before sending a table. From 26.3 the editor's
+        // format differs, and the game ignores functions and conditions written the older way.
         Component problem = LootOverrides.check(IGLOO, LootFormat.forGame(table).toString());
         if (problem != null) {
             broken.add(type + " (" + problem.getString() + ")");
@@ -625,7 +625,7 @@ public final class OverrideTests {
     /**
      * Entries are matched up across a merge by what they are, so a pool with a Nothing entry, or with
      * the same item in it twice, still merges entry by entry: the dev's change to one and the mod's
-     * new entry both come through, with nothing left to look at.
+     * new entry both come through, with no conflicts.
      */
     public static void mergesMatchEntriesThatHaveNoNameOfTheirOwn(GameTestHelper helper) {
         String withNothing = """

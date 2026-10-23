@@ -216,7 +216,7 @@ public final class ServiceTests {
             helper.fail("a structure with no width was read");
             return;
         } catch (DecoderException e) {
-            // Turned away, as it should be.
+            // Expected: a structure with no width is refused.
         }
         helper.succeed();
     }
@@ -512,7 +512,7 @@ public final class ServiceTests {
         return await(then -> SavedPreviews.load(dir, id, picture, then), "reading a saved view");
     }
 
-    /** What a callback is handed, once {@code ask} has asked for it. */
+    /** Calls {@code ask} with a callback and waits up to 10 s for the value it's given. */
     private static <T> T await(Consumer<Consumer<T>> ask, String what) {
         CompletableFuture<T> answer = new CompletableFuture<>();
         ask.accept(answer::complete);

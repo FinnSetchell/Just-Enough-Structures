@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Past the point where the mod sends capture draws elsewhere, so this only sees the ones that got through. */
+/** Reports world-random draws during a capture to {@link RealRandoms}. It hooks after JES's HEAD hook, so it only sees draws that got past it. */
 @Mixin(LegacyRandomSource.class)
 abstract class LegacyRandomSourceMixin {
     @Inject(method = "next", at = @At(value = "INVOKE", target = "Ljava/util/concurrent/atomic/AtomicLong;get()J"))

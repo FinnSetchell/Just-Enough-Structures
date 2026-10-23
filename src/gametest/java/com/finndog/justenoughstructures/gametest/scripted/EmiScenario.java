@@ -14,15 +14,15 @@ import net.minecraft.server.MinecraftServer;
 //?}
 import net.minecraft.client.Minecraft;
 
-/** How EMI and the loot index get on, in a game that has EMI (-Pviewer=emi in the dev game). */
+/** How often EMI reloads as the loot index arrives. Needs EMI (-Pviewer=emi in the dev game). */
 final class EmiScenario {
     private EmiScenario() {
     }
 
     /**
-     * With a loot index the server saved in a game before, EMI loads once: the index is there in
-     * time for the load EMI starts on joining, so there's no second one to add the structures. The
-     * first game with a set of mods has no saved index, and EMI can't help loading twice then.
+     * With a loot index saved from an earlier game, EMI loads once: the index arrives in time for the
+     * load EMI starts on joining. The first game with a set of mods has no saved index, so EMI loads
+     * twice there.
      */
     static Director once(Minecraft mc) {
         //? if emi {
@@ -31,7 +31,7 @@ final class EmiScenario {
         }
         Director d = new Director(mc);
         d.then(until(JesEmiPlugin::ready, 20 * 60 * 30))
-                // Long enough for another load to have started, had one been going to.
+                // Give a second load time to start, if one is coming.
                 .then(pause(200))
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
                 .then(run(() -> {
@@ -49,8 +49,8 @@ final class EmiScenario {
     /**
      * A first game with nothing saved, where the loot index comes early and the finished one
      * follows: EMI loads as the world is joined and again for the finished index, but not for the
-     * early one in between. It only means anything in a game whose server has no loot index saved,
-     * and whose finished index holds more than the early one.
+     * early one in between. Only meaningful when the server has no saved loot index and the finished
+     * index holds more than the early one.
      */
     static Director early(Minecraft mc) {
         //? if emi {
@@ -60,8 +60,8 @@ final class EmiScenario {
         int[] loadsWhenEarly = new int[1];
         LootIndex[] early = new LootIndex[1];
         Director d = new Director(mc);
-        // EMI has the index asked for as the world is joined. With nothing saved it comes early, and
-        // the server goes on to say how far the rest has got.
+        // EMI requests the index on joining. With nothing saved, an early index arrives first,
+        // followed by progress updates.
         d.then(until(ClientRequests::indexFilling, 20 * 60 * 10))
                 .then(run(() -> {
                     if (!ClientRequests.indexFilling()) {
@@ -82,7 +82,7 @@ final class EmiScenario {
                         throw new IllegalStateException("The finished loot index holds no more than the early one, so this game can't show whether EMI waited for it");
                     }
                 }))
-                // Long enough for EMI to have started loading for the finished index.
+                // Give EMI time to start loading for the finished index.
                 .then(pause(200))
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
                 .then(run(() -> {
@@ -101,10 +101,10 @@ final class EmiScenario {
     }
 
     /**
-     * Should the server stop building after the early loot index, as when its build fails, EMI is
-     * loaded with the early index once the server has said nothing more for JesEmiPlugin.QUIET_MS,
-     * and not before. Here the build is stopped as soon as the early index is here. It only means
-     * anything in a game whose server has no loot index saved.
+     * If the server stops building after the early loot index, as when its build fails, EMI loads
+     * with the early index once the server has been quiet for JesEmiPlugin.QUIET_MS, and not before.
+     * Here the build is stopped as soon as the early index arrives. Only meaningful when the server
+     * has no saved loot index.
      */
     static Director quiet(Minecraft mc) {
         //? if emi {
@@ -139,14 +139,14 @@ final class EmiScenario {
                     if (JesEmiPlugin.loads() == loadsWhenEarly[0]) {
                         throw new IllegalStateException("EMI never loaded with the early loot index once the server had stopped saying anything of it");
                     }
-                    // The server's last word can have come a moment before its build was stopped.
+                    // The server's last progress update can come a moment before its build is stopped.
                     if (after < JesEmiPlugin.QUIET_MS / 1000 - 10) {
                         throw new IllegalStateException("EMI loaded again " + after + " s after the server stopped building, before it had been quiet for "
                                 + JesEmiPlugin.QUIET_MS / 1000 + " s");
                     }
                 }))
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
-                // Long enough for another load to have started, had one been going to.
+                // Give a second load time to start, if one is coming.
                 .then(pause(200))
                 .then(run(() -> {
                     if (!JesEmiPlugin.ready() || ClientRequests.latestIndex() != early[0]) {
@@ -163,9 +163,8 @@ final class EmiScenario {
     }
 
     /**
-     * The same loot index arriving again leaves EMI alone: only one that differs is worth loading
-     * EMI all over again for. The server sends its index again whenever it has checked it still
-     * holds, which here it's told to do though nothing has changed.
+     * An unchanged loot index arriving again doesn't reload EMI. The server resends its index after
+     * each check that it's still valid, which here it's told to do though nothing has changed.
      */
     static Director same(Minecraft mc) {
         //? if emi {
@@ -200,7 +199,7 @@ final class EmiScenario {
                         throw new IllegalStateException("The loot index came back different, with nothing changed");
                     }
                 }))
-                // Long enough for EMI to have started loading again, had it been going to.
+                // Give EMI time to start loading again, if it's going to.
                 .then(pause(200))
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
                 .then(run(() -> {

@@ -52,7 +52,7 @@ public final class LootGuardTests {
             helper.assertTrue(items.size() == 27 && items.stream().allMatch(ItemStack::isEmpty),
                     "a roll that threw " + name + " didn't leave 27 empty slots: " + items);
         });
-        // And the next table rolls as it always did.
+        // A working table still rolls afterwards.
         helper.assertTrue(LootRolls.fill(helper.getLevel(), DESERT_PYRAMID_LOOT, 42L, 27).stream().anyMatch(stack -> !stack.isEmpty()),
                 "a table that works gave nothing after ones that threw");
         helper.succeed();

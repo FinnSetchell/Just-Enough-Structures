@@ -71,7 +71,7 @@ final class BlockTourScenario {
         return d;
     }
 
-    /** The popup shows the {@code index}th of the pyramid's nine blocks of TNT, or all of them at -1. */
+    /** Checks that the popup shows the {@code index}th of the pyramid's nine blocks of TNT, or all of them at -1. */
     private static void expect(Minecraft mc, int index, String problem) {
         int[] step = browser(mc).blockPopupStep();
         if (step == null || step[0] != index || step[1] != 9) {

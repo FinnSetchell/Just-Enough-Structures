@@ -17,11 +17,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProc
 //?}
 
 /**
- * A processor that changes every spawner it's asked about, as a mod's own does to pick a spawner's
- * mob as a piece is placed, for the test that this mod sees such changes. What it changes is nothing
- * the spawner reads, so the spawner still has its template's mob and only the change itself can
- * tell it from one left alone. It's slipped in beside a piece's own processors on the thread that
- * asks for it.
+ * A processor that changes every spawner it's asked about, as some mods' processors do to pick a
+ * spawner's mob as a piece is placed, for the test that JES sees such changes. What it changes is
+ * nothing the spawner reads, so the spawner still has its template's mob and only the change itself
+ * can tell it from one left alone. It's added beside a piece's processors on the thread that asks
+ * for it.
  */
 //? if >=26.2 {
 /*public final class ChangedSpawners implements StructureProcessor {
@@ -35,7 +35,7 @@ public final class ChangedSpawners extends StructureProcessor {
     private ChangedSpawners() {
     }
 
-    /** Whether this thread's pieces get the processor too. */
+    /** Sets whether pieces placed on this thread get the processor too. */
     public static void join(boolean joined) {
         JOINED.set(joined);
     }

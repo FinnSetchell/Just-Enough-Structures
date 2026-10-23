@@ -46,8 +46,8 @@ final class HoverScenario {
                     before[1] = ThrowingShapes.solids;
                     ThrowingShapes.armed = true;
                 }))
-                // Turning to a chest asks whether anything solid is in the way of it. First, while no
-                // block has failed yet and been set aside.
+                // Turning to a chest checks for solid blocks in the way. Do it first, before any failing
+                // block has been set aside.
                 .then(run(() -> browser(mc).result().snapshot().containers().stream().findFirst().ifPresent(browser(mc)::openContainer)))
                 .then(pause(20));
         for (int dy = -90; dy <= 90; dy += 60) {

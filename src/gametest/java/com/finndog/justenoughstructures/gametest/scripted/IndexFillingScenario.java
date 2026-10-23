@@ -23,7 +23,7 @@ import net.minecraft.world.item.Items;
  * The browser while the server's loot index is still filling in: a first game with nothing saved,
  * where the index arrives early with most of the loot and the finished one follows. A search for an
  * item nothing gives and the "Found in" popup both say more is to come, and stop saying it once the
- * finished index is here. It only means anything in a game whose server has no loot index saved.
+ * finished index is here. Only meaningful when the server has no saved loot index.
  */
 final class IndexFillingScenario {
     private IndexFillingScenario() {

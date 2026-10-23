@@ -40,9 +40,9 @@ public final class MessageTests {
     }
 
     /**
-     * Whether the build failed comes after how far it got, where a version from before stops reading,
-     * so the two versions still get on: it reads how far the build got as it always did, and leaves
-     * the one byte after. From a server before it there's nothing after, which reads as not failed.
+     * Whether the build failed is one byte after how far it got, where older clients stop reading, so
+     * they still read the progress and leave that byte. An older server sends nothing there, which
+     * reads as not failed.
      */
     public static void indexProgressReadsBack(GameTestHelper helper) {
         for (boolean failed : new boolean[]{false, true}) {
@@ -55,7 +55,7 @@ public final class MessageTests {
             }), "the loot index's progress");
             Codecs.IndexProgress back = read(helper, written, Codecs::readIndexProgress);
             helper.assertTrue(back.equals(progress), "sent " + progress + " but read " + back);
-            // Read as a version from before reads it: how far, out of how many, and no further.
+            // Read as an older client reads it: how far, out of how many, and no further.
             FriendlyByteBuf old = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
             int done = old.readVarInt();
             int total = old.readVarInt();
@@ -121,7 +121,7 @@ public final class MessageTests {
         statuses.put(tower, LootOverrides.Status.ORIGINAL_CHANGED);
         statuses.put(gone, LootOverrides.Status.BROKEN);
         byte[] written = bytes(helper, buf -> Codecs.writeOverrides(buf, statuses));
-        // How a table stands goes as a number, so the numbers are set out here too: the list of them can't be put in another order.
+        // Each status is sent as its number, so the numbers are pinned here too: the enum's order must not change.
         same(helper, written, bytes(helper, buf -> {
             buf.writeVarInt(3);
             buf.writeResourceLocation(igloo);
@@ -134,7 +134,7 @@ public final class MessageTests {
         Map<ResourceLocation, LootOverrides.Status> back = read(helper, written, Codecs::readOverrides);
         helper.assertTrue(back.equals(statuses), "sent " + statuses + " but read " + back);
 
-        // A way of standing that only a newer version knows is left out, and the rest still read.
+        // A status only a newer version knows is skipped, and the rest still read.
         Map<ResourceLocation, LootOverrides.Status> known = read(helper, bytes(helper, buf -> {
             buf.writeVarInt(2);
             buf.writeResourceLocation(igloo);

@@ -8,8 +8,8 @@ import net.neoforged.fml.loading.FMLEnvironment;
 *///?}
 
 /**
- * The test mod on NeoForge, which needs a class of its own. Its tests are found by their annotation,
- * by NeoForge itself before 26.1 and from then by {@link NeoForgeGameTests}.
+ * The test mod's entry class on NeoForge. Its tests are found by their annotation: by NeoForge
+ * itself before 26.1, and from then by {@link NeoForgeGameTests}.
  */
 @Mod("justenoughstructures_gametest")
 public final class JesGameTestMod {

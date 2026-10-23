@@ -868,6 +868,7 @@ public final class LoadTest implements DedicatedServerModInitializer {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Helpers
 
     private static Object staticField(Class<?> owner, String name) {
         try {

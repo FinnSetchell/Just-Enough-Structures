@@ -19,11 +19,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * A preview is made on a thread of its own, by other mods' structure code. Whatever that throws,
- * the player who asked is told it failed rather than left looking at "Generating".
+ * A preview is made on a separate thread, by other mods' structure code. If that code throws
+ * anything, the player who asked is told the preview failed instead of being left looking at
+ * "Generating".
  */
 public final class PreviewGuardTests {
-    /** Seeds of this test's own, so nothing saved or kept answers for it, and nobody else's captures fail. */
+    /** Seeds no other test uses, so no saved or kept preview answers for them and no other test's captures fail. */
     private static final long FIRST_SEED = 147_000L;
 
     private PreviewGuardTests() {
@@ -74,7 +75,7 @@ public final class PreviewGuardTests {
             while (true) {
                 byte[] answer = answers.get(asked[0]);
                 if (answer == null) {
-                    // The answer comes from another thread, and a test server with nothing else to do gets through its ticks in no time.
+                    // The answer comes from another thread, and the idle test server ticks very fast, so wait a little between looks.
                     pause();
                 }
                 helper.assertTrue(answer != null, "the preview that died of failure " + asked[0] + " of " + failures.size() + " hasn't been answered");

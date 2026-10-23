@@ -4,9 +4,9 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * Makes one mob fail when it's asked for its name, while armed. Other mods' mobs do that for real: a
- * name worked out from something only a mob in a real world has set up fails in a preview, whose mobs
- * are made without being put in a world. Only the one mob a scenario picks, so the world's own mobs
- * and the player are left alone.
+ * name that depends on something only a mob in a real world has set up fails in a preview, whose mobs
+ * are made without being put in a world. Only the one mob a scenario chooses fails, so the world's
+ * mobs and the player are left alone.
  */
 public final class ThrowingNames {
     /** The mob that fails, or null for none. */

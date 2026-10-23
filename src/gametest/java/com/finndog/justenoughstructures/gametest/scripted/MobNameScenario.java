@@ -23,15 +23,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 
 /**
- * Another mod's mob whose name fails, as one can when its name is worked out from something only a
- * mob in a real world has. A mob in the plains village, a villager if one can be seen, is made to fail
- * when asked. With the camera turned to it, the mouse points at it, so the preview's hover text asks
- * its name, then clicks it, so its popup asks for a title. The browser has to come through both and
- * show the name of the mob's kind instead.
+ * A mob whose name throws, as another mod's can when the name depends on a real world. A plains
+ * village mob, a villager if one can be seen, is made to throw. With the camera turned to it, the
+ * mouse hovers it, so the hover text asks for its name, then clicks it, so its popup asks for a
+ * title. The browser must survive both and show the mob type's name instead.
  *
- * <p>Forge and NeoForge have the game's entity renderer ask every mob it draws for its name, so there
- * the preview leaves the mob out instead, as it does anything it can't draw. Then nothing may point at
- * the empty spot where it stood: no marker, no hover text and no popup.
+ * <p>On Forge and NeoForge the entity renderer asks every mob it draws for its name, so there the
+ * preview leaves the mob out, as it does anything it can't draw, and no marker, hover text or popup
+ * may point at where it stood.
  */
 final class MobNameScenario {
     /** How many mobs are tried before giving up on finding one the mouse can point at. */
@@ -103,8 +102,8 @@ final class MobNameScenario {
                     if (mob[0] == null) {
                         throw new IllegalStateException("None of the first " + TRIES + " mobs in the plains village could be pointed at");
                     }
-                    // Its marker is looked for while every loader still draws it, so one gone later is
-                    // down to the preview leaving it out. With its popup open, markers mark mobs.
+                    // Check the marker before the name fails, while every loader still draws the mob, so a
+                    // marker missing later means the preview left it out. With its popup open, markers mark mobs.
                     ClientState.markers = true;
                 }))
                 .then(pause(5))
@@ -151,9 +150,9 @@ final class MobNameScenario {
     }
 
     /**
-     * A mob has a marker while it's drawn, and keeps its marker after its name has
-     * started failing wherever the preview still draws it. Anything else in the village may not be a
-     * mob, which markers leave alone.
+     * Checks that a mob has a marker while it's drawn, and keeps it after its name starts failing
+     * wherever the preview still draws it. The entity tried may not be a mob, which markers leave
+     * alone, and then there's nothing to check.
      */
     private static void checkMarkers(Entity mob, boolean[] marked, boolean leftOut) {
         if (!(mob instanceof Mob)) {
@@ -180,8 +179,9 @@ final class MobNameScenario {
     }
 
     /**
-     * After a click where a mob the preview left out stood, its popup mustn't be showing: the click
-     * opens whatever is behind it, or closes the popup that was open for it when nothing is.
+     * Checks that nothing pointed at a mob the preview left out. After a click where it stood, its
+     * popup mustn't be showing: the click opens what's behind it, or closes the mob's popup if there's
+     * nothing.
      */
     private static void checkLeftOut(Minecraft mc, Entity mob, int popupAsked, List<String> pointed) {
         int opened = ThrowingNames.popup - popupAsked;

@@ -10,7 +10,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-/** A loot table the game can't load, and which part of it is said to be the matter. */
+/** Loot tables the game can't load, and which part the error names. */
 public final class FaultTests {
     private static final ResourceLocation TABLE = Ids.parse("justenoughstructures_gametest:faulty");
     private static final String GOOD_POOL = "{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", \"name\": \"minecraft:bone\"}]}";
@@ -39,7 +39,7 @@ public final class FaultTests {
                 + "{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}, " + badItem + "]}]}]}]}");
         expect(helper, inside, "invalid_entry_inside", new LootOverrides.Fault(0, 0, "children.1.children.1"));
 
-        // What's wrong with the table itself, here a function of its own that there isn't, is no pool's or entry's fault.
+        // A problem in the table itself, here a table-level function that doesn't exist, isn't blamed on a pool or entry.
         Component whole = check("{\"type\": \"minecraft:chest\", \"functions\": [{\"function\": \"minecraft:not_a_function\"}], \"pools\": [" + GOOD_POOL + "]}");
         helper.assertTrue(whole != null && key(whole).endsWith("invalid_table") && LootOverrides.Fault.of(whole) == null,
                 "a table with a function there isn't was said to be " + (whole == null ? "fine" : whole.getString()));
@@ -51,7 +51,7 @@ public final class FaultTests {
         helper.succeed();
     }
 
-    // In the game's own shape, as the editor sends a table.
+    // Converted to the game's format, as the editor does before sending a table.
     private static Component check(String json) {
         return LootOverrides.check(TABLE, LootFormat.forGame(JsonParser.parseString(json).getAsJsonObject()).toString());
     }

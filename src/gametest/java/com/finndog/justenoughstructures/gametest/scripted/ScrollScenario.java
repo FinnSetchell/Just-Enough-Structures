@@ -27,13 +27,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Scroll bars. In the browser, the structure list and the details are each dragged by their bar's
- * thumb, and a press on the list's bar picks no structure; then a loot table's chances in its popup
- * and the structures an item is found in, and a spawner with one mob, whose list has no bar. In Pack tools, the list of loot tables is dragged down by
- * its thumb, sent to its end by a press beside the thumb, left alone by the mouse once the button is
- * up, and moved by the wheel as before. In the loot editor, the item grid, the list under a field
- * being typed in and a list of choices, which a press on its bar leaves open. Each step says how
- * far the list is scrolled, as a bar that didn't move looks much like one that did.
+ * Scroll bars in the browser, Pack tools and the loot editor. Each list is dragged by its thumb, and
+ * each step checks how far it scrolled, as a bar that didn't move looks much like one that did. Also
+ * checks that a press on the structure list's bar selects no structure, a spawner with one mob has no
+ * bar, Pack tools' list of loot tables jumps to a press beside the thumb, ignores the mouse once the
+ * button is up and moves with the wheel, and a press on a choice list's bar leaves it open.
  */
 final class ScrollScenario {
     private ScrollScenario() {
@@ -51,7 +49,7 @@ final class ScrollScenario {
                 .then(until(() -> browser(mc).scrollBar(false, 0) != null && browser(mc).scrollBar(true, 0) != null, 200))
                 .then(pause(10))
                 .then(run(() -> expect(browser(mc).scrolled(true) == 0, "The details didn't start at their top: " + browser(mc).scrolled(true))))
-                // The structure list, which opens scrolled to the structure on show: up to its top by the bar, then down by the thumb.
+                // The structure list, which opens scrolled to the selected structure: up to its top by the bar, then down by the thumb.
                 .then(moveTo(() -> orZero(browser(mc).scrollBar(false, 0.99f)), 10))
                 .then(dragTo(() -> orZero(browser(mc).scrollBar(false, 0)), 20, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(5))
@@ -169,9 +167,8 @@ final class ScrollScenario {
     }
 
     /**
-     * Sends a list to its top by its bar, with a press near the bar's end and a drag up to its top,
-     * then drags it down by the thumb, and says so if either did nothing. Lists that open already
-     * scrolled to what's picked in them start anywhere.
+     * Drags a list's bar from near its end to the top, then drags the thumb down, failing if either
+     * didn't scroll. Lists that open scrolled to their selected item can start anywhere.
      */
     private static Director.Action drag(String what, Function<Float, int[]> bar, DoubleSupplier scrolled) {
         return Director.chain(

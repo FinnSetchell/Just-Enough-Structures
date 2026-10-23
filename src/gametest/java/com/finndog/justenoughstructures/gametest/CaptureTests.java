@@ -133,10 +133,9 @@ public final class CaptureTests {
     }
 
     /**
-     * A capture places all of a structure, however far it reaches past the chunks round its middle,
-     * with the tests' {@code NearMiddleRegionMixin} doing what BCLib and Better End do to the game's
-     * regions. Before captures kept their own rule for that, every one in a pack with either of them
-     * stopped at three chunks across.
+     * A capture places all of a structure, however far it reaches past the chunks around its middle.
+     * The tests' {@code NearMiddleRegionMixin} limits writes in capture regions to the middle chunk and
+     * its neighbours, as BCLib and Better End do in the game's regions.
      */
     public static void capturesReachPastTheMiddleChunks(GameTestHelper helper) {
         CaptureResult result = StructureCapture.capture(helper.getLevel().getServer(), Ids.parse("ancient_city"), SEED);
@@ -345,11 +344,11 @@ public final class CaptureTests {
     public static void unwantedCapturesStop(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         AtomicInteger asked = new AtomicInteger();
-        // On a thread of its own, which ends after, so a lock it kept would hold up the capture below.
+        // On a separate thread that ends afterwards, so a lock it kept would hold up the capture below.
         ExecutorService pool = Executors.newSingleThreadExecutor();
         CaptureResult stopped;
         try {
-            // Wanted as it starts, and not from the first time it's asked again, as it's placed.
+            // Wanted at the first check, unwanted from the second, which comes while it's placed.
             stopped = pool.submit(() -> StructureCapture.capture(server, Ids.parse("ancient_city"), SEED, () -> asked.incrementAndGet() > 1))
                     .get(1, TimeUnit.MINUTES);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -366,11 +365,10 @@ public final class CaptureTests {
     }
 
     /**
-     * While a capture places a structure, drawing from the world's random, as bees do as they're made,
-     * takes from the capture's own instead, so the world's is never drawn from on two threads at
-     * once. Checked with the game's own, and in a run given the real C2ME (-Pc2me) with C2ME's: it
-     * gives each world a random of its own, which refuses to be drawn from on any thread but the
-     * server's.
+     * While a capture places a structure, draws from the world's random (bees make them when created)
+     * come from the capture's random instead, so the world's random is never used on two threads at
+     * once. With -Pc2me this also covers C2ME's world random, which throws when drawn from off the
+     * server thread.
      */
     public static void worldRandomIsTheCapturesWhilePlacing(GameTestHelper helper) {
         RandomSource world = helper.getLevel().getRandom();
@@ -440,14 +438,14 @@ public final class CaptureTests {
     }
 
     /**
-     * The game often fills an error in before logging it, so each line of a kind has a text of its
-     * own. These are real lines that reached the game log dozens of times a session, each with its
-     * own coordinates or saved data: old sculk data in Prominence II's structures on 1.20.1, and
-     * pieces with inverted bounds in Better MC 5 on 1.21.1. Only the first of each should, with the
-     * rest in the debug log as before, while an error about something else still gets through.
+     * The game often fills values into an error before logging it, so each line of a kind has
+     * different text. These are real errors, each with different coordinates or saved data: old sculk
+     * data in Prominence II's structures on 1.20.1, and pieces with inverted bounds in Better MC 5 on
+     * 1.21.1. Only the first of each kind should reach the game log, with the rest in the debug log,
+     * while an error about something else still gets through.
      */
     private static void checkErrorsLoggedFilledIn(GameTestHelper helper, LoggerContext context, Filter filter) {
-        // Loggers of their own, so no line from earlier in the run counts against them.
+        // Fresh loggers, so no line from earlier in the run counts against them.
         String run = " " + UUID.randomUUID();
         org.apache.logging.log4j.core.Logger sensor = context.getLogger("SculkSensorBlockEntity" + run);
         org.apache.logging.log4j.core.Logger shrieker = context.getLogger("SculkShriekerBlockEntity" + run);
@@ -631,10 +629,10 @@ public final class CaptureTests {
     }
 
     /**
-     * The game keeps its pieces locked while it loads one, and a piece loaded for this mod is noted
-     * as it loads. So nothing may be forgotten with the notes held: a capture ending just as the loot
-     * index loads a piece would have each waiting on the other, and the server stopped for good. Here
-     * one thread is stopped in the middle of loading a piece while another lets go of that same one.
+     * The game keeps its pieces locked while it loads one, and a piece loaded for JES is recorded as
+     * it loads. So no piece may be evicted while the records are locked: a capture ending just as the
+     * loot index loads a piece would have each waiting on the other, which would deadlock the server.
+     * Here one thread is paused in the middle of loading a piece while another evicts that same one.
      */
     public static void forgettingDoesntWaitOnALoad(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -687,11 +685,9 @@ public final class CaptureTests {
     }
 
     /**
-     * The game asks every processor about every block of a piece as it places it, in any world, and
-     * this mod listens in on that call for the sake of spawners. Listening has to cost nothing. It
-     * once made an array and a function for each call, which came to two fifths of the memory a loot
-     * index went through. So one piece is put through one processor and then through seventeen, and
-     * the sixteen more may ask for next to no memory.
+     * The game asks every processor about every block it places, in any world, and JES listens in on
+     * that call for spawners. Listening must not allocate. So one piece goes through 1 processor and
+     * then 17, and the extra 16 must cost almost no memory.
      */
     public static void listeningToProcessorsCostsNothing(GameTestHelper helper) {
         if (!(ManagementFactory.getThreadMXBean() instanceof com.sun.management.ThreadMXBean threads)) {
@@ -705,10 +701,9 @@ public final class CaptureTests {
             helper.fail("the outpost's watchtower didn't load");
             return;
         }
-        // Java sometimes makes the array and the function of a wrapped call vanish as it runs, and
-        // sometimes doesn't, so the wrapping itself is looked for too. And a redirect, which costs
-        // nothing but stops the game loading templates at all with the MixinExtras that Fabric
-        // Loader up to 0.19.3 brings.
+        // The JIT sometimes removes a wrapped call's allocations, so the wrapper itself is looked for
+        // too. Redirects are refused as well: they allocate nothing, but with the MixinExtras in
+        // Fabric Loader up to 0.19.3 templates stop loading.
         for (Method method : StructureTemplate.class.getDeclaredMethods()) {
             if (!method.getName().contains("justenoughstructures")) {
                 continue;

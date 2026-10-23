@@ -54,9 +54,7 @@ final class ContainerScenario {
                 .then(until(() -> tablePicker(mc).ready(), 3600))
                 .then(pause(10))
                 .then(shoot("k02_picker"))
-                // A table typed in full is picked whether the loot index has it yet or not. "igloo" found
-                // nothing in a game without other mods, whose index can miss the igloo's basement and its
-                // chest, so nothing was picked and Use it did nothing.
+                // Type the full table id; it's selected even before the loot index has it.
                 .then(type("minecraft:chests/buried_treasure", 1))
                 .then(run(() -> tablePicker(mc).pick(0)))
                 .then(pause(10))
@@ -85,7 +83,7 @@ final class ContainerScenario {
                 .then(until(() -> browser(mc) != null, 40))
                 // The test datapack hides the jungle pyramid's loot, so the desert pyramid shows a chest placed by code.
                 .then(run(() -> browser(mc).select(Ids.parse("desert_pyramid"))))
-                // The one picked before can still show for a moment, until the new one is asked for.
+                // The one selected before can still show for a moment, until the new one is asked for.
                 .then(until(() -> captured(mc) && browser(mc).result().snapshot().structureId().equals(Ids.parse("desert_pyramid")), 600))
                 .then(run(() -> browser(mc).pickForTools()))
                 .then(run(() -> open(mc, c -> c.source() == null && c.lootTable() != null)))

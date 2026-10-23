@@ -62,7 +62,8 @@ final class SpawnersScenario {
                     browser.mouseReleased(reroll[0], reroll[1], 0);
                     return false;
                 }, Integer.MAX_VALUE))
-                // For a run in a real game to be read by: whether the mod still sees a processor pick a spawner's mob.
+                // Logs whether any layout had a spawner with a list of mobs, which shows JES still sees a processor choose a spawner's mob.
+                // For runs in a real pack.
                 .then(run(() -> JustEnoughStructures.LOGGER.info("SPAWNERS a spawner with a list of mobs {} in {} layouts",
                         browser(mc) != null && hasPool(browser(mc).result()) ? "turned up" : "never turned up", tries[0] + 1)))
                 .then(moveTo(() -> browser(mc).tab("entities"), 6))

@@ -27,9 +27,8 @@ import net.minecraft.resources.ResourceLocation;
  * The loot editor's JSON view scrolls like the other lists: opened as the form first, as a player does,
  * then switched to JSON, the wheel over it moves it three lines a notch, its bar right of it drags it
  * to the bottom, a resize keeps it where it was, and once the cursor is out of view, typing brings its
- * line back into view. It has to open at its top, where filling the box would leave it at the end: that
- * is checked last, so on older code the bar first takes it to the top, dragged above the box, which
- * vanilla's bar does too, and the wheel is checked first.
+ * line back into view. It must open at its top, though filling the box would leave it at the end.
+ * That's checked last, so the other checks still run when it doesn't.
  */
 final class JsonScrollScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");

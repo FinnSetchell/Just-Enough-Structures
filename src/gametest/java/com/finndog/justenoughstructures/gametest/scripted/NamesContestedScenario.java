@@ -16,15 +16,14 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * A name saved in Pack tools beats another mod's own name for the same structure. The game merges
- * lang files one namespace at a time, in the order of a hash map, so a pack's place only counts
- * within one namespace: Explorer's Compass names the igloo under its own namespace, merged after
- * JES's in a big pack, and won. The test mod names a made-up structure the same way, under a
- * namespace merged after JES's at any size of the game's map, and the saved name has to win.
+ * A name saved in Pack tools beats another mod's name for the same structure. The game merges lang
+ * files one namespace at a time, in hash map order, so pack order only counts within a namespace,
+ * and Explorer's Compass names the igloo under its own namespace. The test mod names a made-up
+ * structure under a namespace that comes after JES's at any map size, and the saved name must win.
  */
 final class NamesContestedScenario {
     private static final ResourceLocation CONTESTED = Ids.of("jes_test", "contested");
-    /** The test mod's own lang file names the structure under this namespace too. */
+    /** The test mod's lang file names the structure under this namespace too. */
     private static final String OTHER_NAMESPACE = "jes_names_after_10";
     private static final String OTHER_NAME = "Named by another mod";
     private static final String NAME = "Named in Pack tools";

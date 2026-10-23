@@ -6,12 +6,12 @@ import java.util.Map;
 import net.minecraft.gametest.framework.GameTestHelper;
 
 /**
- * The wait EMI's load makes for a loot index that's on its way. The index arrives on the game's
- * thread and EMI loads on another, so here it's handed over from a thread of its own too. Then the
- * wait EMI makes for the finished index while an early one is here.
+ * How EMI's load waits for a loot index on its way, and for the finished index once an early one has
+ * arrived. The index arrives on the game thread and EMI loads on another, so these tests hand it over
+ * from a separate thread.
  */
 public final class IndexArrivalTests {
-    /** Much less than the waits asked for below, and much more than a busy machine takes to notice. */
+    /** Well under the waits asked for below, and well over the time a busy machine needs to notice an arrival. */
     private static final long SOON = 2500;
     /** How long the server may say nothing here before the finished index stops being waited for. */
     private static final long QUIET = 1000;
@@ -77,10 +77,9 @@ public final class IndexArrivalTests {
     }
 
     /**
-     * With an early index here, the finished one is waited for while the server goes on saying how
-     * the rest is going, and no longer once it has said nothing for the time it's given, as its build
-     * may have stopped. A finished index, which is also how one from a server that doesn't mark them
-     * arrives, is nothing to wait for. EMI's own load takes whichever is here.
+     * With an early index here, the finished one is waited for while the server keeps sending
+     * progress, but not after QUIET ms of silence, as the build may have stopped. A finished index, or
+     * one from a server that doesn't mark them, needs no wait. EMI's load takes whichever is here.
      */
     public static void earlyIndexWaitsForTheFinishedOne(GameTestHelper helper) {
         LootIndex early = new LootIndex(Map.of(), Map.of());
@@ -95,7 +94,7 @@ public final class IndexArrivalTests {
         long started = System.nanoTime();
         helper.assertTrue(arrival.await(10_000) == early && millisSince(started) < SOON, "an early index wasn't handed over to EMI's load straight away");
 
-        // Past the time it's given, but the server has gone on saying how the rest is going.
+        // Past QUIET, but the server has kept sending progress.
         pause(QUIET + 200);
         arrival.building();
         helper.assertTrue(arrival.finishedWait(QUIET) > 0, "the wait for the finished index ended while the server was still saying how the rest was going");

@@ -59,7 +59,7 @@ final class NamesScenario {
                 .then(run(() -> check(NAME.equals(StructureNames.structure(IGLOO)), "the saved name isn't shown: " + StructureNames.structure(IGLOO))))
                 .then(pause(20))
                 .then(shoot("m02_name_saved"))
-                // Forgotten here, the name has to come back with the structure list the server sends.
+                // Clear the name on the client. It must come back with the server's structure list.
                 .then(run(() -> {
                     StructureNames.useGiven(null);
                     ClientRequests.forgetCatalog();

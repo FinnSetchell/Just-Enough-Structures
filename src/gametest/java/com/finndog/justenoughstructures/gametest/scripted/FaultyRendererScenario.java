@@ -31,15 +31,13 @@ import net.minecraft.client.renderer.Sheets;
 //?}
 
 /**
- * Another mod's block entity renderer going wrong while a preview draws it. Suspicious
- * sand's renderer is swapped for one that leaves poses pushed, far away, and half a vertex written,
- * then fails, with an exception or by running out of stack, or one that only leaves the poses, so a
- * pose left wrong is seen on its own. Until 26.1 the half vertex goes in the buffer chests draw into.
- * From 26.1 block entities hand the game what to draw instead, so it's in geometry the game draws
- * later, and running out of stack happens while the preview asks the renderer what to draw, which
- * nothing in the game wraps. The desert pyramid's sand and chests are shown for a while, and the game
- * has to keep going, only the sand may be left out, and no chest may be drawn where the sand's
- * renderer left the pose.
+ * A block entity renderer that fails while a preview draws it, as another mod's can. Suspicious
+ * sand's renderer is replaced with one that leaves poses pushed (the top one far off) and half a
+ * vertex written, then throws or runs out of stack, or one that only leaves the poses, so a wrong
+ * pose shows on its own. The desert pyramid is shown for a while: the game must keep going, only the
+ * sand may be left out, and no chest may be drawn where the sand's renderer left the pose. Until
+ * 26.1 the half vertex lands in the chests' buffer. From 26.1 it's in custom geometry the game draws
+ * later, and running out of stack happens during extraction, which the game doesn't wrap.
  */
 final class FaultyRendererScenario {
     /** How far off the faulty renderer moves the poses it leaves pushed. */
@@ -131,10 +129,9 @@ final class FaultyRendererScenario {
     }
 
     /**
-     * Puts the faulty renderer in for suspicious sand, and the probe round the chest's. Not the faulty
-     * one for chests: a chest's item is drawn with its block entity's renderer until 26.1, so the
-     * browser's own icons would call it, which no preview guards. Returns the renderers there were, to
-     * put back.
+     * Swaps in the faulty renderer for suspicious sand and wraps the chest renderer in a probe. Chests
+     * don't get the faulty one: until 26.1 a chest item is drawn with its block entity renderer, so the
+     * browser's unguarded icons would call it. Returns the previous renderers, to restore.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object install(Minecraft mc, Fault fault) {

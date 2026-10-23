@@ -47,7 +47,7 @@ public final class StackEntryTests {
                     && entry.toString().contains("furnace_smelt") && !entry.toString().contains("\"count\":40"), "filling from " + stack + " left the entry as " + entry);
             JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
             table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
-            // In the game's own shape, as the editor sends a table: from 26.3 that isn't the shape it's edited in.
+            // Converted to the game's format, as the editor does before sending a table. From 26.3 the editor's format differs.
             String sent = LootFormat.forGame(table).toString();
             Component problem = LootOverrides.check(TABLE, sent);
             helper.assertTrue(problem == null, "the entry made from " + stack + " doesn't load: " + (problem == null ? "" : problem.getString()) + " " + entry);

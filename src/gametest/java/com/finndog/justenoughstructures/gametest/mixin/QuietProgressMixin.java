@@ -9,12 +9,11 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 
 /**
- * The test server logs its progress bar every 20 game ticks, which is once a second at the game's
- * pace. But it never waits for the next tick, only runs what's queued, so while it has nothing to do
- * but wait, most often for the chunks of a batch's test to load, it ticks tens of thousands of times
- * a second. On the NUC that logged the same bar 5,700 times a second. This keeps a bar only when it
- * differs from the last one logged, or when a second has gone by since that one. The ticks are left
- * as they are, and so is the bar logged at the end with every test's result.
+ * The test server logs its progress bar every 20 ticks, once a second at the game's pace. It never
+ * sleeps between ticks, so while it has nothing to do but wait, usually for the chunks of a batch's
+ * test to load, it ticks as fast as it can and logs the same bar over and over. This logs a bar only
+ * when it changed or a second has passed since the last one. The ticks are left alone, and so is the
+ * bar logged at the end with every test's result.
  */
 @Mixin(GameTestServer.class)
 abstract class QuietProgressMixin {

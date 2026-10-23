@@ -110,7 +110,7 @@ public final class ScrollTests {
         helper.succeed();
     }
 
-    /** Dragging the bar's thumb moves the list with it, a press beside the thumb brings it there, and taking hold moves nothing. */
+    /** Dragging the bar's thumb moves the list with it, a press beside the thumb brings it there, and pressing the thumb moves nothing. */
     public static void barDragsTheList(GameTestHelper helper) {
         int track = 100;
         Scroll scroll = new Scroll(20);

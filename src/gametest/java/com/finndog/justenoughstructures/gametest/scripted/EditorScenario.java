@@ -86,7 +86,7 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(shoot("e03e_typing_weight"))
                 .then(pressKey(InputConstants.KEY_RETURN))
-                // What isn't a number is turned down with a word about it, and the weight stays.
+                // A weight that isn't a number is refused with a message, and the old weight stays.
                 .then(moveTo(() -> field(mc, "pools.0.entries.1.weight"), 8))
                 .then(click())
                 .then(type("x", 2))
@@ -125,7 +125,7 @@ final class EditorScenario {
                 .then(pause(10))
                 .then(shoot("e03i_undone"))
                 .then(run(() -> editor(mc).redoNow()))
-                // The picked entry's row of the list has buttons to copy it and to take it out, and is dragged to move it.
+                // The selected entry's row of the list has buttons to copy and remove it, and is dragged to move it.
                 .then(run(() -> counted[0] = entries(mc)))
                 .then(moveTo(() -> at(mc, "Duplicate"), 8))
                 .then(click())
@@ -163,7 +163,7 @@ final class EditorScenario {
                         throw new IllegalStateException("Taking the removal, the move and the copy back left " + entries(mc) + " entries");
                     }
                 }))
-                // Delete takes out the picked entry, as its cross does.
+                // Delete removes the selected entry, as its cross does.
                 .then(run(() -> editor(mc).pick(0, 1)))
                 .then(pause(5))
                 .then(pressKey(InputConstants.KEY_DELETE))
@@ -221,7 +221,7 @@ final class EditorScenario {
                 .then(run(() -> editor(mc).showChanges()))
                 .then(pause(10))
                 .then(shoot("e06_changes"))
-                // The compare screen's own class isn't open to the harness, so its bar is found by its workings.
+                // The compare screen's class is package-private, so its bar is found through its methods by reflection.
                 .then(moveTo(() -> diffBar(mc, 0.02f), 8))
                 .then(dragTo(() -> diffBar(mc, 0.7f), 15, InputConstants.MOUSE_BUTTON_LEFT))
                 .then(pause(5))
@@ -249,7 +249,7 @@ final class EditorScenario {
                     }
                 }))
                 .then(shoot("e08_entry_inside"))
-                // A kind the form has no rows for, like a mod's function, is given a setting by its name.
+                // A function the form doesn't know, like a mod's, takes settings added by name.
                 .then(run(() -> editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", "
                         + "\"name\": \"minecraft:stick\", \"functions\": [{\"function\": \"examplemod:sparkle\", \"colour\": \"red\"}]}]}]}")))
                 .then(pause(10))
@@ -294,7 +294,7 @@ final class EditorScenario {
                 }))
                 .then(shoot("e11_table_opened"))
                 // The JSON view's Copy and Paste carry a table out and bring one in. A string stands in for
-                // the clipboard: the hidden window isn't let at the real one, and it's whoever's at the PC's.
+                // the clipboard, so the run never touches the real one.
                 .then(run(() -> {
                     LootEditorScreen.copyTo = text -> clipboard[0] = text;
                     LootEditorScreen.pasteFrom = () -> clipboard[0];
@@ -402,8 +402,8 @@ final class EditorScenario {
     }
 
     /**
-     * Saves an edit that makes diamonds commoner, then makes out it was made from an older version
-     * of the table, with more gold, which the mod has since changed.
+     * Saves an override that makes diamonds commoner, then rewrites its recorded base and saved
+     * original so it looks made from an older table with more gold, which the mod has since changed.
      */
     private static void flaggedOverride(Minecraft mc) {
         MinecraftServer server = mc.getSingleplayerServer();

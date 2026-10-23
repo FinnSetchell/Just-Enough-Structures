@@ -13,9 +13,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 
 /**
- * A test game leaves the PC's mouse alone. Closing a screen with nothing else open is when the game
- * takes the mouse, which moves the real cursor of whoever is using the PC to the middle of the game's
- * window and holds it there; the harness counts the window as the one in use, so the game would.
+ * Closing the browser in a test game must not grab the mouse. Closing the last screen normally grabs
+ * it, which pins the real cursor to the middle of the game window, and the harness marks the window
+ * as focused, so the game would.
  */
 final class MouseLeftAloneScenario {
     private MouseLeftAloneScenario() {

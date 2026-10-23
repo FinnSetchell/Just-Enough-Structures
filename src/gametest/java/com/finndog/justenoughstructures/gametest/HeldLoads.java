@@ -50,7 +50,7 @@ public final class HeldLoads {
         }
         hold.started.countDown();
         try {
-            // Never for good, whatever becomes of the test.
+            // At most 30 seconds, so a failed test can't block the load forever.
             hold.letGo.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

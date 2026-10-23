@@ -23,9 +23,9 @@ public final class TextStyleTests {
     }
 
     /**
-     * A colour and a style are written as the plainest text component that says them, and come off
-     * again leaving plain text. The game gives an item a name written that way as it's meant: in
-     * that colour, and upright where it's told not to slant it.
+     * A colour and a style are written as the simplest text component that holds them, and removing
+     * them leaves plain text again. The game names an item from it as intended: gold, and not italic
+     * when told not to be.
      */
     public static void namesTakeAColourAndAStyle(GameTestHelper helper) {
         JsonElement name = new JsonPrimitive("Fang");
@@ -48,7 +48,7 @@ public final class TextStyleTests {
                 + "\"name\": \"minecraft:stick\", \"functions\": [{\"function\": \"minecraft:set_name\"}]}]}]}").getAsJsonObject();
         table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").get(0).getAsJsonObject()
                 .getAsJsonArray("functions").get(0).getAsJsonObject().add("name", upright);
-        // In the game's own shape, as the editor sends a table.
+        // Converted to the game's format, as the editor does before sending a table.
         String sent = LootFormat.forGame(table).toString();
         Component problem = LootOverrides.check(TABLE, sent);
         helper.assertTrue(problem == null, "a name with a colour and a style doesn't load: " + (problem == null ? "" : problem.getString()));

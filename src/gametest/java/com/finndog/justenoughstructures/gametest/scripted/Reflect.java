@@ -45,7 +45,7 @@ final class Reflect {
         return ((Number) get(target, name)).intValue();
     }
 
-    /** What a method of {@code target}'s own class that takes nothing returns. */
+    /** Calls a no-argument method declared on {@code target}'s class and returns the result. */
     static Object call(Object target, String name) {
         try {
             Method m = target.getClass().getDeclaredMethod(name);

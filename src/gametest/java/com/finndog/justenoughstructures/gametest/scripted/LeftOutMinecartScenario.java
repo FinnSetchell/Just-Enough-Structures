@@ -24,11 +24,11 @@ import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 
 /**
- * A chest minecart whose renderer fails, as another mod's can on the preview's stand-in for a world.
- * The preview leaves it out then, as it does anything it can't draw, and nothing may point at the
- * empty spot where it stood: no marker with its popup open, none lit and no tint there while another
- * chest minecart's popup is open or the Loot tab's row for them is hovered, and nothing found there by
- * the mouse. Another chest minecart, drawn as usual, keeps its marker.
+ * A chest minecart whose renderer fails, as another mod's can in the preview's stand-in world. The
+ * preview leaves it out, as it does anything it can't draw, and nothing may point at where it stood:
+ * no marker with its popup open, no lit marker or tint there while another chest minecart's popup is
+ * open or the Loot tab's row for them is hovered, and nothing found there by the mouse. Another
+ * chest minecart, drawn as usual, keeps its marker.
  */
 final class LeftOutMinecartScenario {
     /** How many chest minecarts are tried before giving up on finding one the mouse can point at. */

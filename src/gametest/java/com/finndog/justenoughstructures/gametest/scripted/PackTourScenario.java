@@ -38,11 +38,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * A tour of the browser in whatever modpack it runs in, recorded into screenshots/tour: a structure
- * from each of the mods with the most, found by filtering the list to that mod, with a chest's loot,
- * the Loot and Mobs tabs, an item search across every structure, and Pack tools. The structures are
- * picked from what the pack has, so nothing here names one. Without other mods' structures it tours
- * vanilla's.
+ * Records a tour of the browser in the modpack it runs in, to screenshots/tour: a structure from each
+ * of the MODS mods with the most structures, found by filtering the list to that mod, with a
+ * container's loot, the Loot and Mobs tabs, an item search across every structure, and Pack tools.
+ * The structures are chosen from what the pack has, so none is named here. Without modded structures
+ * it tours vanilla ones.
  */
 final class PackTourScenario {
     private static final int MODS = 4;
@@ -100,8 +100,8 @@ final class PackTourScenario {
     }
 
     /**
-     * A structure from each of the mods with the most, from the middle of that mod's list. With no
-     * other mod's structures, as in the dev game without its mods, vanilla's stand in, spread over its
+     * Chooses the middle structure of each of the MODS mods with the most structures. With no modded
+     * structures, as in the dev game without its mods, it chooses MODS vanilla ones spread across the
      * list, so each step still has one to show.
      */
     private static List<ResourceLocation> choose() {

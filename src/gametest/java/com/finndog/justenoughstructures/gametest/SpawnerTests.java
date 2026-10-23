@@ -251,8 +251,8 @@ public final class SpawnerTests {
 
     /**
      * The server only switches a spawner to a spawner or a trial spawner, and to a trial spawner only
-     * where the game has them. Changing just its mob keeps it the kind it was made, and making it its
-     * own block again stops switching it.
+     * where the game has them. Changing only its mob keeps the switch, and switching it back to a
+     * spawner removes it.
      */
     public static void switchesAreChecked(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -429,7 +429,7 @@ public final class SpawnerTests {
             helper.assertTrue(second.get().isDone(), "still reloading");
             if (seen[1] == null) {
                 seen[1] = at(capture(server, BASTION, seed), source);
-                // Were the spawner's own mob now the one the undone change had set, it would be its own.
+                // After the reload the undone change is forgotten, so a spawner that now holds the mob it set has that mob as its own.
                 CompoundTag entity = new CompoundTag();
                 entity.putString("id", "minecraft:zombie");
                 CompoundTag data = new CompoundTag();
@@ -614,12 +614,11 @@ public final class SpawnerTests {
     *///?}
 
     /**
-     * A processor that changes a spawner as its piece is placed, as Moog's Structure Lib's does to
-     * pick its mob, leaves it something other than its template made it, so it mustn't claim the
-     * template. This mod learns of that by standing in for the game's call to each processor, which
-     * every loader makes its own way and which is allowed to go missing. So a processor that changes
-     * every spawner, though not its mob, is slipped in beside the bastion's own: its spawners claim
-     * their templates without it, and none may with it.
+     * A processor that changes a spawner as its piece is placed (Moog's Structure Lib does, to pick
+     * the mob) leaves it unlike its template, so the spawner must not claim the template. JES sees
+     * this through an optional hook on the game's processor call, which differs per loader. So a
+     * processor that marks every spawner, keeping its mob, is added beside the bastion's processors:
+     * without it the spawners claim their templates, and with it none may.
      */
     public static void changedSpawnersDontClaimTheirTemplate(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

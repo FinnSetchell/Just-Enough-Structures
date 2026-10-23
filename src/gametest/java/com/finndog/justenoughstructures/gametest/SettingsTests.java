@@ -122,7 +122,7 @@ public final class SettingsTests {
             ClientState.readNotes(file);
             helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", "kept")), "these notes were read: " + ClientState.notes);
 
-            // A broken file changes nothing rather than losing every note.
+            // A broken file changes nothing, so no note is lost.
             Files.writeString(file, "{ this isn't json");
             ClientState.readNotes(file);
             helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", "kept")), "a broken file changed the notes");
@@ -135,7 +135,7 @@ public final class SettingsTests {
             ClientState.writeNotes(file);
             helper.assertTrue(Files.readString(file).equals(newer), "a newer version's notes were written over");
 
-            // The state file doesn't carry them, so a version from before notes can't drop them.
+            // Notes aren't in the state file, so an older version that rewrites that file can't drop them.
             Path state = file.resolveSibling("state.json");
             ClientState.write(state);
             helper.assertTrue(!Files.readString(state).contains("kept"), "the notes went into the state file");
@@ -339,7 +339,6 @@ public final class SettingsTests {
                 helper.fail("this should have been refused: " + bad);
                 return;
             } catch (JsonParseException expected) {
-                // refused, as it should be
             }
         }
         helper.succeed();
@@ -362,7 +361,7 @@ public final class SettingsTests {
         helper.assertTrue(pyramid.info().hideLootLocations() && pyramid.info().notes() != null && "the game tests".equals(pyramid.info().author()),
                 "the jungle pyramid's info didn't reach the client: " + pyramid.info());
 
-        // The server switch hides every structure's.
+        // Turning show_loot_locations off hides every structure's loot locations.
         ServerConfig.Settings before = ServerConfig.get();
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 2, 2, false, ServerConfig.PackTools.level(4)));

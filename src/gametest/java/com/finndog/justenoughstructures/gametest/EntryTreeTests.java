@@ -50,7 +50,7 @@ public final class EntryTreeTests {
     /**
      * Every entry is listed, those inside others after the one they're in and a step deeper, and
      * each one's path leads to it in the table. One changed through its path leaves a table the
-     * game loads, and going back in the editor's history remembers which one was picked.
+     * game loads, and going back in the editor's history remembers which one was selected.
      */
     public static void entriesInsideOthersAreListedAndFound(GameTestHelper helper) {
         JsonObject table = JsonParser.parseString("""
@@ -83,7 +83,7 @@ public final class EntryTreeTests {
         String coal = EntryTree.path(0, 1, "children.1.children.0");
         JsonPaths.set(table, coal + ".weight", new JsonPrimitive(7));
         helper.assertTrue(table.toString().contains("\"minecraft:coal\",\"weight\":7"), "the coal's weight wasn't set: " + table);
-        // In the game's own shape, as the editor sends a table.
+        // Converted to the game's format, as the editor does before sending a table.
         Component problem = LootOverrides.check(Ids.parse("justenoughstructures_gametest:entries_inside"), LootFormat.forGame(table).toString());
         helper.assertTrue(problem == null, "the table doesn't load after changing an entry inside another: " + (problem == null ? "" : problem.getString()));
 

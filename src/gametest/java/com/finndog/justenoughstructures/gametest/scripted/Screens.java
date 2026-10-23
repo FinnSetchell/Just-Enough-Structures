@@ -6,7 +6,7 @@ import com.finndog.justenoughstructures.client.screen.PackToolsScreen;
 import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import net.minecraft.client.Minecraft;
 
-/** The screens scenarios step through, each null while another is open, and points on them. */
+/** The screens the scenarios use, each null unless it's the one open, and helpers for points on them. */
 final class Screens {
     private Screens() {
     }
