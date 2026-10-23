@@ -27,8 +27,8 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * Adds a "Found in structures" category to REI, so looking up how to get an item also lists the
- * structures whose loot can give it. The rows are made when REI asks for them, from whichever loot
- * index arrived last, so they're there as soon as the server sends it without REI reloading.
+ * structures whose loot can give it. The rows are made when REI asks for them, from the last loot
+ * index received, so they appear as soon as the server sends it, without REI reloading.
  */
 // Not final: on Forge and NeoForge, REI finds a subclass by an annotation only its Forge build has.
 public class JesReiPlugin implements REIClientPlugin {
@@ -63,7 +63,7 @@ public class JesReiPlugin implements REIClientPlugin {
         });
     }
 
-    /** On the game's thread: hears about every index, including one that's already here. */
+    /** Client thread only: listens for every index, including one that has already arrived. */
     private static void listen() {
         if (listening) {
             return;

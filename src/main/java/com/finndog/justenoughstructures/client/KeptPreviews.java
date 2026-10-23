@@ -22,13 +22,12 @@ import java.util.stream.Stream;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Structures a server has sent, kept on the player's disk. Each structure's first view is kept, so
- * opening it again only needs the server to say it hasn't changed rather than send it all again; when
- * it has changed, the new one takes the old one's place. So is the lighter copy its list picture is
- * drawn from, so the picture can be drawn again, at a new GUI scale or with other resource packs,
- * without asking the server at all, for as long as the server has that version of the structure. Each
- * server's are kept in a folder named after its fingerprint and the way structures are sent, and only
- * the few most recently used folders are kept.
+ * Client disk cache of structures a server has sent. A structure's first view is kept, so reopening
+ * it only needs the server to confirm it's unchanged; when it has changed, the new one replaces it.
+ * The picture copy, the lighter copy a list picture is drawn from, is kept too, so pictures can be
+ * redrawn at a new GUI scale or with other resource packs without the server, while the server has
+ * that version of the structure. Each server gets a folder named from its fingerprint and the
+ * protocol version, and only the {@link #KEPT_FOLDERS} most recently used folders are kept.
  */
 public final class KeptPreviews {
     private static final int KEPT_FOLDERS = 3;
@@ -36,26 +35,26 @@ public final class KeptPreviews {
 
     private static final ExecutorService DISK = Threads.single("Just Enough Structures kept previews");
     private static final Object LOCK = new Object();
-    /** Each kept first view, by the start of its file's name. */
+    /** Kept first views, by file name stem. */
     private static final Map<String, Copy> VIEWS = new HashMap<>();
-    /** Each kept picture's copy, by the start of its file's name. */
+    /** Kept picture copies, by file name stem. */
     private static final Map<String, Copy> PICTURES = new HashMap<>();
-    /** Which version of each structure the server has now, from the structure list. */
+    /** Each structure's current version on the server, from the structure list. */
     private static final Map<ResourceLocation, String> VERSIONS = new HashMap<>();
     private static int generation;
-    /** The folder for the server joined now, or null when nothing's kept for it. */
+    /** The folder for the current server, or null when nothing is kept for it. */
     private static Path wanted;
-    /** The same, once what's in it is known. */
+    /** {@link #wanted}, once its files have been listed; null until then. */
     private static Path folder;
 
     private KeptPreviews() {
     }
 
-    /** What's kept for a structure, each in a file of its own. */
+    /** The kinds of file kept for a structure, one file each. */
     private enum Kind {
-        /** Its first view, matched with what the server would send by the {@link Blobs#hash} of it. */
+        /** Its first view, matched against what the server would send by its {@link Blobs#hash}. */
         VIEW("first view"),
-        /** The copy its list picture is drawn from, used while the server has the version of the structure it's of. */
+        /** Its picture copy, used while the server still has the structure version it was made from. */
         PICTURE("picture's copy");
 
         private final String what;
@@ -74,16 +73,16 @@ public final class KeptPreviews {
         }
     }
 
-    /** One kept file: which version of the structure it's of, for a picture's copy, and the {@link Blobs#hash} of what's in it. */
+    /** One kept file: the structure version it was made from (picture copies only), and the {@link Blobs#hash} of its contents. */
     private record Copy(String version, long hash) {
     }
 
     /**
-     * When the structure list arrives: keeps structures in the folder for the server's fingerprint,
-     * or keeps none, without a fingerprint or with {@code keep} false.
+     * Called when the structure list arrives. Keeps structures in the folder for the server's
+     * fingerprint, or keeps none without a fingerprint or with {@code keep} false.
      */
     public static void use(String fingerprint, boolean keep) {
-        // A version of the mod that sends structures another way starts afresh, though its fingerprint may be the same.
+        // The protocol is part of the name, so a JES version that sends structures differently gets a new folder.
         Path dir = fingerprint == null || !keep ? null : root().resolve(name(fingerprint + "|" + JesNetwork.PROTOCOL));
         int now;
         synchronized (LOCK) {
@@ -138,7 +137,7 @@ public final class KeptPreviews {
         });
     }
 
-    /** When the structure list arrives: which version of each structure the server has now, so a picture's copy of an older one isn't used. */
+    /** Called when the structure list arrives. Records each structure's current version, so a picture copy of an older one isn't used. */
     public static void structures(List<StructureCatalog.Entry> entries) {
         Map<ResourceLocation, String> versions = new HashMap<>();
         for (StructureCatalog.Entry entry : entries) {
@@ -157,7 +156,7 @@ public final class KeptPreviews {
         }
     }
 
-    /** Which version of a structure the server has now, or null before its structure list says. */
+    /** A structure's current version on the server, or null before the structure list arrives. */
     public static String version(ResourceLocation id) {
         synchronized (LOCK) {
             return VERSIONS.get(id);
@@ -170,17 +169,17 @@ public final class KeptPreviews {
         return copy == null ? 0 : copy.hash();
     }
 
-    /** Whether the copy a structure's list picture is drawn from is kept for this version of it. */
+    /** Whether a structure's picture copy is kept for this version. */
     public static boolean hasPicture(ResourceLocation id, String version) {
         return current(Kind.PICTURE, name(id.toString()), version) != null;
     }
 
-    /** Keeps a structure's first view, as the server sent it, in place of any kept before. */
+    /** Saves a structure's first view as the server sent it, replacing any older one. */
     public static void keep(ResourceLocation id, byte[] payload) {
         keep(Kind.VIEW, id, null, payload);
     }
 
-    /** Keeps the copy a structure's list picture is drawn from, of the given version of it, in place of any kept before. */
+    /** Saves a structure's picture copy for the given version, replacing any older one. */
     public static void keepPicture(ResourceLocation id, String version, byte[] payload) {
         if (version != null) {
             keep(Kind.PICTURE, id, version, payload);
@@ -188,29 +187,29 @@ public final class KeptPreviews {
     }
 
     /**
-     * Reads a structure's kept first view and hands it to {@code then} on the kept previews' own
-     * thread. One that's gone or been damaged since is forgotten, and null handed over instead.
+     * Reads a structure's kept first view and passes it to {@code then} on the cache's disk thread. A
+     * file that's missing or damaged is deleted, and null is passed instead.
      */
     public static void read(ResourceLocation id, Consumer<byte[]> then) {
         read(Kind.VIEW, id, null, then);
     }
 
-    /** The same for the copy a structure's list picture is drawn from, which is null too when it's of another version. */
+    /** Reads a structure's picture copy the same way. Passes null too when the copy is of another version. */
     public static void readPicture(ResourceLocation id, String version, Consumer<byte[]> then) {
         read(Kind.PICTURE, id, version, then);
     }
 
-    /** Forgets a structure's kept first view, when what's in it can't be used. */
+    /** Deletes a structure's kept first view, when its contents can't be used. */
     public static void forget(ResourceLocation id) {
         forget(Kind.VIEW, id);
     }
 
-    /** Forgets the copy a structure's list picture is drawn from, when what's in it can't be used. */
+    /** Deletes a structure's picture copy, when its contents can't be used. */
     public static void forgetPicture(ResourceLocation id) {
         forget(Kind.PICTURE, id);
     }
 
-    /** What's kept of a kind under a stem, of the version given when it's a picture's copy, or null. */
+    /** The kept copy of this kind under {@code stem}, or null. A picture copy must also match {@code version}. */
     private static Copy current(Kind kind, String stem, String version) {
         synchronized (LOCK) {
             Copy copy = folder == null ? null : kind.kept().get(stem);
@@ -303,12 +302,12 @@ public final class KeptPreviews {
         return JustEnoughStructures.cacheDir().resolve("kept-previews");
     }
 
-    /** A short name for a file or folder, the same each time for the same text. */
+    /** A short file or folder name derived from {@code text}, the same each time. */
     private static String name(String text) {
         return Hashing.sha256().hashString(text, StandardCharsets.UTF_8).toString().substring(0, 24);
     }
 
-    /** Deletes all but the few most recently used folders. */
+    /** Deletes all but the {@link #KEPT_FOLDERS} most recently used folders. */
     private static void tidy(Path keep) {
         try {
             CacheFiles.keepNewest(root(), Files::isDirectory, KEPT_FOLDERS, keep);

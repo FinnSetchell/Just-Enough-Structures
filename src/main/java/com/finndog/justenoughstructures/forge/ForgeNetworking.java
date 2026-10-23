@@ -20,10 +20,10 @@ import net.minecraftforge.network.simple.SimpleChannel;
 //?}
 
 /**
- * Every packet goes through one Forge channel, carrying the id of the JES channel it's for, so the
- * handlers are the same as on Fabric. The protocol is part of the channel's name: a client and a
- * server on different versions of JES each see the other's channel as missing, which Forge lets
- * them join with, and then don't hear each other, as on Fabric.
+ * All JES packets go through one Forge channel that carries the JES channel id, so the handlers are
+ * the same as on Fabric. The channel name includes the protocol, so a client and server on different
+ * protocols see each other's channel as missing. Forge lets them join anyway, and they exchange no
+ * JES packets, as on Fabric.
  */
 final class ForgeNetworking {
     static final ResourceLocation NAME = JustEnoughStructures.id("v" + JesNetwork.PROTOCOL + "/forge");
@@ -37,7 +37,7 @@ final class ForgeNetworking {
             NetworkRegistry.acceptMissingOr(VERSION), NetworkRegistry.acceptMissingOr(VERSION));
     //?}
 
-    /** What the client does with a packet from the server. Set by the client's setup, so a server never loads it. */
+    /** The client's handler for packets from the server. Set by the client setup, so a server never loads it. */
     static volatile BiConsumer<ResourceLocation, byte[]> clientHandler = (channel, data) -> {
     };
 
@@ -75,7 +75,7 @@ final class ForgeNetworking {
     }
     *///?}
 
-    // Read where it arrives, as the handlers expect: from a player on the server, else on the client.
+    // Read on the thread it arrives on, as the handlers expect: from a player on the server, otherwise on the client.
     private static void handle(Packet packet, ServerPlayer player) {
         if (player != null) {
             ServerPackets.Handler handler = ServerPackets.handlers().get(packet.channel());
@@ -94,7 +94,7 @@ final class ForgeNetworking {
             buf.writeBytes(data);
         }
 
-        // Copied out, as the buffer it's read from is let go once this returns.
+        // Copied out, since the buffer it's read from is released once this returns.
         static Packet read(FriendlyByteBuf buf) {
             ResourceLocation channel = buf.readResourceLocation();
             byte[] bytes = new byte[buf.readableBytes()];

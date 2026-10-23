@@ -45,8 +45,8 @@ final class FoundInDisplay implements Display {
     }
 
     //? if >=26.1 {
-    /*// REI keeps the displays it showed, to bring them back later. These are made from the loot
-    // index each time, so there's nothing to keep, which REI takes as no serializer.
+    /*// REI saves the displays it has shown, to restore them later. These are rebuilt from the loot
+    // index each time, so there's nothing to save, which REI expresses as no serializer.
     @Override
     public Optional<Identifier> getDisplayLocation() {
         return Optional.empty();

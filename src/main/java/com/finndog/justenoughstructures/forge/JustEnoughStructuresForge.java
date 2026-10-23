@@ -48,7 +48,7 @@ public final class JustEnoughStructuresForge {
         ForgePermissions.install();
 
         //? if >=26.1 {
-        /*// From 26.1 each of Forge's events has a bus of its own.
+        /*// From 26.1 Forge listeners go on each event's BUS field.
         RegisterCommandsEvent.BUS.addListener(event -> JesCommands.register(event.getDispatcher()));
         PlayerEvent.PlayerLoggedInEvent.BUS.addListener(event -> {
             if (event.getEntity() instanceof ServerPlayer player) {
@@ -63,10 +63,9 @@ public final class JustEnoughStructuresForge {
         AddReloadListenerEvent.BUS.addListener(event -> event.addListener(new StructureInfo.Loader()));
         ServerStartingEvent.BUS.addListener(event -> JesServer.starting(event.getServer()));
         ServerStartedEvent.BUS.addListener(event -> JesServer.reload(event.getServer()));
-        // Stops the loot index and drops what belonged to that world when it closes.
         ServerStoppingEvent.BUS.addListener(event -> JesServer.stop());
-        // Sent to everyone at once only after /reload. It comes partway through putting the new data
-        // in place, so JES starts over on the next tick, once the rest of it is in.
+        // Sent to all players at once only after /reload, partway through applying the new data, so
+        // JES reloads on the next tick, once all of it is in place.
         OnDatapackSyncEvent.BUS.addListener(event -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();
@@ -92,10 +91,9 @@ public final class JustEnoughStructuresForge {
         MinecraftForge.EVENT_BUS.addListener((AddReloadListenerEvent event) -> event.addListener(new StructureInfo.Loader()));
         MinecraftForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
-        // Stops the loot index and drops what belonged to that world when it closes.
         MinecraftForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> JesServer.stop());
-        // Sent to everyone at once only after /reload. It comes partway through putting the new data
-        // in place, so JES starts over on the next tick, once the rest of it is in.
+        // Sent to all players at once only after /reload, partway through applying the new data, so
+        // JES reloads on the next tick, once all of it is in place.
         MinecraftForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();

@@ -10,7 +10,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * Channel ids and the hooks each loader fills in to actually send packets.
  *
- * <p>The client asks for things with small requests. Big answers (the structure list and captured
+ * <p>The client asks for things with small requests. Big replies (the structure list and captured
  * structures) come back as compressed blobs split into {@link #TRANSFER} parts, since a single
  * packet can't carry more than 1 MB.
  */
@@ -32,7 +32,7 @@ public final class JesNetwork {
     public static final ResourceLocation TABLE_ACTION = channel("table_action");
     public static final ResourceLocation CONTAINER_ACTION = channel("container_action");
     public static final ResourceLocation SPAWNER_ACTION = channel("spawner_action");
-    /** Parts of something bigger than one packet from the client, like an edited loot table. */
+    /** Parts of a client payload too big for one packet, like an edited loot table. */
     public static final ResourceLocation UPLOAD = channel("upload");
 
     public static final ResourceLocation TRANSFER = channel("transfer");
@@ -42,19 +42,19 @@ public final class JesNetwork {
     public static final ResourceLocation LOCATE = channel("locate");
     public static final ResourceLocation SETTINGS = channel("settings");
     public static final ResourceLocation EDIT_REPLY = channel("edit_reply");
-    /** Asks which loot tables have an override, and the answer: each table and how it stands. */
+    /** Asks which loot tables have an override, and the reply: each table and its status. */
     public static final ResourceLocation REQUEST_OVERRIDES = channel("request_overrides");
     public static final ResourceLocation OVERRIDES = channel("overrides");
     /** Asks for everything Pack tools shows, which comes back as a {@link #KIND_TOOLS} transfer. */
     public static final ResourceLocation REQUEST_TOOLS = channel("request_tools");
     /** Opens a player's browser, on a structure if one is given, for /jes open. */
     public static final ResourceLocation OPEN_BROWSER = channel("open_browser");
-    /** Pack tools changing the server's rules or what's said about a structure, or running /reload. */
+    /** Pack tools actions: saving the server's rules or a structure's notes or name, or running /reload. */
     public static final ResourceLocation TOOLS_ACTION = channel("tools_action");
 
     /**
-     * Never sent on, and named the same by every version. NeoForge only tells a client the channels
-     * both sides have, so a server on another version of JES shows there by this one.
+     * Never used for sending. Its name has no protocol number, so every JES version shares it. NeoForge
+     * only lists channels both sides have, so this one shows that the server runs some version of JES.
      */
     public static final ResourceLocation PRESENT = JustEnoughStructures.id("present");
 
@@ -72,18 +72,18 @@ public final class JesNetwork {
     public static final int KIND_TOOLS = 6;
     /** An upload: an edited loot table to fill one container from, answered like {@link #LOOT}. */
     public static final int KIND_DRAFT_ROLL = 7;
-    /** The answer to a capture request when the copy the player's game kept is still the one it would be sent. */
+    /** Reply to a capture request when the client's kept copy is still current. */
     public static final int KIND_SAME = 8;
 
-    /** What {@link #TABLE_ACTION} asks for. */
+    /** Actions for {@link #TABLE_ACTION}. */
     public static final int ACTION_KEEP = 0;
     public static final int ACTION_REMOVE = 1;
 
-    /** What {@link #TOOLS_ACTION} asks for. */
+    /** Actions for {@link #TOOLS_ACTION}. */
     public static final int TOOLS_RULES = 0;
     public static final int TOOLS_STRUCTURE = 1;
     public static final int TOOLS_RELOAD = 2;
-    /** Gives a structure a name in one language, or takes it away. */
+    /** Sets a structure's name in one language, or removes it. */
     public static final int TOOLS_NAME = 3;
 
     private static ServerSender serverSender = (player, channel, buf) -> {
@@ -97,7 +97,7 @@ public final class JesNetwork {
         return JustEnoughStructures.id("v" + PROTOCOL + "/" + name);
     }
 
-    /** Whether a channel is one of ours from any version, to tell a server on another version from one without the mod. */
+    /** Whether a channel belongs to any JES version, to tell a server on another version from one without JES. */
     public static boolean isJesChannel(ResourceLocation channel) {
         return channel.getNamespace().equals(JustEnoughStructures.MOD_ID);
     }
@@ -106,7 +106,7 @@ public final class JesNetwork {
         serverSender = sender;
     }
 
-    /** What sends to players now, for a test to put back after standing in for it. */
+    /** The current sender, so a test can restore it after replacing it. */
     public static ServerSender serverSender() {
         return serverSender;
     }
@@ -115,7 +115,7 @@ public final class JesNetwork {
         serverCanSend = canSend;
     }
 
-    /** Whether the player's game listens on this channel, so has the mod, and the same version of it. */
+    /** Whether the player's client listens on this channel, which means it runs JES with the same protocol. */
     public static boolean canSend(ServerPlayer player, ResourceLocation channel) {
         try {
             return serverCanSend.test(player, channel);

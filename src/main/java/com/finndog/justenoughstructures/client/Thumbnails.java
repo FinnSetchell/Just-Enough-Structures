@@ -37,19 +37,16 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 
 /**
  * Small pictures of structures for the list, Pack tools, the found-in popup and recipe viewers. Each
- * one is drawn at twice the size it's shown at and shrunk smoothly, so edges come out clean at any
- * GUI scale, and a copy is saved to disk so next time the list has its pictures straight away
- * instead of asking the server to generate every structure again. A saved picture is only used while
- * the structure's definition, the server's fingerprint of everything structures are made from, the
- * resource packs and the size it's shown at are the same. The fingerprint covers mods, datapacks,
- * pools and templates, so a picture is never shown for a structure that's changed since, or from
- * another server's version of it. Render thread only.
+ * is drawn at twice its shown size and halved smoothly, so edges stay clean at any GUI scale. A copy
+ * saved to disk is reused, so the list doesn't need the server to generate every structure again,
+ * while the structure's definition, the server's fingerprint (mods, datapacks, pools and templates),
+ * the resource packs and the shown size all match. Render thread only.
  */
 public final class Thumbnails {
-    /** Goes up when thumbnails are drawn differently, so old ones aren't used. */
+    /** Bump when thumbnails are drawn differently, so saved ones aren't reused. */
     private static final int VERSION = 2;
     private static final int MAX = 256;
-    /** The biggest a thumbnail is shown, in GUI units: the found-in popup and recipe viewers. The list and Pack tools show 16. */
+    /** Largest shown size in GUI units, used by the found-in popup and recipe viewers. The list and Pack tools show 16. */
     private static final int SHOWN_AT = 18;
 
     private static final Map<ResourceLocation, DynamicTexture> CACHE = new LinkedHashMap<>(64, 0.75f, true) {
@@ -69,15 +66,15 @@ public final class Thumbnails {
      */
     private static final Set<ResourceLocation> FAILED = new HashSet<>();
     /**
-     * Structures the server couldn't make a thumbnail for just then, like while it was short on
-     * memory, with when to ask again and how many times it's said so. Each time, it's longer to wait.
+     * Structures the server couldn't capture for now, for example while low on memory. The value is
+     * {retry time, failure count}; the wait doubles each time, up to 160 s.
      */
     private static final Map<ResourceLocation, long[]> LATER = new HashMap<>();
     private static final long FIRST_WAIT_MILLIS = 5_000L;
     private static final long LONGEST_WAIT_MILLIS = 160_000L;
     /** Thumbnails drawn but still being copied back from the GPU, which takes a frame or so from 26.1. */
     private static final Set<ResourceLocation> PENDING = new HashSet<>();
-    /** Goes up on {@link #clear()}, so a copy that finishes after it isn't kept. */
+    /** Incremented by {@link #clear()}, so a GPU copy that finishes after it is discarded. */
     private static int generation;
     private static Map<ResourceLocation, String> keys = Map.of();
     private static int savedSize;
@@ -114,7 +111,7 @@ public final class Thumbnails {
             return false;
         }
         //? if >=26.1 {
-        /*// Smooth rather than blocky, as it's drawn a little smaller than it was made.
+        /*// Linear filtering, since it's drawn a little smaller than it was made.
         g.blit(texture.getTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR), x, y, x + size, y + size, 0f, 1f, 0f, 1f);
         *///?} else {
         StructureViewport.drawTexture(g, texture.getId(), x, y, size, size);
@@ -123,12 +120,12 @@ public final class Thumbnails {
     }
 
     /**
-     * Keeps a thumbnail just drawn, at half the size it was drawn at so it comes out smooth, and
-     * saves a copy to disk. The render target is freed once the picture is read back from it.
+     * Stores a thumbnail just drawn, halved so it comes out smooth, and saves a copy to disk. The
+     * render target is freed once the picture is read back from it.
      */
     public static void put(ResourceLocation id, TextureTarget target) {
         //? if >=26.1 {
-        /*// The GPU hands the picture back a frame or so later. Until then it counts as there, so it isn't drawn again.
+        /*// The GPU returns the picture a frame or so later. Until then it counts as present, so it isn't drawn again.
         PENDING.add(id);
         int drawnIn = generation;
         GpuTexture source = target.getColorTexture();
@@ -163,7 +160,7 @@ public final class Thumbnails {
         drawn.downloadTexture(0, false);
         target.destroyBuffers();
         // Freeing a render target leaves the window bound instead of the game's main target, and
-        // everything the screen drew after that was lost for the frame, which made the preview flash.
+        // everything the screen draws after that is lost for the frame, which makes the preview flash.
         Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
         keep(id, drawn);
         //?}
@@ -190,7 +187,7 @@ public final class Thumbnails {
         /*return new DynamicTexture(() -> "Just Enough Structures thumbnail", image);
         *///?} else {
         DynamicTexture texture = new DynamicTexture(image);
-        // Smooth rather than blocky when the list draws it a little smaller than it was made.
+        // Linear filtering, since the list draws it a little smaller than it was made.
         texture.setFilter(true, false);
         return texture;
         //?}
@@ -198,7 +195,7 @@ public final class Thumbnails {
 
     /**
      * Shrinks the image to half its width and height, each pixel the average of the four it covers.
-     * Colour is weighted by how solid each pixel is, so see-through background doesn't darken edges.
+     * Colour is weighted by alpha, so a transparent background doesn't darken edges.
      */
     private static NativeImage halve(NativeImage image) {
         int w = Math.max(1, image.getWidth() / 2);
@@ -227,7 +224,7 @@ public final class Thumbnails {
         return out;
     }
 
-    // Alpha is the top byte whichever way round the colours are, which is all halve() needs to know.
+    // Alpha is the top byte in either colour order, which is all halve() relies on.
     public static int pixel(NativeImage image, int x, int y) {
         //? if >=26.1 {
         /*return image.getPixel(x, y);
@@ -245,9 +242,9 @@ public final class Thumbnails {
     }
 
     /**
-     * Works out what each structure's saved thumbnail must match, once the structure list arrives.
-     * Without the server's fingerprint, which it sends once it's worked it out, nothing saved is used
-     * and nothing new is saved, as there'd be no telling what it shows.
+     * Sets what each structure's saved thumbnail must match, when the structure list arrives. Without
+     * the server's fingerprint, which it sends once it has computed it, nothing saved is used and
+     * nothing new is saved, since there'd be no way to tell what a picture shows.
      */
     static void onCatalog(String fingerprint, List<StructureCatalog.Entry> entries) {
         Map<ResourceLocation, String> out = new HashMap<>();
@@ -263,15 +260,15 @@ public final class Thumbnails {
         LATER.clear();
     }
 
-    /** Whether a thumbnail couldn't be made for this structure, so isn't worth asking for again yet. */
+    /** Whether this structure's thumbnail failed and shouldn't be requested again yet. */
     public static boolean failed(ResourceLocation id) {
         long[] later = LATER.get(id);
         return FAILED.contains(id) || later != null && Util.getMillis() < later[0];
     }
 
     /**
-     * Notes that a thumbnail couldn't be made. One the server may well make later is asked for again
-     * after a wait; any other isn't until the structure list next arrives.
+     * Records a failed thumbnail. A temporary failure is retried after a growing wait; any other waits
+     * for the next structure list.
      */
     public static void fail(ResourceLocation id, boolean temporary) {
         if (!temporary) {
@@ -295,7 +292,7 @@ public final class Thumbnails {
         keys = Map.of();
     }
 
-    /** The saved file's name for the structure as it is now, at the size thumbnails are shown at now. */
+    /** The saved file's name for the structure's current state at the current shown size. */
     private static String fileKey(ResourceLocation id) {
         String base = keys.get(id);
         if (base == null) {
@@ -303,7 +300,7 @@ public final class Thumbnails {
         }
         int size = shownSize();
         if (size != savedSize) {
-            // The GUI scale changed, so what's saved is the wrong size and has to be looked for again.
+            // The GUI scale changed, so saved pictures are the wrong size. Look for them again.
             savedSize = size;
             NOT_SAVED.clear();
         }
@@ -313,8 +310,8 @@ public final class Thumbnails {
     }
 
     /**
-     * Where a structure's pictures are kept, or null for an id that would reach outside the cache:
-     * structure ids come from the server, and saving one clears the pictures beside it.
+     * The folder for a structure's pictures, or null for an id that would reach outside the cache.
+     * Structure ids come from the server, and saving a picture deletes the others in its folder.
      */
     private static Path folder(ResourceLocation id) {
         return Ids.fileSafe(id) ? JustEnoughStructures.cacheDir().resolve("thumbnails").resolve(id.getNamespace()).resolve(id.getPath()) : null;
@@ -360,7 +357,7 @@ public final class Thumbnails {
         Util.ioPool().execute(() -> {
             try (image) {
                 Files.createDirectories(dir);
-                // Only the picture for the structure as it is now is worth keeping.
+                // Keep only the picture for the structure's current state.
                 try (Stream<Path> old = Files.list(dir)) {
                     for (Path file : old.filter(p -> p.toString().endsWith(".png")).toList()) {
                         Files.deleteIfExists(file);

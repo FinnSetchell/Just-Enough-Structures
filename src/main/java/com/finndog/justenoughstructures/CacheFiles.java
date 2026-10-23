@@ -14,12 +14,12 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import net.minecraft.resources.ResourceLocation;
 
-/** Files kept in the {@link JustEnoughStructures#cacheDir cache folder}, where only the few most recently used of each kind are kept. */
+/** Files in the {@link JustEnoughStructures#cacheDir cache folder}, where only the few most recently used of each kind are kept. */
 public final class CacheFiles {
     private CacheFiles() {
     }
 
-    /** Saves what's kept for {@code id} in a file that says so, with {@code magic} for the kind of file, so it's never read as anything else. */
+    /** Writes {@code payload} behind a header of {@code magic} and {@code id}, so {@link #read} rejects a file of another kind or for another id. */
     public static void write(Path file, int magic, ResourceLocation id, byte[] payload) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream(payload.length + 64);
         try (DataOutputStream out = new DataOutputStream(bytes)) {
@@ -30,21 +30,21 @@ public final class CacheFiles {
         SafeFiles.write(file, bytes.toByteArray());
     }
 
-    /** What {@link #write} saved for {@code id}, or null when the file is of another kind or for something else. */
+    /** Reads what {@link #write} saved for {@code id}, or null when the file is of another kind or for another id. */
     public static byte[] read(Path file, int magic, ResourceLocation id) throws IOException {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(Files.readAllBytes(file)))) {
             return in.readInt() == magic && in.readUTF().equals(id.toString()) ? in.readAllBytes() : null;
         }
     }
 
-    /** Marks a file or folder as used just now, so it's kept over older ones. */
+    /** Sets the modified time to now, so {@link #keepNewest} keeps it over older ones. */
     public static void markUsed(Path path) throws IOException {
         Files.setLastModifiedTime(path, FileTime.fromMillis(System.currentTimeMillis()));
     }
 
     /**
-     * Deletes all but the {@code count} most recently used of the files or folders in {@code dir} that
-     * {@code which} picks, though never {@code keep}. A folder goes with everything in it.
+     * Deletes all but the {@code count} most recently used files or folders in {@code dir} that match
+     * {@code which}, never deleting {@code keep}. A folder is deleted with its contents.
      */
     public static void keepNewest(Path dir, Predicate<Path> which, int count, Path keep) throws IOException {
         List<Path> found;

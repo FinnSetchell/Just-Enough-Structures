@@ -15,9 +15,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * What the client does with each packet the server sends, the same on every loader. Each one is
- * read on the thread the loader delivers it on, then handed to the game thread. The loaders only
- * connect their own networking to these.
+ * Handles each packet the server sends, the same on every loader. Each one is read on the thread the
+ * loader delivers it on, then handed to the game thread. The loaders only connect their networking
+ * to these.
  */
 public final class ClientPackets {
     private static final Map<ResourceLocation, Handler> HANDLERS = new LinkedHashMap<>();
@@ -78,7 +78,7 @@ public final class ClientPackets {
         HANDLERS.put(channel, handler);
     }
 
-    /** Every channel the server can send on, and what's done with what arrives. */
+    /** Every channel the server can send on, and its handler. */
     public static Map<ResourceLocation, Handler> handlers() {
         return Collections.unmodifiableMap(HANDLERS);
     }

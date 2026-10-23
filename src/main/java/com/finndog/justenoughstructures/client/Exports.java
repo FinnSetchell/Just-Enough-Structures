@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 
-/** Getting a previewed structure out of the game as a material list. */
+/** Exports a previewed structure from the game as a material list. */
 public final class Exports {
     private Exports() {
     }

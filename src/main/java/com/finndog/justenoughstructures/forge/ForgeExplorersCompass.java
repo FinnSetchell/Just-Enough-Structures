@@ -8,7 +8,7 @@ import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 
-/** Only called with Explorer's Compass installed, so its classes are never touched otherwise. */
+/** Only called with Explorer's Compass installed, so its classes are never loaded otherwise. */
 final class ForgeExplorersCompass {
     private ForgeExplorersCompass() {
     }

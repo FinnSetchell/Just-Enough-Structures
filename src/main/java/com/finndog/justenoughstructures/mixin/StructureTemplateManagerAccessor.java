@@ -9,8 +9,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * The saved pieces the game has loaded and is holding on to, to see whether one is still the one
- * this mod had it load. Asking the game for a piece would load it.
+ * The game's map of loaded templates, used to check whether one is still the one JES loaded without
+ * triggering a load.
  */
 @Mixin(StructureTemplateManager.class)
 public interface StructureTemplateManagerAccessor {

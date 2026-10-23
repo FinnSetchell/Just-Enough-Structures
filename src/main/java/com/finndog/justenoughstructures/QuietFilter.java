@@ -19,22 +19,21 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 /**
- * Drops other code's log lines on a thread that's inside {@link JesLog#quietly}, sending its
- * warnings to the debug log instead. Errors are worth seeing, so the first of each kind still goes
- * to the game log, and only repeats of it go to the debug log. A kind is the logger and the text
- * without what's filled in, so the same problem in another place or with other values is a repeat.
- * Added to the whole logging context, so it sees every logger, and it does nothing on threads that
- * aren't in a quiet scope.
+ * Drops other code's log lines on threads inside {@link JesLog#quietly} and copies its warnings to
+ * the debug log. The first error of each kind still reaches the game log; repeats go to the debug
+ * log. A kind is the logger name plus the message format with numbers replaced, so the same problem
+ * in another place or with other values is a repeat. Installed on the whole logging context, so it
+ * sees every logger; threads outside a quiet scope are untouched.
  */
 final class QuietFilter extends AbstractFilter {
     private static final String OURS = "Just Enough Structures";
-    /** Each logger's error messages let through so far, by their text without what's filled in. */
+    /** Error kinds already let through: logger name plus message format with numbers replaced. */
     private static final Set<String> ERRORS_SEEN = ConcurrentHashMap.newKeySet();
-    /** After this many kinds, errors go to the debug log too, rather than fill the game log. */
+    /** After this many kinds, errors go to the debug log too, so they can't flood the game log. */
     private static final int MOST_ERROR_KINDS = 500;
     /**
-     * A number on its own, like a coordinate or a value in saved data, with its sign and an ending
-     * like the f of 0.5f. Not one that's part of a name, like the 1 of house_1.
+     * A standalone number, like a coordinate or a value in saved data, with its sign and a suffix like
+     * the f of 0.5f. Not one that's part of a name, like the 1 of house_1.
      */
     private static final Pattern VALUE = Pattern.compile("(?<![\\w./-])-?\\d+(?:\\.\\d+)*(?:[eE][-+]?\\d+)?[bBsSlLfFdD]?(?!\\w)");
 
@@ -46,8 +45,8 @@ final class QuietFilter extends AbstractFilter {
         if (LogManager.getContext(false) instanceof LoggerContext context) {
             QuietFilter filter = new QuietFilter();
             filter.start();
-            // First, as the first filter with an answer decides: Forge's own starts by letting every
-            // warning through, which would leave this nothing to quiet.
+            // Put first, because the first filter that accepts or denies decides. Forge's filter
+            // accepts every warning, which would leave nothing to quiet.
             Configuration config = context.getConfiguration();
             Filter existing = config.getFilter();
             List<Filter> others = existing instanceof CompositeFilter composite ? List.of(composite.getFiltersArray())
@@ -110,10 +109,9 @@ final class QuietFilter extends AbstractFilter {
     }
 
     /**
-     * Our own lines always go through, and so does the first error of each kind, by its logger and
-     * its text without what's filled in. Anything else is dropped, after copying warnings and errors
-     * to the debug log as they are. A null {@code kind} is a level check, like isErrorEnabled, with
-     * nothing to copy, which errors pass so code that asks first still logs them.
+     * JES's lines and the first error of each kind pass. Everything else is denied, with warnings and
+     * errors copied to the debug log. A null {@code kind} is a level check like isErrorEnabled; errors
+     * pass it, so code that checks first still logs them.
      */
     private static Result decide(String loggerName, Level level, String kind, Supplier<String> text, Throwable thrown) {
         if (OURS.equals(loggerName)) {
@@ -135,7 +133,7 @@ final class QuietFilter extends AbstractFilter {
         return ERRORS_SEEN.size() < MOST_ERROR_KINDS && ERRORS_SEEN.add(key);
     }
 
-    /** A message's text before it's filled in, or all of it for a message logged filled in already. */
+    /** The message's format string, or its formatted text when it has none. */
     private static String kind(Message message) {
         if (message == null) {
             return null;
@@ -145,10 +143,10 @@ final class QuietFilter extends AbstractFilter {
     }
 
     /**
-     * A kind's text with each number on its own in it as {}, the way a message reads before it's
-     * filled in. Much of the game fills a message in before logging it, which leaves nothing else to
-     * tell the values from the words: old sculk data in a structure has the game log each sensor's
-     * own position and readings, one line per sensor.
+     * Replaces each standalone number in a kind with {}, as in a message format. Much of the game
+     * formats a message before logging it, which leaves no other way to tell values from words: old
+     * sculk data in a structure makes the game log each sensor's position and readings, one line per
+     * sensor.
      */
     private static String withoutValues(String kind) {
         return VALUE.matcher(kind).replaceAll("{}");

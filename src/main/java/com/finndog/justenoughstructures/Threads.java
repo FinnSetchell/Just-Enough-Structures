@@ -3,17 +3,17 @@ package com.finndog.justenoughstructures;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Threads of the mod's own, for work kept off the game's threads. */
+/** Daemon threads for JES work kept off the game's threads. */
 public final class Threads {
     private Threads() {
     }
 
-    /** A thread that runs what it's given one thing at a time, and never keeps the game from closing. */
+    /** A single daemon thread that runs tasks in order, so it never keeps the game from closing. */
     public static ExecutorService single(String name) {
         return Executors.newSingleThreadExecutor(r -> daemon(r, name));
     }
 
-    /** The same at a priority of its own, as for long work that should give way to the game's. */
+    /** The same with a set priority, for long work that should yield to the game. */
     public static ExecutorService single(String name, int priority) {
         return Executors.newSingleThreadExecutor(r -> {
             Thread t = daemon(r, name);

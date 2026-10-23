@@ -42,7 +42,7 @@ import net.minecraft.world.entity.player.Player;
 
 /**
  * A real level, answering a capturing thread from the sandbox: see {@link RealWorldGuard}. The block
- * methods are overrides rather than injections, as the server calls them constantly and this way
+ * methods are overrides, not injections, as the server calls them constantly and this way
  * it only costs a check. Every other thread gets the level itself.
  */
 @Mixin(ServerLevel.class)
@@ -99,7 +99,7 @@ public abstract class ServerLevelGuardMixin extends Level {
         return chunk;
     }
 
-    // Lithium answers this straight from the chunk source rather than through the method above, so
+    // Lithium answers this straight from the chunk source instead of through the method above, so
     // it's guarded too. There's no whole loaded chunk to give, so it fails.
     @Override
     public LevelChunk getChunk(int chunkX, int chunkZ) {

@@ -11,8 +11,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 
 /**
- * Registry lookups the same way on every version. 1.21.2 renamed most of them, and gave {@code get}
- * a new meaning: it hands back the holder now, where it used to hand back the value.
+ * Registry lookups the same way on every version. 1.21.2 renamed most of them, and changed what
+ * {@code get} returns: the holder from 1.21.2, the value before.
  */
 public final class Regs {
     private Regs() {

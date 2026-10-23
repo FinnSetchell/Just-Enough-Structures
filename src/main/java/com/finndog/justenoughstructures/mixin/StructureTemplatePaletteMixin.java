@@ -14,10 +14,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Lets threads share a template's blocks by kind. The game works each list out the first time a
- * thread asks and keeps it in a map that can't take two threads at once, so two pieces of the
- * same template placed at the same moment could throw, from a preview or from world generation
- * alike. C2ME makes the same change.
+ * Makes the palette's per-block cache thread-safe. The game fills it lazily in a plain map, so two
+ * pieces of one template placed at once could throw, in a preview or in world generation. C2ME makes
+ * the same change.
  */
 @Mixin(StructureTemplate.Palette.class)
 public abstract class StructureTemplatePaletteMixin {

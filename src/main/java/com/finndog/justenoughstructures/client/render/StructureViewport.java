@@ -88,17 +88,17 @@ import java.util.OptionalDouble;
 public final class StructureViewport implements AutoCloseable {
     private static final float FOV = 50f;
     /**
-     * How far out from the middle of the view a structure may reach when it's fitted, and from how
-     * many angles round it that's checked: every 15 degrees, so it stays in view as it spins.
+     * How far from the view's centre a fitted structure may reach, as a fraction of the way to the
+     * edge, and how many yaw angles are checked (every 15 degrees) so it stays in view while spinning.
      */
     private static final float FIT_EDGE = 0.9f;
     private static final int FIT_ANGLES = 24;
-    /** How see-through the ground is under the structure. Round it, it fades out to nothing. */
+    /** Opacity of the ground under the structure. It fades to zero across a margin around it. */
     private static final float GROUND_ALPHA = 0.35f;
-    /** The least and most time a frame spends building the mesh, while there's some to build. */
+    /** Minimum and maximum time per frame for building the mesh, while there's some left to build. */
     private static final long MIN_BUILD_NANOS = 6_000_000L;
     private static final long MAX_BUILD_NANOS = 25_000_000L;
-    /** How long a frame may spend drawing block entities and entities it hasn't drawn before. */
+    /** Time per frame for drawing block entities and entities that haven't been drawn before. */
     private static final long FIRST_DRAWS_NANOS = 4_000_000L;
 
     private final Minecraft minecraft = Minecraft.getInstance();
@@ -112,7 +112,7 @@ public final class StructureViewport implements AutoCloseable {
     private final Set<Object> failed = Collections.newSetFromMap(new IdentityHashMap<>());
     /** How many of the view's block entities, then its entities, have been drawn at least once. */
     private int firstDrawn;
-    /** When the last frame was drawn, and how much of it went on building the mesh. */
+    /** When the last frame started, and how long it spent building the mesh. */
     private long lastRender;
     private long lastBuild;
 
@@ -120,7 +120,7 @@ public final class StructureViewport implements AutoCloseable {
     private float pitch;
     private float distance;
     private final Vector3f focus = new Vector3f();
-    /** Where the camera is gliding to, or null, and when it set off and last moved. */
+    /** The glide's target camera, or null, and when the glide started and last stepped. */
     private Camera glide;
     private long glideStarted;
     private long glidedAt;
@@ -132,18 +132,18 @@ public final class StructureViewport implements AutoCloseable {
     private final Matrix4f projection = new Matrix4f();
     private final Vector3f eye = new Vector3f();
     //? if >=26.1 {
-    /*// The light the game would give these positions in the real world is somewhere else entirely,
-    // so everything is lit as the blocks are: fully.
+    /*// Preview positions aren't in the real world, so everything is drawn at full brightness,
+    // like the blocks.
     private static final int FULL_BRIGHT = 15728880;
     private static final VoxelShape OUTLINE = Shapes.create(-0.002, -0.002, -0.002, 1.002, 1.002, 1.002);
-    // Fog that never starts, so a big structure seen from afar isn't lost in it.
+    // Fog that never starts, so a big structure seen from far away isn't hidden by it.
     private static GpuBuffer noFog;
-    // Made when first drawn, and again after close(): the browser closes its preview whenever another
-    // screen opens over it, and draws it again on coming back.
+    // Created on the first draw and again after close(): the browser closes its preview when another
+    // screen opens over it, and draws it again when it returns.
     private ProjectionMatrixBuffer projectionBuffer;
     *///?}
     //? if >=26.2 {
-    /*// What the preview's chests, mobs, ground and outlines queue up to be drawn.
+    /*// The queue of the preview's chests, mobs, ground and outlines waiting to be drawn.
     private SubmitNodeStorage nodes = new SubmitNodeStorage();
     *///?}
 
@@ -158,21 +158,21 @@ public final class StructureViewport implements AutoCloseable {
         resetCamera();
     }
 
-    /** Draws a see-through plane where the ground was, or nothing when {@code localY} is negative. */
+    /** Sets the height of the see-through ground plane. A negative {@code localY} hides it. */
     public void setGround(int localY) {
         groundY = localY;
     }
 
-    /** Takes the ground's corners in turn, four to a quad, each with how see-through it is there. */
+    /** Receives the ground's corners in order, four per quad, each with its opacity. */
     @FunctionalInterface
     private interface GroundCorner {
         void at(float x, float z, float alpha);
     }
 
     /**
-     * The ground as quads: solid under the structure, then fading out to nothing across a margin
-     * round it, so where the edge of the preview cuts it off doesn't show. Only the solid part is
-     * kept in view when the camera fits the structure.
+     * Passes the ground to {@code corner} as quads: at {@link #GROUND_ALPHA} under the structure,
+     * fading to zero across a margin around it, so the preview's edge doesn't cut it off sharply.
+     * Only the part under the structure is kept in view when the camera fits the structure.
      */
     private void groundQuads(GroundCorner corner) {
         float sx = view.size().getX(), sz = view.size().getZ();
@@ -200,12 +200,12 @@ public final class StructureViewport implements AutoCloseable {
         return List.copyOf(failed);
     }
 
-    /** Whether this preview gave up on drawing {@code entity}, which then isn't there to point at. */
+    /** Whether this preview left {@code entity} out after it failed. A left-out entity can't be pointed at. */
     public boolean leftOut(Entity entity) {
         return failed.contains(entity);
     }
 
-    /** How many things this preview has given up on. It only grows, until the preview shows another view. */
+    /** How many things this preview has left out. Only grows until the preview shows another view. */
     public int leftOutCount() {
         return failed.size();
     }
@@ -225,7 +225,7 @@ public final class StructureViewport implements AutoCloseable {
         return mesh == null ? 0f : mesh.progress();
     }
 
-    /** Where the camera is looking from, to put it back later. */
+    /** A camera position, saved so it can be restored later. */
     public record Camera(float yaw, float pitch, float distance, float focusX, float focusY, float focusZ) {
     }
 
@@ -234,8 +234,8 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /**
-     * Whether a solid block below {@code slice} stands between where {@code camera} sees from and the
-     * point it looks at, leaving out the block at {@code target}, which is what's being looked at: a
+     * Whether a solid block below {@code slice} lies between {@code camera}'s eye and its focus,
+     * ignoring the block at {@code target}, which is the thing being looked at. For example, a
      * shulker in an End City room, seen from outside, is behind the roof.
      */
     public boolean blocked(Camera camera, BlockPos target, int slice) {
@@ -259,8 +259,8 @@ public final class StructureViewport implements AutoCloseable {
         return hit != null;
     }
 
-    // Before 1.21.2 a block is asked, with the world it's in, and another mod's can fail on being
-    // handed the preview's stand-in for a real one. It then counts as not in the way.
+    // Before 1.21.2 isSolidRender takes the level, and another mod's block can fail when given the
+    // preview's stand-in level. A block that fails counts as not in the way.
     private boolean solid(BlockState state, BlockPos pos) {
         if (failed.contains(state.getBlock())) {
             return false;
@@ -279,13 +279,13 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    /** Moves the camera smoothly, over a fraction of a second, to where {@code to} has it. */
+    /** Moves the camera smoothly to {@code to} over a fraction of a second. */
     public void glideTo(Camera to) {
         glide = to;
         glideStarted = glidedAt = System.nanoTime();
     }
 
-    /** Puts the camera back where {@link #camera()} found it, instead of fitting the structure to the view. */
+    /** Restores a position from {@link #camera()}, and skips fitting the structure to the view. */
     public void setCamera(Camera camera) {
         glide = null;
         yaw = camera.yaw();
@@ -320,10 +320,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /**
-     * Pulls the camera in as close as it can while the structure stays in view from every side it
-     * spins through, so flat structures like villages fill the view instead of floating in it. It
-     * goes by the blocks themselves rather than the bounding box, whose corners are often empty, and
-     * keeps the solid part of the ground in view too.
+     * Moves the camera as close as it can while the structure stays in view at every angle it spins
+     * through, so flat structures like villages fill the view. Uses the blocks, not the bounding box,
+     * whose corners are often empty, and keeps the ground under the structure in view too.
      */
     private void fitToView() {
         float[] points = fitPointsWithGround();
@@ -348,7 +347,7 @@ public final class StructureViewport implements AutoCloseable {
         updateMatrices();
     }
 
-    /** Whether every point stays inside the middle of the view from {@code at}, all the way round. */
+    /** Whether every point stays within {@link #FIT_EDGE} of the centre at distance {@code at}, at every checked angle. */
     private boolean fitsAt(float[] points, float startYaw, float at) {
         Vector4f v = new Vector4f();
         distance = at;
@@ -366,7 +365,7 @@ public final class StructureViewport implements AutoCloseable {
         return true;
     }
 
-    /** The structure's fit points, plus the corners of the solid part of the ground when it shows. */
+    /** The structure's fit points, plus the corners of the ground under it when the ground shows. */
     private float[] fitPointsWithGround() {
         float[] points = view.fitPoints();
         if (groundY < 0 || groundY >= view.sliceY()) {
@@ -401,7 +400,7 @@ public final class StructureViewport implements AutoCloseable {
     public void zoom(double amount) {
         float factor = (float) Math.pow(0.88, amount);
         if (glide != null) {
-            // Mid-glide the zoom goes to where the glide is heading, so it still ends centred on what it turned to.
+            // During a glide, zooming changes the glide's target distance, so it still ends centred on its target.
             glide = new Camera(glide.yaw(), glide.pitch(), zoomed(glide.distance(), factor), glide.focusX(), glide.focusY(), glide.focusZ());
             return;
         }
@@ -412,14 +411,14 @@ public final class StructureViewport implements AutoCloseable {
         return Math.max(2f, Math.min(homeDistance * 4f, from * factor));
     }
 
-    /** How far the camera is from what it looks at, or will be once the glide it's in ends. */
+    /** The camera's distance from its focus, or the glide's target distance during a glide. */
     public float targetDistance() {
         return glide != null ? glide.distance() : distance;
     }
 
     /**
-     * One frame of a glide, at the same pace whatever the frame rate: most of the way in about a fifth
-     * of a second. It's over after half a second, as spinning keeps the angle from ever arriving.
+     * Steps a glide by one frame, at the same pace at any frame rate: most of the way in about a fifth
+     * of a second. It ends after half a second, since spinning would keep the yaw from ever arriving.
      */
     private void glideStep() {
         long now = System.nanoTime();
@@ -596,12 +595,12 @@ public final class StructureViewport implements AutoCloseable {
             return true;
         }
         try {
-            // Always at their current pose. They never tick, so their "last tick" rotations stay
-            // at whatever loading left them (0 for a mob's head and body), and blending towards
-            // those by a different amount each frame made them shake.
+            // Partial tick 1, so they're drawn at their current pose. They never tick, so their
+            // previous-tick rotations keep their loaded values (0 for a mob's head and body), and
+            // interpolating towards those by a different amount each frame makes them shake.
             EntityRenderState state = entities.extractEntity(entity, 1f);
             state.lightCoords = FULL_BRIGHT;
-            // A shadow would fall on whatever the real world has at these positions.
+            // A shadow would be cast on the real world's blocks at these positions.
             state.shadowPieces.clear();
             entities.submit(state, camera, entity.getX(), entity.getY(), entity.getZ(), pose, nodes);
         } catch (Throwable e) {
@@ -644,7 +643,7 @@ public final class StructureViewport implements AutoCloseable {
         LightTexture lightTexture = minecraft.gameRenderer.lightTexture();
         lightTexture.turnOnLightLayer();
         try {
-            // Fabulous graphics sends see-through blocks and items to the world's own framebuffers and
+            // Fabulous graphics sends see-through blocks and items to the world's framebuffers and
             // then switches back to the main one, which would take them, and everything drawn after
             // them, out of the preview. Vanilla draws the player in the inventory as Fancy for the same reason.
             RenderSystem.runAsFancy(() -> {
@@ -670,8 +669,8 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /**
-     * Returns false if it failed, which can leave {@code pose} pushed or popped. What the frame had
-     * drawn so far is thrown away then, as the renderer may have stopped part way through a vertex.
+     * Returns false if it failed, which can leave {@code pose} pushed or popped. The frame's buffers
+     * are then discarded, since the renderer may have stopped partway through a vertex.
      */
     private boolean drawBlockEntity(BlockEntity be, int slice, float partialTick, PoseStack pose) {
         BlockPos pos = be.getBlockPos();
@@ -703,9 +702,9 @@ public final class StructureViewport implements AutoCloseable {
             return true;
         }
         try {
-            // Always at their current pose. They never tick, so their "last tick" rotations stay
-            // at whatever loading left them (0 for a mob's head and body), and blending towards
-            // those by a different amount each frame made them shake.
+            // Partial tick 1, so they're drawn at their current pose. They never tick, so their
+            // previous-tick rotations keep their loaded values (0 for a mob's head and body), and
+            // interpolating towards those by a different amount each frame makes them shake.
             entities.render(entity, entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), 1f, pose, PreviewBuffers.source(), LightTexture.FULL_BRIGHT);
         } catch (Throwable e) {
             RenderFailures.rethrowIfFatal(e);
@@ -719,7 +718,7 @@ public final class StructureViewport implements AutoCloseable {
     //?}
 
     //? if >=26.2 {
-    /*// From 26.2 the nearest depth is the greatest, so the depth starts out at the least.
+    /*// From 26.2 depth is reversed, with the nearest depth the largest, so depth is cleared to 0.
     private static void clear(TextureTarget into) {
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(into.getColorTexture(), new Vector4f(0f, 0f, 0f, 0f), into.getDepthTexture(), 0.0);
     }
@@ -761,19 +760,18 @@ public final class StructureViewport implements AutoCloseable {
             renderFeatures(features, color, depth);
         } catch (Throwable e) {
             RenderFailures.rethrowIfFatal(e);
-            // One of them couldn't be drawn after all. What it left behind goes with the old queue.
+            // A part failed while drawing. Start a new queue, so what it left in the old one is dropped.
             nodes = new SubmitNodeStorage();
-            // The vertices first, as closing the frame could otherwise fail on them and leave it open.
+            // Drop the half-written vertex first, or closing the frame could fail on it and leave it open.
             dropSpoiltVertex(features);
             endFrame(features);
             RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
         }
     }
 
-    // What the game's feature drawing writes vertices into, which it keeps from one frame to the next.
-    // Geometry that stops part way through a vertex leaves it there, and the game would fail on it in
-    // every frame after, drawing the world included. None of it is reachable any other way, so it's
-    // looked up once, and a game where it can't be found says so.
+    // The feature dispatcher's staged vertex buffer, which it keeps between frames. A renderer that
+    // stops partway through a vertex leaves it there, and every later frame, the world's included,
+    // would fail on it. The fields are private, so they're read by reflection.
     private static final java.lang.reflect.Field STAGED = field(FeatureRenderDispatcher.class, "stagedVertexBuffer");
     private static final java.lang.reflect.Field STAGED_BUILDER = field(net.minecraft.client.renderer.StagedVertexBuffer.class, "lastVertexBuilder");
     private static final java.lang.reflect.Field STAGED_DRAW = field(net.minecraft.client.renderer.StagedVertexBuffer.class, "lastBuildingDraw");
@@ -792,9 +790,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /^*
-     * Lets go of the vertices the game's feature drawing was writing when a preview's frame failed. The
-     * frame is given up on, so nothing in them was going to be drawn, and they may end part way through
-     * a vertex. What they wrote is let go of too, as it would be drawn as part of the next ones there.
+     * Resets the staged vertex buffer after a preview's frame failed. Nothing in it was going to be
+     * drawn, and it may end partway through a vertex. The memory it wrote is released too, or it would
+     * be drawn with the next batch.
      ^/
     private static void dropSpoiltVertex(FeatureRenderDispatcher features) {
         if (STAGED == null || STAGED_BUILDER == null || STAGED_DRAW == null || STAGED_MEMORY == null) {
@@ -816,9 +814,9 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    // A failure while the game's feature drawing was getting a frame ready leaves that frame open, and
-    // it won't open another until it's closed, so the world itself could no longer be drawn. The frame
-    // isn't reachable any other way, so it's looked up once, and a game where it can't be found says so.
+    // A failure while the feature dispatcher prepares a frame leaves that frame open, and it won't
+    // prepare another until it's closed, so the world could no longer be drawn. The field is private,
+    // so it's read by reflection.
     private static final java.lang.reflect.Field PREPARED_FRAME = preparedFrame();
 
     private static java.lang.reflect.Field preparedFrame() {
@@ -842,7 +840,7 @@ public final class StructureViewport implements AutoCloseable {
                 frame.close();
             }
         } catch (ReflectiveOperationException | RuntimeException e) {
-            // Already closed: the failure came once it was ready, and drawing it closed it.
+            // Already closed: the failure came after the frame was ready, and drawing closed it.
         }
     }
     *///?} else if >=26.1 {
@@ -869,7 +867,7 @@ public final class StructureViewport implements AutoCloseable {
                 partPose[0] = new PoseStack();
             }
         });
-        // What the game draws itself, like chests and mobs, goes into the preview too.
+        // Send what the game draws, like chests and mobs, into the preview's textures.
         GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
         GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
         RenderSystem.outputColorTextureOverride = color;
@@ -879,8 +877,8 @@ public final class StructureViewport implements AutoCloseable {
                 features.renderAllFeatures();
             } catch (Throwable e) {
                 RenderFailures.rethrowIfFatal(e);
-                // One of them couldn't be drawn after all. What it left behind mustn't end up in the world:
-                // what it handed over and wasn't drawn yet, and half a vertex in the game's buffers.
+                // A part failed while drawing. Clear what it left, so it isn't drawn in the world: queued
+                // parts not drawn yet, and half a vertex in the game's buffers.
                 features.clearSubmitNodes();
                 dropSpoiltBatches(minecraft.renderBuffers().bufferSource());
                 RenderFailures.failed("Drawing block entities and mobs", "a preview", e);
@@ -909,8 +907,8 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    // The memory under the game's buffers, for letting go of what a batch that failed to draw wrote
-    // there. Looked up once, and a game where it can't be found says so.
+    // The byte buffers behind the game's buffer source, read by reflection to release what a failed
+    // batch wrote.
     private static final java.lang.reflect.Field SHARED_MEMORY = bufferMemory("sharedBuffer");
     private static final java.lang.reflect.Field FIXED_MEMORY = bufferMemory("fixedBuffers");
 
@@ -927,10 +925,10 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /^*
-     * Draws what's waiting in the game's buffers after a renderer failed while the game drew what a
-     * preview handed it. A batch it left part way through a vertex fails to draw, which takes it out of
-     * the buffers, so they're drawn until nothing fails. What such a batch wrote stays in the memory
-     * under them, where it would be drawn as part of the next batch there, so that's let go of too.
+     * Flushes the game's buffers after a renderer failed while the game drew a preview's parts. A batch
+     * left partway through a vertex fails to draw, which removes it, so endBatch is retried until
+     * nothing fails (at most 64 times). What such a batch wrote stays in the byte buffers behind them
+     * and would be drawn with the next batch, so that's released too.
      ^/
     @SuppressWarnings("unchecked")
     private static void dropSpoiltBatches(MultiBufferSource.BufferSource buffers) {
@@ -962,7 +960,7 @@ public final class StructureViewport implements AutoCloseable {
     *///?}
 
     //? if >=26.3 {
-    /*// From 26.3 the game draws them into a pass it's handed.
+    /*// From 26.3 the game draws the features into a render pass it's given.
     private void renderFeatures(FeatureRenderDispatcher features, GpuTextureView color, GpuTextureView depth) {
         try (FeatureRenderDispatcher.PreparedFrame frame = features.prepareFrame(nodes);
              RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
@@ -972,7 +970,7 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
     *///?} else if >=26.2 {
-    /*// What the game draws itself goes where it's told to, so into the preview too.
+    /*// Point the game's output textures at the preview while it draws the features.
     private void renderFeatures(FeatureRenderDispatcher features, GpuTextureView color, GpuTextureView depth) {
         GpuTextureView keepColor = RenderSystem.outputColorTextureOverride;
         GpuTextureView keepDepth = RenderSystem.outputDepthTextureOverride;
@@ -990,8 +988,9 @@ public final class StructureViewport implements AutoCloseable {
     /**
      * Draws the view's block entities with {@code blockEntity}, then its entities with {@code entity}.
      * Drawing something for the first time can load its textures and models, and doing that for every
-     * chest, banner and mob of a big structure in one frame froze the game for a moment, so unless it's
-     * {@code everything} they come in a few at a time, in the same order every frame.
+     * chest, banner and mob of a big structure in one frame stalls the game. So unless
+     * {@code everything} is set, new ones are added within {@link #FIRST_DRAWS_NANOS} per frame, in the
+     * same order each frame.
      */
     private void drawParts(boolean everything, Consumer<BlockEntity> blockEntity, Consumer<Entity> entity) {
         long firstDraws = 0;
@@ -1094,14 +1093,14 @@ public final class StructureViewport implements AutoCloseable {
             }
         }
         endBatch(buffers);
-        // Some renderers draw into the game's own buffers rather than the ones they're handed. That
-        // goes into the preview too, as it always has.
+        // Some renderers draw into the game's buffers instead of the ones they're given. Flush those
+        // into the preview too.
         endBatch(minecraft.renderBuffers().bufferSource());
     }
 
     /**
      * Draws what's waiting in {@code buffers}. Another mod's render type can fail to be set up or
-     * drawn, which costs this frame its block entities and mobs.
+     * drawn; this frame's block entities and mobs are then dropped.
      */
     private static void endBatch(MultiBufferSource.BufferSource buffers) {
         try {
@@ -1113,7 +1112,7 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    /** A pose with the camera's view in it, which block entities and mobs are drawn from. */
+    /** A pose stack holding the camera's view matrix, for drawing block entities and mobs. */
     private PoseStack cameraPose() {
         PoseStack pose = new PoseStack();
         //? if >=1.21 {
@@ -1164,9 +1163,9 @@ public final class StructureViewport implements AutoCloseable {
         new Matrix4f(viewMatrix).invert().transformPosition(eye.set(0, 0, 0));
 
         // The depth buffer is most precise just past the near plane, so a near plane right at the
-        // camera wastes it on empty space. From far out that left too little for water surfaces,
-        // which sit a thousandth of a block inside their blocks, and they flickered through them.
-        // So it goes just in front of the closest the structure (and its ground plane) can be.
+        // camera wastes it on empty space. From far away that leaves too little for water surfaces,
+        // which sit a thousandth of a block inside their blocks, and they flicker. So the near plane
+        // goes just in front of the closest point the structure and its ground can be.
         float near = 0.05f;
         float far = 4000f;
         if (view != null) {
@@ -1179,7 +1178,7 @@ public final class StructureViewport implements AutoCloseable {
         }
         float aspect = (float) width / Math.max(1, height);
         //? if >=26.2 {
-        /*// From 26.2 the nearest depth is the greatest, so near and far swap places.
+        /*// From 26.2 depth is reversed, with the nearest depth the largest, so near and far swap.
         projection.setPerspective((float) Math.toRadians(FOV), aspect, far, near, RenderSystem.getDevice().getDeviceInfo().isZZeroToOne());
         *///?} else {
         projection.setPerspective((float) Math.toRadians(FOV), aspect, near, far);
@@ -1203,8 +1202,8 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /**
-     * What's under the mouse: an entity if one is closer than the first block hit. One the preview
-     * gave up on drawing isn't there, so the mouse finds what's behind where it stands.
+     * Returns what's under the mouse: an entity if one is closer than the first block hit. Entities
+     * the preview left out are skipped, so the mouse finds what's behind them.
      */
     public Optional<Hit> pick(double mouseX, double mouseY) {
         if (view == null || !contains(mouseX, mouseY)) {
@@ -1258,10 +1257,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     /**
-     * Where the line from the mouse meets a block. The block is asked for its shapes with the
-     * preview's stand-in for a world, and another mod's can fail on that. This is asked while the
-     * screen is being drawn, where a failure would end the game, so such a block is taken for a whole
-     * cube from then on.
+     * Where the mouse ray meets a block. The block's shape is read with the preview's stand-in level,
+     * which another mod's block can fail on. This runs while the screen draws, where a failure would
+     * crash the game, so a block that fails is treated as a full cube from then on.
      */
     private BlockHitResult clip(Vec3 from, Vec3 to, BlockPos pos, BlockState state) {
         if (!failed.contains(state.getBlock())) {

@@ -17,7 +17,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
-/** The loot index turned around: for an item, the structures and loot tables it can come from. */
+/** The loot index inverted: for each item, the structures and loot tables it can come from. */
 public final class FoundIn {
     private static Map<ResourceLocation, Map<ResourceLocation, Set<ResourceLocation>>> byItem = Map.of();
     private static LootIndex index;
@@ -56,8 +56,8 @@ public final class FoundIn {
     }
 
     /**
-     * Goes up every time the index here changes: one arrives, a finished one takes an early one's
-     * place, or it's dropped. Anything that lists from it looks again when this has moved.
+     * Change counter, bumped when an index arrives (a finished one replacing an early one included) or
+     * is cleared. Lists built from it rebuild when it changes.
      */
     public static int changes() {
         return changes;

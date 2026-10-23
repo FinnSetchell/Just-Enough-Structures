@@ -28,7 +28,7 @@ public final class JesClient {
     private JesClient() {
     }
 
-    /** Opens the browser for /jes open, on {@code structure} if it's given, over whatever screen is showing. */
+    /** Opens the browser for /jes open, on {@code structure} if it's given, over the current screen. */
     public static void openBrowser(Minecraft minecraft, ResourceLocation structure) {
         if (minecraft.player == null) {
             return;

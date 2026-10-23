@@ -56,8 +56,8 @@ final class ForgeClient {
                 return connection != null && ForgeNetworking.CHANNEL.isRemotePresent(connection);
             }
 
-            // The server's channels as it listed them when this client joined, which is how a server on
-            // another version of JES shows up.
+            // The channels the server listed when this client joined, which show a server on another
+            // JES version.
             @Override
             public Collection<ResourceLocation> sendable() {
                 Connection connection = connection();
@@ -76,7 +76,7 @@ final class ForgeClient {
         });
 
         //? if >=26.1 {
-        /*// From 26.1 each of Forge's events has a bus of its own.
+        /*// From 26.1 Forge listeners go on each event's BUS field.
         RegisterKeyMappingsEvent.BUS.addListener(event -> event.register(JesClient.OPEN));
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> JesClient.tick(Minecraft.getInstance()));
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> ClientRequests.reset());

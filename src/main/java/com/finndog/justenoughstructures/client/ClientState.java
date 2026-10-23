@@ -21,10 +21,10 @@ import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * How the browser was left: spin, markers, ground, maximise, the Info tab's details, the loot
- * sort order and the player's favourite structures carry over to the next time it's opened, even
- * after a restart. Saved as the player uses it, the way JEI keeps its own state. The player's own
- * notes on structures are kept the same way, in a file of their own.
+ * Browser settings that carry over to the next time it's opened, even after a restart: spin,
+ * markers, ground, maximise, the Info tab's details, the loot sort order and the player's favourite
+ * structures. Saved as the player uses the browser, as JEI saves its state. The player's notes on
+ * structures are saved the same way, in a separate file.
  */
 public final class ClientState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -35,19 +35,19 @@ public final class ClientState {
     public static boolean maximised;
     public static boolean details;
     public static boolean rarestFirst;
-    /** For players allowed Pack tools who'd rather not see it: no button, no popup icons, no marks on edited tables. */
+    /** Hides Pack tools for players who can use it but don't want to see it: no button, no popup icons, no marks on edited tables. */
     public static boolean hidePackTools;
     /** Structure ids the player starred, shown at the top of the list in every world that has them. */
     public static final Set<String> favourites = new LinkedHashSet<>();
     /**
-     * What the player wrote about each structure, by its id. They have a file of their own, as a
-     * version from before them would write the state file again without them.
+     * Player notes by structure id. Kept in notes.json, not state.json, because older versions rewrite
+     * state.json and would drop them.
      */
     public static final Map<String, String> notes = new LinkedHashMap<>();
-    /** The most a player can write about one structure: a few pages of a book. */
+    /** Maximum note length, in characters. */
     public static final int NOTE_LIMIT = 2000;
     private static boolean loaded;
-    /** Files a newer version saved, which this one neither reads nor writes over. */
+    /** Files saved by a newer JES, which this version neither reads nor overwrites. */
     private static final Set<Path> newerFiles = new HashSet<>();
 
     private ClientState() {
@@ -74,7 +74,7 @@ public final class ClientState {
         write(file());
     }
 
-    /** Anything missing or unreadable keeps the value it had. */
+    /** Reads the state file. A missing or unreadable value keeps its current one. */
     public static void read(Path file) {
         if (!Files.exists(file)) {
             return;
@@ -129,7 +129,7 @@ public final class ClientState {
         }
     }
 
-    /** Stars or unstars a structure, and saves straight away. */
+    /** Stars or unstars a structure, and saves at once. */
     public static void toggleFavourite(ResourceLocation id) {
         if (!favourites.remove(id.toString())) {
             favourites.add(id.toString());
@@ -146,7 +146,7 @@ public final class ClientState {
         return notes.getOrDefault(id.toString(), "");
     }
 
-    /** Keeps what the player wrote about a structure, or forgets it when it's blank, and saves if it changed. */
+    /** Sets the player's note on a structure, or removes it when blank, and saves if it changed. */
     public static void setNote(ResourceLocation id, String text) {
         String kept = kept(text);
         if (kept.equals(note(id))) {
@@ -160,7 +160,7 @@ public final class ClientState {
         writeNotes(notesFile());
     }
 
-    /** Notes as they're kept: nothing when they're blank, no spaces or empty lines at the end, and no longer than the limit. */
+    /** Normalises a note: empty if blank, trailing whitespace stripped, and cut to {@link #NOTE_LIMIT} characters. */
     public static String kept(String text) {
         if (text == null || text.isBlank()) {
             return "";
@@ -169,7 +169,7 @@ public final class ClientState {
         return kept.length() > NOTE_LIMIT ? kept.substring(0, NOTE_LIMIT) : kept;
     }
 
-    /** Anything missing or unreadable keeps the notes there were. Notes on something that isn't an id are skipped. */
+    /** Reads the notes file. If it's missing or unreadable, the current notes stay. Notes whose key isn't an id are skipped. */
     public static void readNotes(Path file) {
         if (!Files.exists(file)) {
             return;

@@ -53,7 +53,7 @@ import net.minecraft.network.chat.ComponentSerialization;
 /** Binary formats for JES packets in both directions, and for the loot index cache. */
 public final class Codecs {
     private static final int MAX_JSON = 1 << 20;
-    /** The longest notes for players Pack tools sends. */
+    /** Maximum length of the player notes Pack tools sends. */
     public static final int MAX_NOTES = 8192;
 
     private Codecs() {
@@ -105,8 +105,8 @@ public final class Codecs {
     // ------------------------------------------------------------------ catalog
 
     /**
-     * What the server's structures are made from, so a client knows whether the pictures it saved
-     * last time still show them. Null while the server is still working it out.
+     * A fingerprint of the server's structure data, so the client can tell whether its saved list
+     * pictures are still valid. Null while the server is still computing it.
      */
     public static void writeFingerprint(FriendlyByteBuf buf, String fingerprint) {
         buf.writeBoolean(fingerprint != null);
@@ -189,7 +189,7 @@ public final class Codecs {
         return out;
     }
 
-    /** The names Pack tools gave structures: for each language, each lang key and its name. */
+    /** Structure names saved in Pack tools: for each language, each lang key and its name. */
     public static void writeNames(FriendlyByteBuf buf, Map<String, Map<String, String>> names) {
         writeMap(buf, names, FriendlyByteBuf::writeUtf, (b, keys) -> writeMap(b, keys, FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeUtf));
     }
@@ -314,7 +314,7 @@ public final class Codecs {
         }
     }
 
-    /** What a client gets back for a capture request. */
+    /** The reply to a capture request. */
     public record CaptureReply(ResourceLocation id, long seed, CaptureResult result) {
     }
 
@@ -337,12 +337,12 @@ public final class Codecs {
         return new CaptureReply(id, seed, result);
     }
 
-    /** A capture as it's sent and saved: written, then packed small. */
+    /** Packs a capture as it's sent and saved: written, then compressed. */
     public static byte[] packCapture(RegistryAccess registries, ResourceLocation id, long seed, CaptureResult result) {
         return Blobs.deflate(Blobs.toBytes(registries, buf -> writeCapture(buf, id, seed, result)));
     }
 
-    /** A capture as it arrives: unpacked, then read. */
+    /** Unpacks a capture as it arrives: decompressed, then read. */
     public static CaptureReply unpackCapture(RegistryAccess registries, byte[] packed) {
         return readCapture(Blobs.fromBytes(registries, Blobs.inflate(packed)));
     }
@@ -357,15 +357,14 @@ public final class Codecs {
         buf.writeVarInt(s.size().getZ());
         buf.writeVarInt(s.pieceCount());
 
-        // Block states go by name rather than numeric id so a palette survives any id mismatch.
+        // Block states go by name, not numeric id, so a palette survives any id mismatch.
         buf.writeVarInt(s.palette().size());
         for (BlockState state : s.palette()) {
             buf.writeNbt(NbtUtils.writeBlockState(state));
         }
-        // Each block's place goes as how far on it is from the one before, counting through the box a
-        // row at a time and a layer at a time, the order blocks are kept in, so most are 1. The blocks
-        // follow on their own, where runs of the same one are common. Both pack down far smaller than
-        // a position and a block each.
+        // Positions go as zigzag deltas between cell indices (x fastest, then z, then y), the order
+        // blocks are stored in, so most deltas are 1. Palette indices follow separately, where runs of
+        // one block are common. Both compress far smaller than a position and a block each.
         int count = s.blockCount();
         buf.writeVarInt(count);
         long previous = -1;
@@ -433,7 +432,7 @@ public final class Codecs {
         return new StructureSnapshot(id, seed, terrain, origin, size, palette, positions, states, blockEntities, entities, pieces);
     }
 
-    /** Where a block comes counting through its structure's box a row at a time and a layer at a time. */
+    /** The block's index in its box, counting x first, then z, then y. */
     private static long cellIndex(Vec3i size, int packed) {
         return ((long) StructureSnapshot.unpackY(packed) * size.getZ() + StructureSnapshot.unpackZ(packed)) * size.getX()
                 + StructureSnapshot.unpackX(packed);
@@ -445,7 +444,7 @@ public final class Codecs {
         return StructureSnapshot.pack(x, (int) (rest / size.getZ()), (int) (rest % size.getZ()));
     }
 
-    /** A step that can go backwards, as a small number either way: 0, -1, 1, -2, 2 become 0, 1, 2, 3, 4. */
+    /** Zigzag encoding, so small negative steps stay small: 0, -1, 1, -2, 2 become 0, 1, 2, 3, 4. */
     private static long zigzag(long step) {
         return (step << 1) ^ (step >> 63);
     }
@@ -510,19 +509,19 @@ public final class Codecs {
     }
 
     /**
-     * After the index in the message that sends it: whether it's an early one, with the finished
-     * one still to come. A version from before this stops reading at the end of the index.
+     * Written after the index in the same message: whether it's an early one, with the finished one
+     * still to come. Older clients stop reading at the end of the index.
      */
     public static void writeIndexEarly(FriendlyByteBuf buf, boolean early) {
         buf.writeBoolean(early);
     }
 
-    /** Whether the index just read is an early one. A server from before this sends nothing after it, which reads as no. */
+    /** Whether the index just read is an early one. Older servers send nothing after it, which reads as false. */
     public static boolean readIndexEarly(FriendlyByteBuf buf) {
         return buf.isReadable() && buf.readBoolean();
     }
 
-    /** The saved half of the loot index, for the server's cache. */
+    /** The saved part of the loot index, the structure scan, for the server's disk cache. */
     public static void writeScan(FriendlyByteBuf buf, StructureScan scan) {
         writeIdMap(buf, scan.tables());
         writeIdMap(buf, scan.templates());
@@ -577,7 +576,7 @@ public final class Codecs {
 
     // ------------------------------------------------------------------ loot table editing
 
-    /** A loot table for the editor, or why it can't have one. */
+    /** A loot table for the editor, or the reason it can't be shown. */
     public record TableReply(LootOverrides.View view, Component problem) {
     }
 
@@ -604,7 +603,7 @@ public final class Codecs {
         return new TableReply(new LootOverrides.View(id, readText(buf), readText(buf), readText(buf), status), null);
     }
 
-    /** An edited table going up to the server: which table, and its JSON. */
+    /** An edited table sent to the server: its id and its JSON. */
     public static void writeDraft(FriendlyByteBuf buf, ResourceLocation id, String json) {
         buf.writeResourceLocation(id);
         writeText(buf, json);
@@ -644,14 +643,13 @@ public final class Codecs {
     }
 
     // ------------------------------------------------------------------ small messages
-    // Each of these is a whole packet. Changing what one carries, or the order it's in, means
-    // JesNetwork.PROTOCOL goes up. Something added at the very end is the one exception: a version
-    // from before stops reading where its message ended and leaves the rest, as every loader hands
-    // JES the whole packet to read, and nothing minds bytes left over in it.
+    // Each of these is a whole packet. Changing its fields or their order needs a JesNetwork.PROTOCOL
+    // bump. The exception is a field appended at the end: older readers stop before it, since every
+    // loader hands JES the whole packet and none rejects leftover bytes.
 
     /**
-     * How far the loot index has got: structures done, out of how many. {@code failed} when the build
-     * stopped there, so no more is coming until the next /reload.
+     * Loot index build progress: structures done out of the total. {@code failed} when the build
+     * stopped there, so nothing more comes until the next /reload.
      */
     public record IndexProgress(int done, int total, boolean failed) {
         public IndexProgress(int done, int total) {
@@ -659,8 +657,7 @@ public final class Codecs {
         }
     }
 
-    // Whether the build failed comes last, where a version from before stops reading. One byte, and
-    // from a server before it nothing, which reads as not failed.
+    // failed is appended last, so older clients skip it, and it reads as false from older servers.
     public static void writeIndexProgress(FriendlyByteBuf buf, IndexProgress progress) {
         buf.writeVarInt(progress.done());
         buf.writeVarInt(progress.total());
@@ -675,10 +672,10 @@ public final class Codecs {
     }
 
     /**
-     * What a player's browser is told about the server: the levels locating and teleporting need,
-     * whether a held structure compass can be set searching, and whether they can use Pack tools.
-     * {@code reloaded} has it drop everything from before a /reload, {@code structuresChanged} only
-     * the list of structures.
+     * The server settings a player's browser gets: the permission levels for locate and teleport,
+     * whether a held structure compass can be set searching, and whether the player can use Pack
+     * tools. {@code reloaded} makes it drop what it cached before a /reload; {@code structuresChanged}
+     * drops only the structure list.
      */
     public record BrowserSettings(int locatePermission, int teleportPermission, boolean reloaded, boolean compassSearch, boolean packTools,
                                   boolean structuresChanged) {
@@ -703,7 +700,7 @@ public final class Codecs {
         return new BrowserSettings(locate, teleport, reloaded, compass, packTools, structuresChanged);
     }
 
-    /** Which loot tables have an override, and how each stands. */
+    /** Each overridden loot table and its status. */
     public static void writeOverrides(FriendlyByteBuf buf, Map<ResourceLocation, LootOverrides.Status> statuses) {
         buf.writeVarInt(statuses.size());
         statuses.forEach((id, status) -> {
@@ -712,7 +709,7 @@ public final class Codecs {
         });
     }
 
-    /** A table whose standing isn't one this version knows is left out. */
+    /** Skips statuses this version doesn't know. */
     public static Map<ResourceLocation, LootOverrides.Status> readOverrides(FriendlyByteBuf buf) {
         Map<ResourceLocation, LootOverrides.Status> statuses = new HashMap<>();
         LootOverrides.Status[] all = LootOverrides.Status.values();
@@ -727,7 +724,7 @@ public final class Codecs {
         return statuses;
     }
 
-    /** What the server says about an edit: a message, and for a draft, what it would give. Either can be null. */
+    /** The server's reply to an edit: a message, and for a draft, the odds it would give. Either can be null. */
     public record EditReply(int requestId, Component message, LootOdds odds) {
     }
 
@@ -750,7 +747,7 @@ public final class Codecs {
         return new EditReply(requestId, message, odds);
     }
 
-    /** What the player's told after a locate, or after setting a compass searching. */
+    /** The message for the player after a locate, or after setting a compass searching. */
     public record LocateReply(int requestId, Component reply) {
     }
 
@@ -775,8 +772,8 @@ public final class Codecs {
 
     // ------------------------------------------------------------------ helpers
 
-    // The buffer's own list and map helpers are gone from 26.3. These write the same: a count, then
-    // each entry.
+    // FriendlyByteBuf's list and map helpers are gone from 26.3. These write the same format: a
+    // count, then each entry.
     private static <T> void writeList(FriendlyByteBuf buf, Collection<T> list, BiConsumer<FriendlyByteBuf, T> writer) {
         buf.writeVarInt(list.size());
         for (T entry : list) {

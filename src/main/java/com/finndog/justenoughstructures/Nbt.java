@@ -10,8 +10,8 @@ import net.minecraft.nbt.Tag;
 *///?}
 
 /**
- * NBT read the same way on every version. 1.21.5 made the getters hand back an Optional, so here
- * what's missing reads as empty: "", 0, an empty compound or list, as it always did before.
+ * NBT read the same way on every version. 1.21.5 made the getters return an Optional. Here a missing
+ * key reads as "", 0, or an empty compound or list.
  */
 public final class Nbt {
     private Nbt() {

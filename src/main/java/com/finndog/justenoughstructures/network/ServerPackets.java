@@ -15,12 +15,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * What the server does with each packet a client sends, the same on every loader. Each one is read
- * on the thread the loader delivers it on, then handed to the server thread for anything that
- * touches the game. The loaders only connect their own networking to these.
+ * Handles each packet a client sends, the same on every loader. Each one is read on the thread the
+ * loader delivers it on, then handed to the server thread for anything that touches the game. The
+ * loaders only connect their networking to these.
  *
- * <p>Each kind of request costs a player some of their {@link RequestLimits allowance}, the big
- * answers more, and one that comes when they have none left is ignored.
+ * <p>Each kind of request costs a player part of their {@link RequestLimits allowance}, big replies
+ * more, and a request that arrives when they have none left is ignored.
  */
 public final class ServerPackets {
     private static final Map<ResourceLocation, Handler> HANDLERS = new LinkedHashMap<>();
@@ -152,7 +152,7 @@ public final class ServerPackets {
         });
     }
 
-    /** Every channel a client can send on, and what's done with what arrives. */
+    /** Every channel a client can send on, and its handler. */
     public static Map<ResourceLocation, Handler> handlers() {
         return Collections.unmodifiableMap(HANDLERS);
     }

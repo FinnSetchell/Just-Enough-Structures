@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 *///?}
 
 /**
- * From 26.2 a Peaceful world won't make monsters at all, where before it made them and took them
- * away on their first tick. A structure being captured makes them anyway, so a Peaceful world sees
- * the same mobs in it as any other. Nothing to do before 26.2.
+ * From 26.2 a Peaceful world doesn't create monsters at all; before, it created them and removed them
+ * on their first tick. During a capture they're created anyway, so previews look the same in
+ * Peaceful. Nothing to do before 26.2.
  */
 @Mixin(EntityType.class)
 public abstract class EntityTypeMixin {

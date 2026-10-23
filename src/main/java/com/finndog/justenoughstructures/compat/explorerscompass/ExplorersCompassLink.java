@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.compat.explorerscompass;
 
-// Its Forge and NeoForge builds' names differ, see stonecutter.gradle.kts.
+// Explorer's Compass names things differently per loader and version; see stonecutter.gradle.kts.
 //~ compass_names
 
 import com.chaosthedude.explorerscompass.ExplorersCompass;
@@ -37,35 +37,35 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Explorer's Compass and the browser, one click apart. Its structure screen gets a Preview button
- * that opens the picked structure in the browser, and the browser gets a button that opens the
- * compass's screen on the structure being looked at. Searching stays with the compass, along with
- * its costs and whatever it's set up to refuse. Client only, and only loaded with the mod installed.
+ * Links Explorer's Compass and the browser. The compass's structure screen gets a Preview button that
+ * opens the selected structure in the browser, and the browser gets a button that opens the
+ * compass's screen on the structure being viewed. Searching stays with the compass, with its costs
+ * and restrictions. Client only, and only loaded with the mod installed.
  *
- * <p>A compass build missing something this calls would crash the game, so each way in catches
+ * <p>A compass build missing something this calls would crash the game, so each entry point catches
  * that and turns the link off instead.
  */
 public final class ExplorersCompassLink implements CompassLink {
     private static final ResourceLocation ICON = Ids.of(ExplorersCompass.MODID, "textures/item/explorerscompass_00.png");
-    /** How long to wait for the compass's list from the server before picking from what it has. */
+    /** Ticks to wait for the compass's list from the server before selecting from the current one. */
     private static final int SYNC_TICKS = 40;
 
-    /** A structure to pick in the compass's screen, and the search text that brings it into view. */
+    /** A structure to select in the compass's screen, and the search text that brings it into view. */
     private record Pick(ResourceLocation structure, String search) {
     }
 
     private final Map<Screen, Button> previewButtons = new WeakHashMap<>();
-    // Where each compass screen was when a preview was opened from it, to put back on return.
+    // What each compass screen had selected when a preview was opened from it, restored on return.
     private final Map<Screen, Pick> returning = new WeakHashMap<>();
     private Pick pending;
     private List<ResourceLocation> listWhenOpened;
     private int waited;
-    /** Set once something this calls turns out to be missing from the installed compass. */
+    /** Set when something this calls is missing from the installed compass. */
     private boolean broken;
 
     /**
-     * Whether the installed compass has what this reads. Its builds from before April 2026 don't say
-     * when its screen's list has arrived.
+     * Whether the installed compass has what this reads. Older builds have no synced field to say when
+     * the screen's list has arrived.
      */
     public static boolean supported() {
         //? if forge && >=1.21 {
@@ -117,7 +117,7 @@ public final class ExplorersCompassLink implements CompassLink {
 
     private boolean openCompass(Player player, ResourceLocation structure) {
         Minecraft minecraft = Minecraft.getInstance();
-        // Right-clicking while sneaking clears the compass rather than opening it.
+        // Right-clicking while sneaking clears the compass instead of opening it.
         if (!holding(player) || player.isShiftKeyDown() || minecraft.gameMode == null) {
             return false;
         }
@@ -125,7 +125,7 @@ public final class ExplorersCompassLink implements CompassLink {
         pending = new Pick(structure, StructureUtils.getStructureName(structure));
         listWhenOpened = ExplorersCompass.allowedStructureIDs;
         waited = 0;
-        // Exactly a right-click: opens the compass's screen and asks the server for what it may search for.
+        // Same as a right-click: opens the compass's screen and asks the server which structures it may search for.
         minecraft.gameMode.useItem(player, hand);
         return true;
     }
@@ -147,7 +147,7 @@ public final class ExplorersCompassLink implements CompassLink {
         ItemStack stack = ItemUtils.getHeldItem(player, ExplorersCompass.EXPLORERS_COMPASS_ITEM);
         ExplorersCompassItem compass = ExplorersCompass.EXPLORERS_COMPASS_ITEM;
         //? if >=26.1 {
-        /*// Its builds for 26.1 keep what it found in the compass's components, with nothing to read them by.
+        /*// Its 26.1 builds keep the target in the item's components, with no getters for them.
         String saved = stack.isEmpty() ? null : stack.get(ExplorersCompass.STRUCTURE_ID);
         // A compass whose saved target doesn't read as an id points at nothing.
         ResourceLocation target = saved == null ? null : ResourceLocation.tryParse(saved);
@@ -178,7 +178,7 @@ public final class ExplorersCompassLink implements CompassLink {
         };
     }
 
-    /** After any screen is set up: gives the compass's screen its Preview button, and puts back where it was. */
+    /** Called after any screen is set up: adds the Preview button to the compass's screen, and restores its selection. */
     public void afterInit(Screen screen, Consumer<AbstractWidget> addWidget) {
         try {
             if (!broken) {
@@ -205,7 +205,7 @@ public final class ExplorersCompassLink implements CompassLink {
         }
     }
 
-    /** Each tick a screen is open: keeps the Preview button in step, and picks what the browser asked for. */
+    /** Called each tick a screen is open: updates the Preview button, and selects what the browser asked for. */
     public void afterTick(Screen screen) {
         try {
             if (!broken) {
@@ -226,8 +226,8 @@ public final class ExplorersCompassLink implements CompassLink {
             preview.active = list != null && list.getSelected() != null;
         }
         if (pending != null) {
-            // The screen rebuilds its list when the server's arrives, which would undo the pick,
-            // so it waits for that.
+            // The screen rebuilds its list when the server's arrives, which would undo the selection,
+            // so wait for that.
             //? if forge && >=1.21 {
             /*// Its Forge build for 1.21 just swaps in the new list.
             boolean synced = ExplorersCompass.allowedStructureIDs != listWhenOpened;
@@ -254,7 +254,7 @@ public final class ExplorersCompassLink implements CompassLink {
         Minecraft.getInstance().setScreen(new JesScreen(compass));
     }
 
-    /** Searches the compass's list so the structure is in view, then picks it. */
+    /** Searches the compass's list so the structure is in view, then selects it. */
     private static void pick(ExplorersCompassScreen compass, Pick pick) {
         EditBox search = find(compass, EditBox.class);
         if (search != null) {
@@ -273,10 +273,10 @@ public final class ExplorersCompassLink implements CompassLink {
         }
     }
 
-    /** The structure a row of its list stands for, or null if it can't be told. */
+    /** The structure a row of the compass's list is for, or null if it can't be read. */
     private static ResourceLocation structure(StructureSearchEntry entry) {
         //? if forge && >=1.21 {
-        /*// Its Forge build for 1.21 keeps it to itself.
+        /*// Its Forge build for 1.21 has no getter for it.
         try {
             Field field = StructureSearchEntry.class.getDeclaredField("structureKey");
             field.setAccessible(true);

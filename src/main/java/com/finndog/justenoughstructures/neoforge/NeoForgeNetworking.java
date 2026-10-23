@@ -16,12 +16,12 @@ import net.neoforged.neoforge.network.registration.HandlerThread;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
- * Each JES channel is a payload type of its own, as on Fabric, carrying what the handlers read.
- * Every one is optional, so players without JES can join a server that has it and the other way
- * round, and each is read where it arrives, as the handlers expect.
+ * Each JES channel is a separate optional payload type, as on Fabric, carrying what the handlers
+ * read. As they're optional, players without JES can join a server with it, and the reverse. Each is
+ * read on the thread it arrives on, as the handlers expect.
  */
 final class NeoForgeNetworking {
-    /** What the client does with a packet from the server. Set by the client's setup, so a server never loads it. */
+    /** The client's handler for packets from the server. Set by the client setup, so a server never loads it. */
     static volatile BiConsumer<ResourceLocation, FriendlyByteBuf> clientHandler = (channel, buf) -> {
     };
 
@@ -41,7 +41,7 @@ final class NeoForgeNetworking {
                         (payload, context) -> clientHandler.accept(channel, Blobs.fromBytes(context.player().level().registryAccess(), payload.data())));
             }
             //? if >=26.1 {
-            /*// From 26.1 a payload sent both ways is handled apart on each side. Here neither does anything.
+            /*// From 26.1 a payload sent both ways has a separate handler on each side. Both do nothing here.
             registrar.playBidirectional(JesPayload.type(JesNetwork.PRESENT), JesPayload.codec(JesPayload.type(JesNetwork.PRESENT)),
                     (payload, context) -> {
                     }, (payload, context) -> {

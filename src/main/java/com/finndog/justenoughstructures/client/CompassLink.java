@@ -15,7 +15,7 @@ public interface CompassLink {
     /** Whether the player holds a compass this can open. */
     boolean holding(Player player);
 
-    /** Opens the held compass's own screen with this structure picked. False if it can't right now. */
+    /** Opens the held compass's screen with this structure selected. False if it can't right now. */
     boolean open(Player player, ResourceLocation structure);
 
     /** What the held compass says about this structure, or null when it's set to something else. */

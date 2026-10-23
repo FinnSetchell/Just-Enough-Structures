@@ -8,7 +8,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
-/** Only called with Explorer's Compass installed, so its classes are never touched otherwise. */
+/** Only called with Explorer's Compass installed, so its classes are never loaded otherwise. */
 final class NeoForgeExplorersCompass {
     private NeoForgeExplorersCompass() {
     }

@@ -47,29 +47,29 @@ import org.joml.Vector4f;
  *
  * <p>Layers are built a few at a time from the render thread, within a time budget. A layer too big
  * for one frame's budget is built in pieces, a few rows at a time, over as many frames as it takes.
- * Each piece is copied to buffers on the GPU as soon as it's built, and drawn with the game's own
- * pipelines for blocks that aren't part of the world's chunks, like a falling block.
+ * Each piece is uploaded to the GPU as soon as it's built, and drawn with the game's pipelines for
+ * blocks outside the world's chunks, like a falling block.
  ^/
 public final class SnapshotMesh implements AutoCloseable {
-    // Where each kind of layer is built, one at a time. What's built is copied to the GPU straight away.
+    // Build buffers, one per layer kind, reused for every piece. What's built is uploaded to the GPU at once.
     private static final Map<ChunkSectionLayer, ByteBufferBuilder> BUILDERS = new EnumMap<>(ChunkSectionLayer.class);
 
     private final SnapshotView view;
     /^* Each finished layer, in the pieces it was built in. ^/
     private final List<List<Piece>> layers = new ArrayList<>();
-    /^* The pieces so far of the layer being built, and the row it's up to. ^/
+    /^* Pieces built so far for the current layer, and the next row to build. ^/
     private final List<Piece> current = new ArrayList<>();
     private int nextRow;
     private List<Piece> cap = List.of();
     private int capY = -1;
     private boolean closed;
-    // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
+    // Transparent faces have to be drawn back to front, so they're re-sorted as the camera moves.
     private final List<Buffer> translucent = new ArrayList<>();
     private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
-    /^* The most indices a piece without its own needs, from the shared list of them. ^/
+    /^* Largest index count of any piece that uses the shared quad index buffer. ^/
     private int sharedIndices;
-    // What the layers have put on the GPU, and the most each kind of layer needed in one piece, which
-    // is what the building buffers grow to. For the debug log.
+    // Bytes uploaded to the GPU, and the largest piece of each layer kind, which is what the build
+    // buffers grow to. For the debug log.
     private long gpuBytes;
     private final Map<ChunkSectionLayer, Long> mostInOnePiece = new EnumMap<>(ChunkSectionLayer.class);
 
@@ -112,13 +112,13 @@ public final class SnapshotMesh implements AutoCloseable {
         }
     }
 
-    /^* Notes a piece's kind of layer going to the GPU: {@code bytes} of vertices and its own indices. ^/
+    /^* Counts a piece's layer going to the GPU: {@code bytes} of vertices and indices. ^/
     private void counted(ChunkSectionLayer layer, long bytes) {
         gpuBytes += bytes;
         mostInOnePiece.merge(layer, bytes, Math::max);
     }
 
-    /^* Says in the debug log what the finished mesh takes, which nothing else measures. ^/
+    /^* Logs the finished mesh's GPU size and build buffer size at debug level. ^/
     private void logSize() {
         if (JesLog.enabled()) {
             long building = mostInOnePiece.values().stream().mapToLong(Long::longValue).sum();
@@ -152,16 +152,15 @@ public final class SnapshotMesh implements AutoCloseable {
         GpuBufferSlice transforms = RenderSystem.getDynamicUniforms()
                 .writeTransform(viewMatrix, new Vector4f(1f, 1f, 1f, 1f), new Vector3f(), new Matrix4f());
         GpuTextureView atlas = minecraft.getTextureManager().getTexture(TextureAtlas.LOCATION_BLOCKS).getTextureView();
-        // Made ready before drawing starts, as making it longer can't happen while a draw is open.
+        // Prepared before the render pass opens, since it can't be grown while a pass is open.
         RenderSystem.AutoStorageIndexBuffer quads = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
         GpuBuffer quadIndices = quads.getBuffer(Math.max(6, sharedIndices));
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
                 .createRenderPass(() -> "Just Enough Structures preview", color, OptionalInt.empty(), depth, OptionalDouble.empty())) {
             RenderSystem.bindDefaultUniforms(pass);
             pass.setUniform("DynamicTransforms", transforms);
-            // Each smaller copy of a texture sampled to the nearest pixel, as the game's own textures
-            // are made to be. Blended within one, a flower's edges went see-through, and far away
-            // most flowers vanished.
+            // Nearest filtering within each mip level, as vanilla does. Linear filtering makes cutout
+            // edges like flowers go see-through, and distant flowers vanish.
             pass.bindTexture("Sampler0", atlas, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST, true));
             pass.bindTexture("Sampler2", minecraft.gameRenderer.lightmap(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
             for (ChunkSectionLayer layer : ChunkSectionLayer.values()) {
@@ -188,8 +187,8 @@ public final class SnapshotMesh implements AutoCloseable {
         }
     }
 
-    // The game's pipelines for blocks drawn on their own, rather than as part of a chunk: the same
-    // shaders, without needing the structure cut into chunk-sized sections.
+    // The game's pipelines for blocks drawn outside a chunk: the same shaders, without cutting the
+    // structure into chunk-sized sections.
     private static RenderPipeline pipeline(ChunkSectionLayer layer) {
         return switch (layer) {
             case SOLID -> RenderPipelines.SOLID_BLOCK;
@@ -229,7 +228,7 @@ public final class SnapshotMesh implements AutoCloseable {
         int low = 0;
         int high = count - 1;
         while (low <= high) {
-            // Whichever end is further goes next.
+            // The farther end goes next.
             if (nearest - low >= high - nearest) {
                 draw.accept(low++);
             } else {
@@ -262,8 +261,8 @@ public final class SnapshotMesh implements AutoCloseable {
         FluidRenderer fluids = new FluidRenderer(minecraft.getModelManager().getFluidStateModelSet());
         boolean cutoutLeaves = minecraft.options.cutoutLeaves().get();
         Map<ChunkSectionLayer, BufferBuilder> started = new EnumMap<>(ChunkSectionLayer.class);
-        // Each quad goes in the layer its model says, as the game builds chunks, and leaves that
-        // the options draw solid go in the solid one.
+        // Each quad goes in the layer its model names, as when the game builds chunks. Leaves that
+        // the options draw opaque go in the solid layer.
         BlockQuadOutput output = (qx, qy, qz, quad, instance) -> begin(started, quad.materialInfo().layer()).putBlockBakedQuad(qx, qy, qz, quad, instance);
         BlockQuadOutput solid = (qx, qy, qz, quad, instance) -> begin(started, ChunkSectionLayer.SOLID).putBlockBakedQuad(qx, qy, qz, quad, instance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -310,8 +309,8 @@ public final class SnapshotMesh implements AutoCloseable {
                 built = e.getValue().build();
             } catch (Throwable failure) {
                 RenderFailures.rethrowIfFatal(failure);
-                // A block stopped part way through a vertex, so this part of the layer can't be
-                // finished. Its buffer still holds what was written, so it's freed and made again.
+                // A block stopped partway through a vertex, so this part of the layer can't be
+                // finished. Its buffer still holds what was written, so it's freed and recreated.
                 ByteBufferBuilder spoilt = BUILDERS.remove(e.getKey());
                 if (spoilt != null) {
                     spoilt.close();
@@ -326,7 +325,7 @@ public final class SnapshotMesh implements AutoCloseable {
                 // Sorted into the same buffer the mesh was built in, as the game sorts chunk sections.
                 MeshData.SortState sort = e.getKey() == ChunkSectionLayer.TRANSLUCENT
                         ? mesh.sortQuads(BUILDERS.get(ChunkSectionLayer.TRANSLUCENT), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
-                // The cap, built with no deadline, is left out: it's made again as the slider moves.
+                // The cap, built with no deadline, isn't counted, since it's rebuilt as the slider moves.
                 if (deadline != Long.MAX_VALUE) {
                     counted(e.getKey(), mesh.vertexBuffer().remaining() + (mesh.indexBuffer() == null ? 0 : mesh.indexBuffer().remaining()));
                 }
@@ -372,8 +371,8 @@ public final class SnapshotMesh implements AutoCloseable {
     }
 
     /^*
-     * One kind of layer of a piece, on the GPU. Only see-through ones have indices of their own, as
-     * they're sorted from the eye; the rest share the game's list of indices for drawing quads.
+     * One layer kind of a piece, on the GPU. Only translucent ones have their own indices, since
+     * they're sorted from the eye; the rest share the game's quad index buffer.
      ^/
     private record Buffer(GpuBuffer vertices, GpuBuffer indices, VertexFormat.IndexType indexType, int indexCount,
                           MeshData.SortState sort) implements AutoCloseable {
@@ -471,21 +470,21 @@ public final class SnapshotMesh implements AutoCloseable {
     private final SnapshotView view;
     /** Each finished layer, in the pieces it was built in. */
     private final List<List<Piece>> layers = new ArrayList<>();
-    /** The pieces so far of the layer being built, and the row it's up to. */
+    /** Pieces built so far for the current layer, and the next row to build. */
     private final List<Piece> current = new ArrayList<>();
     private int nextRow;
     private List<Piece> cap = List.of();
     private int capY = -1;
     private boolean closed;
-    // Transparent faces have to be drawn back to front, so their order is redone as the camera moves.
+    // Transparent faces have to be drawn back to front, so they're re-sorted as the camera moves.
     //? if >=1.21 {
     /*private final Map<VertexBuffer, MeshData.SortState> translucent = new HashMap<>();
     *///?} else {
     private final Map<VertexBuffer, BufferBuilder.SortState> translucent = new HashMap<>();
     //?}
     private final Vector3f sortedFrom = new Vector3f(Float.NaN, 0, 0);
-    // What the layers have put on the GPU, and the most each kind of layer needed in one piece, which
-    // is what the building buffers grow to. For the debug log.
+    // Bytes uploaded to the GPU, and the largest piece of each layer kind, which is what the build
+    // buffers grow to. For the debug log.
     private long gpuBytes;
     private final Map<RenderType, Long> mostInOnePiece = new HashMap<>();
 
@@ -528,13 +527,13 @@ public final class SnapshotMesh implements AutoCloseable {
         }
     }
 
-    /** Notes a piece's kind of layer going to the GPU: {@code bytes} of vertices and its own indices. */
+    /** Counts a piece's layer going to the GPU: {@code bytes} of vertices and indices. */
     private void counted(RenderType type, long bytes) {
         gpuBytes += bytes;
         mostInOnePiece.merge(type, bytes, Math::max);
     }
 
-    /** Says in the debug log what the finished mesh takes, which nothing else measures. */
+    /** Logs the finished mesh's GPU size and build buffer size at debug level. */
     private void logSize() {
         if (JesLog.enabled()) {
             long building = mostInOnePiece.values().stream().mapToLong(Long::longValue).sum();
@@ -569,8 +568,8 @@ public final class SnapshotMesh implements AutoCloseable {
             type.setupRenderState();
             ShaderInstance shader = RenderSystem.getShader();
             if (shader != null) {
-                // Set up once for every layer of this type, as vanilla does for chunks, rather than
-                // once per layer, which is hundreds of times a frame for a tall structure.
+                // Set up once per render type, as vanilla does for chunks, not once per layer, which
+                // would be hundreds of times a frame for a tall structure.
                 prepare(shader, viewMatrix, projection);
                 if (type == RenderType.translucent()) {
                     // See-through layers furthest from the eye first, so nearer ones blend over them
@@ -624,7 +623,7 @@ public final class SnapshotMesh implements AutoCloseable {
         int low = 0;
         int high = count - 1;
         while (low <= high) {
-            // Whichever end is further goes next.
+            // The farther end goes next.
             if (nearest - low >= high - nearest) {
                 draw.accept(low++);
             } else {
@@ -633,7 +632,7 @@ public final class SnapshotMesh implements AutoCloseable {
         }
     }
 
-    /** What vanilla's VertexBuffer.drawWithShader sets before every draw, done once for a whole type. */
+    /** Sets what vanilla's VertexBuffer.drawWithShader sets before every draw, once for a whole render type. */
     private static void prepare(ShaderInstance shader, Matrix4f viewMatrix, Matrix4f projection) {
         for (int i = 0; i < 12; i++) {
             shader.setSampler("Sampler" + i, RenderSystem.getShaderTexture(i));
@@ -718,8 +717,8 @@ public final class SnapshotMesh implements AutoCloseable {
                     }
                     if (state.getRenderShape() == RenderShape.MODEL) {
                         //? if forge || neoforge {
-                        /*// Forge and NeoForge models can say which layers they draw in themselves, often in
-                        // their json, which the vanilla lookup doesn't know about. This is how they build chunks.
+                        /*// Forge and NeoForge models can choose their own render layers, often in their JSON,
+                        // which the vanilla lookup doesn't know about. This is how those loaders build chunks.
                         BakedModel model = dispatcher.getBlockModel(state);
                         random.setSeed(state.getSeed(pos));
                         for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {
@@ -739,7 +738,7 @@ public final class SnapshotMesh implements AutoCloseable {
                     }
                 } catch (Throwable e) {
                     RenderFailures.rethrowIfFatal(e);
-                    // A fresh pose, as one left pushed by the failure would move every block after it.
+                    // A new pose stack, since one left pushed by the failure would offset every later block.
                     pose = new PoseStack();
                     RenderFailures.failed("Building the model of a block", state.getBlock(), e);
                 }
@@ -758,8 +757,8 @@ public final class SnapshotMesh implements AutoCloseable {
                 mesh = e.getValue().build();
             } catch (Throwable failure) {
                 RenderFailures.rethrowIfFatal(failure);
-                // A block stopped part way through a vertex, so this part of the layer can't be
-                // finished. Its buffer still holds what was written, so it's freed and made again.
+                // A block stopped partway through a vertex, so this part of the layer can't be
+                // finished. Its buffer still holds what was written, so it's freed and recreated.
                 ByteBufferBuilder spoilt = BUILDERS.remove(e.getKey());
                 if (spoilt != null) {
                     spoilt.close();
@@ -773,7 +772,7 @@ public final class SnapshotMesh implements AutoCloseable {
             // Sorted into the same buffer the mesh was built in, as vanilla sorts chunk sections.
             MeshData.SortState sortState = e.getKey() == RenderType.translucent()
                     ? mesh.sortQuads(BUILDERS.get(RenderType.translucent()), VertexSorting.byDistance(eye.x(), eye.y(), eye.z())) : null;
-            // The cap, built with no deadline, is left out: it's made again as the slider moves.
+            // The cap, built with no deadline, isn't counted, since it's rebuilt as the slider moves.
             if (deadline != Long.MAX_VALUE) {
                 counted(e.getKey(), mesh.vertexBuffer().remaining() + (mesh.indexBuffer() == null ? 0 : mesh.indexBuffer().remaining()));
             }
@@ -791,7 +790,7 @@ public final class SnapshotMesh implements AutoCloseable {
             if (rendered == null) {
                 continue;
             }
-            // The cap, built with no deadline, is left out: it's made again as the slider moves.
+            // The cap, built with no deadline, isn't counted, since it's rebuilt as the slider moves.
             if (deadline != Long.MAX_VALUE) {
                 counted(e.getKey(), rendered.vertexBuffer().remaining() + (rendered.drawState().sequentialIndex() ? 0 : rendered.indexBuffer().remaining()));
             }

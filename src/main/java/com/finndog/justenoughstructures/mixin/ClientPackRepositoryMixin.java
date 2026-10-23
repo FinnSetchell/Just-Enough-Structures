@@ -15,8 +15,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Adds the structure names Pack tools saved on this game to the game's own resource packs, the list
- * that always has the game's built-in resources in it.
+ * Adds the names pack, with the structure names Pack tools saved in this game, to the client's
+ * resource pack repository: the one whose sources include the game's built-in resources.
  */
 @Mixin(PackRepository.class)
 public abstract class ClientPackRepositoryMixin {
@@ -28,7 +28,7 @@ public abstract class ClientPackRepositoryMixin {
     @Inject(method = "<init>", at = @At("RETURN"))
     private void justenoughstructures$addNames(RepositorySource[] given, CallbackInfo ci) {
         if (sources.stream().anyMatch(source -> source instanceof ClientPackSource)) {
-            // In order, and still open to more, as loaders add their own sources to this set later.
+            // Ordered, and still mutable, since loaders add their sources to this set later.
             Set<RepositorySource> withNames = new LinkedHashSet<>(sources);
             withNames.add(new NamesPack());
             sources = withNames;

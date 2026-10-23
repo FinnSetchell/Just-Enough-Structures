@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Adds the loot override pack to every list of a world's datapacks, which always has the game's own in it. */
+/** Adds the loot override pack to every world datapack repository: those whose sources include the game's built-in datapacks. */
 @Mixin(PackRepository.class)
 public abstract class PackRepositoryMixin {
     @Shadow
@@ -25,7 +25,7 @@ public abstract class PackRepositoryMixin {
     @Inject(method = "<init>", at = @At("RETURN"))
     private void justenoughstructures$addLootOverrides(RepositorySource[] given, CallbackInfo ci) {
         if (sources.stream().anyMatch(source -> source instanceof ServerPacksSource)) {
-            // In order, and still open to more: Forge adds its mods' packs to this set later.
+            // Ordered, and still mutable: Forge adds its mods' packs to this set later.
             Set<RepositorySource> withOverrides = new LinkedHashSet<>(sources);
             withOverrides.add(new OverridePack());
             sources = withOverrides;

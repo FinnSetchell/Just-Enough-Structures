@@ -18,10 +18,10 @@ import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MessageFormatter;
 
 /**
- * Keeps the game's log for problems people should hear about. Everything routine goes to the mod's
- * own debug log instead, which is only written when the game is started with
- * {@code -Djustenoughstructures.debug=true}. Nothing in here ever throws: a log that can't be
- * written is not worth stopping the game over.
+ * Keeps the game's log for problems players should hear about. Routine messages go to JES's debug log
+ * instead, which is only written when the game is started with
+ * {@code -Djustenoughstructures.debug=true}. Nothing here throws: a log that can't be written isn't
+ * worth stopping the game for.
  */
 public final class JesLog {
     public static final String PROPERTY = "justenoughstructures.debug";
@@ -30,7 +30,7 @@ public final class JesLog {
     private static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
     /** How many quiet scopes this thread is inside. */
     private static final ThreadLocal<int[]> QUIET = new ThreadLocal<>();
-    /** Set when other code on this thread logged running out of memory rather than throwing it on. */
+    /** Set when other code on this thread logged an OutOfMemoryError instead of rethrowing it. */
     private static final ThreadLocal<boolean[]> OUT_OF_MEMORY = ThreadLocal.withInitial(() -> new boolean[1]);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final Object LOCK = new Object();
@@ -67,8 +67,8 @@ public final class JesLog {
         }
         installed = true;
         try {
-            // Kept in its own class so Log4j's core is only touched here, where a missing or
-            // different Log4j can't stop the mod loading.
+            // A separate class, so Log4j's core is only loaded here, where a missing or different
+            // Log4j can't stop the mod loading.
             QuietFilter.install();
         } catch (Throwable t) {
             debug("Couldn't quieten other code's warnings during captures", t);
@@ -100,7 +100,7 @@ public final class JesLog {
         }
     }
 
-    /** A warning in the game's log the first time {@code key} comes up, and in the debug log after that. */
+    /** Logs a warning to the game's log the first time {@code key} comes up, and to the debug log after that. */
     public static void warnOnce(String key, String format, Object... args) {
         try {
             if (SEEN.add(key)) {
@@ -109,11 +109,11 @@ public final class JesLog {
                 debug(format, args);
             }
         } catch (Throwable t) {
-            // As above.
+            // Logging must never throw.
         }
     }
 
-    /** The same as {@link #warnOnce}, as an error. */
+    /** Like {@link #warnOnce}, but logs an error. */
     public static void errorOnce(String key, String format, Object... args) {
         try {
             if (SEEN.add(key)) {
@@ -122,14 +122,14 @@ public final class JesLog {
                 debug(format, args);
             }
         } catch (Throwable t) {
-            // As above.
+            // Logging must never throw.
         }
     }
 
     /**
      * Runs {@code action} with other code's log lines on this thread kept out of the game's log.
-     * Captures load every mod's structure pieces and loot, and vanilla complains about some of them
-     * thousands of times on our threads, where it looks like it's us.
+     * Captures load every mod's structure pieces and loot, and vanilla can complain about some of them
+     * thousands of times on JES's threads, which makes JES look like the cause.
      */
     public static void quietly(Runnable action) {
         int[] depth = enterQuiet();
@@ -165,7 +165,7 @@ public final class JesLog {
 
     /**
      * Whether other code on this thread ran out of memory and only logged it, like the game reading a
-     * structure's pieces, since this was last asked. Asking clears it.
+     * structure's pieces, since the last call. Each call clears the flag.
      */
     public static boolean ranOutOfMemory() {
         boolean[] seen = OUT_OF_MEMORY.get();
@@ -211,7 +211,7 @@ public final class JesLog {
                 failed = file;
             }
         }
-        // Outside the lock, so the game's logging never waits on ours.
+        // Outside the lock, so the game's logging never waits on the debug log.
         if (failure != null) {
             JustEnoughStructures.LOGGER.warn("Couldn't write the debug log {}: {}", failed, failure.toString());
         }
@@ -231,7 +231,7 @@ public final class JesLog {
             try {
                 Files.move(file, file.resolveSibling("justenoughstructures-debug.old.log"), StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
-                // Then it's overwritten, which is no worse than not keeping it.
+                // If the move fails, the old log is overwritten.
             }
         }
         writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
@@ -245,7 +245,7 @@ public final class JesLog {
         try {
             writer.close();
         } catch (IOException | RuntimeException e) {
-            // Nothing more can be done with it.
+            // Ignored: the writer is dropped either way.
         }
         writer = null;
     }

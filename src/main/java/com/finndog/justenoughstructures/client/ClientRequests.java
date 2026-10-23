@@ -40,21 +40,21 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 //?}
 
 /**
- * Client end of the protocol: sends requests and hands back futures that complete when the answer
- * arrives. Everything here runs on the client thread, and every future completes on it, though a
- * structure is unpacked off it first.
+ * Client side of the protocol: sends requests and returns futures that complete when the reply
+ * arrives. Runs on the client thread unless a method says otherwise, and every future completes on
+ * it, though structures are unpacked on a background thread first.
  */
 public final class ClientRequests {
     private static ClientSender sender;
     private static int nextRequestId = 1;
     private static CompletableFuture<List<StructureCatalog.Entry>> catalog;
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
-    /** Requests whose answer is kept for next time, so what comes back takes the place of any kept before. */
+    /** Requests whose replies go into the kept-previews cache, replacing any older copy. */
     private static final Map<Integer, Keeping> KEEPING = new HashMap<>();
     private static int reloads;
     private static boolean indexWanted;
     private static boolean viewersLookedFor;
-    /** The loot index as it arrives, kept where EMI's own thread can ask for it. */
+    /** The loot index as it arrives, readable from other threads such as EMI's loader. */
     private static final IndexArrival ARRIVAL = new IndexArrival();
     private static final Map<Integer, CompletableFuture<List<ItemStack>>> LOOT = new HashMap<>();
     private static final Map<Integer, CompletableFuture<LootOdds>> ODDS = new HashMap<>();
@@ -68,10 +68,10 @@ public final class ClientRequests {
     private static CompletableFuture<LootIndex> index;
     private static int indexDone;
     private static int indexTotal;
-    // The server said its build of the index failed, so nothing more of it is coming until it reloads.
+    // The server's index build failed, so nothing more comes until it reloads.
     private static boolean indexFailed;
     private static long lastIndexPoll;
-    // What the server needs to locate and teleport. Until it says, the same as /locate and /tp.
+    // Permission levels the server requires to locate and teleport. Until it says, those of /locate and /tp.
     private static int locatePermission = 2;
     private static int teleportPermission = 2;
     private static boolean compassSearch;
@@ -81,7 +81,7 @@ public final class ClientRequests {
     private static final Map<Integer, CompletableFuture<Codecs.TableReply>> TABLES = new HashMap<>();
     private static final Map<Integer, CompletableFuture<EditReply>> EDITS = new HashMap<>();
     private static int structureChanges;
-    /** Waiting for what Pack tools shows, and the last that arrived. */
+    /** Pending request for the Pack tools state, and the last state received. */
     private static CompletableFuture<PackToolsState> tools;
     private static PackToolsState lastTools;
 
@@ -92,17 +92,17 @@ public final class ClientRequests {
         sender = clientSender;
     }
 
-    /** False when the server doesn't have the mod, or has another version of it, so there's nobody to ask. */
+    /** False when the server doesn't run JES, or runs a version with another protocol. */
     public static boolean serverSupported() {
         return sender != null && sender.canSend(JesNetwork.REQUEST_CATALOG);
     }
 
-    /** True when the server has the mod, but a version that talks differently. */
+    /** True when the server runs JES, but with a different protocol version. */
     public static boolean serverOnOtherVersion() {
         return sender != null && !serverSupported() && sender.sendable().stream().anyMatch(JesNetwork::isJesChannel);
     }
 
-    /** Forget everything tied to the current connection. */
+    /** Forgets everything tied to the current connection. */
     public static void reset() {
         catalog = null;
         StructureNames.useGiven(null);
@@ -153,17 +153,17 @@ public final class ClientRequests {
         return tools;
     }
 
-    /** What Pack tools last heard from the server, or null before it has. */
+    /** The last Pack tools state received, or null if none has arrived. */
     public static PackToolsState lastTools() {
         return lastTools;
     }
 
-    /** Saves the server's rules in server.json5. They apply straight away, except using changed containers. */
+    /** Saves the server's rules to server.json5. They apply at once, except using changed containers and spawners, which waits for /reload. */
     public static CompletableFuture<EditReply> saveRules(ServerConfig.Settings settings) {
         return toolsAction(JesNetwork.TOOLS_RULES, buf -> Codecs.writeSettings(buf, settings));
     }
 
-    /** Saves what players are told about a structure. It applies straight away. */
+    /** Saves what players are told about a structure: its notes, and whether it's secret. Applies at once. */
     public static CompletableFuture<EditReply> saveStructure(ResourceLocation id, String notes, boolean secret) {
         return toolsAction(JesNetwork.TOOLS_STRUCTURE, buf -> {
             buf.writeResourceLocation(id);
@@ -172,7 +172,7 @@ public final class ClientRequests {
         });
     }
 
-    /** Gives a structure a name in one language, or takes it away when blank. It applies straight away. */
+    /** Sets a structure's name in one language, or removes it when blank. Applies at once. */
     public static CompletableFuture<EditReply> saveName(ResourceLocation id, String language, String name) {
         if (!StructureNameFiles.isLanguage(language)) {
             return CompletableFuture.completedFuture(new EditReply(Component.translatable("screen.justenoughstructures.tools.no_language", language), null));
@@ -198,12 +198,12 @@ public final class ClientRequests {
         });
     }
 
-    /** How many times the list of structures has changed since joining, after a /reload or Pack tools, so the browser knows to ask again. */
+    /** How many times the structure list has changed since joining, after a /reload or Pack tools, so the browser knows to fetch it again. */
     public static int structureChanges() {
         return structureChanges;
     }
 
-    /** What the server said about an edit: a message, and for a draft, what it would give. */
+    /** The server's reply to an edit: a message, and for a draft, the odds it would give. */
     public record EditReply(Component message, LootOdds odds) {
     }
 
@@ -219,7 +219,7 @@ public final class ClientRequests {
         overrides = Map.copyOf(statuses);
     }
 
-    /** How a loot table's override stands, or null if it isn't edited (or this player can't edit loot). */
+    /** The status of a loot table's override, or null if it isn't edited or this player can't edit loot. */
     public static LootOverrides.Status overrideStatus(String table) {
         ResourceLocation id = table == null ? null : ResourceLocation.tryParse(table);
         return id == null ? null : overrides.get(id);
@@ -243,7 +243,7 @@ public final class ClientRequests {
         return ask(TABLES, JesNetwork.REQUEST_TABLE, buf -> buf.writeResourceLocation(id));
     }
 
-    /** Rolls an edit that isn't saved yet. */
+    /** Gets the odds of an edit that isn't saved yet. */
     public static CompletableFuture<EditReply> draftOdds(ResourceLocation id, String json) {
         return upload(JesNetwork.KIND_DRAFT, id, json);
     }
@@ -261,7 +261,7 @@ public final class ClientRequests {
         });
     }
 
-    /** Points a container in a template at another loot table, or with a null table, back at its own. */
+    /** Points a container in a template at another loot table, or back at its original one when {@code table} is null. */
     public static CompletableFuture<EditReply> containerAction(ResourceLocation template, BlockPos pos, ResourceLocation table) {
         return ask(EDITS, JesNetwork.CONTAINER_ACTION, buf -> {
             buf.writeResourceLocation(template);
@@ -273,14 +273,14 @@ public final class ClientRequests {
         });
     }
 
-    /** Takes a spawner in a template back to how it was. */
+    /** Undoes the change to a spawner in a template. */
     public static CompletableFuture<EditReply> undoSpawner(ResourceLocation template, BlockPos pos) {
         return spawnerAction(template, pos, null, null);
     }
 
     /**
-     * Gives a spawner in a template another mob, "" for none, and makes it {@code block}: a spawner
-     * or a trial spawner. With a null mob, it goes back to how it was.
+     * Sets the mob of a spawner in a template ("" for none) and its {@code block}, a spawner or a
+     * trial spawner. A null mob undoes the change.
      */
     public static CompletableFuture<EditReply> spawnerAction(ResourceLocation template, BlockPos pos, String mob, ResourceLocation block) {
         return ask(EDITS, JesNetwork.SPAWNER_ACTION, buf -> {
@@ -303,7 +303,7 @@ public final class ClientRequests {
         return ask(EDITS, requestId -> sendUpload(kind, requestId, buf -> Codecs.writeDraft(buf, id, json)));
     }
 
-    /** Something bigger than one packet, sent in parts. */
+    /** Sends a payload that may not fit in one packet, compressed and split into parts. */
     private static void sendUpload(int kind, int requestId, Consumer<FriendlyByteBuf> writer) {
         byte[] compressed = Blobs.deflate(Blobs.toBytes(registries(), writer::accept));
         List<byte[]> parts = Blobs.split(compressed, Blobs.UPLOAD_PART_SIZE);
@@ -339,8 +339,8 @@ public final class ClientRequests {
     }
 
     /**
-     * The loot index, built by the server the first time anyone asks. Until it's ready, {@link #tick()}
-     * keeps asking so the progress stays current.
+     * Returns the loot index, requesting it if needed. Until it arrives, {@link #tick()} asks again
+     * every 1.5 s so the progress stays current.
      */
     public static CompletableFuture<LootIndex> index() {
         if (index == null || index.isCancelled()) {
@@ -353,13 +353,13 @@ public final class ClientRequests {
 
     /**
      * Calls {@code listener} with every loot index that arrives, including the new one after a
-     * /reload, which is then fetched straight away rather than when the browser next wants it.
+     * /reload, which is then requested at once instead of when the browser next wants it.
      */
     public static void onEachIndex(Consumer<LootIndex> listener) {
         INDEX_LISTENERS.add(listener);
     }
 
-    /** Runs {@code listener} each time the server says its build of the index failed, so nothing more of it is coming. */
+    /** Runs {@code listener} when the server reports that its index build failed, so nothing more is coming. */
     public static void onIndexStopped(Runnable listener) {
         STOPPED_LISTENERS.add(listener);
     }
@@ -368,25 +368,23 @@ public final class ClientRequests {
         return index != null && index.isDone() && !index.isCompletedExceptionally() && !index.isCancelled();
     }
 
-    /** The loot index if this server's has arrived, or null. Any thread can ask. */
+    /** This server's loot index if it has arrived, or null. Safe from any thread. */
     public static LootIndex latestIndex() {
         return ARRIVAL.now();
     }
 
     /**
-     * For a recipe viewer loading on a thread of its own: the loot index, waiting up to
-     * {@code millis} for one that's been asked for and is on its way. Asked on the game's thread,
-     * where the index arrives, it never waits.
+     * For a recipe viewer loading on another thread: returns the loot index, waiting up to
+     * {@code millis} for one that's been requested and is on its way. On the client thread, where the
+     * index arrives, it never waits.
      */
     public static LootIndex awaitIndex(long millis) {
         return Minecraft.getInstance().isSameThread() ? ARRIVAL.now() : ARRIVAL.await(millis);
     }
 
     /**
-     * For a recipe viewer that loads all over again to take each new index: how long yet to wait
-     * for the finished index, in ms, while the one here is an early one, until the server has said
-     * nothing more of it for {@code quiet} ms. 0 when there's nothing to wait for, which is always
-     * the case on a server from before early indexes said so.
+     * For a recipe viewer that must reload to show a new index; see {@link IndexArrival#finishedWait}.
+     * Always 0 with a server too old to mark early indexes.
      */
     public static long finishedIndexWait(long quiet) {
         return ARRIVAL.finishedWait(quiet);
@@ -398,25 +396,25 @@ public final class ClientRequests {
     }
 
     /**
-     * Whether the index that's here is an early one, with the server still finding the rest: it
-     * has most of the loot, and the finished one takes its place when it's done. The server says so
-     * by sending how far it has got after the index, which it never does after a finished one.
+     * Whether the current index is an early one, with the server still building the rest. It has
+     * most of the loot, and the finished index replaces it when done. The server signals this by
+     * sending progress after the index, which it never does after a finished one.
      */
     public static boolean indexFilling() {
         return indexReady() && !indexFailed && indexTotal > 0 && indexDone < indexTotal;
     }
 
-    /** Whether the server said its build of the index failed, so it has none to send, or nothing after the early one, until it reloads. */
+    /** Whether the server reported that its index build failed. It then has no index to send, or nothing after the early one, until it reloads. */
     public static boolean indexFailed() {
         return indexFailed;
     }
 
-    /** Whether the index that's here is an early one whose rest the server couldn't find, so some structures' loot is missing from it. */
+    /** Whether the current index is an early one the server couldn't finish, so some structures' loot is missing from it. */
     public static boolean indexCutShort() {
         return indexReady() && indexFailed;
     }
 
-    /** What to say while there's no index to go by: how far the server has got with it, or that it couldn't build one. */
+    /** Text to show while there's no index: the server's progress, or that its build failed. */
     public static Component indexWaitText() {
         if (indexFailed) {
             return Component.translatable("screen.justenoughstructures.index_failed");
@@ -433,7 +431,7 @@ public final class ClientRequests {
         }
         if (indexWanted && index == null && serverSupported()) {
             index();
-            // The structure list is what saved thumbnails are checked against, so rows can have pictures.
+            // Also fetch the structure list, which saved thumbnails are checked against, so rows can show pictures.
             catalog();
         }
         if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
@@ -442,17 +440,17 @@ public final class ClientRequests {
     }
 
     /**
-     * For recipe viewers, which load before it's known whether the server has JES: asks for the loot
-     * index as soon as it is, and again on every server joined after.
+     * For recipe viewers, which load before it's known whether the server runs JES: requests the loot
+     * index as soon as that's known, and on every server joined after.
      */
     public static void wantIndex() {
         indexWanted = true;
     }
 
     /**
-     * Whether a recipe viewer is installed that only takes the structures while it loads, which is
-     * EMI. It loads as a server is joined, so the index is asked for then rather than once its
-     * plugin has run: one the server has saved is there for that load, and EMI has no second to do.
+     * True when EMI is installed. EMI only reads recipes while it loads, which happens as the server
+     * is joined, so the index is requested at join, not after its plugin has run. An index the server
+     * has saved then arrives in time, and EMI needn't reload.
      */
     private static boolean loadsWithTheIndex() {
         //? if emi {
@@ -500,9 +498,9 @@ public final class ClientRequests {
     }
 
     /**
-     * Asks the server for a structure. A preview, the one the player is looking at, goes ahead of the
-     * list's pictures on the server. A first view the game kept from before is only sent again if
-     * it's changed.
+     * Requests a structure from the server. A preview, the structure the player is looking at, is
+     * served ahead of list pictures. If its first view is in the kept-previews cache, the server only
+     * sends it again if it has changed.
      */
     public static CompletableFuture<Codecs.CaptureReply> capture(ResourceLocation structure, long seed, boolean preview) {
         return ask(CAPTURES, id -> {
@@ -518,8 +516,8 @@ public final class ClientRequests {
     }
 
     /**
-     * The lighter copy of a structure its list picture is drawn from. One the game kept, of the
-     * structure as the server has it now, is used without asking the server at all.
+     * Gets a structure's picture copy, the lighter copy its list picture is drawn from. A kept copy
+     * that matches the server's current version is used without asking the server.
      */
     public static CompletableFuture<Codecs.CaptureReply> picture(ResourceLocation structure) {
         String version = KeptPreviews.version(structure);
@@ -566,7 +564,7 @@ public final class ClientRequests {
         });
     }
 
-    /** Finds the nearest one, and with {@code teleport} also takes the player there. */
+    /** Locates the nearest such structure, and with {@code teleport} also moves the player there. */
     public static CompletableFuture<Component> locate(ResourceLocation structure, boolean teleport) {
         return ask(LOCATES, JesNetwork.REQUEST_LOCATE, buf -> {
             buf.writeResourceLocation(structure);
@@ -591,7 +589,7 @@ public final class ClientRequests {
 
     /**
      * Odds cost the server a couple of thousand loot rolls each, and the found-in list can want a
-     * hundred tables at once, so only a couple are asked for at a time and the rest wait their turn.
+     * hundred tables at once, so only {@link #ODDS_IN_FLIGHT} are requested at a time and the rest queue.
      */
     private static CompletableFuture<LootOdds> requestOdds(ResourceLocation table) {
         CompletableFuture<LootOdds> future = new CompletableFuture<>();
@@ -636,13 +634,13 @@ public final class ClientRequests {
         if (part.kind() == JesNetwork.KIND_CATALOG) {
             String fingerprint = Codecs.readFingerprint(buf);
             List<StructureCatalog.Entry> entries = Codecs.readCatalog(buf);
-            // A server new enough to keep names Pack tools gives structures sends them after the list.
+            // Names saved in Pack tools follow the list. Older servers don't send them.
             Map<String, Map<String, String>> names = buf.isReadable() ? Codecs.readNames(buf) : null;
             StructureNames.useGiven(names);
             JesLog.debug("The structure list came with {} structures, and names given in {} languages", entries.size(),
                     names == null ? "no" : names.size());
             Thumbnails.onCatalog(fingerprint, entries);
-            // A world played here saves its own first views, so they're only kept from other computers.
+            // A world hosted in this game saves first views on its integrated server, so the client only keeps them for other servers.
             KeptPreviews.use(fingerprint, !Minecraft.getInstance().hasSingleplayerServer());
             KeptPreviews.structures(entries);
             if (catalog == null) {
@@ -651,10 +649,10 @@ public final class ClientRequests {
             catalog.complete(entries);
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
             LootIndex built = Codecs.readIndex(buf);
-            // A server new enough to say so marks an early index, with the finished one to come.
+            // Newer servers mark an early index, with the finished one to follow.
             boolean early = Codecs.readIndexEarly(buf);
             JesLog.debug("The loot index came with {} structures{}", built.tablesByStructure().size(), early ? ", an early one" : "");
-            // What was said of progress so far was about the wait for this one.
+            // Progress so far described the build of this index, so reset it.
             indexDone = 0;
             indexTotal = 0;
             indexFailed = false;
@@ -680,10 +678,10 @@ public final class ClientRequests {
     }
 
     /**
-     * Unpacking a big structure takes a good part of a second, so it's done off the render thread,
-     * and not at all when nobody is waiting for it any more, like a preview the player has already
-     * clicked away from. A first view that unpacks is kept for next time. {@code wasKept} is true
-     * for the copy that was kept, which is forgotten if it won't unpack.
+     * Unpacks a structure reply. A big structure takes a good part of a second, so it's unpacked on a
+     * background thread, and skipped when nothing waits for it, like a preview the player has already
+     * left. A first view that unpacks is kept for next time. {@code wasKept} is true for a kept copy,
+     * which is deleted if it won't unpack.
      */
     private static void onCapture(int requestId, byte[] compressed, boolean wasKept) {
         RegistryAccess registries = registries();
@@ -715,9 +713,9 @@ public final class ClientRequests {
     }
 
     /**
-     * Keeps what came back for next time. A first view also gives the copy its list picture is drawn
-     * from, so that's never asked for. That's made once the preview's on its way, as for a big
-     * structure it takes a moment.
+     * Saves the reply to the kept-previews cache. A first view also yields the picture copy, so that
+     * never needs its own request. The copy is made in a background task, since it takes a moment for
+     * big structures.
      */
     private static void keep(Keeping keeping, byte[] compressed, boolean wasKept, Codecs.CaptureReply reply, RegistryAccess registries) {
         ResourceLocation structure = keeping.structure();
@@ -746,8 +744,8 @@ public final class ClientRequests {
     }
 
     /**
-     * The server says the first view the game kept is the one it would send, so that's used instead.
-     * If it's gone since, it's asked for after all.
+     * The server says the kept first view matches what it would send, so the kept copy is shown. If
+     * the file is gone, the structure is requested again.
      */
     private static void onSame(int requestId) {
         Keeping keeping = KEEPING.get(requestId);
@@ -759,7 +757,7 @@ public final class ClientRequests {
         }
         ResourceLocation structure = keeping.structure();
         KeptPreviews.read(structure, payload -> Minecraft.getInstance().execute(() -> {
-            // The player may have left, or moved on to another, while it was read.
+            // The player may have left, or moved to another structure, while it was read.
             if (CAPTURES.get(requestId) != future || future.isDone()) {
                 CAPTURES.remove(requestId, future);
                 KEEPING.remove(requestId);
@@ -786,8 +784,8 @@ public final class ClientRequests {
         teleportPermission = settings.teleportPermission();
         compassSearch = settings.compassSearch();
         packTools = settings.packTools();
-        // The browser asks which tables are edited as it opens, which the first time is before the
-        // server has said this player may see them, and a /reload can change them, so ask now.
+        // The browser asks for edited tables when it opens, the first time before the server has said
+        // this player may see them, and a /reload can change them, so ask now.
         requestOverrides();
         if (settings.structuresChanged()) {
             structureChanges++;
@@ -830,15 +828,15 @@ public final class ClientRequests {
         sendWaitingOdds();
     }
 
-    /** The game's registries as the server sent them, which reading items and text needs from 1.20.5. */
+    /** The registries the server sent, needed to read items and text from 1.20.5. */
     private static RegistryAccess registries() {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         return connection != null ? connection.registryAccess() : RegistryAccess.EMPTY;
     }
 
     /**
-     * Starts a request whose answer comes back with its id, which {@code send} sends: the future that
-     * answer completes, kept in {@code waiting} till then.
+     * Stores a new future in {@code waiting} under a fresh request id, then calls {@code send} with
+     * that id. The reply carrying the id completes it.
      */
     private static <T> CompletableFuture<T> ask(Map<Integer, CompletableFuture<T>> waiting, IntConsumer send) {
         int requestId = nextRequestId++;
@@ -848,7 +846,7 @@ public final class ClientRequests {
         return future;
     }
 
-    /** The same, sent on {@code channel} as the request's id and then {@code payload}. */
+    /** Starts a request on {@code channel}, writing the request id and then {@code payload}. */
     private static <T> CompletableFuture<T> ask(Map<Integer, CompletableFuture<T>> waiting, ResourceLocation channel, Consumer<FriendlyByteBuf> payload) {
         return ask(waiting, requestId -> send(channel, buf -> {
             buf.writeVarInt(requestId);
@@ -864,14 +862,14 @@ public final class ClientRequests {
         }
     }
 
-    /** Gives up on every request still waiting in {@code waiting}. */
+    /** Cancels every request still waiting in {@code waiting}. */
     private static void cancelAll(Map<Integer, ? extends CompletableFuture<?>> waiting) {
         waiting.values().forEach(future -> future.cancel(false));
         waiting.clear();
     }
 
     private static void send(ResourceLocation channel, Consumer<FriendlyByteBuf> writer) {
-        // NeoForge throws on a payload the server never agreed to, which would take the game down.
+        // NeoForge throws on a payload the server never agreed to, which would crash the game.
         if (sender == null || !sender.canSend(channel)) {
             return;
         }
@@ -881,8 +879,8 @@ public final class ClientRequests {
     }
 
     /**
-     * A request whose answer is kept: the structure's first view, or with {@code picture} the copy its
-     * list picture is drawn from, and which version of the structure the server had when it was asked.
+     * A request whose reply goes into the kept-previews cache: the structure's first view, or with
+     * {@code picture} its picture copy, plus the structure's version when it was requested.
      */
     private record Keeping(ResourceLocation structure, String version, boolean picture) {
     }

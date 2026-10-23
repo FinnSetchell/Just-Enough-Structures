@@ -8,8 +8,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-// One JES packet in the payload system 1.20.5 brought in: a type of its own for each JES channel,
-// carrying the bytes written for it, so the handlers stay the same on every loader.
+// A JES packet in 1.20.5's payload system. Each JES channel has its own payload type carrying the
+// raw bytes, so the handlers are the same on every loader.
 public record JesPayload(CustomPacketPayload.Type<JesPayload> type, byte[] data) implements CustomPacketPayload {
     private static final Map<ResourceLocation, CustomPacketPayload.Type<JesPayload>> TYPES = new ConcurrentHashMap<>();
 

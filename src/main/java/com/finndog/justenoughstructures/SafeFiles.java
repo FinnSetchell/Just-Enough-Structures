@@ -13,9 +13,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
 /**
- * Writes files so that a crash, a power cut or a full disk part way through leaves the file as it
- * was, rather than empty or half written. The new contents go to a file beside it first, which then
- * takes its place in one go.
+ * Writes files so that a crash, a power cut or a full disk partway through leaves the file as it was,
+ * not empty or half written. The new contents go to a file beside it first, which then replaces it in
+ * one step.
  */
 public final class SafeFiles {
     /** How many times to try moving the new file into place, as Windows can refuse it for a moment. */
@@ -36,7 +36,7 @@ public final class SafeFiles {
                 while (buffer.hasRemaining()) {
                     channel.write(buffer);
                 }
-                // On the disk before it takes the old file's place, so a power cut can't leave it empty.
+                // Flushed to disk before it replaces the old file, so a power cut can't leave it empty.
                 channel.force(true);
             }
             move(temp, file);
@@ -47,8 +47,8 @@ public final class SafeFiles {
 
     /**
      * Windows refuses to move a file over another while something else has either open, which a virus
-     * scanner does for a moment with a file that's just been written, so it's tried a few more times
-     * before giving up, as the game does with its own saves.
+     * scanner does briefly with a newly written file, so the move is retried a few times before giving
+     * up, as the game does with its own saves.
      */
     private static void move(Path temp, Path file) throws IOException {
         for (int attempt = 1; ; attempt++) {
@@ -60,7 +60,7 @@ public final class SafeFiles {
                 }
                 return;
             } catch (FileSystemException e) {
-                // Only a refusal, as opposed to a file that isn't there or the like, is worth waiting out.
+                // Only retry an access refusal, not a missing file or other errors.
                 boolean refused = e instanceof AccessDeniedException || e.getClass() == FileSystemException.class;
                 if (!refused || attempt >= MOVE_ATTEMPTS) {
                     throw e;

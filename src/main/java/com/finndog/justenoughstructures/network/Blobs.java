@@ -20,7 +20,7 @@ import net.minecraft.network.FriendlyByteBuf;
 public final class Blobs {
     /** Leaves room under the 1 MB clientbound limit for the part header. */
     public static final int PART_SIZE = 900_000;
-    /** The same under the 32 KB limit on what a client can send in one packet. */
+    /** Likewise under the 32 KB limit on what a client can send in one packet. */
     public static final int UPLOAD_PART_SIZE = 30_000;
 
     private Blobs() {
@@ -84,8 +84,8 @@ public final class Blobs {
     }
 
     /**
-     * Unpacks at most {@code most} bytes, and throws past that rather than fill the memory: a little
-     * of the right data unpacks to a great deal.
+     * Inflates at most {@code most} bytes and throws past that, so a small crafted payload can't fill
+     * memory.
      */
     public static byte[] inflate(byte[] compressed, int most) {
         Inflater inflater = new Inflater();
@@ -112,8 +112,8 @@ public final class Blobs {
     }
 
     /**
-     * A short name for some bytes, the same on the client and the server, which is how a preview kept
-     * by a player's game is matched with what the server would send. Never 0, which means nothing kept.
+     * A 64-bit hash of the bytes, the same on client and server. Used to match a preview the client
+     * kept with what the server would send. Never 0, which means nothing kept.
      */
     public static long hash(byte[] bytes) {
         long hash = Hashing.murmur3_128().hashBytes(bytes).asLong();

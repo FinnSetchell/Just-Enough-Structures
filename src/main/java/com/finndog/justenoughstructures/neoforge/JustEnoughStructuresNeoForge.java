@@ -71,10 +71,9 @@ public final class JustEnoughStructuresNeoForge {
         //?}
         NeoForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
-        // Stops the loot index and drops what belonged to that world when it closes.
         NeoForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> JesServer.stop());
-        // Sent to everyone at once only after /reload. It comes partway through putting the new data
-        // in place, so JES starts over on the next tick, once the rest of it is in.
+        // Sent to all players at once only after /reload, partway through applying the new data, so
+        // JES reloads on the next tick, once all of it is in place.
         NeoForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();

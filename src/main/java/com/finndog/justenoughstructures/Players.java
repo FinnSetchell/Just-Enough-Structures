@@ -12,7 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.permissions.PermissionLevel;
 *///?}
 
-/** What JES asks about players, the same way on every version. */
+/** Player queries JES needs, the same on every version. */
 public final class Players {
     private Players() {
     }
@@ -42,8 +42,8 @@ public final class Players {
     }
 
     /**
-     * Whether the player has this command permission level, 0 to 4 as in server.properties. Higher
-     * than 4 is no one, as it always was: 26.1 would round it down to 4.
+     * Whether the player has this command permission level, 0 to 4 as in server.properties. A level
+     * above 4 matches no one, since 26.1's PermissionLevel.byId would clamp it to 4.
      */
     public static boolean hasPermission(Player player, int level) {
         //? if >=26.1 {
@@ -54,7 +54,7 @@ public final class Players {
         //?}
     }
 
-    /** Whether the player is the one whose single player world, or world opened to LAN, this is. */
+    /** Whether the player hosts this single player or LAN world. */
     public static boolean isSingleplayerOwner(MinecraftServer server, ServerPlayer player) {
         //? if >=26.1 {
         /*return server.isSingleplayerOwner(player.nameAndId());

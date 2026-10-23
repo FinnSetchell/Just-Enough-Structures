@@ -1,6 +1,6 @@
 package com.finndog.justenoughstructures.compat.explorerscompass;
 
-// Its Forge and NeoForge builds' names differ, see stonecutter.gradle.kts.
+// Explorer's Compass names things differently per loader and version; see stonecutter.gradle.kts.
 //~ compass_names
 
 import com.chaosthedude.explorerscompass.ExplorersCompass;
@@ -32,17 +32,17 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 *///?}
 
 /**
- * Starts the held Explorer's Compass searching, through its own search, as if the structure had
- * been picked in its screen. Its screen won't offer what the compass can't do, but its search
- * doesn't check again, so this does first.
+ * Starts the held Explorer's Compass searching, through the compass's search, as if the structure had
+ * been selected in its screen. The screen won't offer what the compass can't do, but the search
+ * doesn't check again, so this checks first.
  */
 public final class ExplorersCompassSearch implements CompassSearch {
     private ExplorersCompassSearch() {
     }
 
     /**
-     * Only called with Explorer's Compass installed, so its classes are never touched otherwise. A
-     * build without everything this calls gets no link, as a call it can't answer would stop the server.
+     * Only called with Explorer's Compass installed, so its classes are never loaded otherwise. A build
+     * missing a method this calls gets no link, as the failed call would crash the server.
      */
     public static void install() {
         if (!supported()) {
@@ -53,8 +53,8 @@ public final class ExplorersCompassSearch implements CompassSearch {
     }
 
     /**
-     * Whether the installed compass has what this calls. Its builds from before April 2026 have no
-     * durability or XP cost to check.
+     * Whether the installed compass has what this calls. Older builds have no durability or XP cost to
+     * check.
      */
     private static boolean supported() {
         //? if !forge || <1.21 {
@@ -72,7 +72,7 @@ public final class ExplorersCompassSearch implements CompassSearch {
                 }
             }
         } catch (LinkageError | RuntimeException e) {
-            // A class that can't be looked through is as good as missing.
+            // A class that can't be inspected counts as missing.
         }
         return false;
     }
@@ -91,11 +91,11 @@ public final class ExplorersCompassSearch implements CompassSearch {
         }
         //?}
         ServerLevel level = Players.level(player);
-        // What it's set up to refuse, like its blacklist, only ever keeps things out of its screen.
+        // Its config restrictions, like its blacklist, only filter its screen, so check them here.
         if (!StructureUtils.getAllowedStructureIDs(level).contains(structure)) {
             return Component.translatable("screen.justenoughstructures.compass_not_allowed");
         }
-        // It would still charge for a search that can't start here, and forget what it pointed at.
+        // It would still charge for a search that can't start in this dimension, and lose its current target.
         Optional<Holder.Reference<Structure>> holder = Regs.holder(level.registryAccess().registryOrThrow(Registries.STRUCTURE),
                 ResourceKey.create(Registries.STRUCTURE, structure));
         if (holder.isEmpty() || level.getChunkSource().getGeneratorState().getPlacementsForStructure(holder.get()).isEmpty()) {

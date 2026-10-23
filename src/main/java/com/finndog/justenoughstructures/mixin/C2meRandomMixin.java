@@ -11,12 +11,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * C2ME gives each world a random of its own, which refuses to be drawn from on any thread but the
- * server's, and its draws never reach {@link LegacyRandomSourceMixin}. So bees, and anything else
- * that draws from the world's random as it's made, went missing from previews. The same redirect
- * goes on its draws too: while a capture places a structure, they come from the capture's own random.
+ * C2ME gives each world its own random, which throws when drawn from off the server thread, and its
+ * draws never reach {@link LegacyRandomSourceMixin}. Without this, bees and anything else that draws
+ * from the world's random when created would be missing from previews. While a capture places a
+ * structure, this sends its draws to the capture's random too.
  *
- * <p>It isn't one of the game's legacy randoms, so it's marked as a world's random here, on its own.
+ * <p>It isn't one of the game's legacy randoms, so it's marked as a world's random here, separately.
  */
 @Pseudo
 @Mixin(targets = "com.ishland.c2me.fixes.worldgen.threading_issues.common.CheckedThreadLocalRandom")
@@ -34,7 +34,7 @@ public abstract class C2meRandomMixin implements LevelRandom {
         return justenoughstructures$levelRandom;
     }
 
-    // It's next in a development game and from 26.1, and goes by its intermediary name before that.
+    // The method is next in a dev game and from 26.1, and has its intermediary name before that.
     @Inject(method = {"next(I)I", "method_43156(I)I"}, at = @At("HEAD"), cancellable = true, remap = false, require = 0)
     private void justenoughstructures$drawFromTheCapture(int bits, CallbackInfoReturnable<Integer> cir) {
         if (justenoughstructures$levelRandom) {

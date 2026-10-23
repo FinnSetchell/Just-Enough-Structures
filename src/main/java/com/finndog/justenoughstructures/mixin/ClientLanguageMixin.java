@@ -14,12 +14,12 @@ import com.google.common.collect.ImmutableMap;
 //?}
 
 /**
- * Makes the structure names Pack tools saved on this game beat every mod's own name for them. The
- * names pack is above the mods' packs, but the game merges lang files one namespace at a time, in
- * the order of a hash map, so a pack's place only counts within one namespace. Explorer's Compass
- * names the vanilla structures under its own namespace, and where that was merged after JES's, its
- * names won. So the saved names go over the merged strings as the game keeps them: the first map
- * the method copies, on every version. NeoForge copies a second one, of its components, after it.
+ * Makes structure names saved by Pack tools in this game override every mod's names for them. The
+ * names pack sits above the mods' packs, but the game merges lang files one namespace at a time, in
+ * hash map order, so pack order only counts within a namespace. Explorer's Compass names vanilla
+ * structures under its own namespace, and if that is merged after JES's, its names would win. So the
+ * saved names are laid over the merged strings: the first map loadFrom copies, on every version.
+ * NeoForge copies a second one, of its components, after it.
  */
 @Mixin(ClientLanguage.class)
 public abstract class ClientLanguageMixin {

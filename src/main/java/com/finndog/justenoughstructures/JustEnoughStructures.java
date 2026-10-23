@@ -42,7 +42,7 @@ public final class JustEnoughStructures {
         configDir = dir;
     }
 
-    /** Where this mod keeps its files, inside the config folder. */
+    /** JES's folder inside the config folder. */
     public static Path configDir() {
         return configDir.resolve(MOD_ID);
     }
@@ -52,12 +52,12 @@ public final class JustEnoughStructures {
         gameDir = dir;
     }
 
-    /** Where this mod keeps what it works out once and saves for next time. Safe to delete. */
+    /** The cache folder, for data JES computes once and reuses. Safe to delete. */
     public static Path cacheDir() {
         return gameDir.resolve(".cache").resolve(MOD_ID);
     }
 
-    /** The debug log, next to the game's own logs. Only written with -Djustenoughstructures.debug=true. */
+    /** The debug log, next to the game's logs. Only written with -Djustenoughstructures.debug=true. */
     public static Path debugLogFile() {
         return gameDir.resolve("logs").resolve("justenoughstructures-debug.log");
     }

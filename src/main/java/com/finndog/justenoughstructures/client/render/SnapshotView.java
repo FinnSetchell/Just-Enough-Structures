@@ -120,8 +120,8 @@ public final class SnapshotView implements BlockAndTintGetter {
                         ListTag pos = Nbt.list(tag, "Pos", Tag.TAG_DOUBLE);
                         entity.setPos(Nbt.getDouble(pos, 0), Nbt.getDouble(pos, 1), Nbt.getDouble(pos, 2));
                         //? if >=26.2 {
-                        /*// From 26.2 an entity only gets an id when it joins a world, which these never do,
-                        // and telling two apart reads it.
+                        /*// From 26.2 an entity gets an id only when it joins a world, which these never do,
+                        // and code that tells entities apart reads the id.
                         entity.setId(NEXT_ENTITY_ID.decrementAndGet());
                         *///?}
                         entities.add(entity);
@@ -158,7 +158,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         return entities;
     }
 
-    /** Corners of the structure's outline, x y z after each other, to fit the camera around. */
+    /** Corners of the structure's outline as consecutive x, y, z values, for fitting the camera. */
     public float[] fitPoints() {
         return fitPoints;
     }
@@ -178,10 +178,10 @@ public final class SnapshotView implements BlockAndTintGetter {
     }
 
     /**
-     * The block corners furthest out in each of {@link #FIT_DIRECTIONS}. Together they outline the
-     * structure from any side, however thin a part of it is, like a mast or a spire, which a sample of
-     * its blocks could miss. A block can only be furthest along a direction that tilts up if it's the
-     * top of its column, or down if it's the bottom, so only those are looked at.
+     * Finds the block corners furthest out along each of {@link #FIT_DIRECTIONS}. Together they outline
+     * the structure from any side, including thin parts like a mast or spire that a sample of its
+     * blocks could miss. A block can only be furthest along an upward direction if it tops its column,
+     * or along a downward one if it's the column's bottom, so only those are checked.
      */
     private static float[] findFitPoints(StructureSnapshot s, Vec3i size) {
         int count = s.blockCount();
@@ -245,7 +245,7 @@ public final class SnapshotView implements BlockAndTintGetter {
         return x >= 0 && y >= 0 && z >= 0 && x < size.getX() && y < size.getY() && z < size.getZ();
     }
 
-    /** The block regardless of the slice. */
+    /** The block at a position, ignoring the slice. */
     public BlockState rawState(int x, int y, int z) {
         return contains(x, y, z) ? palette[blocks.get(x, y, z)] : Blocks.AIR.defaultBlockState();
     }

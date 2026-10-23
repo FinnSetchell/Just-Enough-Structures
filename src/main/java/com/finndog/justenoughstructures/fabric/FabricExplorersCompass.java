@@ -6,7 +6,7 @@ import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompass
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 
-/** Only called with Explorer's Compass installed, so its classes are never touched otherwise. */
+/** Only called with Explorer's Compass installed, so its classes are never loaded otherwise. */
 final class FabricExplorersCompass {
     private FabricExplorersCompass() {
     }

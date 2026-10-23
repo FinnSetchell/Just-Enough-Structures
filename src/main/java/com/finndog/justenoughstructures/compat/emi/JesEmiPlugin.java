@@ -23,9 +23,9 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Adds a "Found in structures" category to EMI, so looking up how to get an item also lists the
  * structures whose loot can give it. The recipes come from the loot index, which the server sends
- * after the world is joined. EMI only takes recipes while it loads, which it starts as the world is
- * joined, so its load waits a little for an index that's on its way. One that comes later, or
- * changes, has EMI loaded again, unless it's an early one: then EMI waits for the finished one.
+ * after the world is joined. EMI only reads recipes while it loads, which starts as the world is
+ * joined, so its load waits briefly for an index on its way. An index that arrives later, or
+ * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one.
  */
 // The annotation is how EMI finds it on Forge and NeoForge; Fabric uses the entrypoint in fabric.mod.json.
 @EmiEntrypoint
@@ -37,24 +37,24 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
     };
 
-    /** How long EMI's load waits for an index that's on its way. Loading EMI all over again takes longer. */
+    /** How long EMI's load waits for an index that's on its way. Reloading EMI takes longer. */
     private static final long INDEX_WAIT_MS = 10_000;
     /**
-     * How long the server can say nothing more of an early index before EMI is loaded with it after
-     * all, as the server may have stopped building the rest. While it builds it says how far it has
-     * got as structures are done, but a slow one, or a wait for memory, can keep it quiet a while.
+     * How long the server can stay silent about an early index before EMI loads it anyway, as the
+     * server may have stopped building the rest. While building it reports progress as structures
+     * finish, but a slow structure, or a wait for memory, can keep it quiet for a while.
      * Public for the scripted scenarios.
      */
     public static final long QUIET_MS = 5 * 60_000;
 
-    // The index EMI last loaded with, and whether it's loading now, which it does on a thread of its own.
+    // The index EMI last loaded with, and whether it's loading now, which it does on a separate thread.
     private static volatile LootIndex loaded;
     private static volatile boolean loading;
-    // The index EMI was last asked to load again for, until that load starts. Asking again before
-    // then would have EMI start that load over.
+    // The index EMI was last asked to reload for, until that load starts. Asking again before then
+    // would make EMI restart the load.
     private static volatile LootIndex asked;
     private static boolean listening;
-    // Whether a look at an early index is due later. Only on the game's thread, like listening.
+    // Whether a recheck of an early index is scheduled. Client thread only, like listening.
     private static boolean lookDue;
     private static volatile int loads;
 
@@ -74,17 +74,17 @@ public final class JesEmiPlugin implements EmiPlugin {
             }
         } finally {
             loading = false;
-            // Only now that the load is over, so an index that came during it is looked at once, after it.
+            // After the load ends, so an index that arrived during it is checked once, afterwards.
             Minecraft.getInstance().execute(JesEmiPlugin::listen);
         }
     }
 
-    /** On the game's thread, after each load: hears about every index from now on, and catches up with one that's come since. */
+    /** Runs on the client thread after each load: subscribes to every later index, and catches up with one that arrived since. */
     private static void listen() {
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesEmiPlugin::arrived);
-            // A server whose build fails sends nothing after an early index, so EMI takes that one now.
+            // A server whose build fails sends nothing after an early index, so EMI loads that one now.
             ClientRequests.onIndexStopped(JesEmiPlugin::listen);
             ClientRequests.wantIndex();
         }
@@ -95,14 +95,14 @@ public final class JesEmiPlugin implements EmiPlugin {
     }
 
     private static void arrived(LootIndex index) {
-        // One that comes while EMI loads is left for the look that follows the load. The server sends
-        // its index again each time it has checked it, and one that says the same as EMI has, or is
-        // about to, isn't worth loading EMI all over again for.
+        // An index that arrives while EMI loads is left for the check after the load. The server resends
+        // its index each time it has checked it, and one equal to what EMI has, or is about to load,
+        // isn't worth a reload.
         if (loading || index.equals(loaded) || index.equals(asked)) {
             return;
         }
-        // Nor is an early one, as the finished one follows once the server has generated the rest.
-        // Should the server stop saying how that's going, EMI is loaded with the early one after all.
+        // Nor is an early one, since the finished one follows. If the server goes quiet for QUIET_MS,
+        // EMI loads the early one anyway.
         long wait = ClientRequests.finishedIndexWait(QUIET_MS);
         if (wait > 0) {
             lookAgainIn(wait);
@@ -111,7 +111,7 @@ public final class JesEmiPlugin implements EmiPlugin {
         reload(index);
     }
 
-    /** On the game's thread: looks at the index again in {@code millis}. One look is due at a time. */
+    /** Client thread only: checks the index again in {@code millis}. Only one check is scheduled at a time. */
     private static void lookAgainIn(long millis) {
         if (lookDue) {
             return;
@@ -147,8 +147,8 @@ public final class JesEmiPlugin implements EmiPlugin {
         EmiApi.displayRecipes(EmiStack.of(stack));
     }
 
-    // EMI's API has no way to add recipes once it's loaded, so this uses its own reload. If a later
-    // EMI changes it, the page just stays empty.
+    // EMI's API can't add recipes once it's loaded, so this calls EMI's internal reload. If a later
+    // EMI changes that, the page stays empty.
     private static void reload(LootIndex index) {
         asked = index;
         JesLog.debug("EMI is loaded again, for a loot index with {} structures", index.tablesByStructure().size());

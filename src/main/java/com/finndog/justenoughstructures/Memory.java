@@ -40,8 +40,8 @@ public final class Memory {
     }
 
     /**
-     * Waits while too little memory is free to generate a structure, as running out could take the
-     * server down with it. False if cancelled or interrupted meanwhile.
+     * Waits while too little memory is free to generate a structure, as running out could crash the
+     * server. False if cancelled or interrupted meanwhile.
      */
     public static boolean waitUntilFree(BooleanSupplier cancelled) {
         return waitUntilFree(cancelled, () -> {

@@ -50,8 +50,8 @@ final class NeoForgeClient {
                 return listener != null && listener.hasChannel(JesPayload.type(channel));
             }
 
-            // NeoForge only tells a client the channels both sides have, so a server on another version
-            // of JES shows by the one channel every version has.
+            // NeoForge only lists channels both sides have, so this includes PRESENT, which every JES
+            // version shares (see JesNetwork#PRESENT).
             @Override
             public Collection<ResourceLocation> sendable() {
                 ClientPacketListener listener = Minecraft.getInstance().getConnection();

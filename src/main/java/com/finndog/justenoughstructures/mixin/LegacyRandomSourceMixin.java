@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * While a capture places a structure, anything drawn from a real world's random comes from the
- * capture's own instead. Bees do it as they're created, for one. The server draws from the same
+ * capture's own instead. Bees draw from it when created, for example. The server draws from the same
  * random on its own thread, and two threads drawing at once crashes the game.
  */
 @Mixin(LegacyRandomSource.class)

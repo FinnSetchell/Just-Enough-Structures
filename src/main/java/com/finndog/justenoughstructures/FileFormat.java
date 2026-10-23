@@ -11,7 +11,7 @@ import java.nio.file.Path;
  */
 public final class FileFormat {
     public static final String KEY = "format";
-    /** Goes up when a file this version writes couldn't be read the same way by the one before. */
+    /** Bump when a file this version writes couldn't be read the same way by the previous version. */
     public static final int CURRENT = 1;
 
     private FileFormat() {
@@ -25,7 +25,7 @@ public final class FileFormat {
         }
     }
 
-    /** Whether a newer version saved this, so it isn't for this one to read or write. */
+    /** Whether a newer JES saved this, so this version must neither read nor overwrite it. */
     public static boolean newer(JsonObject json) {
         return of(json) > CURRENT;
     }

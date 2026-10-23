@@ -18,20 +18,19 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 //?}
 
 /**
- * What previews draw block entities and mobs into: buffers of their own rather than the game's.
- * Another mod's renderer that fails part way through a vertex leaves it half written, and the game's
- * buffers would keep it until the game next drew them: on 1.21 that drawing fails and ends the game,
- * and on 1.20.1 everything else drawn with that render type until then fails with it. Here it's thrown
- * away with whatever else the frame had drawn so far.
+ * Separate buffers that previews draw block entities and mobs into. Another mod's renderer that fails
+ * partway through a vertex leaves it half written. In the game's buffers it would stay until they were
+ * next drawn: on 1.21 that drawing fails and crashes the game, and on 1.20.1 everything else drawn with
+ * that render type until then fails too. Here it's discarded with the rest of the frame's drawing.
  *
- * <p>They're laid out as the game's own are, read from them: the render types the game keeps buffers
- * of their own for (chests, banners, enchantment glints and any a mod adds) get them here too, as a
- * renderer may draw with two of those at once, and the rest share one. Should the game's layout not be
- * found, previews draw into the game's buffers as before, and say so in the log.
+ * <p>The layout is copied from the game's buffers: render types the game gives a dedicated buffer
+ * (chests, banners, enchantment glints and any a mod adds) get one here too, since a renderer may draw
+ * with two of them at once, and the rest share one. If the game's layout can't be found, previews draw
+ * into the game's buffers and a warning is logged.
  */
 final class PreviewBuffers {
     private static final int SHARED_BYTES = 256 * 1024;
-    /** The game's render types with buffers of their own, in its order; empty if they couldn't be found. */
+    /** The game's render types that have dedicated buffers, in its order; empty if they couldn't be found. */
     private static List<RenderType> ownBuffers;
     private static MultiBufferSource.BufferSource source;
     //? if >=1.21 {
@@ -45,7 +44,7 @@ final class PreviewBuffers {
     private PreviewBuffers() {
     }
 
-    /** Where to draw; a new one after {@link #discard()}. */
+    /** The buffer source to draw into; a new one after {@link #discard()}. */
     static MultiBufferSource.BufferSource source() {
         if (source != null) {
             return source;
@@ -71,16 +70,16 @@ final class PreviewBuffers {
             }
             //?}
         }
-        // Made directly, not through the game's factory, which other mods replace with sources that
-        // draw from buffers of their own.
+        // Created directly, not through the game's factory, which other mods replace with sources that
+        // use their own buffers.
         source = new OwnSource(shared, fixed);
         return source;
     }
 
     /**
-     * The game's own kind of buffer source, whose constructor is protected. A named class with a
-     * constructor of its own, as the compiler makes an anonymous one's constructor itself, and against
-     * the game as some builds make it, that came out with two parameters of the same name.
+     * Subclass to reach BufferSource's protected constructor. A named class, not an anonymous one:
+     * against some builds of the game, the compiler gives an anonymous class's constructor two
+     * parameters with the same name.
      */
     private static final class OwnSource extends MultiBufferSource.BufferSource {
         //? if >=1.21 {
@@ -95,21 +94,21 @@ final class PreviewBuffers {
     }
 
     /**
-     * Throws away everything drawn since the buffers were last drawn, which may end part way through
-     * a vertex. Does nothing while previews draw into the game's buffers.
+     * Discards everything written since the buffers were last drawn, which may end partway through a
+     * vertex. Does nothing while previews draw into the game's buffers.
      */
     static void discard() {
         if (fixed == null) {
             return;
         }
         //? if >=1.21 {
-        /*// What's in a buffer and not yet drawn can't be taken back out of it, so they're freed and made again.
+        /*// Data not yet drawn can't be removed from a buffer, so the buffers are freed and recreated.
         shared.close();
         fixed.values().forEach(ByteBufferBuilder::close);
         fixed = null;
         *///?} else {
-        // 1.20.1's buffers can't be freed, so they're emptied instead. Ending one leaves out a vertex
-        // it was part way through.
+        // 1.20.1's buffers can't be freed, so they're emptied instead. Ending one drops a vertex it was
+        // partway through.
         empty(shared);
         fixed.values().forEach(PreviewBuffers::empty);
         //?}
@@ -126,9 +125,9 @@ final class PreviewBuffers {
     //?}
 
     /**
-     * The render types the game's buffer source keeps buffers of their own for. The map they're in has
-     * no getter, and its name differs between the mappings the loaders run with, so it's found by its
-     * type: the only field of that type there.
+     * The render types the game's buffer source has dedicated buffers for. Their map has no getter,
+     * and its name differs between the loaders' mappings, so it's found by type: the only field of
+     * that type.
      */
     private static List<RenderType> gameLayout() {
         List<RenderType> types = new ArrayList<>();

@@ -4,7 +4,7 @@ import java.util.Locale;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 
-/** Makes ids the same way on every Minecraft version, as 1.21 replaced the constructors with these, and tidies them up for showing. */
+/** Creates ids the same way on every Minecraft version, since 1.21 replaced the constructors with factory methods, and formats them for display. */
 public final class Ids {
     private Ids() {
     }
@@ -26,7 +26,7 @@ public final class Ids {
         //?}
     }
 
-    /** The last part of a path tidied up for showing, like "Twilight Forest" for {@code twilight_forest}. */
+    /** The last part of a path formatted for display, like "Twilight Forest" for {@code twilight_forest}. */
     public static String pretty(String path) {
         String last = path.substring(path.lastIndexOf('/') + 1);
         StringBuilder out = new StringBuilder();
@@ -43,8 +43,8 @@ public final class Ids {
     }
 
     /**
-     * Whether an id can name a file of its own under a folder: one with an empty, "." or ".." part
-     * would reach outside it. Ids that come over the network are checked before they're made a path.
+     * Whether an id is safe to use as a path under a folder. A "." or ".." part could reach outside
+     * it, and an empty part is invalid. Ids from the network are checked before they become paths.
      */
     public static boolean fileSafe(ResourceLocation id) {
         if (id.getNamespace().equals(".") || id.getNamespace().equals("..")) {

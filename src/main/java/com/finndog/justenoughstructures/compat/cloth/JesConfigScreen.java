@@ -21,9 +21,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * The settings screen that Mod Menu and the Forge and NeoForge mod lists open, drawn by Cloth Config.
- * The browser's settings are the ones it remembers as it's used. The server's are the server.json5
- * of worlds played from this game, and apply straight away to one that's open.
+ * The settings screen that Mod Menu and the Forge and NeoForge mod lists open, built with Cloth
+ * Config. The browser settings are the ones it saves as it's used. The server settings are the
+ * server.json5 of worlds played in this game, and apply at once to an open world.
  */
 public final class JesConfigScreen {
     private JesConfigScreen() {

@@ -43,10 +43,10 @@ import net.minecraft.client.renderer.ShaderInstance;
 
 /**
  * Blocks tinted in the preview while a row about them is hovered: every block of a kind, a group of
- * containers or some spawners. The group's outer faces are filled in and its edges outlined, the way
- * Litematica shows a schematic, worked out once and kept on the GPU so even thousands of blocks cost
- * little each frame. They show faintly through whatever is in front of them, so buried ones can
- * still be found, and clearly where they're in sight.
+ * containers or some spawners. The group's outer faces are filled and its edges outlined, as
+ * Litematica shows a schematic. The mesh is built once and kept on the GPU, so even thousands of
+ * blocks cost little each frame. It shows faintly through blocks in front of it, so buried ones can
+ * still be found, and clearly where it's in view.
  */
 public final class Highlight implements AutoCloseable {
     /**
@@ -54,26 +54,26 @@ public final class Highlight implements AutoCloseable {
      * says little about where it is, and its faces would take tens of megabytes.
      */
     public static final int MAX_BLOCKS = 30_000;
-    // Just off the blocks' own faces, so they don't flicker against them.
+    // Just outside the blocks' faces, so the tint doesn't flicker against them.
     private static final float OUT = 0.004f;
     private static final float[] FILL = {1f, 0.82f, 0.25f, 0.25f};
     private static final float[] EDGE = {1f, 0.92f, 0.4f, 1f};
-    /** How strongly it all shows through what's in front of it, against how it looks in sight. */
+    /** Opacity of the parts hidden behind other blocks, relative to the visible parts. */
     private static final float THROUGH = 0.35f;
-    /** Shared, as 1.20.1 never frees a buffer builder's memory. They grow to the biggest highlight drawn. */
+    /** Shared, since 1.20.1 never frees a buffer builder's memory. They grow to the largest highlight drawn. */
     private static BufferBuilder fillBuilder;
     private static BufferBuilder edgeBuilder;
     //? if >=1.21 {
-    /*// From 1.21 the memory is its own object, which a new builder is made over for each build.
+    /*// From 1.21 the memory is a separate object, and a new builder wraps it for each build.
     private static ByteBufferBuilder fillBytes;
     private static ByteBufferBuilder edgeBytes;
     *///?}
 
     //? if >=26.1 {
-    /*// The tint's own alpha replaces the preview's where it's drawn, so the backdrop behind the
+    /*// The tint's alpha replaces the preview's where it's drawn, so the backdrop behind the
     // preview shows through what's tinted, like coloured glass.
     private static final BlendFunction GLASS = new BlendFunction(SourceFactor.SRC_ALPHA, DestFactor.ONE_MINUS_SRC_ALPHA, SourceFactor.ONE, DestFactor.ZERO);
-    // Faces and edges, drawn once faintly through everything in front of them, then again where in sight.
+    // Faces and edges, drawn once faintly through anything in front of them, then again where visible.
     private static final RenderPipeline FACES_SEEN = pipeline("fill", VertexFormat.Mode.QUADS, true);
     private static final RenderPipeline FACES_THROUGH = pipeline("fill_through", VertexFormat.Mode.QUADS, false);
     private static final RenderPipeline EDGES_SEEN = pipeline("edges", VertexFormat.Mode.DEBUG_LINES, true);
@@ -158,7 +158,7 @@ public final class Highlight implements AutoCloseable {
                 .withPrimitiveTopology(mode)
                 // Only the sides facing the camera, so a block's far faces don't stack on its near ones.
                 .withCull(true)
-                // From 26.2 the nearest depth is the greatest.
+                // From 26.2 depth is reversed, with the nearest depth the largest.
                 .withDepthStencilState(depthTest ? Optional.of(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false)) : Optional.empty())
                 .build();
     }
@@ -236,9 +236,9 @@ public final class Highlight implements AutoCloseable {
     //?}
 
     /**
-     * Fills each face of a block below the slice that doesn't touch another of them, and outlines
-     * the edges where that surface turns a corner or ends. Edges between two faces lying flat in
-     * the same plane are left out, so a wall of them reads as one shape rather than a grid.
+     * Builds the mesh: fills each face of a highlighted block below the slice that doesn't touch
+     * another highlighted block, and outlines the edges where that surface turns a corner or ends.
+     * Edges between two faces in the same plane are left out, so a wall reads as one shape, not a grid.
      */
     private void build(int slice) {
         builtForSlice = slice;
@@ -336,7 +336,7 @@ public final class Highlight implements AutoCloseable {
         return y < slice && positions.contains(BlockPos.asLong(x, y, z));
     }
 
-    /** The face of the box on one side, as a quad across the other two axes. */
+    /** Adds the box's face on one side, as a quad across the other two axes. */
     private static void fillFace(Direction face, float[] min, float[] max) {
         int axis = face.getAxis().ordinal();
         int a = (axis + 1) % 3;
@@ -344,7 +344,7 @@ public final class Highlight implements AutoCloseable {
         float[] p = new float[3];
         p[axis] = face.getAxisDirection() == Direction.AxisDirection.POSITIVE ? max[axis] : min[axis];
         float[][] corners = {{min[a], min[b]}, {max[a], min[b]}, {max[a], max[b]}, {min[a], max[b]}};
-        // Round anticlockwise as seen from outside, so it's the side facing out that's drawn.
+        // Anticlockwise as seen from outside, so the side facing out is the one drawn.
         boolean outwards = face.getAxisDirection() == Direction.AxisDirection.POSITIVE;
         for (int i = 0; i < 4; i++) {
             float[] c = corners[outwards ? i : 3 - i];
@@ -354,7 +354,7 @@ public final class Highlight implements AutoCloseable {
         }
     }
 
-    /** The edge where a face of the box meets its side towards {@code side}. */
+    /** Adds the edge where a face of the box meets its face towards {@code side}. */
     private static void edge(Direction face, Direction side, float[] min, float[] max) {
         int faceAxis = face.getAxis().ordinal();
         int sideAxis = side.getAxis().ordinal();

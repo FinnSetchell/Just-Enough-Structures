@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Tells a structure capture which template is placing blocks, so it can trace containers back to
- * it. Which processor gave each spawner its mob is {@link StructureProcessorCallMixin}'s to tell.
+ * it. {@link StructureProcessorCallMixin} records which processor set each spawner's mob.
  */
 @Mixin(StructureTemplate.class)
 public abstract class StructureTemplateMixin {

@@ -8,10 +8,10 @@ import net.minecraft.core.Vec3i;
  * A snapshot's blocks by position, for drawing and picking.
  *
  * <p>Blocks are kept per 16x16x16 section, and only for sections that have any, so memory follows
- * the blocks rather than the structure's bounding box. One grid for the whole box would need about
- * 800 MB for a structure 1024 blocks across and 384 tall, however little of it is filled. A section
- * with only a few blocks keeps them as a short sorted list rather than a full section, so blocks
- * spread thinly through a big box don't each cost a whole section either.
+ * the blocks, not the structure's bounding box. One grid for the whole box would need about 800 MB
+ * for a structure 1024 blocks across and 384 tall, however little of it is filled. A section with
+ * only a few blocks keeps them as a short sorted list instead of a full array, so blocks spread
+ * thinly through a big box don't each cost a whole section either.
  */
 public final class BlockGrid {
     /** Past this many blocks a section keeps a full array, which is quicker to read. */

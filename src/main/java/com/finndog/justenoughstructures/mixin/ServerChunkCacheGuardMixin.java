@@ -18,18 +18,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * The last line of {@link RealWorldGuard}: a capturing thread never gets a real chunk loaded or
- * generated. Asking the chunk source for a chunk is answered from the sandbox instead: its own chunk
- * in the area being captured, and none anywhere else. Code that then insists on a chunk fails, which
- * fails the preview rather than touching the world. Other threads never see any of this.
+ * generated. Its requests to the chunk source are answered from the sandbox instead: the sandbox's
+ * chunk inside the capture area, and none anywhere else. Code that then insists on a chunk fails,
+ * which fails the preview instead of touching the world. Other threads are unaffected.
  *
- * <p>It answers before anything else in {@code getChunk} runs. Lithium and Canary replace the method,
- * and every mod's replacements go in before any mod adds to the start of a method, so this lands in
- * theirs. C2ME adds to the start of it too and answers other threads itself. What's added there runs
- * in the order of the mixins' priorities, and a tie goes to the mod that loads first. C2ME's mixins
- * are at 1100, from its config, and a real Fabric instance loads mods by id, so C2ME's came first
- * when this was at 1100 as well. Below the usual priority, this one comes first.
- * {@link com.finndog.justenoughstructures.capture.StructureCapture#checkChunkGuard} checks once the
- * server's up that it's in place with the mods installed.
+ * <p>This answers before anything else in {@code getChunk} runs. Lithium and Canary overwrite the
+ * method, and overwrites are applied before any mod's injections at its start, so this lands in
+ * their version. C2ME also injects at the start and answers other threads itself. Injections there
+ * run in mixin priority order, and a tie goes to the mod that loads first. C2ME's mixins are at 1100,
+ * from its config, and a real Fabric instance loads mods by id, so at an equal 1100 C2ME's would run
+ * first. At 900, below the default priority, this one runs first.
+ * {@link com.finndog.justenoughstructures.capture.StructureCapture#checkChunkGuard} checks, once the
+ * server is up, that it's in place with the installed mods.
  */
 @Mixin(value = ServerChunkCache.class, priority = 900)
 public abstract class ServerChunkCacheGuardMixin {
@@ -61,7 +61,7 @@ public abstract class ServerChunkCacheGuardMixin {
         }
     }
 
-    /** What's loaded, as far as a capturing thread can tell, is the sandbox's area. */
+    /** To a capturing thread, only the sandbox's area is loaded. */
     @ModifyReturnValue(method = "hasChunk", at = @At("RETURN"), require = 0)
     private boolean justenoughstructures$sandboxHasChunk(boolean loaded, @Local(argsOnly = true, ordinal = 0) int chunkX,
                                                          @Local(argsOnly = true, ordinal = 1) int chunkZ) {
