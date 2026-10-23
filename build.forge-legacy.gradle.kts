@@ -15,7 +15,7 @@ val modDescription = property("description").toString()
 val modLicense = property("license").toString()
 val requiredJava: JavaVersion = JavaVersion.toVersion(prop("mod.java"))
 val mcBuild: String = prop("mod.mc_build")
-// Read here: inside a run, project means the run's own, which is deprecated.
+// Read here because inside a run block `project` refers to the run, where it's deprecated.
 val nodeName: String = project.name
 
 version = property("mod_version").toString()
@@ -110,11 +110,7 @@ legacyForge {
             // The test mod's own mixins, only on this run, where the test mod is loaded.
             programArguments.addAll("--mixin.config", "${modId}_gametest.mixins.json")
         }
-        // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
-        // build/autoshot/screenshots and quits, as on Fabric. -Pstructures=a:b,c:d picks the
-        // structures, -Pmode plays a scripted tour instead, -Pwidth and -Pheight size the window,
-        // -Pshow keeps it visible, -Pjoin=host:port joins that server instead of making a world and
-        // -Pusername=name joins as that player.
+        // Screenshots the browser in a throwaway world, then quits. Its flags are listed in DevRuns.kt.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -183,7 +179,8 @@ val gametestJar = tasks.register<Jar>("gametestJar") {
     archiveClassifier = "gametest"
     destinationDirectory = layout.buildDirectory.dir("devlibs")
 }
-// Set up as the plugin's own reobfuscate does, which needs published variants a test source set hasn't got.
+// Configured like the plugin's reobfJar, which can't be reused: it needs published variants the test
+// source set doesn't have.
 tasks.register<net.neoforged.moddevgradle.legacyforge.tasks.RemapJar>("reobfGametestJar") {
     input.set(gametestJar.flatMap { it.archiveFile })
     // Away from build/libs, which a release looks in for the mod's jar.
@@ -256,8 +253,8 @@ tasks {
         dependsOn("stonecutterGenerate")
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
-    // Forge has no C2ME, so -Pc2me stops the run here rather than letting it pass without (GameTestMods.kt).
+    // A fresh world and mods folder for each run (see DevRuns.kt). Forge has no C2ME, so -Pc2me stops
+    // the run here instead of letting it pass without it (GameTestMods.kt).
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")

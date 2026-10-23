@@ -139,9 +139,9 @@ val devMods = mapOf(
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
-// Performance mods that change how the game looks chunks up, for checking previews still work with
-// them: -Pperformance_mods. A Modrinth version id: Lithium 0.15.4. C2ME keeps its parts inside its
-// jar, which the development game only loads from a mods folder, so the game tests get it with -Pc2me.
+// Performance mods that change chunk lookups, to check previews still work with them:
+// -Pperformance_mods. A Modrinth version id: Lithium 0.15.4. C2ME ships nested jars, which only load
+// from a mods folder, so game tests get it with -Pc2me instead.
 val performanceMods = mapOf(
     "1.21.1" to listOf("lithium:N08Z8wog"),
 )
@@ -236,20 +236,16 @@ loom {
             vmArg("-Djes.perf.room=${findProperty("perf_room") ?: ""}")
             // The mod's own debug log, in build/gametest/logs.
             vmArg("-Djustenoughstructures.debug=true")
-            // Whether the run has the real C2ME, which the tests check it does.
+            // Tells the tests whether to expect C2ME, so they fail if it didn't load.
             vmArg("-Djes.gametest.c2me=${gameTestMods.c2me}")
-            // A real instance loads mods sorted by id, where the development game shuffles them, and
-            // which of C2ME's hooks and JES's runs first once came down to that order. So with C2ME
-            // the run loads them as a real instance does, unless it's -Pc2me=shuffled.
+            // A real instance loads mods sorted by id; the dev game shuffles them. The order decides
+            // whether C2ME's hook or JES's runs first, so with C2ME the run uses the real order unless
+            // -Pc2me=shuffled.
             if (gameTestMods.c2me && !gameTestMods.shuffled) {
                 vmArg("-Dfabric.debug.disableModShuffle=true")
             }
         }
-        // Opens the structure browser in a throwaway superflat world, saves screenshots to
-        // build/autoshot/screenshots and quits. -Pstructures=a:b,c:d picks the structures,
-        // -Pmode=review|open|showcase plays a scripted tour or recording instead, -Pwidth and
-        // -Pheight size the window, -Pshow keeps it visible, -Pjoin=host:port joins that server
-        // instead of making a world and -Pusername=name joins as that player.
+        // Screenshots the browser in a throwaway world, then quits. Its flags are listed in DevRuns.kt.
         register("autoshot") {
             client()
             configName = "Fabric Autoshot"
@@ -276,7 +272,7 @@ loom {
             configName = "Fabric Load Test"
             source(gametest)
             runDir("build/loadtest")
-            // A big modpack's server needs more than the 4 GB the first runs had: the dev mods take 3 of it.
+            // The dev mods alone take about 3 GB, so the default is 8 GB.
             vmArg("-Xmx${findProperty("heap") ?: "8G"}")
             vmArg("-Djes.loadtest=${findProperty("players") ?: "30,60,100"}")
             vmArg("-Djes.loadtest.minutes=${findProperty("minutes") ?: 3}")
@@ -294,10 +290,9 @@ loom {
     }
 }
 
-// The test mod as a jar for a real Fabric game, so the screenshot gallery and scripted runs can play
-// against a release build in a launcher instance. Never shipped, and kept out of build/libs, where a
-// release looks. Where Minecraft is obfuscated it's remapped as the mod is, mixins and all, and keeps
-// only the mixin a real game needs: the others are for the game tests.
+// Test mod jar for a real Fabric game, so the gallery and scripted runs can use a release build. Never
+// shipped, and kept out of build/libs, where publishing picks up jars. On obfuscated versions it's
+// remapped like the mod and keeps only the mixin a real game needs.
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
         from(gametest.output)
@@ -379,8 +374,8 @@ tasks {
         }
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or
-    // fail, and with only the mods it was asked for in its mods folder.
+    // A fresh world and mods folder for each run (see DevRuns.kt). Fabric's test server makes the
+    // world itself, so here the old one is only deleted.
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         val mods = layout.buildDirectory.dir("gametest/mods")

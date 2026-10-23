@@ -4,12 +4,13 @@
         "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!--
-  Checks for Just Enough Structures, written for Checkstyle 14.
+  Checks for Just Enough Structures, written for Checkstyle 14. They run in IntelliJ
+  through the CheckStyle-IDEA plugin, which finds this file in config/checkstyle.
+  There's no Gradle task.
 
-  Aimed at real mistakes and the project's own rules, not at formatting: the code is
-  laid out with 4-space indents and long lines, and nothing here argues with that.
-  Only the active Stonecutter version (1.20.1 Fabric) is checked; the other versions'
-  code sits in comments.
+  Aimed at real mistakes and the project's rules, not at formatting: the code uses
+  4-space indents and long lines. Only the active Stonecutter version (1.20.1 Fabric)
+  is checked; the other versions' code sits in comments.
 
   To silence one finding where it is right as it is:
     @SuppressWarnings("checkstyle:CheckName") on the method or class, or

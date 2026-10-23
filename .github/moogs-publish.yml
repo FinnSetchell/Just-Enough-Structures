@@ -15,9 +15,9 @@ discord:
   pingDefault: true
 artifacts:
   - type: mod-jar
-# Each loader gets its own target and tag, e.g. 0.1.0-fabric, 0.1.0-forge or 0.1.0-neoforge. Each build is one node from
-# settings.gradle.kts. `java` is the Java that runs Gradle; the node's own toolchain is downloaded.
-# Optional mods are the ones JES does more with. LuckPerms is left off NeoForge, where its
+# One target and tag per loader: <version>-fabric, <version>-forge and <version>-neoforge. Each build is one node from
+# settings.gradle.kts. `java` is the Java that runs Gradle; each node's toolchain is downloaded.
+# Optional dependencies are the mods JES integrates with. LuckPerms is left off NeoForge, where its
 # 1.21.1 build fails every login.
 targets:
   - branch: main

@@ -5,16 +5,14 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 
 // Other mods' real jars in a game test run, so the tests of JES's hooks into them run against the
-// mods themselves. A stand-in for a mod's class proves nothing about the real one: a wrong one once
-// hid a crash with C2ME.
+// mods themselves. A stand-in for a mod's class proves nothing about the real one.
 
 /** A mod's file on Modrinth: its project, a version id, and the SHA-512 Modrinth lists for the file. */
 class ModrinthFile(val project: String, val version: String, val sha512: String)
 
 /**
- * C2ME for each node it has a build for, for -Pc2me. It keeps its parts in jars inside its own, which
- * the game only loads from a mods folder, so it goes in the game test run's rather than on the
- * classpath with the dev mods. Forge has no C2ME.
+ * C2ME per node, for -Pc2me. It ships nested jars, which only load from a mods folder, so it goes in
+ * the run's mods folder, not on the dev classpath. Forge has no C2ME.
  */
 val c2meForGameTests = mapOf(
     // 0.2.0+alpha.11.18
@@ -55,7 +53,10 @@ class GameTestMods(project: Project) {
     private val node = project.name
     private val asked = project.findProperty("c2me")?.toString()
 
-    /** Whether the run is to have C2ME, which the tests check it does: jes.gametest.c2me. */
+    /**
+     * True when -Pc2me is set, unless it's false. Passed to the tests as jes.gametest.c2me, and they
+     * fail if C2ME isn't loaded.
+     */
     val c2me = asked != null && asked != "false"
 
     /** Whether Fabric's development game is left to shuffle the mods it loads. */

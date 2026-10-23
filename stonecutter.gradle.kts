@@ -13,10 +13,9 @@ stonecutter parameters {
         tags(version, loader)
     }
 
-    // `//? if fabric {` and friends, for the few places loader code shares a file with common code.
-    // Likewise `//? if cloth_config {` and the rest for each mod JES links up with: a node only builds
-    // the pages and links for those that have a build for its version and loader, by their version
-    // being set in stonecutter.properties.toml.
+    // `//? if fabric {` and the like, for loader code in a shared file. `//? if cloth_config {` and the
+    // like, one per integration: true when its deps.* version is set for this node in
+    // stonecutter.properties.toml.
     constants {
         match(loader, "fabric", "forge", "neoforge")
         for (mod in listOf("jei", "emi", "rei", "cloth_config", "explorers_compass", "modmenu")) {
@@ -32,7 +31,8 @@ stonecutter parameters {
             replace("ResourceLocation", "Identifier")
         }
 
-        // Screens: 1.20.2 gave scrolling a sideways amount, and moving to the end of a text box whether to select.
+        // 1.20.2 added a horizontal amount to mouseScrolled and a select flag to moveCursorToEnd. Gated
+        // on 1.21, the first node after 1.20.1.
         string(current.parsed >= "1.21") {
             replace("mouseScrolled(double mouseX, double mouseY, double delta)", "mouseScrolled(double mouseX, double mouseY, double scrollX, double delta)")
             replace("super.mouseScrolled(mouseX, mouseY, delta)", "super.mouseScrolled(mouseX, mouseY, scrollX, delta)")
@@ -71,13 +71,13 @@ stonecutter parameters {
             replace("g.renderOutline(", "g.outline(")
         }
 
-        // 26.2 moved the screen being shown into the game's Gui, with the HUD a Hud inside it, a few
-        // registries' constants into classes of their own, and the GPU's primitives out of
-        // VertexFormat. Mobs JES only shows are made whatever the difficulty, as a spawner shows its.
-        // Only on these nodes, as elsewhere Stonecutter would run the rules backwards, and the blend
-        // factors can't be told apart that way.
+        // 26.2 moved the current screen into Gui (the HUD is Gui.hud), some registry constants into
+        // new classes, and GPU primitives out of VertexFormat. Mobs that are only displayed are created
+        // on any difficulty. Only on these nodes, as elsewhere Stonecutter would run the rules
+        // backwards, and BlendFactor can't map back to both SourceFactor and DestFactor.
         if (current.parsed >= "26.2") string(true) {
-            // Where 26.3 moved the GPU's classes, as Stonecutter makes every replacement in one go.
+            // 26.3 moved these classes again. Stonecutter makes all replacements in one pass, so the
+            // 26.3 package is picked here, not by a second rule.
             val renderpearl = current.parsed >= "26.3"
             replace("minecraft.setScreen(", "minecraft.gui.setScreen(")
             replace("mc.setScreen(", "mc.gui.setScreen(")
@@ -97,9 +97,9 @@ stonecutter parameters {
             replace("VertexFormat.Mode", if (renderpearl) "com.mojang.renderpearl.api.pipeline.PrimitiveTopology" else "com.mojang.blaze3d.PrimitiveTopology")
             replace("VertexFormat.IndexType", if (renderpearl) "com.mojang.renderpearl.api.pipeline.IndexType" else "com.mojang.blaze3d.IndexType")
             replace("drawState().mode()", "drawState().primitiveTopology()")
-            // Blend factors for colour and alpha became the one kind, a render pass clears to a colour
-            // rather than a packed int, a vertex buffer is bound as a slice of one, draws name how much
-            // they draw before where they start, and a buffer is mapped by itself.
+            // BlendFactor replaces SourceFactor and DestFactor, a render pass clears to a colour, not a
+            // packed int, vertex buffers bind as slices, draw calls take the count before the offset,
+            // and buffers map themselves.
             val blendFactor = if (renderpearl) "com.mojang.renderpearl.api.pipeline.BlendFactor" else "com.mojang.blaze3d.platform.BlendFactor"
             replace("com.mojang.blaze3d.platform.SourceFactor", blendFactor)
             replace("com.mojang.blaze3d.platform.DestFactor", blendFactor)
@@ -117,10 +117,10 @@ stonecutter parameters {
                     (if (renderpearl) "com.mojang.renderpearl.api" else "com.mojang.blaze3d") + ".buffers.GpuBufferSlice.MappedView read = buffer.map(true, false)")
         }
 
-        // 26.3 moved the GPU's classes to a package of their own and binds the projection and the
-        // model-view separately. Input comes through SDL rather than GLFW, so the keys JES names by
-        // GLFW's constants take the game's own, and structure templates' manager is called that.
-        // Only on these nodes, as elsewhere Stonecutter would run the rules backwards.
+        // 26.3 moved the GPU classes to com.mojang.renderpearl and binds projection and model-view
+        // separately. Input moved from GLFW to SDL, so GLFW key constants become InputConstants.
+        // getStructureManager became getStructureTemplateManager. Only on these nodes, as elsewhere
+        // Stonecutter would run the rules backwards.
         if (current.parsed >= "26.3") string(true) {
             replace("import com.mojang.blaze3d.buffers.GpuBuffer;", "import com.mojang.renderpearl.api.buffers.GpuBuffer;")
             replace("import com.mojang.blaze3d.buffers.GpuBufferSlice;", "import com.mojang.renderpearl.api.buffers.GpuBufferSlice;")

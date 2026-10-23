@@ -1,10 +1,6 @@
-# .github/workflows/verify.yml (per publish branch — the recheck entry point)
-#
-# Checkout-composite caller shape (docs/v2-contracts.md, "Caller workflow
-# shape"). Dispatched by the worker's cron job while a release sits in
-# CurseForge's approval queue (up to every 30 min, 24 h) — the
-# workflow_dispatch input set is a Discord-bot/worker CONTRACT and must not
-# change as part of this migration.
+# Rechecks a release while CurseForge reviews it. The release bot dispatches
+# it every 30 minutes, for up to 24 hours, with exactly these inputs, so don't
+# change them.
 
 name: Verify
 

@@ -14,7 +14,7 @@ val modDescription = property("description").toString()
 val modLicense = property("license").toString()
 val requiredJava: JavaVersion = JavaVersion.toVersion(prop("mod.java"))
 val mcBuild: String = prop("mod.mc_build")
-// Read here: inside a run, project means the run's own, which is deprecated.
+// Read here because inside a run block `project` refers to the run, where it's deprecated.
 val nodeName: String = project.name
 
 version = property("mod_version").toString()
@@ -168,14 +168,10 @@ neoForge {
             systemProperty("jes.perf", hasProperty("perf").toString())
             // The mod's own debug log, in build/gametest/logs.
             systemProperty("justenoughstructures.debug", "true")
-            // Whether the run has the real C2ME, which the tests check it does.
+            // Tells the tests whether to expect C2ME, so they fail if it didn't load.
             systemProperty("jes.gametest.c2me", gameTestMods.c2me.toString())
         }
-        // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
-        // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
-        // the structures, -Pmode plays a scripted tour instead, -Pwidth and -Pheight size the window,
-        // -Pshow keeps it visible, -Pjoin=host:port joins that server instead of making a world and
-        // -Pusername=name joins as that player.
+        // Screenshots the browser in a throwaway world, then quits. Its flags are listed in DevRuns.kt.
         register("autoshot") {
             client()
             sourceSet = gametest
@@ -285,8 +281,7 @@ tasks {
         dependsOn("stonecutterGenerate")
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or
-    // fail, and with only the mods it was asked for in its mods folder.
+    // A fresh world and mods folder for each run (see DevRuns.kt).
     named("runGameTest") {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")

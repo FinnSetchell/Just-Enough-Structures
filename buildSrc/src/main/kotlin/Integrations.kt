@@ -1,7 +1,7 @@
 /**
- * The source files to leave out for the mods JES links up with that have no build for this version and
- * loader: their version is blank in stonecutter.properties.toml, this keeps their code out of the build,
- * and `//? if <name>` leaves out what refers to it. [has] says whether a mod has a build here.
+ * Source files to leave out for each integration whose deps.* version is blank for this node in
+ * stonecutter.properties.toml. Code elsewhere that refers to them sits behind `//? if <name>`. [has]
+ * says whether a mod has a build here.
  */
 fun integrationsToLeaveOut(has: (String) -> Boolean): List<String> = buildList {
     if (!has("jei")) add("**/compat/jei/**")

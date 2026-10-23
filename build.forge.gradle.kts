@@ -17,7 +17,7 @@ val modDescription = property("description").toString()
 val modLicense = property("license").toString()
 val requiredJava: JavaVersion = JavaVersion.toVersion(prop("mod.java"))
 val mcBuild: String = prop("mod.mc_build")
-// Read here: inside a run, project means the run's own.
+// Read here because inside a run block `project` refers to the run.
 val nodeName: String = project.name
 
 version = property("mod_version").toString()
@@ -25,11 +25,10 @@ base.archivesName = "${property("archives_base_name")}-forge-$mcBuild"
 
 // Whether a mod JES links up with has a build for this version and loader.
 fun has(mod: String) = !sc.properties.getOrNull<String>("deps.$mod").isNullOrEmpty()
-// Forge 1.21.1 doesn't ship MixinExtras, which the mixins use, so its jar carries it. Forge for 26.1
-// has its own.
+// deps.mixinextras is set only where Forge doesn't ship MixinExtras (1.21.1; see the jarjar plugin).
 val carriesMixinExtras = has("mixinextras")
-// The pack formats the jar's resources and data are made for: one number before 26.1, and from 26.1,
-// which numbers the two apart, the range from one to the other, given as "84-101".
+// For pack.mcmeta: one pack_format before 26.1. From 26.1 resource and data packs are numbered
+// separately, so it's a min-max range such as "84-101".
 val packFormats: String = prop("mod.pack_format").split("-").let {
     if (it.size == 2) "\"min_format\": ${it[0]}, \"max_format\": ${it[1]}" else "\"pack_format\": ${it[0]}"
 }
@@ -139,10 +138,7 @@ minecraft {
                 }
             }
         }
-        // Opens the browser in a throwaway superflat world, saves a screenshot of each structure to
-        // build/autoshot/screenshots and quits, as on the other loaders. -Pstructures=a:b,c:d picks
-        // the structures, -Pmode plays a scripted tour instead, -Pwidth and -Pheight size the window,
-        // -Pshow keeps it visible and -Pjoin=host:port joins that server instead of making a world.
+        // Screenshots the browser in a throwaway world, then quits. Its flags are listed in DevRuns.kt.
         named("client") {
             this.with(gametest) {
                 workingDir.set(layout.buildDirectory.dir("autoshot"))
@@ -245,7 +241,7 @@ tasks {
     }
 
     jar {
-        // Where the jar carries MixinExtras, this one without it is never the one shipped.
+        // With MixinExtras bundled, this plain jar isn't the shipped one, so it gets the "slim" classifier.
         if (carriesMixinExtras) {
             archiveClassifier = "slim"
         }
@@ -289,9 +285,9 @@ tasks {
         dependsOn("runGametestClient")
     }
 
-    // Every run starts from a fresh world, so nothing one run leaves behind can make the next pass or fail.
-    // ForgeGradle registers its run tasks late, so these are found by name once they are. Forge has
-    // no C2ME, so -Pc2me stops the run here rather than letting it pass without (GameTestMods.kt).
+    // A fresh world and mods folder for each run (see DevRuns.kt). ForgeGradle registers its run tasks
+    // late, so these are found by name once they are. Forge has no C2ME, so -Pc2me stops the run here
+    // instead of letting it pass without it (GameTestMods.kt).
     matching { it.name == "runGametestGameTestServer" }.configureEach {
         val world = layout.buildDirectory.dir("gametest/world")
         val properties = layout.buildDirectory.file("gametest/server.properties")

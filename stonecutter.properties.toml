@@ -34,8 +34,8 @@ deps.explorers_compass = "qD2j03H6"
 deps.jei_runtime = "YRfUnbXb"
 deps.jei_config = ""
 
-# Forge's own line carried on past the NeoForge fork, so it covers 1.20.1 too. The floor is the
-# major version rather than the build, as launcher instances often sit a few builds behind.
+# Forge 47 is the 1.20.1 line. The floor is the major version, not a build, as launcher instances
+# often sit a few builds behind.
 [forge."1.20.1"]
 mod.mc_build = "1.20.1"
 # The resource pack format the jar's pack.mcmeta declares.
@@ -77,8 +77,8 @@ deps.rei = "aWzTESNC"
 deps.architectury = "Pzc2FP5K"
 deps.explorers_compass = "qSRKiE4D"
 
-# Forge 52 is the 1.21.1 line, the only one this jar loads on. Built against the 1.21.1 instance's
-# own early build, so the jar never needs anything newer than launchers commonly run.
+# Forge 52 is the 1.21.1 line, the only one this jar loads on. Built against an early 52 build, so
+# the jar doesn't need a newer one.
 [forge."1.21.1"]
 mod.mc_build = "1.21.1"
 mod.mc_compat = "[1.21.1,1.21.2)"
@@ -133,9 +133,8 @@ deps.rei = "EAlqUmgQ"
 deps.architectury = "Y7kRthh0"
 deps.explorers_compass = "FN4lCamU"
 
-# NeoForge only runs on the Minecraft version it was built for. Built against the build the 26.1.2
-# instance runs; the floor is the line's base, as launcher instances often sit a few builds behind
-# and a -beta build sorts below a plain one.
+# NeoForge only runs on the Minecraft version it was built for. The floor is the line's base, as
+# launcher instances often sit a few builds behind and a -beta build sorts below a plain one.
 [neoforge."26.1.2"]
 mod.mc_build = "26.1.2"
 mod.mc_compat = "[26.1.2,26.1.3)"
@@ -150,13 +149,12 @@ deps.rei = "isd1MxO2"
 deps.architectury = "9PW5lWrQ"
 deps.explorers_compass = "OuPMcvp4"
 
-# Forge 64 is the 26.1.2 line. Built against the 26.1.2 instance's own build, so the jar never needs
-# anything newer than launchers commonly run. From here Forge ships MixinExtras itself, and none of
-# JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge build for 26.1.
+# Forge 64 is the 26.1.2 line. From here Forge ships MixinExtras itself, and none of JEI, EMI, REI,
+# Cloth Config and Explorer's Compass has a Forge build for 26.1.
 [forge."26.1.2"]
 mod.mc_build = "26.1.2"
 mod.mc_compat = "[26.1.2,26.1.3)"
-# 26.1 numbers resource pack and data pack formats apart, so this is from the one to the other.
+# From 26.1 resource and data packs have separate format numbers; this min-max range covers both.
 mod.pack_format = "84-101"
 deps.forge_version = "64.0.8"
 deps.forge_min = "64"
@@ -171,7 +169,6 @@ deps.explorers_compass = ""
 ["26.2"]
 mod.java = "25"
 
-# Built against what the 26.2 instance runs, so the jar never needs anything newer.
 [fabric."26.2"]
 mod.mc_build = "26.2"
 mod.mc_compat = "~26.2"
@@ -204,8 +201,8 @@ deps.rei = "BoY0Dky0"
 deps.architectury = "huNlZW4Q"
 deps.explorers_compass = "r9Okm6YW"
 
-# Forge 65 is the 26.2 line, built against the 26.2 instance's own build. None of JEI, EMI, REI, Cloth
-# Config and Explorer's Compass has a Forge build for 26.2.
+# Forge 65 is the 26.2 line. None of JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge
+# build for 26.2.
 [forge."26.2"]
 mod.mc_build = "26.2"
 mod.mc_compat = "[26.2,26.3)"
@@ -223,7 +220,6 @@ deps.explorers_compass = ""
 ["26.3"]
 mod.java = "25"
 
-# Built against what the 26.3 instance runs, so the jar never needs anything newer.
 [fabric."26.3"]
 mod.mc_build = "26.3"
 mod.mc_compat = "~26.3"
@@ -257,8 +253,8 @@ deps.rei = "ksJMlXAk"
 deps.architectury = "uEV9xTeI"
 deps.explorers_compass = "MhLYpmvJ"
 
-# Forge 66 is the 26.3 line, built against the 26.3 instance's own build. None of JEI, EMI, REI, Cloth
-# Config and Explorer's Compass has a Forge build for 26.3.
+# Forge 66 is the 26.3 line. None of JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge
+# build for 26.3.
 [forge."26.3"]
 mod.mc_build = "26.3"
 mod.mc_compat = "[26.3,26.4)"
