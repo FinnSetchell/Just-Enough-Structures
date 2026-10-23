@@ -76,7 +76,7 @@ public final class Regs {
         //?}
     }
 
-    /** The registry as code that reads NBT wants it. From 1.21.2 the registry is that itself. */
+    /** The registry as a HolderGetter, which NBT reading and RandomState.create take. From 1.21.2 a Registry is one. */
     public static <T> HolderGetter<T> getter(Registry<T> registry) {
         //? if >=1.21.2 {
         /*return registry;

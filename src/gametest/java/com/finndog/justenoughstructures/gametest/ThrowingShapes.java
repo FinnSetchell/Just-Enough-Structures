@@ -11,9 +11,9 @@ import net.minecraft.world.level.BlockGetter;
 public final class ThrowingShapes {
     /** Set by a scenario for as long as it wants the failures. */
     public static volatile boolean armed;
-    /** Whether the hook is in this game. It's left out of the test mod's jar for a real one where the game is obfuscated. */
+    /** Whether the hook was applied. The test jar for a real game leaves it out, except on Fabric where the game isn't obfuscated. */
     public static volatile boolean hooked;
-    /** How many times each question has failed, so a scenario can tell that both were asked. */
+    /** How many times each question has failed, so a scenario can tell that both were asked. From 1.21.2 only the shape is asked. */
     public static volatile int shapes;
     public static volatile int solids;
 

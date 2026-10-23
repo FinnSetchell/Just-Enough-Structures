@@ -60,8 +60,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /**
  * Spawners in structure templates given other mobs from the browser. The bastion's treasure room
- * has the one vanilla spawner every layout of it has, a magma cube spawner in its lava basin. Every
- * test works in a folder of its own.
+ * has the one vanilla spawner every layout of it has, a magma cube spawner in its lava basin. Tests
+ * that write files use a fresh temporary folder.
  */
 public final class SpawnerTests {
     private static final ResourceLocation BASIN = Ids.parse("bastion/treasure/bases/lava_basin");
@@ -613,7 +613,6 @@ public final class SpawnerTests {
     }
     *///?}
 
-    /** A bastion layout with the treasure room, found once and then remembered. */
     /**
      * A processor that changes a spawner as its piece is placed, as Moog's Structure Lib's does to
      * pick its mob, leaves it something other than its template made it, so it mustn't claim the
@@ -642,6 +641,7 @@ public final class SpawnerTests {
         helper.succeed();
     }
 
+    /** A bastion layout with the treasure room, found once and then remembered. */
     private static StructureSnapshot treasureBastion(MinecraftServer server) {
         if (treasureSeed != null) {
             return capture(server, BASTION, treasureSeed);

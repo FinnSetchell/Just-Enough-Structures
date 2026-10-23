@@ -33,8 +33,9 @@ import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 
 /**
- * Rolls loot tables with the game's own loot code, so functions and conditions added by any mod
- * behave exactly as they do in a real chest.
+ * Rolls loot tables with the game's loot code, so functions and conditions added by any mod run as
+ * they do in a real chest. The rolls have no origin, player or entity, though, so anything that reads
+ * one, like an exploration map, comes out differently (see chestParams).
  */
 public final class LootRolls {
     private LootRolls() {

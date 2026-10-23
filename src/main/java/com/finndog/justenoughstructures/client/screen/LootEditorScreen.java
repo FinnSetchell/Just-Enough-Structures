@@ -702,7 +702,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         rebuildWidgets();
     }
 
-    /** What has to be fixed before saving that the server wouldn't say so plainly: an item that isn't one, or the id. Null if nothing. */
+    /**
+     * A problem to fix before saving that the server wouldn't report clearly: an unknown item, whose entry it selects, or a
+     * new table's id that's bad or still being checked. Null if none.
+     */
     private Component unsaveable() {
         if (!raw && draft != null) {
             JsonArray pools = JsonPaths.array(draft, "pools");
@@ -2123,8 +2126,6 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    // ------------------------------------------------------------------ for the screenshot harness
-
     /** The mod's table and this edit side by side. */
     public void showChanges() {
         if (view != null) {
@@ -2137,6 +2138,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     void mergeWhenLoaded() {
         mergeWhenLoaded = true;
     }
+
+    // ------------------------------------------------------------------ for the screenshot harness
 
     public void mergeNow() {
         if (view != null) {

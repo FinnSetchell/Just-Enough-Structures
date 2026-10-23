@@ -110,10 +110,7 @@ public final class JsonPaths {
         return value instanceof JsonPrimitive p && p.isBoolean() && p.getAsBoolean();
     }
 
-    /**
-     * Puts a value at the path, making any objects or arrays on the way. Null takes the key away,
-     * and an array left empty by that goes too, as the game reads a missing list as an empty one.
-     */
+    /** Puts a value at the path, creating objects and arrays on the way. Null removes the key or item. */
     public static void set(JsonElement root, String path, JsonElement value) {
         String[] parts = steps(path);
         JsonElement at = root;
@@ -132,7 +129,7 @@ public final class JsonPaths {
         put(at, parts[parts.length - 1], value);
     }
 
-    /** Takes away what's at the path: a key from an object, or an item from an array. */
+    /** Removes a key or array item. An array left empty is removed too, as the game reads a missing list as empty. */
     public static void remove(JsonElement root, String path) {
         int start = lastStep(path);
         String parentPath = start == 0 ? "" : path.substring(0, start - 1);
@@ -190,10 +187,6 @@ public final class JsonPaths {
     }
 
     /**
-     * Moves the list item at the path to another place in its list, those between the two each moving
-     * one along. Returns where it is now, or -1 if there's no such item or no such place.
-     */
-    /**
      * Moves the list item at the path into another list, to stand at {@code to} there, after the others
      * when {@code to} is past its end. The list it leaves stays, even when that leaves it empty, and the
      * one it goes to is made if there isn't one. Returns where it went, or -1 if it can't go.
@@ -220,6 +213,10 @@ public final class JsonPaths {
         return at;
     }
 
+    /**
+     * Moves the list item at the path to another place in its list, those between the two each moving
+     * one along. Returns where it is now, or -1 if there's no such item or no such place.
+     */
     public static int moveTo(JsonElement root, String path, int to) {
         int index = indexIn(root, path);
         JsonArray array = index < 0 ? null : array(root, parent(path));

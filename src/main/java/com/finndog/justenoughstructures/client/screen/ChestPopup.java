@@ -532,12 +532,12 @@ final class ChestPopup {
         return width + 4;
     }
 
-    /** The middle of a tab, or null if it isn't shown. */
+    /** The middle of a tab or link, or null if it isn't shown. */
     int[] linkCentre(Action action) {
         return links.centre(action);
     }
 
-    /** The tab at a point, or null. */
+    /** The tab or link at a point, or null. */
     Action actionAt(double mouseX, double mouseY) {
         return links.at(mouseX, mouseY);
     }

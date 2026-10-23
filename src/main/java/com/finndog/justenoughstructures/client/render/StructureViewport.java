@@ -477,9 +477,8 @@ public final class StructureViewport implements AutoCloseable {
         }
         long now = System.nanoTime();
         if (mesh.building()) {
-            // Building gets up to half as long as the rest of the frame took, so a frame that's
-            // already slow, like one full of chests, still leaves the mesh a fair share, without
-            // building ever making a frame much more than half as long again.
+            // Build for half the time the rest of the last frame took, kept between 6 and 25 ms.
+            // A slow frame, like one full of chests, still gives the mesh a fair share.
             long rest = lastRender == 0 ? 0 : now - lastRender - lastBuild;
             long budget = Math.max(MIN_BUILD_NANOS, Math.min(MAX_BUILD_NANOS, rest / 2));
             mesh.buildSome(budget, eye);
@@ -1187,7 +1186,6 @@ public final class StructureViewport implements AutoCloseable {
         //?}
     }
 
-    /** Screen position of a point in structure space, or empty when it's behind the camera. */
     /** Where a point lands on screen, as {x, y, distance from the camera}, or empty if it's behind it. */
     public Optional<float[]> project(double px, double py, double pz) {
         Vector4f v = new Matrix4f(projection).mul(viewMatrix).transform(new Vector4f((float) px, (float) py, (float) pz, 1f));
@@ -1199,7 +1197,7 @@ public final class StructureViewport implements AutoCloseable {
         return Optional.of(new float[]{sx, sy, v.w()});
     }
 
-    /** How tall a block looks at the point the camera turns around. Only zooming changes it. */
+    /** On-screen height of one block at the orbit focus, in GUI pixels. Depends on camera distance and preview height. */
     public float pixelsPerBlock() {
         return height / (2f * distance * (float) Math.tan(Math.toRadians(FOV / 2f)));
     }

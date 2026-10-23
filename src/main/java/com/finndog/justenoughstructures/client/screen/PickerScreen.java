@@ -26,7 +26,6 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     static final int ROW = 24;
     /** The widest the list gets. */
     private static final int MOST_WIDTH = 640;
-    /** The note on the choice in use now. */
 
     protected final Screen parent;
     /** Where the picker's own text is in the lang file: "picker" or "mob_picker". */

@@ -30,7 +30,7 @@ import net.minecraft.world.item.ItemStack;
  * structures whose loot can give it. The rows are made when REI asks for them, from whichever loot
  * index arrived last, so they're there as soon as the server sends it without REI reloading.
  */
-// Not final: on Forge, REI finds a subclass by an annotation only its Forge build has.
+// Not final: on Forge and NeoForge, REI finds a subclass by an annotation only its Forge build has.
 public class JesReiPlugin implements REIClientPlugin {
     static final CategoryIdentifier<FoundInDisplay> FOUND_IN = CategoryIdentifier.of(JustEnoughStructures.id("found_in"));
 

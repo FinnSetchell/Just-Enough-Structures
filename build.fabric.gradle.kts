@@ -47,9 +47,10 @@ repositories {
     }
 }
 
-// Popular structure mods, and JEI, for trying the browser against a modpack's worth of structures.
-// They're only on the dev runtime classpath, so they never end up in the built jar. Off on CI, and
-// -Pdev_mods=false turns them off locally. Pinned to Modrinth version ids, per Minecraft version.
+// Popular structure mods, for trying the browser against a modpack's worth of structures; the recipe
+// viewer comes from -Pviewer. They're only on the dev runtime classpath, so they never end up in the
+// built jar. Off on CI, and -Pdev_mods=false turns them off locally. Pinned to Modrinth version ids,
+// per Minecraft version.
 val devMods = mapOf(
     "1.20.1" to listOf(
         // Moog's

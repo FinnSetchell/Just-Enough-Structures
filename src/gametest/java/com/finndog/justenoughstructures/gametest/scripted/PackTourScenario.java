@@ -158,7 +158,7 @@ final class PackTourScenario {
                 until(() -> ready(mc), 3600));
     }
 
-    /** Clicks a chest's marker, shows its chances, and closes it. */
+    /** Clicks the marker of a single container with a loot table, shows its chances, and closes it. */
     private static Director.Action openChest(Minecraft mc) {
         int[][] marker = new int[1][];
         return chain(
@@ -217,7 +217,7 @@ final class PackTourScenario {
 
     // ------------------------------------------------------------------ helpers
 
-    /** The marker for one chest on its own with a loot table, nearest the middle of the preview, or null. */
+    /** The marker for a single container of any kind with a loot table, nearest the middle of the preview, or null. */
     private static int[] chestMarker(Minecraft mc) {
         int[] centre = browser(mc).viewportCentre();
         int[] best = null;

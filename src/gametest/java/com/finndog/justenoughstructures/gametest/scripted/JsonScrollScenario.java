@@ -33,7 +33,7 @@ import net.minecraft.resources.ResourceLocation;
  */
 final class JsonScrollScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");
-    /** Three of the box's 9 pixel lines, for three notches of the wheel. */
+    /** Three notches of the wheel at three 9-pixel lines a notch. */
     private static final double THREE_NOTCHES = 3 * 27;
 
     private JsonScrollScenario() {

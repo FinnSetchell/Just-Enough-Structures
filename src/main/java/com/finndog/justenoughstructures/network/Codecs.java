@@ -50,7 +50,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.ComponentSerialization;
 *///?}
 
-/** Wire formats for everything the server sends back. */
+/** Binary formats for JES packets in both directions, and for the loot index cache. */
 public final class Codecs {
     private static final int MAX_JSON = 1 << 20;
     /** The longest notes for players Pack tools sends. */

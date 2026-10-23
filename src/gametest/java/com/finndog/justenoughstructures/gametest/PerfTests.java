@@ -30,8 +30,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * A diagnostic rather than a check: captures every structure the game has, vanilla and modded,
  * then builds the loot index, and writes how long each took and how big it came out to
  * perf.csv in the game test folder. Only runs with -Pperf, since with a lot of structure mods
- * installed it takes minutes. With -Pperf=index_first the loot index is built before the captures
- * rather than after, as it is in a world just opened: with none of the saved pieces loaded yet.
+ * installed it takes minutes. On Fabric, -Pperf=index_first builds the loot index before the captures
+ * instead of after, as in a world just opened: with none of the saved pieces loaded yet.
  * It ends by logging what the game is left holding: the heap in use after a collection, and the
  * saved pieces still loaded. How much memory building the loot index went through is logged too,
  * and the index itself is written to perf-index.txt, for comparing one build's with another's.
@@ -52,7 +52,7 @@ public final class PerfTests {
         List<ResourceLocation> ids = server.registryAccess().registryOrThrow(Registries.STRUCTURE).keySet().stream()
                 .sorted(Comparator.comparing(ResourceLocation::toString)).toList();
         boolean indexFirst = "index_first".equals(System.getProperty("jes.perf.order"));
-        // -Pperf_room: how many blocks of saved pieces are left loaded, to see what each amount costs.
+        // -Pperf_room, Fabric only: how many blocks of saved pieces are left loaded, to see what each amount costs.
         String room = System.getProperty("jes.perf.room", "");
         if (!room.isEmpty()) {
             LoadedPieces.leaveLoaded("all".equals(room) ? Long.MAX_VALUE : Long.parseLong(room));

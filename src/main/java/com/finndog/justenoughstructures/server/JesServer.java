@@ -65,7 +65,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.loot.LootTable;
 
-/** Answers client requests. Loader code calls these from its packet handlers, on the server thread. */
+/**
+ * Answers client requests. ServerPackets calls these. Most run on the server thread; onUploadPart, queueLocate
+ * and queueCompass are called on the thread the packet arrives on and hand work to the server thread.
+ */
 public final class JesServer {
     private static final int MAX_CONTAINER_SLOTS = 54;
     private static final int ODDS_ROLLS = 2000;
@@ -165,7 +168,7 @@ public final class JesServer {
         SpawnerPatches.reloaded();
     }
 
-    /** Called when the server starts and after /reload, since structures and loot can change. */
+    /** Drops what's cached from the current structures and loot. Called on start, after /reload and on stop. */
     public static void invalidate() {
         ContainerPatches.reloaded();
         SpawnerPatches.reloaded();

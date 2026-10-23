@@ -2602,10 +2602,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Works out where each marker goes. Markers are all one size, set by the zoom, and things close
-     * enough in the structure for their markers to overlap share one marker with a count. Neither
-     * changes while the preview turns, only when you zoom, so markers don't grow, shrink or split
-     * apart as it spins. The nearest are drawn last, on top.
+     * Works out where each marker goes. Markers are all one size, set by the zoom and the preview's
+     * size, and things close enough in the structure for their markers to overlap share one marker
+     * with a count. Neither changes while the preview turns, only when it zooms or is resized, so
+     * markers don't grow, shrink or split apart as it spins. The nearest are drawn last, on top.
      */
     private void placeMarkers(StructureSnapshot s) {
         float perBlock = Math.max(0.01f, viewport.pixelsPerBlock());
@@ -2718,9 +2718,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Things close enough in the structure to share a marker. Only zooming, the layer slider, another
-     * kind of marker or the preview leaving something out changes the answer, so it's worked out again
-     * only then, not every frame.
+     * Things close enough in the structure to share a marker. Only zooming, the preview's size, the layer
+     * slider, another kind of marker or the preview leaving something out changes the answer, so it's
+     * worked out again only then, not every frame.
      */
     private List<List<Spot>> markerGroups(StructureSnapshot s, MarkerKind kind, double reach) {
         if (s == groupedFor && kind == groupedKind && view.sliceY() == groupedSlice && reach == groupedReach

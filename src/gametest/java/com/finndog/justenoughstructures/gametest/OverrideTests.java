@@ -49,7 +49,7 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.world.level.storage.loot.LootTable;
 *///?}
 
-/** Loot tables edited in the browser, saved as overrides. Every test works in a folder of its own. */
+/** Loot tables edited in the browser, saved as overrides. Tests that write files use a fresh temporary folder. */
 public final class OverrideTests {
     private static final ResourceLocation IGLOO = Ids.parse("chests/igloo_chest");
 

@@ -6,8 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A game test on NeoForge from 26.1, which has no annotation for them. Its settings and their
- * defaults are Fabric's, so a test runs the same on both. {@link NeoForgeGameTests} registers each.
+ * A game test on NeoForge from 26.1, which has no annotation for them. Mirrors Fabric's @GameTest,
+ * with the same maxTicks default, so a test reads the same on both. A test with no environment gets
+ * this mod's default one. {@link NeoForgeGameTests} registers each.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

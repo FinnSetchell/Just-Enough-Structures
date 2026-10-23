@@ -27,6 +27,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
      * or one changed before, known only by its template.
      *
      * @param structure   the structure it was clicked in, or null
+     * @param seed        the seed of that layout, or 0 when there's no structure
      * @param pos         where it is in that layout, or null
      * @param mob         the mob it makes, or "" for none
      * @param others      how many other mobs it makes as well

@@ -16,7 +16,7 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * What the client does with each packet the server sends, the same on every loader. Each one is
- * read where it arrives, off the game thread, and then handed to the game thread. The loaders only
+ * read on the thread the loader delivers it on, then handed to the game thread. The loaders only
  * connect their own networking to these.
  */
 public final class ClientPackets {

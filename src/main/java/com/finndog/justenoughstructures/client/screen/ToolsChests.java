@@ -32,11 +32,15 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
      * in, or one changed before, known only by its template.
      *
      * @param structure   the structure it was opened in, or null
+     * @param seed        the seed of that layout, or 0 when there's no structure
      * @param pos         where it is in that layout, or null
+     * @param entity      whether it's an entity, like a chest minecart
      * @param block       what it is, a block or an entity id
      * @param template    the template it's in, or null when the structure's code placed it
      * @param templatePos where it is in that template, or null
      * @param table       the loot table it has, or null for one saved with its items
+     * @param title       its name, as shown
+     * @param size        how many slots it has
      */
     record ChestRef(ResourceLocation structure, long seed, BlockPos pos, boolean entity, String block, ResourceLocation template,
                     BlockPos templatePos, String table, Component title, int size) implements Ref<ContainerPatches.Patch> {
@@ -58,7 +62,7 @@ final class ToolsChests extends ToolsPatches<ContainerPatches.Patch, ToolsChests
         }
     }
 
-    /** How many slots a container block has, or 27 if it can't be told. */
+    /** How many slots a container block has: 1 if its block entity isn't a Container, and 27 if it has none or one can't be made. */
     static int sizeOf(Block block) {
         try {
             if (block instanceof EntityBlock entityBlock) {

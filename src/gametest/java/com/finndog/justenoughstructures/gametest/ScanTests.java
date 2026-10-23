@@ -86,9 +86,9 @@ public final class ScanTests {
 
     /**
      * A structure without pools can place a part only now and then, like the igloo's basement, which
-     * holds the igloo's one chest and comes with about one igloo in two. The first two layouts the
-     * index generates for the igloo have no basement, and it still finds the chest, so Found in lists
-     * the igloo for what the chest gives. Built twice, the index comes out the same.
+     * holds the igloo's one chest and comes with about one igloo in two. The index still finds the
+     * chest, so Found in lists the igloo for what the chest gives. Built twice, the index comes out
+     * the same.
      */
     public static void partsPlacedNowAndThenAreIndexed(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();

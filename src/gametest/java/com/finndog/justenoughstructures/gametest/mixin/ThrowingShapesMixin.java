@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Lets {@link ThrowingShapes} fail the two shape questions the browser asks of blocks under the mouse. */
+/** Lets {@link ThrowingShapes} fail the shape questions the browser asks of blocks under the mouse: two, or one from 1.21.2. */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 abstract class ThrowingShapesMixin {
     @Inject(method = "getShape(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/shapes/CollisionContext;)Lnet/minecraft/world/phys/shapes/VoxelShape;",

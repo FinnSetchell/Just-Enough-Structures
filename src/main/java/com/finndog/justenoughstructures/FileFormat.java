@@ -5,9 +5,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * The format number every file JES saves carries, so a later version knows what it's reading, and
- * an earlier one leaves a newer file alone rather than misreading it or writing over what it
- * doesn't understand. A file without one is from before formats were written, which is format 1.
+ * The format number in the JSON files JES keeps its settings and changes in. A newer JES can tell
+ * what it's reading, and an older one leaves a newer file alone. A file without one is format 1.
+ * Loot tables and lang files written into packs, and the binary caches, don't carry it.
  */
 public final class FileFormat {
     public static final String KEY = "format";

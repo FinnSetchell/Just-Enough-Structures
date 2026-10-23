@@ -776,8 +776,10 @@ public final class ClientRequests {
     }
 
     /**
-     * The server's locate settings. After a /reload the structure list and loot may have changed
-     * too, so what's cached is dropped and fetched again the next time it's wanted.
+     * The server's browser settings: locate and teleport levels, compass search and Pack tools access.
+     * When Pack tools changed the structures, the structure list is dropped. After a /reload the list
+     * and odds are dropped too, and the loot index is asked for again at once if a recipe viewer
+     * listens, otherwise when next wanted.
      */
     public static void onSettings(Codecs.BrowserSettings settings) {
         locatePermission = settings.locatePermission();

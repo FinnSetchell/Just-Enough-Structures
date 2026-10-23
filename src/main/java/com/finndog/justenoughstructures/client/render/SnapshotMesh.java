@@ -458,8 +458,7 @@ import net.neoforged.neoforge.client.model.data.ModelData;
  * structure without rebuilding everything. The layer the slider cuts through gets its own "cap"
  * mesh, built as if everything above it were air, so its top faces aren't missing.
  *
- * <p>Layers are built a few at a time from the render thread, within a time budget, because 1.20.1
- * buffer builders can't be freed and so can't be handed to other threads freely. A layer too big for
+ * <p>Layers are built a few at a time from the render thread, within a time budget. A layer too big for
  * one frame's budget is built in pieces, a few rows at a time, over as many frames as it takes.
  */
 public final class SnapshotMesh implements AutoCloseable {

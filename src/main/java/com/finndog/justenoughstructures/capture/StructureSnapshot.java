@@ -242,8 +242,10 @@ public final class StructureSnapshot {
         return out;
     }
 
-    /** Every block entity or entity carrying a loot table, plus containers that were saved with items in them. */
-    /** Worked out once: a snapshot never changes, and the screen asks for these several times a frame. */
+    /**
+     * Every block entity or entity with a loot table, plus containers saved with items. Computed once, as a snapshot never
+     * changes and the screen asks several times a frame.
+     */
     public List<Container> containers() {
         List<Container> found = containers;
         if (found == null) {

@@ -241,7 +241,7 @@ public final class LootOverrides {
      * inside that. The reason given is the smallest part's, which has the least in it that's fine.
      */
     private static Component located(ResourceLocation id, JsonElement json, boolean beforeWorld, String whole) {
-        // With no pools it's the table's own settings, and there's no part to name.
+        // If it fails even with no pools, the fault is in the table's other fields, and there's no part to name.
         if (json instanceof JsonObject table && table.get("pools") instanceof JsonArray pools
                 && problem(id, with(table, "pools", new JsonArray()), beforeWorld) == null) {
             for (int p = 0; p < pools.size(); p++) {
@@ -249,7 +249,7 @@ public final class LootOverrides {
                 if (inPool == null) {
                     continue;
                 }
-                // With no entries it's the pool's own settings.
+                // If the pool fails even with no entries, the fault is in its other fields.
                 if (pools.get(p) instanceof JsonObject pool && pool.get("entries") instanceof JsonArray entries
                         && problem(id, with(table, "pools", only(with(pool, "entries", new JsonArray()))), beforeWorld) == null) {
                     for (int e = 0; e < entries.size(); e++) {

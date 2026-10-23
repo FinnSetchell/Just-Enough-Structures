@@ -95,8 +95,9 @@ public final class Gallery {
     /** "*" asks for every structure the browser lists, which is only known once the server sends them. */
     private final boolean everything;
     private CompletableFuture<List<StructureCatalog.Entry>> catalog;
-    /** How many structures, spread through the list, also get a chest and the Loot tab, and a turning reel. */
+    /** How many structures, spread through the list, also get a chest and Loot tab shot. */
     private final int closeups;
+    /** How many structures, spread through the list, also get a turning reel. */
     private final int reelCount;
     private final int reelTicks;
     /** Degrees the reel turns each tick. */

@@ -562,14 +562,14 @@ public final class Gui {
         return best;
     }
 
-    /** Whether small text is sharp at this GUI scale, which it isn't at 1 and 2. */
+    /** Whether small text is sharp at this GUI scale. Only GUI scale 2 isn't. */
     static boolean smallIsSharp() {
         return smallScale() != 0.75f || Math.round(Minecraft.getInstance().getWindow().getGuiScale()) % 4 == 0;
     }
 
     /**
      * The size of secondary text, like labels and details under a row: small where small text is
-     * sharp, and full size at GUI scales 1 and 2, where it isn't.
+     * sharp, otherwise full size. That makes it full size at GUI scales 1 and 2.
      */
     static float fineScale() {
         return smallIsSharp() ? smallScale() : 1f;

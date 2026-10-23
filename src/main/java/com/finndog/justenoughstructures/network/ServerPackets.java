@@ -16,7 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * What the server does with each packet a client sends, the same on every loader. Each one is read
- * where it arrives, off the server thread, and then handed to the server thread for anything that
+ * on the thread the loader delivers it on, then handed to the server thread for anything that
  * touches the game. The loaders only connect their own networking to these.
  *
  * <p>Each kind of request costs a player some of their {@link RequestLimits allowance}, the big

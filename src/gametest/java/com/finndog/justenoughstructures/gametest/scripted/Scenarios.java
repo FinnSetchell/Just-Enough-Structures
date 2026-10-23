@@ -28,7 +28,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 
-/** Scripts for the review screenshots and the showcase recordings. */
+/** Builds the scripted scenario for each autoshot mode. The review, showcase and a few short recordings are defined here. */
 public final class Scenarios {
     private static final String CHEST = "minecraft:chests/desert_pyramid";
 

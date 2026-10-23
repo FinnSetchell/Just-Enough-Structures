@@ -27,8 +27,8 @@ sourceSets.main {
     resources.srcDir(rootProject.file("src/forge/resources"))
 }
 
-// Game tests build as a second mod that never ships, as on Fabric. Its Fabric wiring and the
-// screenshot scripts stay out: Forge runs the same tests through its own class.
+// Game tests build as a second mod that never ships, as on Fabric. Its Fabric wiring stays out:
+// Forge runs the same tests and screenshot scripts through Forge-only classes.
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.exclude("**/fabric/**", "**/neoforge/**")
     resources.exclude("fabric.mod.json")

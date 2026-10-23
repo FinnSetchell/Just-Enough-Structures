@@ -36,20 +36,20 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
 //?}
 
 /**
- * Small pictures of structures for the list, found-in rows and JEI. Each one is drawn at twice the
- * size it's shown at and shrunk smoothly, so edges come out clean at any GUI scale, and a copy is
- * saved to disk so next time the list has its pictures straight away instead of asking the server
- * to generate every structure again. A saved picture is only used while the structure's definition,
- * the server's fingerprint of everything structures are made from, the resource packs and the size
- * it's shown at are the same. The fingerprint covers mods, datapacks, pools and templates, so a
- * picture is never shown for a structure that's changed since, or from another server's version of
- * it. Render thread only.
+ * Small pictures of structures for the list, Pack tools, the found-in popup and recipe viewers. Each
+ * one is drawn at twice the size it's shown at and shrunk smoothly, so edges come out clean at any
+ * GUI scale, and a copy is saved to disk so next time the list has its pictures straight away
+ * instead of asking the server to generate every structure again. A saved picture is only used while
+ * the structure's definition, the server's fingerprint of everything structures are made from, the
+ * resource packs and the size it's shown at are the same. The fingerprint covers mods, datapacks,
+ * pools and templates, so a picture is never shown for a structure that's changed since, or from
+ * another server's version of it. Render thread only.
  */
 public final class Thumbnails {
     /** Goes up when thumbnails are drawn differently, so old ones aren't used. */
     private static final int VERSION = 2;
     private static final int MAX = 256;
-    /** The biggest a thumbnail is shown, in GUI units: the found-in rows and JEI. The list shows 16. */
+    /** The biggest a thumbnail is shown, in GUI units: the found-in popup and recipe viewers. The list and Pack tools show 16. */
     private static final int SHOWN_AT = 18;
 
     private static final Map<ResourceLocation, DynamicTexture> CACHE = new LinkedHashMap<>(64, 0.75f, true) {

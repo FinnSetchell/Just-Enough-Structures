@@ -28,8 +28,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * in the order of the mixins' priorities, and a tie goes to the mod that loads first. C2ME's mixins
  * are at 1100, from its config, and a real Fabric instance loads mods by id, so C2ME's came first
  * when this was at 1100 as well. Below the usual priority, this one comes first.
- * {@link StructureCapture#checkChunkGuard} checks once the server's up that it's in place with the
- * mods installed.
+ * {@link com.finndog.justenoughstructures.capture.StructureCapture#checkChunkGuard} checks once the
+ * server's up that it's in place with the mods installed.
  */
 @Mixin(value = ServerChunkCache.class, priority = 900)
 public abstract class ServerChunkCacheGuardMixin {

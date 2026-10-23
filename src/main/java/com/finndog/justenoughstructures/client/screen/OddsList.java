@@ -26,7 +26,7 @@ import net.minecraft.core.registries.Registries;
 
 /**
  * Rows of items with how likely each is: its icon and name, then a line with how many come, a bar
- * and the chance. The same rows in the details panel, the chest popup and Pack tools.
+ * and the chance.
  */
 final class OddsList {
     static final int ROW = 20;

@@ -39,7 +39,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
-/** Containers in structure templates pointed at other loot tables from the browser. Every test works in a folder of its own. */
+/** Containers in structure templates pointed at other loot tables from the browser. Tests that write files use a fresh temporary folder. */
 public final class ContainerTests {
     private static final ResourceLocation TOWER = Ids.parse("pillager_outpost/watchtower");
     private static final ResourceLocation IGLOO = Ids.parse("chests/igloo_chest");

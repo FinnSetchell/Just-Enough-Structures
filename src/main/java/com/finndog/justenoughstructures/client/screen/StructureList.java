@@ -425,13 +425,13 @@ final class StructureList {
         return true;
     }
 
-    /** Centre of a structure's row on screen, scrolling it into view first. */
     /** Where the star on a structure's row is, scrolling it into view first. */
     Optional<int[]> starCentre(ResourceLocation id) {
         boolean scrolls = contentHeight > height;
         return rowCentre(id).map(centre -> new int[]{x + width - (scrolls ? 8 : 0) - 6, centre[1]});
     }
 
+    /** Centre of a structure's row on screen, scrolling it into view first. */
     Optional<int[]> rowCentre(ResourceLocation id) {
         for (Row row : rows) {
             if (row.entry() != null && row.entry().id().equals(id)) {

@@ -27,7 +27,7 @@ import net.minecraft.world.item.ItemStack;
  * joined, so its load waits a little for an index that's on its way. One that comes later, or
  * changes, has EMI loaded again, unless it's an early one: then EMI waits for the finished one.
  */
-// The annotation is how EMI finds it on Forge; Fabric uses the entrypoint in fabric.mod.json.
+// The annotation is how EMI finds it on Forge and NeoForge; Fabric uses the entrypoint in fabric.mod.json.
 @EmiEntrypoint
 public final class JesEmiPlugin implements EmiPlugin {
     static final EmiRecipeCategory FOUND_IN = new EmiRecipeCategory(JustEnoughStructures.id("found_in"), EmiStack.of(FoundInRow.MAP)) {

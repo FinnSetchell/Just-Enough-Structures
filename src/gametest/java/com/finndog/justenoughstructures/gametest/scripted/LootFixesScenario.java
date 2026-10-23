@@ -22,8 +22,9 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * The loot editing rough edges a hands-on test turned up: tables from other layouts on the Loot
- * tab, a JSON mistake explained by line, an item that isn't one refused on save, and a new table's
- * header with its id.
+ * tab, a JSON mistake explained by line, an item that isn't one refused on save, a new table's
+ * header with its id, and a table id that doesn't exist typed into a container's picker, which the
+ * server refuses and the picker keeps to be fixed.
  */
 final class LootFixesScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/village/village_plains_house");

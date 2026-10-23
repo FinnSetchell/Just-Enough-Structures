@@ -151,7 +151,7 @@ final class MobNameScenario {
     }
 
     /**
-     * A villager is marked like any mob while it's drawn, and keeps its marker after its name has
+     * A mob has a marker while it's drawn, and keeps its marker after its name has
      * started failing wherever the preview still draws it. Anything else in the village may not be a
      * mob, which markers leave alone.
      */

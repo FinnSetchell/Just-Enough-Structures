@@ -289,7 +289,7 @@ final class ToolsUi {
         tooltip(x - 1, y - 2, 11, 12, name);
     }
 
-    /** A sliding switch, 16 by 9, green when on. */
+    /** A sliding switch, 17 by 10, green when on. */
     void toggle(GuiGraphics g, int x, int y, boolean on, Runnable action, Component... tip) {
         g.fill(x, y, x + 17, y + 10, 0xFF000000);
         g.fill(x + 1, y + 1, x + 16, y + 9, on ? 0xFF4F7A3A : 0xFF555555);

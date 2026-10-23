@@ -83,8 +83,9 @@ public abstract class ServerLevelGuardMixin extends Level {
         return sandbox != null ? sandbox.blockEntity(this, pos) : super.getBlockEntity(pos);
     }
 
-    // Code asking for a chunk gets the sandbox's own, and none outside it, so nothing is loaded for
-    // it on any thread. Asking for a whole loaded chunk then fails, rather than reaching the world.
+    // Code asking for a chunk gets the sandbox's chunk, or null outside the sandbox, so nothing is
+    // loaded on any thread. Outside the sandbox, a caller with load = true gets an exception instead
+    // of the real world.
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
         RealWorldGuard.Sandbox sandbox = RealWorldGuard.current();

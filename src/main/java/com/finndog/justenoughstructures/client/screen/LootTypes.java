@@ -19,9 +19,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class LootTypes {
     /**
-     * The kinds of loot table this version of the game has, which say what a table can know about
-     * when it's rolled. Read from the game's own list of them for each version: the ones 1.20.1 had
-     * first, as chests and mobs are what most tables are for, then what's been added since.
+     * Loot table types for this game version, which decide what a table can read when rolled. Written
+     * out per version: 1.20.1's first, as chests and mobs are most common, then later additions.
      */
     public static final List<String> TABLE_TYPES = tableTypes();
 
@@ -277,7 +276,10 @@ public final class LootTypes {
         //?}
     }
 
-    /** A new entry of this kind. */
+    /**
+     * A new entry of this kind. Given {@code was}, a new item entry keeps its item if it was an item
+     * entry, and any kind but a composite one keeps its weight, quality, functions and conditions.
+     */
     public static JsonObject entry(String type, JsonObject was) {
         JsonObject out = new JsonObject();
         out.addProperty("type", type);
@@ -298,7 +300,7 @@ public final class LootTypes {
             }
         }
         if (was != null) {
-            // What the entry had that every kind has: its weight, quality, functions and conditions.
+            // Carry over the settings single entries share. Composite kinds take none of them.
             for (String key : List.of("weight", "quality", "functions", "conditions")) {
                 if (was.has(key) && !List.of("alternatives", "group", "sequence").contains(kind)) {
                     out.add(key, was.get(key).deepCopy());

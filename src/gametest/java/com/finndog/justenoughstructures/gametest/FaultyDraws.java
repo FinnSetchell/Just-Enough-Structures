@@ -10,7 +10,7 @@ import net.minecraft.world.entity.Entity;
 public final class FaultyDraws {
     /** The entity that fails, or null for none. */
     public static volatile Entity armed;
-    /** Whether the hook is in this game. It's left out of the test mod's jar for a real one. */
+    /** Whether the hook was applied. The test jar for a real game leaves it out, except on Fabric where the game isn't obfuscated. */
     public static volatile boolean hooked;
     /** How many times it has failed since it was armed. */
     public static volatile int failures;

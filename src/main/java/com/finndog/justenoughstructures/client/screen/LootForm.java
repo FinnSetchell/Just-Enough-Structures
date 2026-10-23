@@ -713,7 +713,7 @@ final class LootForm {
                 picked -> set(path, picked.isEmpty() ? null : new JsonPrimitive(Boolean.parseBoolean(picked))));
     }
 
-    /** A range of whole numbers, "from" and "to", either of which can be left empty; one number is kept as it is. */
+    /** A min and max range, either of which can be empty. A single number stays a single number. */
     private void range(GuiGraphics g, int x, int y, int w, String path) {
         JsonElement value = JsonPaths.get(draft(), path);
         if (value != null && value.isJsonPrimitive()) {
@@ -833,7 +833,7 @@ final class LootForm {
         return y + 16;
     }
 
-    /** After a copy or a move that put an item at {@code to}: it's what's shown, and the table has changed. */
+    /** After a copy or move: if it worked ({@code to >= 0}), passes {@code to} to {@code picked} if given, and marks the table changed. */
     private void listChange(int to, IntConsumer picked) {
         if (to < 0) {
             return;
@@ -1443,7 +1443,7 @@ final class LootForm {
         host.changed();
     }
 
-    /** What was typed in a field, read back as the field's kind. Text that doesn't read as that is left out. */
+    /** Writes typed text to the path as the field's kind. A bad number is refused; RAW text that isn't JSON is stored as a string. */
     private void commit(String path, Kind kind, String text) {
         String trimmed = text.trim();
         JsonElement before = JsonPaths.get(draft(), path);

@@ -16,9 +16,8 @@ import net.minecraft.server.level.ServerPlayer;
  */
 public final class JesNetwork {
     /**
-     * Goes up whenever what's sent changes in a way the other end couldn't read. It's part of every
-     * channel's name, so a client and a server on different versions don't hear each other at all,
-     * rather than misreading what they hear.
+     * Goes up when the wire format changes incompatibly. It's in every channel name except {@link #PRESENT},
+     * so mismatched versions ignore each other instead of misreading.
      */
     public static final int PROTOCOL = 8;
 

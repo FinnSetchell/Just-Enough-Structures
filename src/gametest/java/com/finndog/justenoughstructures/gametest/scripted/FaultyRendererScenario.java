@@ -108,7 +108,7 @@ final class FaultyRendererScenario {
         }
     }
 
-    /** What the faulty renderer does once it has started a vertex. */
+    /** Throws as the faulty renderer does: a StackOverflowError if error, else an IllegalStateException. */
     private static void fail(boolean error) {
         if (error) {
             throw new StackOverflowError("a renderer that never stops calling itself, standing in for another mod's");

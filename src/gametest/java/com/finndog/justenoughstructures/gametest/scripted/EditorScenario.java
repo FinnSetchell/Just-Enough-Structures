@@ -31,7 +31,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
-/** The loot table editor: the Loot tab's Edit link, the editor with an entry picked, and the JSON view. */
+/**
+ * The loot table editor, opened from the Loot tab: the form and its pickers, undo, copying and dragging
+ * rows, the JSON view with copy and paste, an outdated override with its changes and merge, entries
+ * inside entries, a mod's settings, opening the table an entry names, and styled names.
+ */
 final class EditorScenario {
     private static final ResourceLocation TABLE = Ids.parse("chests/desert_pyramid");
 

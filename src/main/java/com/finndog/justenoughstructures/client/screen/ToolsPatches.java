@@ -58,7 +58,7 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
 
     abstract BlockPos posOf(P patch);
 
-    /** "chest" or "spawner": which pick button, list heading and waiting changes are this section's. */
+    /** "chest" or "spawner", for the lang keys of the pick button and list heading. */
     abstract String kind();
 
     /** Starts picking one in the browser. */

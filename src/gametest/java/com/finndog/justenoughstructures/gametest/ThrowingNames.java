@@ -11,7 +11,7 @@ import net.minecraft.world.entity.Entity;
 public final class ThrowingNames {
     /** The mob that fails, or null for none. */
     public static volatile Entity armed;
-    /** Whether the hook is in this game. It's left out of the test mod's jar for a real one where the game is obfuscated. */
+    /** Whether the hook was applied. The test jar for a real game leaves it out, except on Fabric where the game isn't obfuscated. */
     public static volatile boolean hooked;
     /** How many times the preview's hover text, the mob's popup and anything else have asked, so a scenario can tell what was tried. */
     public static volatile int hover;

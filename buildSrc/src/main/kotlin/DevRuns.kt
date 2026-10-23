@@ -17,9 +17,9 @@ fun prepareAutoshotFolder(root: File, modId: String) {
         }
     }
     root.mkdirs()
+    val packs = File(root, "resourcepacks").listFiles { file -> file.name.endsWith(".zip") }.orEmpty().sortedBy { it.name }
     // Skip first-launch screens and keep the game running when the window isn't focused. No
     // clouds, so the world behind the screen doesn't change from frame to frame.
-    val packs = File(root, "resourcepacks").listFiles { file -> file.name.endsWith(".zip") }.orEmpty().sortedBy { it.name }
     File(root, "options.txt").writeText(
         "onboardAccessibility:false\npauseOnLostFocus:false\ntutorialStep:none\njoinedFirstServer:true\n" +
             "skipMultiplayerWarning:true\nsoundCategory_master:0.0\nguiScale:2\nrenderClouds:\"false\"\n" +
