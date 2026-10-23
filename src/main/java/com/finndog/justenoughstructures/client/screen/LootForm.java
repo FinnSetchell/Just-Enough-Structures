@@ -27,53 +27,53 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * The editor's form, drawn from the table's JSON each frame: a card for the table, a pool or an
- * entry, with fields for what each holds and cards for its functions and conditions. Kinds the
- * form knows get proper fields; any other kind, a mod's own included, gets a field per setting with
- * its JSON in it. Nothing the form doesn't show is touched.
+ * entry, with fields for its settings and cards for its functions and conditions. Known kinds get
+ * proper fields; any other kind, including a mod's, gets a JSON field per setting. Settings the form
+ * doesn't show are left untouched.
  */
 final class LootForm {
     static final int FIELD = 14;
     private static final int LABEL_W = 72;
-    /** How wide the labels are on the left this frame: less in a narrow form, so its controls keep room. */
+    /** Label column width this frame: narrower in a narrow form, so the controls keep room. */
     private int labelW = LABEL_W;
     private static final int GAP = 3;
     private static final int INDENT = 6;
     private static final List<String> PROVIDERS = List.of("constant", "uniform", "binomial");
 
-    /** What the form needs from the editor around it. */
+    /** Callbacks from the form to the editor screen. */
     interface Host {
         JsonObject draft();
 
-        /** Something in the table changed. */
+        /** Called after the table changes. */
         void changed();
 
-        /** A field was clicked: type in it, and {@code commit} gets the text when done. */
+        /** Starts typing in a clicked field; {@code commit} receives the text when done. */
         void edit(String id, int[] rect, String text, Consumer<String> commit);
 
-        /** The same, for a field with a list of what it can be: they're listed under it while it's typed in. */
+        /** The same, for a field with suggested values, which are listed under it while typing. */
         void edit(String id, int[] rect, String text, Consumer<String> commit, LootOptions.Source options);
 
-        /** The id of the field being typed in, if any, so it's left for the text box to draw. */
+        /** Returns the id of the field being typed in, or null. The form leaves that field for the text box to draw. */
         String editing();
 
-        /** Where a field was drawn this frame. */
+        /** Records where a field was drawn this frame. */
         void drawn(String id, int[] rect);
 
-        /** A list to pick one of {@code options} from, under {@code rect}. */
+        /** Opens a list under {@code rect} to choose one of {@code options}. */
         void choose(int[] rect, List<String> options, Function<String, String> names, String current, Consumer<String> pick);
 
-        /** The item picker, for the item at {@code path}. */
+        /** Opens the item picker for the item at {@code path}. */
         void pickItem(String path);
 
         void select(int pool, int entry);
 
-        /** The same for an entry inside another, by the path down to it from the pool's entry. */
+        /** Selects a nested entry by its path from the pool's top-level entry. */
         void select(int pool, int entry, String child);
 
-        /** What was typed in a field was turned down, and why. */
+        /** Shows why typed text was refused. */
         void refused(Component why);
 
-        /** Another table, named by an entry of this one, is to be opened over it. */
+        /** Opens a table named by an entry of this one, over this editor. */
         void openTable(String id);
     }
 
@@ -91,7 +91,7 @@ final class LootForm {
         return host.draft();
     }
 
-    /** Draws the card for what's picked. Returns the y below it. */
+    /** Draws the card for the selection. Returns the y below it. */
     int render(GuiGraphics g, int x, int y, int w, int pool, int entry, String child) {
         labelW = Math.max(48, Math.min(LABEL_W, w / 4));
         if (pool < 0) {
@@ -127,7 +127,7 @@ final class LootForm {
 
     private int poolCard(GuiGraphics g, int x, int y, int w, int pool, String path) {
         int top = y;
-        // Copying it, moving it and taking it out are on its row of the list.
+        // Its duplicate and remove buttons, and dragging to move it, are on its tree row.
         y = head(g, x, y, w, Component.translatable("screen.justenoughstructures.editor.pool", pool + 1), null, null);
         y = row(g, x, y, w, "rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "rolls"), 1));
         y = row(g, x, y, w, "bonus_rolls", (cx, cw) -> provider(g, cx, y(), cw, JsonPaths.join(path, "bonus_rolls"), 0));
@@ -138,7 +138,7 @@ final class LootForm {
         return end(g, x, top, y, w);
     }
 
-    /** An entry's card. One inside another is {@code child} down from the pool's entry {@code index}, and empty otherwise. */
+    /** Draws an entry's card. For a nested entry, {@code child} is its path from the pool's entry at {@code index}; otherwise it's empty. */
     private int entryCard(GuiGraphics g, int x, int y, int w, int pool, int index, String child, String path) {
         int top = y;
         JsonObject entry = JsonPaths.object(draft(), path);
@@ -172,11 +172,11 @@ final class LootForm {
             }
             case "loot_table" -> {
                 String tablePath = JsonPaths.join(path, LootTypes.TABLE_KEY);
-                // A whole table written out in place of a name is left as it is, to be edited as JSON.
+                // An inline table in place of a name is kept as is, in a JSON field.
                 y = JsonPaths.get(draft(), tablePath) instanceof JsonObject
                         ? row(g, x, y, w, "table", (cx, cw) -> raw(g, cx, y(), cw, tablePath))
                         : row(g, x, y, w, "table", (cx, cw) -> {
-                            // Beside the table's name, a way into it. Not for a tag of tables, which 26.3 allows here.
+                            // An Open link beside the table's name. Not for a tag of tables, which 26.3 allows here.
                             String named = JsonPaths.string(draft(), tablePath, "").trim();
                             boolean opens = !named.isEmpty() && !named.startsWith("#") && ResourceLocation.tryParse(named) != null;
                             Component open = text("open_table");
@@ -219,7 +219,7 @@ final class LootForm {
         return end(g, x, top, y, w);
     }
 
-    /** A function: its kind, what it needs, and conditions of its own. */
+    /** Draws a function's card: its kind, its settings and its conditions. */
     private int functionCard(GuiGraphics g, int x, int y, int w, String path) {
         int top = y;
         String type = JsonPaths.string(draft(), JsonPaths.join(path, "function"), "?");
@@ -286,7 +286,7 @@ final class LootForm {
                 y = row(g, x, y, w, "replace", (cx, cw) -> check(g, cx, y(), at(path, "replace"), false));
                 //?}
             }
-            // 1.20.5 renamed set_nbt, and copy_nbt below, for the custom data they set now.
+            // 1.20.5 renamed set_nbt to set_custom_data, and copy_nbt below to copy_custom_data.
             case "set_nbt", "set_custom_data" -> y = row(g, x, y, w, "nbt", (cx, cw) -> text(g, cx, y(), cw, at(path, "tag"), false));
             case "set_instrument" -> y = row(g, x, y, w, "options", (cx, cw) -> pick(g, cx, y(), cw, at(path, "options"), LootOptions.INSTRUMENT_TAGS, false));
             case "exploration_map" -> {
@@ -305,7 +305,7 @@ final class LootForm {
                 y = row(g, x, y, w, "at_least", (cx, cw) -> number(g, cx, y(), 50, at(path, "limit.min"), Kind.NUMBER, ""));
                 y = row(g, x, y, w, "at_most", (cx, cw) -> number(g, cx, y(), 50, at(path, "limit.max"), Kind.NUMBER, ""));
             }
-            // 1.21 made looting_enchant work for any enchantment.
+            // 1.21 replaced looting_enchant with enchanted_count_increase, which takes any enchantment.
             case "looting_enchant", "enchanted_count_increase" -> {
                 if (fn.equals("enchanted_count_increase")) {
                     y = row(g, x, y, w, "enchantment", (cx, cw) -> pick(g, cx, y(), cw, at(path, "enchantment"), LootOptions.ENCHANTMENTS, false));
@@ -343,7 +343,7 @@ final class LootForm {
             case "fill_player_head" -> y = row(g, x, y, w, "entity", (cx, cw) -> choice(g, cx, y(), cw, at(path, "entity"), LootOptions.ENTITY_TARGETS, false));
             case "reference" -> y = row(g, x, y, w, "modifier", (cx, cw) -> pick(g, cx, y(), cw, at(path, "name"), LootOptions.ITEM_MODIFIERS, false));
             //? if >=1.21 {
-            /*// Since 1.21 a modifier is known by an id rather than a name and a UUID, and replaces the item's own by default.
+            /*// Since 1.21 a modifier has an id instead of a name and UUID, and by default replaces the item's modifiers.
             case "set_attributes" -> {
                 y = objectList(g, x, y, w, "modifiers", at(path, "modifiers"),
                         LootTypes::modifier,
@@ -408,7 +408,7 @@ final class LootForm {
         return end(g, x, top, y, w);
     }
 
-    /** A condition: its kind and what it needs; some hold more conditions. */
+    /** Draws a condition's card: its kind and settings. Some conditions hold others. */
     private int conditionCard(GuiGraphics g, int x, int y, int w, String path) {
         int top = y;
         String type = JsonPaths.string(draft(), JsonPaths.join(path, "condition"), "?");
@@ -426,7 +426,7 @@ final class LootForm {
                 y = row(g, x, y, w, "unenchanted_chance", (cx, cw) -> number(g, cx, y(), 60, at(path, "unenchanted_chance"), Kind.NUMBER, "0"));
                 y = row(g, x, y, w, "enchanted_chance", (cx, cw) -> raw(g, cx, y(), cw, at(path, "enchanted_chance")));
             }
-            // 1.20.1 reads nothing else for these: "inverse" on killed_by_player is from later versions.
+            // Neither has settings. The game doesn't read an "inverse" key on killed_by_player.
             case "killed_by_player", "survives_explosion" -> {
             }
             case "inverted" -> {
@@ -491,8 +491,8 @@ final class LootForm {
     }
 
     /**
-     * A field for each setting of a kind the form doesn't know, with its JSON in it, and a link to
-     * give it one it hasn't got: its name is typed first, then what it's set to.
+     * Draws a JSON field for each setting of an unknown kind, and a link to add a setting. A new
+     * setting's name is typed first, then its value.
      */
     private int generic(GuiGraphics g, int x, int y, int w, String path, List<String> skip) {
         JsonObject object = JsonPaths.object(draft(), path);
@@ -531,9 +531,8 @@ final class LootForm {
     }
 
     /**
-     * Gives what's being given a setting that setting, by the name typed for it, with nothing in it
-     * yet: what it's set to is typed next. No name leaves it without one, and one it has already is
-     * turned down.
+     * Adds an empty setting with the typed name and starts editing its value. An empty name does
+     * nothing; an existing name is refused.
      */
     private void nameSetting(String path, String name) {
         naming = null;
@@ -551,7 +550,7 @@ final class LootForm {
 
     // ------------------------------------------------------------------ predicates
 
-    /** What an entity has to be: its type, with the rest of the predicate as JSON. */
+    /** Draws an entity predicate: its type, with the rest as JSON. */
     private int entityPredicate(GuiGraphics g, int x, int y, int w, String path) {
         //? if >=1.21 {
         /*y = holderSet(g, x, y, w, "entity_type", at(path, LootTypes.ENTITY_TYPE_KEY), LootOptions.ENTITY_TYPES_OR_TAGS, LootOptions.ENTITY_TYPES, null);
@@ -561,7 +560,7 @@ final class LootForm {
         return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, List.of(LootTypes.ENTITY_TYPE_KEY)));
     }
 
-    /** Where it has to be: a biome, a structure, a dimension, with the rest of the predicate as JSON. */
+    /** Draws a location predicate: biome, structure, dimension and smokey, with the rest as JSON. */
     private int locationPredicate(GuiGraphics g, int x, int y, int w, String path) {
         //? if >=1.21 {
         /*// 1.20.5 made these sets, of biomes and of structures.
@@ -578,7 +577,7 @@ final class LootForm {
         return row(g, x, y, w, "more", (cx, cw) -> rest(g, cx, y(), cw, path, shown));
     }
 
-    /** What the tool has to be: items, a tag, a potion, enchantments, with the rest of the predicate as JSON. */
+    /** Draws an item predicate: items, tag, potion and enchantments, with the rest as JSON. */
     private int itemPredicate(GuiGraphics g, int x, int y, int w, String path) {
         //? if >=1.21 {
         /*// Since 1.20.5 a tag goes in items with its "#", and potions and enchantments are among the
@@ -606,8 +605,8 @@ final class LootForm {
     }
 
     /**
-     * The rest of an object as JSON, leaving out the keys the form has fields for, so anything the
-     * form doesn't know can still be set. What's typed goes back in beside those keys.
+     * Draws a JSON field for the rest of an object, leaving out the keys the form has fields for, so
+     * unknown settings can still be set. Typed JSON replaces those other keys and keeps the shown ones.
      */
     private void rest(GuiGraphics g, int x, int y, int w, String path, List<String> shownElsewhere) {
         JsonObject object = JsonPaths.object(draft(), path);
@@ -651,7 +650,7 @@ final class LootForm {
         }));
     }
 
-    /** A block's state properties to match, each a property of the block picked and one of its values. */
+    /** Draws the block state properties to match: each a property of the chosen block and one of its values. */
     private int stateMap(GuiGraphics g, int x, int y, int w, String path, String block) {
         JsonObject map = JsonPaths.object(draft(), path);
         List<String> keys = map == null ? List.of() : List.copyOf(map.keySet());
@@ -704,7 +703,7 @@ final class LootForm {
         }, current, pick);
     }
 
-    /** A yes, no, or either: true, false, or left out. */
+    /** A yes, no or either dropdown: true, false, or left out. */
     private void maybe(GuiGraphics g, int x, int y, int w, String path) {
         JsonElement value = JsonPaths.get(draft(), path);
         String current = value == null ? "" : String.valueOf(JsonPaths.bool(draft(), path));
@@ -750,15 +749,15 @@ final class LootForm {
         });
     }
 
-    /** Draws one thing in a list, its {@code index} counted from 0, in the place of a row's control. */
+    /** Draws the list item at {@code index} (from 0) in place of a row's control. */
     private interface ListRow {
         void draw(int index, int x, int w);
     }
 
     /**
-     * A row for each of a list's {@code count} things, drawn by {@code row}, with the list's label on the
-     * first, and then a row with a link to add another, which runs {@code add}. {@code empty}, if there
-     * is one, says beside that link what no things at all means. Returns the y below them.
+     * Draws a row for each of a list's {@code count} items with {@code row}, the list's label on the
+     * first, then a row with an add link that runs {@code add}. {@code empty}, if given, shows beside
+     * that link when the list is empty, to say what that means. Returns the y below them.
      */
     private int listRows(GuiGraphics g, int x, int y, int w, String label, int count, Component empty, Runnable add, ListRow row) {
         for (int i = 0; i <= count; i++) {
@@ -778,7 +777,7 @@ final class LootForm {
         return y;
     }
 
-    /** How many things are in the list at the path, none when there's no list. */
+    /** Returns the size of the list at the path, or 0 if there's no list. */
     private int size(String path) {
         JsonArray items = JsonPaths.array(draft(), path);
         return items == null ? 0 : items.size();
@@ -821,7 +820,7 @@ final class LootForm {
 
     // ------------------------------------------------------------------ parts of a card
 
-    /** The top of a card: a title, and a link at the right where there's one to offer. Returns the y below it. */
+    /** Draws a card's title bar, with an optional link at the right. Returns the y below it. */
     private int head(GuiGraphics g, int x, int y, int w, Component title, Component action, Runnable onAction) {
         g.fill(x, y, x + w, y + 14, 0xFF8B8B8B);
         int right = x + w - 4;
@@ -845,9 +844,9 @@ final class LootForm {
     }
 
     /**
-     * The top of a function or condition card: which kind it is, to pick another, and the list's own
-     * buttons to take it away, copy it and move it, as its order matters. Unnamed for the screenshot
-     * harness, which finds the list's buttons by their names.
+     * Draws the head of a function or condition card: a kind dropdown, then remove, duplicate and move
+     * buttons. The buttons get no label, so the screenshot harness's buttonAt finds the tree row's
+     * buttons of the same name.
      */
     private int typeHead(GuiGraphics g, int x, int y, int w, String id, List<String> options, String kind, String current,
                          Consumer<String> pick, String path) {
@@ -870,7 +869,7 @@ final class LootForm {
         return y + 19;
     }
 
-    /** The edges of a card, once its height is known. Returns the y below it. */
+    /** Draws a card's border once its height is known. Returns the y below it. */
     private int end(GuiGraphics g, int x, int top, int y, int w) {
         int bottom = y + 2;
         g.fill(x, top, x + 1, bottom, 0xFF8B8B8B);
@@ -879,7 +878,7 @@ final class LootForm {
         return bottom;
     }
 
-    /** Where the control in the row being drawn goes, for the lambdas that draw them. */
+    /** The y of the row being drawn, read by the control lambdas through y(). */
     private int rowY;
 
     private int y() {
@@ -892,7 +891,7 @@ final class LootForm {
 
     /** A label and its control. Returns the y below them. */
     private int row(GuiGraphics g, int x, int y, int w, String key, Control control) {
-        // What the field is for, on hovering its label, where there's a line about it.
+        // A tooltip on the label explaining the field, where the lang file has one.
         String help = "screen.justenoughstructures.editor.help." + key;
         if (Language.getInstance().has(help)) {
             ui.tooltip(x, y, labelW, FIELD, Component.translatable(help));
@@ -913,10 +912,10 @@ final class LootForm {
 
     // ------------------------------------------------------------------ controls
 
-    /** What a typed field holds, and so how it's read back. */
+    /** What a typed field holds, which decides how its text is read back. */
     enum Kind { TEXT, OPTIONAL_TEXT, INT, NUMBER, RAW, COMPONENT }
 
-    /** A box to type in: drawn here, and typed in through the editor's one text box when clicked. */
+    /** A text field, drawn here and edited through the editor's single text box when clicked. */
     private void field(GuiGraphics g, int x, int y, int w, String path, Kind kind, String shown) {
         box(g, x, y, w, path, shown, text -> commit(path, kind, text));
         if (kind == Kind.RAW && font.width(shown) > w - 8) {
@@ -924,7 +923,7 @@ final class LootForm {
         }
     }
 
-    /** The box itself: what it shows, and where what's typed in it goes. {@code id} tells it from the form's other boxes. */
+    /** Draws a field box showing {@code shown}; typed text goes to {@code typed}. {@code id} identifies the box in the form. */
     private void box(GuiGraphics g, int x, int y, int w, String id, String shown, Consumer<String> typed) {
         int[] rect = {x, y, w, FIELD};
         host.drawn(id, rect);
@@ -973,7 +972,7 @@ final class LootForm {
         ui.check(g, text(on ? "yes" : "no"), x, y + 3, on, () -> set(path, new JsonPrimitive(!on)));
     }
 
-    /** A box showing the choice, which opens the list of them. */
+    /** A box showing the current choice, which opens the list of options. */
     private void dropdown(GuiGraphics g, int x, int y, int w, String id, List<String> options, Function<String, String> names, String current,
                           Consumer<String> pick) {
         int[] rect = {x, y, w, FIELD};
@@ -982,20 +981,19 @@ final class LootForm {
         g.fill(x, y, x + w, y + FIELD, over ? 0xFFFFFFFF : 0xFF000000);
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, over ? 0xFF7A7A7A : 0xFF6D6D6D);
         Gui.drawClipped(g, font, names.apply(current), x + 4, y + 3, w - 16, 0xFFFFFFFF, true);
-        // A small arrow pointing down, at the right.
         Gui.blit(g, Icons.DROPDOWN, x + w - 10, y + 5, 0, 0, Icons.DROPDOWN_W, Icons.DROPDOWN_H, Icons.DROPDOWN_W, Icons.DROPDOWN_H);
         ui.spot(x, y, w, FIELD, () -> host.choose(rect, options, names, current, pick));
     }
 
     /** A field just added to a list, to start typing in as soon as it's drawn. */
     private String pendingEdit;
-    /** The function, condition or entry being given a setting the form has no row for, while its name is typed. Null for none. */
+    /** Path of the function, condition or entry getting a new setting while its name is typed. Null for none. */
     private String naming;
 
     /**
-     * A box for an id with a list of what it can be, like an enchantment or a potion, listed under it
-     * while it's typed in. It shows the picked one's name, and the id while it's typed in; an id the
-     * game doesn't know shows in amber.
+     * A field for an id, like an enchantment or a potion, with suggested values listed under it while
+     * typing. It shows the id's name, and the id itself while typing; an id the game doesn't know
+     * shows in amber.
      */
     private void pick(GuiGraphics g, int x, int y, int w, String path, LootOptions.Source options, boolean optional) {
         String value = JsonPaths.string(draft(), path, "");
@@ -1028,8 +1026,8 @@ final class LootForm {
     }
 
     /**
-     * A list of ids, like the enchantments one is picked from: a box for each with an x to take it
-     * out, and a link to add another. {@code empty} says what no ids at all means.
+     * A list of ids, like the enchantments to choose from: a box for each with a remove button, and a
+     * link to add another. {@code empty} says what an empty list means.
      */
     private int idList(GuiGraphics g, int x, int y, int w, String key, String path, LootOptions.Source options, Component empty) {
         int count = size(path);
@@ -1038,7 +1036,7 @@ final class LootForm {
             append(path, new JsonPrimitive(""));
         }, (index, cx, cw) -> {
             String itemPath = at(path, index);
-            // Emptied, it's taken out of the list rather than left as an id that's nothing.
+            // An emptied box is removed from the list, not left as an empty id.
             pickBox(g, cx, y(), cw - 12, itemPath, JsonPaths.string(draft(), itemPath, ""), options, text -> {
                 if (text.isBlank()) {
                     remove(itemPath);
@@ -1132,14 +1130,14 @@ final class LootForm {
     }
 
     *///?}
-    /** Gives a key of an object another name, keeping its place and value. */
+    /** Renames a key of an object, keeping its position and value. */
     private void renameKey(String path, String from, String to) {
         JsonObject map = JsonPaths.object(draft(), path);
         if (map == null || to.equals(from) && !to.isEmpty()) {
             return;
         }
         if (to.isEmpty()) {
-            // A new one left without an id goes again; one that had an id keeps it.
+            // An unnamed new key is removed; an existing key keeps its name.
             if (from.isEmpty()) {
                 JsonPaths.remove(draft(), JsonPaths.join(path, JsonPaths.key(from)));
                 map.remove("");
@@ -1158,7 +1156,7 @@ final class LootForm {
         set(path, renamed);
     }
 
-    /** What draws the fields of one object in a list. Returns the y below them. */
+    /** Draws the fields of one object in a list. Returns the y below them. */
     private interface ObjectFields {
         int draw(int x, int y, int w, String path);
     }
@@ -1188,7 +1186,7 @@ final class LootForm {
         return y;
     }
 
-    /** The remove icon, dark red on the card, that takes something out. */
+    /** A dark red remove button on a card. */
     private void removeX(GuiGraphics g, int x, int y, Runnable action) {
         ui.iconButton(g, x - 1, y + 3, Icons.REMOVE, LootEditorScreen.REMOVE_LIT, 0xFF6A1010, text("remove"), null, action);
     }
@@ -1200,7 +1198,7 @@ final class LootForm {
     private void textComponent(GuiGraphics g, int x, int y, int w, String path) {
         JsonElement value = JsonPaths.get(draft(), path);
         if (!TextStyle.simple(value)) {
-            // More to it than the boxes beside the words can show, so it's kept as it is, as JSON.
+            // Too complex for the colour and style buttons, so it's shown as JSON.
             field(g, x, y, w, path, Kind.COMPONENT, value.isJsonPrimitive() ? value.getAsString() : value.toString());
             return;
         }
@@ -1221,7 +1219,7 @@ final class LootForm {
                 set(path, now);
             }
         });
-        // Its colour: a square of it, which opens the list of them.
+        // A colour swatch, which opens the list of colours.
         int sx = x + w - styleW + 3;
         String colour = TextStyle.colour(value);
         int[] swatch = {sx, y + 2, 10, 10};
@@ -1243,9 +1241,9 @@ final class LootForm {
     }
 
     /**
-     * Whether text is bold or italic, as its icon: pressed in on green for yes, dark red and struck
-     * through for no, and faint where it's left to the game, which slants names and lore by itself. The
-     * shape says which as well as the colour. Each click moves it on to the next.
+     * Draws a bold or italic toggle with three states: on (green, pressed), off (red, struck through)
+     * and unset (faint; the game decides, and it italicises names and lore by default). Each click
+     * moves to the next.
      */
     private void styleToggle(GuiGraphics g, int x, int y, String path, JsonElement value, String key, ResourceLocation icon) {
         Boolean now = TextStyle.flag(value, key);
@@ -1256,7 +1254,7 @@ final class LootForm {
             g.fill(x + 1, y + 3, x + 10, y + 13, 0xFF2E5B1D);
         }
         int ink = over ? 0xFFFFFF55 : now == null ? 0xFF707070 : now ? 0xFFFFFFFF : 0xFF6A1010;
-        // White on the green of a yes, it's a pressed button and has a button's shadow; on the panel, the soft one.
+        // When on, the icon gets a button's shadow; otherwise the panel's soft shadow.
         Gui.icon(g, icon, x + 1, y + 3, Icons.SMALL, Icons.SMALL, ink, Boolean.TRUE.equals(now));
         if (Boolean.FALSE.equals(now)) {
             for (int i = 0; i < 9; i++) {
@@ -1364,7 +1362,7 @@ final class LootForm {
                 }
             }
         } catch (RuntimeException e) {
-            // Not a plain number: the fallback, then.
+            // Not a plain number: use the fallback.
         }
         return fallback;
     }
@@ -1373,7 +1371,7 @@ final class LootForm {
         return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
     }
 
-    /** The picked item's icon, which opens the item picker. */
+    /** The entry's item icon, which opens the item picker. */
     private void itemButton(GuiGraphics g, int x, int y, String path) {
         boolean over = ui.hovered(x, y, FIELD + 2, FIELD);
         g.fill(x, y, x + FIELD + 2, y + FIELD, over ? 0xFFFFFFFF : 0xFF555555);
@@ -1392,8 +1390,8 @@ final class LootForm {
     }
 
     /**
-     * While the player holds something: a link that makes the entry give exactly that, its name,
-     * enchantments and all, which is far quicker than writing them out. Returns the y below it.
+     * While the player holds an item, draws a link that makes the entry give exactly that stack, name
+     * and enchantments included. Returns the y below it.
      */
     private int heldLink(GuiGraphics g, int x, int y, int w, String path) {
         LocalPlayer player = Minecraft.getInstance().player;

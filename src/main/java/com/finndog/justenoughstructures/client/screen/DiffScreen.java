@@ -83,9 +83,9 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The JSON laid out the same way on both sides, so only real differences show. A table is put in
-     * the shape this version of the game writes, as a mod's own file may still be in an older one
-     * that means the same.
+     * Returns the JSON laid out the same way on both sides, so only real differences show. A table is
+     * converted to the format this game version writes, as a mod's file may use an older format with
+     * the same meaning.
      */
     private static List<String> lines(String json) {
         if (json == null) {
@@ -249,7 +249,7 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
         Gui.inset(g, left, top(), column, bottom() - top(), Gui.Tone.LIGHT);
         Gui.inset(g, right, top(), column, bottom() - top(), Gui.Tone.LIGHT);
         fitScroll();
-        // A list that scrolls says so with a bar down its side, and the right-hand lines make room for it.
+        // When the list scrolls, the right column's lines leave room for the bar.
         int room = scroll.scrolls() ? 6 : 0;
         Gui.scissor(g, left, top() + 1, right + column, bottom() - 1);
         int y = top() + 2 - scroll.top();

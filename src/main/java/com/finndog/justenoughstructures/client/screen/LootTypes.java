@@ -13,9 +13,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Every kind of entry, function and condition a loot table can use, from the game's own lists so
- * mods' kinds are there too, and what a new one of each starts as. Public for the game tests, which
- * check every new one loads.
+ * Every entry, function and condition type a loot table can use, read from the game's registries
+ * so mods' types are included, and the starting JSON for a new one of each. Public for the game
+ * tests, which check every new one loads.
  */
 public final class LootTypes {
     /**
@@ -29,7 +29,7 @@ public final class LootTypes {
                 "minecraft:block", "minecraft:fishing", "minecraft:gift", "minecraft:barter", "minecraft:command", "minecraft:selector",
                 "minecraft:advancement_reward", "minecraft:advancement_entity", "minecraft:advancement_location"));
         //? if >=1.21 {
-        /*// By 1.21: vaults, shearing, what a mob is given to wear, and what enchantments are worked out from.
+        /*// Added by 1.21: vaults, shearing, mob equipment, and the contexts enchantment effects read.
         out.addAll(List.of("minecraft:vault", "minecraft:shearing", "minecraft:equipment", "minecraft:block_use", "minecraft:hit_block",
                 "minecraft:enchanted_damage", "minecraft:enchanted_entity", "minecraft:enchanted_item", "minecraft:enchanted_location"));
         *///?}
@@ -37,7 +37,7 @@ public final class LootTypes {
         /*out.addAll(List.of("minecraft:block_interact", "minecraft:entity_interact"));
         *///?}
         //? if >=26.3 {
-        /*// 26.3 has no kind for a villager's trades any more, and added these.
+        /*// 26.3 removed the villager trade type and added these.
         out.addAll(List.of("minecraft:container_process", "minecraft:command_slot_source", "minecraft:command_compute_default",
                 "minecraft:command_compute_entity", "minecraft:command_compute_position"));
         *///?} else if >=26.1 {
@@ -83,9 +83,9 @@ public final class LootTypes {
     public static final String CONTAINER_TABLE_KEY = "name";
     //?}
 
-    // The fixed words some settings take for who or what they're about, which the game has renamed
-    // twice. Here rather than with the screen's own lists, so the game tests can check the game
-    // takes every one of them.
+    // The fixed values some settings take for which entity or block entity they read, renamed
+    // twice by the game. Kept here, not in LootOptions, so the game tests can check the game
+    // accepts each one.
     //? if >=26.1 {
     /*// By 26.1 there are two more, for the entity a player hit or used something on, and one list
     // serves everything that reads from an entity or a block entity.
@@ -94,7 +94,7 @@ public final class LootTypes {
             "interacting_entity");
     public static final List<String> NBT_SOURCES = COPY_SOURCES;
     *///?} else if >=1.21 {
-    /*// 1.21 said attacker where it had said killer, and gave copying a name words of its own.
+    /*// 1.21 renamed killer to attacker, and gave copy_name a separate set of source names.
     public static final List<String> ENTITY_TARGETS = List.of("this", "attacker", "direct_attacker", "attacking_player");
     public static final List<String> COPY_SOURCES = List.of("block_entity", "this", "attacking_entity", "last_damage_player");
     public static final List<String> NBT_SOURCES = List.of("block_entity", "this", "attacker", "direct_attacker", "attacking_player");
@@ -104,7 +104,7 @@ public final class LootTypes {
     public static final List<String> NBT_SOURCES = List.of("block_entity", "this", "killer", "killer_player", "direct_killer");
     //?}
 
-    /** The ones people use most, first, in this order; then the rest by name. */
+    /** Entry types listed first, most used first. The rest follow, sorted by id. */
     private static final List<String> ENTRIES_FIRST = List.of("item", "tag", "loot_table", "empty", "dynamic", "alternatives", "group", "sequence");
     // Each version's names for the same thing sit side by side; only the ones the game has are listed.
     private static final List<String> FUNCTIONS_FIRST = List.of("set_count", "enchant_randomly", "enchant_with_levels", "set_enchantments", "set_damage",
@@ -267,7 +267,7 @@ public final class LootTypes {
         return JsonParser.parseString("{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:max_health\", \"amount\": 1, "
                 + "\"operation\": \"add_value\", \"slot\": \"any\"}").getAsJsonObject();
         *///?} else if >=1.21 {
-        /*// Since 1.21 a modifier is known by an id rather than a name and a UUID.
+        /*// Since 1.21 a modifier has an id instead of a name and UUID.
         return JsonParser.parseString("{\"id\": \"minecraft:modifier\", \"attribute\": \"minecraft:generic.max_health\", \"amount\": 1, "
                 + "\"operation\": \"add_value\", \"slot\": \"any\"}").getAsJsonObject();
         *///?} else {
@@ -292,7 +292,8 @@ public final class LootTypes {
             }
             case "loot_table" -> out.addProperty(TABLE_KEY, "minecraft:chests/simple_dungeon");
             case "dynamic" -> out.addProperty("name", "minecraft:contents");
-            // 26.1's entry for what's in some slots of whatever the loot comes from: here, all of a container's.
+            // 26.1's slots entry, which takes items from slots of the loot's source. It starts with
+            // every slot of the block entity's container.
             case "slots" -> out.add("slot_source", JsonParser.parseString(
                     "{\"type\": \"minecraft:slot_range\", \"source\": \"block_entity\", \"slots\": \"container.*\"}"));
             case "alternatives", "group", "sequence" -> out.add("children", new JsonArray());
@@ -319,7 +320,7 @@ public final class LootTypes {
         return json == null ? new JsonObject() : JsonParser.parseString(json).getAsJsonObject();
     }
 
-    /** The type key first, as the game's own files have it. */
+    /** Puts the type key first, as the game's files do. */
     private static JsonObject reorder(JsonObject object, String first) {
         JsonObject out = new JsonObject();
         out.add(first, object.get(first));
@@ -331,7 +332,7 @@ public final class LootTypes {
         return out;
     }
 
-    /** "minecraft:set_count" as "set_count"; a mod's own kind keeps its namespace. */
+    /** Drops the minecraft namespace: "minecraft:set_count" becomes "set_count". Other namespaces are kept. */
     static String shortId(String id) {
         return id.startsWith("minecraft:") ? id.substring(10) : id;
     }

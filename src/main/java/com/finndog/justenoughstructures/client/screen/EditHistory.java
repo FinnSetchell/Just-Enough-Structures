@@ -4,15 +4,14 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * What a table was before each change made to it in the editor, to go back to and forward again.
- * Each step also says what was picked when its change was made, so going back shows where the
- * change was. Plain, with nothing of the screen's in it, so the game tests can run it.
+ * Undo and redo history for the loot editor. Each step records the selection at the time, so undo
+ * shows where the change was. No screen dependencies, so game tests can use it.
  */
 public final class EditHistory {
     /** How many changes are kept to go back through. */
     static final int MOST = 200;
 
-    /** A table to go to, and what to show it with: the pool, the entry, and for an entry inside another the path down to it. */
+    /** A table state and the selection to restore with it: pool, entry, and a nested entry's path. */
     public record Step(String table, int pool, int entry, String child) {
         public Step(String table, int pool, int entry) {
             this(table, pool, entry, "");
@@ -23,19 +22,19 @@ public final class EditHistory {
     private final Deque<Step> forward = new ArrayDeque<>();
     private String now;
 
-    /** Starts over from a table as it was opened, which there's nothing to go back to before. Null for none yet. */
+    /** Clears the history and starts from the table as opened. Null if there's no table yet. */
     public void start(String table) {
         back.clear();
         forward.clear();
         now = table;
     }
 
-    /** Notes the table after a change, made with this pool and entry picked. One that's the same as before isn't a change. */
+    /** Records the table after a change made with this pool and entry selected. An unchanged table is ignored. */
     public void changed(String table, int pool, int entry) {
         changed(table, pool, entry, "");
     }
 
-    /** The same, made with an entry inside another picked: {@code child} is the path down to it from the pool's entry. */
+    /** The same, with a nested entry selected: {@code child} is its path from the pool's top-level entry. */
     public void changed(String table, int pool, int entry, String child) {
         if (now == null) {
             now = table;
@@ -60,12 +59,12 @@ public final class EditHistory {
         return !forward.isEmpty();
     }
 
-    /** The table before the last change, or null if there's none to take back. */
+    /** Returns the step before the last change, or null if there's nothing to undo. */
     public Step undo() {
         return move(back, forward);
     }
 
-    /** The table after the change last taken back, or null if there's none to put back. */
+    /** Returns the step after the last undone change, or null if there's nothing to redo. */
     public Step redo() {
         return move(forward, back);
     }

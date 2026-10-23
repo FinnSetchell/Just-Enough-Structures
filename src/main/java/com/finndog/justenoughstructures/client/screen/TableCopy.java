@@ -9,9 +9,8 @@ import java.util.Collection;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Starting a new loot table as a copy of another, which is how to change what one chest gives
- * without changing every chest that shares its table: the id the copy is offered, and what it
- * starts as.
+ * Helpers for starting a loot table as a copy of another, so one chest can change without changing
+ * every chest that shares the table: the copy's suggested id and its starting JSON.
  */
 public final class TableCopy {
     private TableCopy() {

@@ -30,7 +30,7 @@ public final class MobPickerScreen extends PickerScreen<String> {
     private final ResourceLocation template;
     private final BlockPos pos;
     private final String current;
-    /** The block the spawner is set to be, which it stays. */
+    /** The spawner's block (spawner or trial spawner). Changing the mob keeps it. */
     private final ResourceLocation block;
 
     MobPickerScreen(Screen parent, ResourceLocation template, BlockPos pos, String current, ResourceLocation block) {
@@ -119,7 +119,7 @@ public final class MobPickerScreen extends PickerScreen<String> {
         return "spawner.saved";
     }
 
-    /** Above the buttons, with a line under the list for a note about the mob picked. */
+    /** Above the buttons, leaving a line under the list for a note about the selected mob. */
     @Override
     protected int listBottom() {
         return super.listBottom() - font.lineHeight - 4;
@@ -134,7 +134,7 @@ public final class MobPickerScreen extends PickerScreen<String> {
         Gui.fineClipped(g, font, detail, left + 25, y + 13, right - left - 33, Gui.labelSoft());
     }
 
-    /** A word about the mob picked when it isn't a monster: spawners still check where it would normally spawn. */
+    /** A note about the selected mob when it isn't a monster: spawners still check where it would normally spawn. */
     @Override
     protected Component note() {
         ResourceLocation id = picked == null || picked.isEmpty() ? null : ResourceLocation.tryParse(picked);

@@ -46,24 +46,24 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Edits a loot table in game, as a form like misode's generator. On the left are the table, its
- * pools and their entries; in the middle the form for the one picked, with every function and
- * condition, and one possible roll of the edit; on the right every item's chance. All of it is the
- * table's JSON underneath, which can be edited directly too. Saving writes an override, which
- * applies from the next /reload; the server refuses anything the game couldn't load.
+ * Edits a loot table in game, as a form like misode's generator. The left column lists the table,
+ * its pools and their entries; the middle shows the form for the selected one, with its functions
+ * and conditions, and a sample roll; the right column shows each item's chance. The form edits the
+ * table's JSON, which can also be edited directly. Saving writes an override that applies from the
+ * next /reload; the server refuses a table the game can't load.
  */
 public final class LootEditorScreen extends BackdropScreen implements Nav.Page, LootForm.Host {
     private static final int PAD = 6;
     private static final int TOP = NavBar.TOP;
     private static final int TREE_ROW = 18;
-    /** What lights up behind a small icon button under the mouse: red for one that takes something out. */
+    /** Hover colours behind small icon buttons. REMOVE_LIT is red, for buttons that remove something. */
     static final int REMOVE_LIT = 0xFFB04040;
     static final int BUTTON_LIT = 0xFF6D6D6D;
-    /** The room the picked row's buttons and grip take at its right. */
+    /** Width the selected row's buttons and grip take at its right. */
     private static final int ROW_ACTIONS = 38;
-    /** The widest the tree, form and chances are together. */
+    /** Maximum combined width of the tree, form and chances columns. */
     private static final int MOST_CONTENT = 1100;
-    /** The least height the form keeps when one possible roll goes under it; with less, there's no roll. */
+    /** Minimum form height with the sample roll under it. With less room the roll is hidden. */
     private static final int LEAST_FORM = 170;
     private static final int SLOT = 18;
     private static int good() {
@@ -79,7 +79,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
     private static final long PREVIEW_DELAY = 400;
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    /** Where a new table starts: a chest table with one pool and nothing in it yet. */
+    /** Starting JSON for a new table: a chest table with one empty pool. */
     private static final String BLANK = "{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}";
 
     private final Screen parent;
@@ -87,16 +87,16 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private final ToolsUi ui;
     private final LootForm form;
     private ResourceLocation tableId;
-    /** The id it was opened with, which tableName is the name of. */
+    /** The id the editor opened with. tableName is this id's display name. */
     private final ResourceLocation openedAs;
     private final String tableName;
-    /** Told the id a table was saved under, for the table picker to pick a new one. Null if no one asked. */
+    /** Receives the id a table was saved under, so the table picker can select it. Null if not needed. */
     private final Consumer<ResourceLocation> onSaved;
     /** The table a new one starts as a copy of, or null for one that starts empty. */
     private final ResourceLocation copyOf;
-    /** Whether it did start as that copy. Not if it had been saved already, or the other table couldn't be read. */
+    /** Whether the table started as that copy. False if it was already saved, or the other table couldn't be read. */
     private boolean copied;
-    // A new table's id, which can still be changed until it's saved, and anything wrong with it.
+    // The id box for a new table, editable until it's saved, and the result of checking the id.
     private EditBox idBox;
     private Component idProblem;
     private int idCheck;
@@ -108,24 +108,24 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private boolean raw;
     private String rawText;
     private boolean dirty;
-    /** The table before each change, to go back to with Ctrl+Z and forward again with Ctrl+Y. */
+    /** Undo and redo history, for Ctrl+Z and Ctrl+Y. */
     private final EditHistory history = new EditHistory();
     private Button undoButton;
     private Button redoButton;
-    /** Merge in what the mod changed as soon as the table's here, as Pack tools' Merge asks. */
+    /** Whether to merge the mod's changes as soon as the table loads. Set by Pack tools' Merge. */
     private boolean mergeWhenLoaded;
     private Component message;
     private int messageColour;
 
-    /** What's picked on the left: -1 for the table itself, then a pool, and -1 for the pool or one of its entries. */
+    /** Selection in the tree. selectedPool is -1 for the table; selectedEntry is -1 for the pool itself. */
     private int selectedPool = -1;
     private int selectedEntry = -1;
-    /** For an entry inside another: the path down to it from the pool's entry, like "children.1". Empty for the pool's own entry. */
+    /** For a nested entry, its path from the pool's top-level entry, like "children.1". Empty for a top-level entry. */
     private String selectedChild = "";
 
     /**
-     * A row of the list that can be moved: the pool or entry it stands for, where that is in the table
-     * and in the list that holds it, and where the row is drawn.
+     * A tree row that can be dragged: the pool or entry it shows, its JSON path, the list holding it
+     * and its index there, and where the row is drawn.
      */
     private record TreeRow(int pool, int entry, String child, String path, String list, int index, int y, int indent) {
     }
@@ -133,9 +133,9 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     /** The rows drawn this frame, top to bottom, and where the last of them ends. */
     private final List<TreeRow> treeRows = new ArrayList<>();
     private int treeEnd;
-    /** Where the picked row's buttons are, so a press on one isn't taken for the start of a drag. Null without any. */
+    /** Area of the selected row's buttons, so a press on one doesn't start a drag. Null when there are none. */
     private int[] rowButtons;
-    /** The row pressed on, which is being dragged once the mouse has gone a little way with it, and where the mouse is. */
+    /** The row pressed on, which becomes a drag once the mouse moves a few pixels, and the mouse positions. */
     private TreeRow pressedRow;
     private double pressedY;
     private double dragY;
@@ -143,7 +143,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private final Scroller treeScroll = new Scroller();
     private final Scroller formScroll = new Scroller();
     private final Scroller oddsScroll = new Scroller();
-    /** The bar of a dropdown or of the item grid that a press took hold of. */
+    /** The scroll bar being dragged: in a list over the form, the item grid or the JSON view. */
     private HeldBar heldBar;
 
     private LootOdds preview;
@@ -159,24 +159,24 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     private ItemStack hoveredStack = ItemStack.EMPTY;
 
     private MultiLineEditBox rawBox;
-    /** The JSON view's scroll bar and wheel, like the other lists', drawing the box with them. */
+    /** Scroll bar and wheel handling for the JSON view. It also draws the box. */
     private BoxBar rawBar;
-    /** The one text box for typing in the form, moved to whichever field is clicked. */
+    /** The single text box for typing in the form, moved to the clicked field. */
     private EditBox inline;
     private String editingId;
     private Consumer<String> editingCommit;
     /** Where each field was drawn this frame, so the text box can follow its field as the form scrolls. */
     private final Map<String, int[]> fieldRects = new HashMap<>();
     private Choice choice;
-    /** What the field being typed in can be set to, listed under it, for fields that have such a list. */
+    /** Suggested values listed under the field being typed in, for fields that have them. */
     private Suggestions suggestions;
     private Picker picker;
     private EditBox pickerSearch;
 
     private int contentTop, contentBottom, treeX, treeW, formX, formW, oddsX, oddsW, rollTop;
-    /** How far in from the panel's sides the columns, header and buttons are, on a very big screen. */
+    /** Extra inset of the columns, header and buttons from the panel's sides on a very wide screen. */
     private int inset;
-    /** How many times a chest's own size the roll's slots are drawn: twice when there's plenty of room. */
+    /** Scale of the sample roll's slots: 2 when there's plenty of room, otherwise 1. */
     private int rollScale = 1;
 
     public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName) {
@@ -187,7 +187,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         this(parent, tableId, tableName, onSaved, null);
     }
 
-    /** With {@code copyOf}, a table there isn't yet starts as a copy of that one, which is left as it is. */
+    /** If {@code copyOf} is set and the table doesn't exist yet, it starts as a copy of that table, which isn't changed. */
     public LootEditorScreen(Screen parent, ResourceLocation tableId, String tableName, Consumer<ResourceLocation> onSaved, ResourceLocation copyOf) {
         super(Component.translatable("screen.justenoughstructures.editor.title", tableName));
         this.parent = parent;
@@ -201,13 +201,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         load();
     }
 
-    /** A table no mod or datapack has and that hasn't been saved here yet. */
+    /** Returns true for a table no mod or datapack has and that hasn't been saved yet. */
     private boolean isNew() {
         return view != null && view.original() == null && view.current() == null;
     }
 
     private void load() {
-        // A copy needs the table it's a copy of as well, the first time. After that the draft is the copy.
+        // A copy also loads its source table, the first time only. After that the draft holds the copy.
         boolean copying = copyOf != null && draft == null && rawText == null;
         CompletableFuture<Codecs.TableReply> other = copying ? ClientRequests.table(copyOf) : CompletableFuture.completedFuture(null);
         ClientRequests.table(tableId).thenAcceptBoth(other, (reply, source) -> {
@@ -219,7 +219,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (draft == null && rawText == null) {
                 LootOverrides.View from = source != null && isNew() ? source.view() : null;
                 if (from != null && from.current() != null) {
-                    // An edit the game can't load is copied as it is, to be fixed as JSON.
+                    // An edit the game can't load is copied unchanged and opens in the JSON view.
                     boolean broken = from.status() == LootOverrides.Status.BROKEN;
                     startFrom(broken ? from.current() : TableCopy.start(from.current()), broken);
                     copied = true;
@@ -230,11 +230,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     }
                 }
                 dirty = false;
-                // The first pool, as that's where most of the table is.
+                // Select the first pool, where most tables keep their entries.
                 if (draft != null && JsonPaths.object(draft, "pools.0") != null) {
                     selectedPool = 0;
                 }
-                // There's nothing to go back to before the table as it was opened.
+                // Undo history starts at the table as opened.
                 history.start(raw || draft == null ? null : draft.toString());
             }
             if (mergeWhenLoaded) {
@@ -247,7 +247,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         });
     }
 
-    /** Puts a table's JSON in the editor, as the form if it reads as a table, otherwise as JSON to fix. */
+    /** Loads JSON into the editor: as the form if it parses as a table and {@code asJson} is false, otherwise in the JSON view. */
     private void startFrom(String json, boolean asJson) {
         JsonObject parsed = parseObject(json);
         if (parsed == null || asJson) {
@@ -263,7 +263,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         selectedEntry = -1;
         selectedChild = "";
         dirty = true;
-        // Going back to the mod's table is a change like any other, and can be taken back.
+        // Reverting to the mod's table is a change like any other, so it can be undone.
         remember();
         schedulePreview();
     }
@@ -280,7 +280,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** The edit as it stands, as JSON text. */
+    /** Returns the current edit as JSON text. */
     private String json() {
         if (raw) {
             return rawBox != null ? rawBox.getValue() : rawText == null ? "" : rawText;
@@ -295,13 +295,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     @Override
     public void changed() {
-        // First, while what's picked is still what the change was made on.
+        // Record first, while the selection is still where the change was made.
         remember();
         dirty = true;
         if (message != null && messageColour == bad()) {
             message = null;
         }
-        // Whatever was picked may be gone, like a removed pool.
+        // The selection may be gone, like a removed pool.
         if (selectedPool >= 0 && JsonPaths.object(draft, JsonPaths.join("pools", selectedPool)) == null) {
             selectedPool = -1;
             selectedEntry = -1;
@@ -310,7 +310,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             selectedEntry = -1;
             selectedChild = "";
         }
-        // With one inside another gone, the nearest it was inside that's still there is picked.
+        // If a nested entry is gone, select its nearest parent that still exists.
         while (!selectedChild.isEmpty() && JsonPaths.object(draft, EntryTree.path(selectedPool, selectedEntry, selectedChild)) == null) {
             selectedChild = EntryTree.parent(selectedChild);
         }
@@ -321,7 +321,10 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         previewDue = Util.getMillis() + PREVIEW_DELAY;
     }
 
-    /** Notes the table as it now is, so the change that made it so can be taken back. The JSON view keeps none: its text is its own. */
+    /**
+     * Records the current table in the undo history. Nothing is recorded in the JSON view; switching
+     * back to the form records the result as one change.
+     */
     private void remember() {
         if (!raw && draft != null) {
             history.changed(draft.toString(), selectedPool, selectedEntry, selectedChild);
@@ -330,7 +333,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     private void undo() {
         if (canStep()) {
-            // What's being typed counts as a change, and is the first to be taken back.
+            // Unfinished typing counts as a change, and is the first one undone.
             commitEditing();
             show(history.undo());
         }
@@ -343,12 +346,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** Not in the JSON view, whose box is the game's own, nor with the item grid open over the form. */
+    /** Whether undo and redo work now: not in the JSON view, not while the item picker is open, and only once the table has loaded. */
     private boolean canStep() {
         return !raw && picker == null && view != null && draft != null;
     }
 
-    /** Puts a table from the history in the editor, with what was picked when it was changed picked again. */
+    /** Shows a table from the history and restores the selection from when it changed. */
     private void show(EditHistory.Step step) {
         if (step == null) {
             return;
@@ -428,7 +431,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         box.setWidth(Math.max(10, rect[2] - 8));
     }
 
-    /** Puts what was typed into the table, and puts the text box away. */
+    /** Writes the typed text into the table and hides the text box. */
     private void commitEditing() {
         if (editingId == null) {
             return;
@@ -477,14 +480,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     @Override
     protected void init() {
         commitEditing();
-        // A list of choices hangs under its box where that was, which moves when the screen changes size.
+        // Close an open list of choices, as its box moves when the screen resizes.
         choice = null;
         // Tags and the server's lists may have changed since the editor was last open.
         LootOptions.forget();
         int left = PAD + 6;
         int right = width - PAD - 6;
-        // On a very big screen the columns are kept together in the middle, rather than a form
-        // stretching across it with its links far from what they're for.
+        // On a very wide screen the columns stay together in the middle, so the form doesn't
+        // stretch out with its links far from their fields.
         inset = Math.max(0, (right - left - MOST_CONTENT) / 2);
         left += inset;
         right -= inset;
@@ -497,8 +500,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         oddsX = right - oddsW;
         formX = treeX + treeW + 6;
         formW = (oddsW > 0 ? oddsX - 6 : right) - formX;
-        // One possible roll goes under the form when there's room for both, and at twice the size
-        // when it fits across and the form still keeps plenty of room.
+        // The sample roll goes under the form when both fit, at double size when it fits across
+        // and the form still has plenty of room.
         int contentH = contentBottom - contentTop;
         rollScale = formW >= 2 * 9 * SLOT + 12 && contentH - (6 * SLOT + 44) >= 240 ? 2 : 1;
         rollTop = contentH - rollHeight() - 6 >= LEAST_FORM ? contentBottom - rollHeight() - 2 : contentBottom;
@@ -529,12 +532,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             idBox.setValue(tableId.toString());
             idBox.setResponder(this::idChanged);
         }
-        // A rebuild, as when the window is resized, keeps the JSON view where it was; a new one starts at its top.
+        // A rebuild, like a window resize, keeps the JSON view's scroll position; a new view starts at the top.
         double rawOffset = rawBox != null ? JsonEditBox.offset(rawBox) : 0;
         rawBox = null;
         rawBar = null;
         if (raw) {
-            // Narrower by the strip its bar takes on the right. The bar draws it, so it isn't one the screen draws.
+            // 8 px narrower to leave room for the scroll bar. BoxBar draws the box, so it's added with addWidget, not addRenderableWidget.
             rawBox = addWidget(JsonEditBox.create(font, treeX, contentTop, formX + formW - treeX - 8, contentBottom - contentTop,
                     Component.empty(), Component.translatable("screen.justenoughstructures.editor.json")));
             rawBar = new BoxBar(rawBox);
@@ -587,7 +590,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                     .bounds(x, y, buttonWidth("remove"), 20)
                     .tooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.editor.remove_hint"))).build());
         }
-        // Undo and Redo go beside the JSON button while there's room before the buttons on the right. Their keys work either way.
+        // Undo and Redo go beside the JSON button when there's room before the right-hand buttons. Their keys work either way.
         int undoX = left + buttonWidth(raw ? "form" : "json") + 4;
         undoButton = null;
         redoButton = null;
@@ -595,28 +598,27 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             undoButton = addRenderableWidget(new IconButton(undoX, y, Icons.UNDO, toolbarTip("undo"), b -> undo()));
             redoButton = addRenderableWidget(new IconButton(undoX + 24, y, Icons.REDO, toolbarTip("redo"), b -> redo()));
         }
-        // In the JSON view the same room takes Copy and Paste, to carry a table to another tool or bring one in.
+        // In the JSON view that space holds Copy and Paste, to move a table to or from another tool.
         if (raw && x - undoX >= 44) {
             addRenderableWidget(new IconButton(undoX, y, Icons.COPY, toolbarTip("copy_json"), b -> copyJson()));
             addRenderableWidget(new IconButton(undoX + 24, y, Icons.PASTE, toolbarTip("paste_json"), b -> pasteJson()));
         }
     }
 
-    /** What a toolbar button that's an icon is called, over what it does. */
+    /** Tooltip for an icon button in the toolbar: its name, then its hint. */
     private static Component toolbarTip(String key) {
         return Component.translatable("screen.justenoughstructures.editor." + key).append("\n")
                 .append(Component.translatable("screen.justenoughstructures.editor." + key + "_hint"));
     }
 
     /**
-     * What stands in for the system's clipboard when Copy and Paste are pressed, or null for the
-     * clipboard itself. The screenshot harness puts something here, as its hidden window isn't let
-     * at the real one.
+     * Test hooks that replace the system clipboard for Copy and Paste. Null uses the real clipboard.
+     * The screenshot harness sets them because its hidden window can't reach the real one.
      */
     public static Consumer<String> copyTo;
     public static java.util.function.Supplier<String> pasteFrom;
 
-    /** The table's JSON onto the clipboard. */
+    /** Copies the table's JSON to the clipboard. */
     private void copyJson() {
         if (copyTo != null) {
             copyTo.accept(json());
@@ -626,7 +628,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         note(Component.translatable("screen.justenoughstructures.editor.copied_json"), good());
     }
 
-    /** The clipboard's text in place of the JSON here. It's checked like anything typed in the box. */
+    /** Replaces the JSON view's text with the clipboard's. It's checked like anything typed in the box. */
     private void pasteJson() {
         String text = pasteFrom != null ? pasteFrom.get() : minecraft.keyboardHandler.getClipboard();
         if (rawBox == null || text == null || text.isBlank()) {
@@ -638,8 +640,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     /**
-     * Puts text in the JSON view, scrolled {@code offset} pixels down. Filling the box leaves its cursor
-     * after the last character, scrolled to, where a list here would start at its top.
+     * Puts text in the JSON view, scrolled {@code offset} pixels down. setValue moves the cursor to
+     * the end and scrolls there, so the offset is set afterwards.
      */
     private void fillJson(String text, double offset) {
         rawBox.setValue(text);
@@ -710,7 +712,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (!raw && draft != null) {
             JsonArray pools = JsonPaths.array(draft, "pools");
             for (int p = 0; pools != null && p < pools.size(); p++) {
-                // Those inside others too, which can name an item that isn't one as well as any.
+                // Nested entries too; they can name an unknown item as well.
                 for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, "pools." + p + ".entries"))) {
                     String path = EntryTree.path(p, node.entry(), node.child());
                     if (LootTypes.shortId(JsonPaths.string(draft, path + ".type", "")).equals("item")
@@ -734,7 +736,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return null;
     }
 
-    /** A new table's id was typed: it's used once it reads as an id and no table has it already. */
+    /** Called when a new table's id is typed. The id is used if it parses and no table has it already. */
     private void idChanged(String text) {
         int check = ++idCheck;
         ResourceLocation id = text.contains(":") ? ResourceLocation.tryParse(text.trim()) : null;
@@ -798,7 +800,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         });
     }
 
-    /** Asks the server again how things stand, after a save or an action. */
+    /** Fetches the table's current state again after a save or an action. */
     private void refresh() {
         boolean keepDraft = draft != null || rawText != null;
         ClientRequests.table(tableId).thenAccept(reply -> {
@@ -822,7 +824,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         note(why, bad());
     }
 
-    /** The editor on a table this one names, opened over this one, which is as it was left on coming back. */
+    /** Opens the editor on a table this one references. Going back returns to this editor unchanged. */
     @Override
     public void openTable(String id) {
         ResourceLocation table = ResourceLocation.tryParse(id);
@@ -942,13 +944,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             save(false);
             return true;
         }
-        // Delete takes out what's picked, as the cross on its row does, while nothing is being typed in.
+        // Delete removes the selected pool or entry, like the cross on its row, when nothing is being typed.
         if (key == InputConstants.KEY_DELETE && canStep() && editingId == null && choice == null && selectedPool >= 0
                 && !(getFocused() instanceof EditBox box && box.isFocused())) {
             removePicked();
             return true;
         }
-        // What dragging a row does, for the keyboard: Alt with an arrow moves what's picked one place.
+        // Alt+Up/Down moves the selected row one place, like dragging it.
         if (hasAltDown() && (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN)
                 && canStep() && editingId == null && selectedPool >= 0) {
             moved(JsonPaths.move(draft, pickedPath(), key == InputConstants.KEY_UP ? -1 : 1));
@@ -1003,7 +1005,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 return true;
             }
         }
-        // A press on a row of the list picks it, and may be the start of dragging it somewhere else in its list.
+        // A press on a tree row selects it, and may start a drag to move it.
         TreeRow under = button == InputConstants.MOUSE_BUTTON_LEFT ? rowUnder(mouseX, mouseY) : null;
         if (button == InputConstants.MOUSE_BUTTON_LEFT && ui.click(mouseX, mouseY)) {
             pressedRow = under;
@@ -1023,7 +1025,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
         if (pressedRow != null) {
             dragY = mouseY;
-            // Not until it has gone a little way, so a click that slips isn't a drag.
+            // Only after a few pixels, so a click that slips isn't a drag.
             if (Math.abs(mouseY - pressedY) > 4) {
                 draggingRow = true;
             }
@@ -1049,14 +1051,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (draggingRow) {
                 draggingRow = false;
                 if (pool != row.pool()) {
-                    // Into another pool, where it's picked now.
+                    // Into another pool, and select it there.
                     int at = JsonPaths.moveInto(draft, row.path(), JsonPaths.join("pools", pool) + ".entries", to);
                     if (at >= 0) {
                         select(pool, at);
                         changed();
                     }
                 } else if (to != row.index()) {
-                    // The press picked the row, so what's picked is what moves.
+                    // The press selected this row, so moved() updates the selection to its new place.
                     moved(JsonPaths.moveTo(draft, row.path(), to));
                 }
                 return true;
@@ -1080,7 +1082,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             suggestions.scroll(delta);
             return true;
         }
-        // The JSON view first: the list and the form it covers keep the places they were last drawn.
+        // Check the JSON view first. The tree and form scrollers under it still hold their last-drawn areas.
         if (rawBar != null && rawBar.wheel(mouseX, mouseY, delta)) {
             return true;
         }
@@ -1112,7 +1114,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     // ------------------------------------------------------------------ back and forward
 
-    /** Where the editor is, for Back and Forward: which table. */
+    /** The editor's place in the Back and Forward history: which table. */
     private record EditorLayer(ResourceLocation id, String name, boolean isNew, ResourceLocation copyOf) implements Nav.Layer {
         @Override
         public Object key() {
@@ -1188,7 +1190,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         super.render(g, mx, my, partialTick);
 
         if (picker != null || choice != null) {
-            // Only what's cut short in the list over the editor counts now.
+            // Restart clipped-text tracking so only the overlay list's clipped names get tooltips.
             Gui.beginClipped();
             Gui.push(g);
             Gui.lift(g, 400);
@@ -1238,7 +1240,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         Gui.pop(g);
     }
 
-    /** The title, the id, and a line saying how the table stands with what can be done about it. */
+    /** Draws the title, the id, and the status line with its actions. */
     private void header(GuiGraphics g) {
         int textX = PAD + 8 + inset;
         int right = width - PAD - 8 - inset;
@@ -1257,7 +1259,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (view == null) {
             return;
         }
-        // The line under it: a message if there's one, otherwise how the table stands.
+        // The status line: a message if there is one, otherwise the table's status.
         int barY = TOP + 30;
         Component status = message != null ? message : statusText();
         int colour = message != null ? messageColour : statusColour();
@@ -1272,7 +1274,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 Component label = Component.translatable("screen.justenoughstructures.editor." + key);
                 actionsLeft -= ui.buttonWidth(label);
                 Runnable action = switch (key) {
-                    // The same as Remove: the edit's put aside, and the mod's table used.
+                    // Same as Remove: the edit is set aside and the mod's table is used.
                     case "use_mods" -> () -> tableAction(JesNetwork.ACTION_REMOVE);
                     case "keep" -> () -> tableAction(JesNetwork.ACTION_KEEP);
                     case "merge" -> this::merge;
@@ -1314,12 +1316,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return ToolsUi.statusColours(statusKind())[1];
     }
 
-    /** The colours of the status bar: see {@link ToolsUi#status}. */
+    /** Returns the status bar's kind, for {@link ToolsUi#statusColours}. */
     private int statusKind() {
         return view == null || isNew() ? ToolsUi.STATUS_NEW : ToolsSection.statusKind(view.status());
     }
 
-    /** The table, its pools and their entries, to pick one to change, with ways to add more. */
+    /** Draws the tree of the table, its pools and their entries, with links to add more. */
     private void renderTree(GuiGraphics g) {
         Gui.inset(g, treeX, contentTop, treeW, contentBottom - contentTop, Gui.Tone.PANEL);
         int top = treeScroll.begin(g, ui, treeX + 1, contentTop + 1, treeW - 2, contentBottom - contentTop - 2);
@@ -1345,11 +1347,11 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (poolPicked) {
                 rowActions(g, x, y - TREE_ROW, w, "remove_pool");
             }
-            // Each entry, and after it those inside it, a step further in.
+            // Each entry, followed by its nested entries, indented one step further.
             for (EntryTree.Node node : EntryTree.of(JsonPaths.array(draft, poolPath + ".entries"))) {
                 JsonObject object = node.object();
                 JsonElement weight = object.get("weight");
-                // One that holds others has no weight of its own.
+                // An entry that holds others has no weight.
                 String weightText = EntryTree.holdsEntries(object) ? "" : weight == null ? "1" : weight.getAsString();
                 String weightLabel = shortWeights || weightText.isEmpty() ? weightText
                         : Component.translatable("screen.justenoughstructures.editor.weight", weightText).getString();
@@ -1387,12 +1389,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     /**
-     * On the picked row, where its detail would be: a grip to say the row can be dragged, a button to
-     * copy what it stands for and one to take it out. The words for them are on hovering each.
+     * Draws the selected row's drag grip, duplicate and remove buttons in place of its detail. Each
+     * has a tooltip.
      */
     private void rowActions(GuiGraphics g, int x, int y, int w, String removeKey) {
         int right = x + w - 3;
-        // The grip isn't among them: a press on it starts a drag like a press anywhere else on the row.
+        // The grip isn't included: a press on it starts a drag, like a press anywhere else on the row.
         rowButtons = new int[]{right - 24, y, 24, TREE_ROW};
         Component remove = Component.translatable("screen.justenoughstructures.editor." + removeKey);
         ui.iconButton(g, right - 10, y + 5, Icons.REMOVE, REMOVE_LIT, remove, remove.getString(), this::removePicked);
@@ -1403,12 +1405,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         ui.tooltip(right - 34, y + 3, 11, 12, Component.translatable("screen.justenoughstructures.editor.drag_row"));
     }
 
-    /** Where in the table what's picked is: a pool, or an entry of one. */
+    /** Returns the JSON path of the selected pool or entry. */
     private String pickedPath() {
         return selectedEntry < 0 ? JsonPaths.join("pools", selectedPool) : EntryTree.path(selectedPool, selectedEntry, selectedChild);
     }
 
-    /** Takes what's picked out of the table, leaving what it was in picked. */
+    /** Removes the selected pool or entry and selects its parent. */
     private void removePicked() {
         JsonPaths.remove(draft, pickedPath());
         if (selectedEntry < 0) {
@@ -1421,7 +1423,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         changed();
     }
 
-    /** After a move or a copy that put what's picked, or its copy, at {@code to} in its list: that's what's picked now. Nothing for -1. */
+    /** After a move or duplicate put the selection or its copy at {@code to} in its list, selects it there. Does nothing for -1. */
     private void moved(int to) {
         if (to < 0) {
             return;
@@ -1436,7 +1438,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         changed();
     }
 
-    /** The row of the list under the mouse, other than on the picked row's buttons, or null. */
+    /** Returns the tree row under the mouse, or null if there's none or the mouse is on the selected row's buttons. */
     private TreeRow rowUnder(double mouseX, double mouseY) {
         if (raw || draft == null || mouseX < treeX + 1 || mouseX >= treeX + 1 + treeScroll.width() || mouseY < contentTop + 1 || mouseY >= contentBottom - 1) {
             return null;
@@ -1452,7 +1454,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return null;
     }
 
-    /** Where what a row stands for ends in the list: after the rows of whatever is inside it. */
+    /** Returns the y where a row's block ends, after any nested rows. */
     private int blockEnd(TreeRow row) {
         for (int i = treeRows.indexOf(row) + 1; i < treeRows.size(); i++) {
             if (!treeRows.get(i).path().startsWith(row.path() + ".")) {
@@ -1463,8 +1465,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     /**
-     * The pool the row being dragged would land in. An entry of a pool's own goes into whichever pool's
-     * rows the mouse is among; a pool, and an entry inside another, stay in their own list.
+     * Returns the pool the dragged row would drop into. A top-level entry goes to the pool whose rows
+     * the mouse is over; a pool or a nested entry stays in its current list.
      */
     private int dropPool() {
         if (pressedRow == null || pressedRow.entry() < 0 || !pressedRow.child().isEmpty()) {
@@ -1479,7 +1481,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return pool < 0 ? pressedRow.pool() : pool;
     }
 
-    /** The rows of the list the row being dragged would land in, in order: its own, or another pool's entries. */
+    /** Returns the rows of the list the dragged row would drop into, in order: its current list, or another pool's entries. */
     private List<TreeRow> dropList() {
         int pool = dropPool();
         if (pool == pressedRow.pool()) {
@@ -1488,7 +1490,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return treeRows.stream().filter(row -> row.pool() == pool && row.entry() >= 0 && row.child().isEmpty()).toList();
     }
 
-    /** Where in the list it would land the row being dragged would go if it were let go now, or where it is if it isn't being dragged. */
+    /** Returns the index the dragged row would drop at if released now, or its current index if it isn't being dragged. */
     private int dropIndex() {
         if (pressedRow == null || !draggingRow) {
             return pressedRow == null ? -1 : pressedRow.index();
@@ -1501,13 +1503,13 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             bottoms[i] = blockEnd(list.get(i));
         }
         if (dropPool() != pressedRow.pool()) {
-            // Among another pool's entries, none of which is the one being dragged.
+            // Into another pool's entries, so none of them is the dragged row.
             return EntryTree.dropIndex(tops, bottoms, -1, (int) dragY);
         }
         return Math.min(EntryTree.dropIndex(tops, bottoms, pressedRow.index(), (int) dragY), Math.max(0, list.size() - 1));
     }
 
-    /** While a row is dragged, a line where it would land among the others in the list it would go into. */
+    /** While a row is dragged, draws a line where it would drop. */
     private void dropLine(GuiGraphics g, int x, int w) {
         if (pressedRow == null || !draggingRow) {
             return;
@@ -1520,7 +1522,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             if (own) {
                 return;
             }
-            // A pool with no entries yet: just under its own row.
+            // A pool with no entries yet: just under the pool's row.
             lineY = treeRows.stream().filter(row -> row.pool() == pool && row.entry() < 0).findFirst().map(row -> row.y() + TREE_ROW).orElse(-1);
             if (lineY < 0) {
                 return;
@@ -1533,8 +1535,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     /**
-     * A row of the tree. {@code shortDetail} stands in for {@code detail} when the name wouldn't fit
-     * beside it, like "15" for "weight 15", as the name matters more.
+     * Draws a tree row and returns the y below it. {@code shortDetail}, like "15" for "weight 15",
+     * replaces {@code detail} when the name wouldn't fit beside it, as the name matters more.
      */
     private int treeRow(GuiGraphics g, int x, int y, int w, ItemStack icon, String name, String detail, String shortDetail, boolean selected,
                         Runnable pick, int indent, boolean actions) {
@@ -1552,7 +1554,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         if (font.width(name) > x + w - 6 - Gui.fineWidth(font, detail) - textX) {
             detail = shortDetail;
         }
-        // The picked row's buttons go where its detail would, which the form beside it shows anyway.
+        // The selected row's buttons replace its detail, which the form beside it shows anyway.
         int detailW = actions ? ROW_ACTIONS : Gui.fineWidth(font, detail);
         Gui.drawClipped(g, font, name, textX, y + 5, x + w - 6 - detailW - textX, selected ? 0xFFFFFFFF : Gui.label(), selected);
         if (!actions) {
@@ -1562,8 +1564,8 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     }
 
     /**
-     * Whether entries show only their weight, "15" rather than "weight 15": when any entry's name
-     * wouldn't fit beside the longer one, so they all read the same way down the tree.
+     * Whether entries show only their weight, "15" instead of "weight 15". True when any entry's name
+     * wouldn't fit beside the longer form, so the whole tree reads the same way.
      */
     private boolean shortWeights(JsonArray pools, int w) {
         for (int p = 0; pools != null && p < pools.size(); p++) {
@@ -1574,7 +1576,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 }
                 JsonElement weight = object.get("weight");
                 String full = Component.translatable("screen.justenoughstructures.editor.weight", weight == null ? "1" : weight.getAsString()).getString();
-                // Indented, with an icon: the same room treeRow leaves the name.
+                // Allow for the indent and icon, matching the room treeRow leaves for the name.
                 if (font.width(label(object)) > w - 36 - 8 * node.depth() - Gui.fineWidth(font, full)) {
                     return true;
                 }
@@ -1583,7 +1585,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return false;
     }
 
-    /** How many rolls a pool has on its own, like "2-4", for when "rolls 2-4" doesn't fit. */
+    /** Returns a pool's roll count alone, like "2-4", for when "rolls 2-4" doesn't fit. */
     private static String rollsAmount(JsonElement rolls) {
         String kind = LootForm.providerKind(rolls);
         if (rolls == null) {
@@ -1637,7 +1639,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         String type = entry.has("type") ? entry.get("type").getAsString() : "minecraft:item";
         String key = LootTypes.shortId(type).equals("loot_table") ? LootTypes.TABLE_KEY : LootTypes.shortId(type).equals("tag") ? LootTypes.TAG_KEY : "name";
         String name = entry.has(key) && entry.get(key).isJsonPrimitive() ? entry.get(key).getAsString() : "";
-        // A tag's "#" is how it's written, not part of what it's called.
+        // The "#" marks a tag in JSON; it isn't part of the name.
         if (name.startsWith("#")) {
             name = name.substring(1);
         }
@@ -1655,7 +1657,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         formScroll.end(g, ui, end - top + 4);
     }
 
-    /** Keeps the text box over its field as the form scrolls, and puts it away once the field's out of view. */
+    /** Keeps the text box over its field as the form scrolls, and commits and hides it when the field scrolls out of view. */
     private void followField() {
         if (editingId == null || inline == null) {
             return;
@@ -1673,7 +1675,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return 3 * SLOT * rollScale + 42;
     }
 
-    /** One possible roll of the edit as it stands, in a chest's slots, with a way to roll again. */
+    /** Draws one sample roll of the current edit in chest slots, with a Reroll button. */
     private void renderRoll(GuiGraphics g) {
         int slot = SLOT * rollScale;
         int gridW = 9 * slot + 8;
@@ -1691,7 +1693,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             int sx = x + 4 + (i % 9) * slot;
             int slotY = sy + (i / 9) * slot;
             ItemStack stack = roll != null && i < roll.size() ? roll.get(i) : ItemStack.EMPTY;
-            // Drawn at the chest's own size and scaled up whole, slot, item and count together.
+            // Drawn at normal chest size and scaled as a whole: slot, item and count together.
             Gui.push(g);
             Gui.translate(g, sx, slotY);
             Gui.scale(g, rollScale);
@@ -1708,14 +1710,14 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         ui.button(g, Component.translatable("screen.justenoughstructures.reroll_loot"), x + 2, sy + 3 * slot + 3, gridW - 4, 18, true, this::reroll);
     }
 
-    /** Every item's chance in a container, from rolling the edit as it stands. */
+    /** Draws each item's chance per container for the current edit. */
     private void renderOdds(GuiGraphics g) {
         int x = oddsX;
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.odds").getString(), x, contentTop, oddsW, 13);
         int top = contentTop + 15;
         if (previewProblem != null) {
             int below = Gui.fineWrapped(g, font, previewProblem, x + 2, top, oddsW - 4, bad());
-            // When it names a pool or an entry, a way straight to it.
+            // If the problem names a pool or entry, add a link that selects it.
             LootOverrides.Fault fault = raw || draft == null ? null : LootOverrides.Fault.of(previewProblem);
             if (fault != null && JsonPaths.object(draft, fault.entry() < 0 ? JsonPaths.join("pools", fault.pool())
                     : EntryTree.path(fault.pool(), fault.entry(), fault.child())) != null) {
@@ -1759,7 +1761,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     // ------------------------------------------------------------------ the list to choose from
 
-    /** A list of choices under a box in the form, like a function's kind. */
+    /** A dropdown list under a box in the form, like a function's kind. */
     private final class Choice {
         private static final int LINE = 12;
         private final List<String> options;
@@ -1812,7 +1814,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             Gui.slimBar(g, x + w, y, h, scroll);
         }
 
-        /** Takes hold of the bar when a press is on it, or null. */
+        /** Returns the grabbed scroll bar if the press is on it, or null. */
         HeldBar grabBar(double mouseX, double mouseY) {
             return HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
         }
@@ -1848,22 +1850,22 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
     // ------------------------------------------------------------------ options while typing
 
     /**
-     * What the field being typed in can be set to, listed under it as misode's generator does: all of
-     * them until something's typed, then the ones whose name or id has it in, those starting with it
-     * first. Up and down move through them, and Enter, Tab or a click puts one in. Something typed
-     * that isn't listed, like a mod's id this game doesn't have, can still be put in with Enter.
+     * Suggested values listed under the field being typed in, like misode's generator: all of them
+     * until something is typed, then those whose name or id contains the text, with matches at the
+     * start first. Up and Down move through them, and Enter, Tab or a click fills one in. Text that
+     * isn't listed, like an id from a mod that isn't installed, can still be entered with Enter.
      */
     private final class Suggestions {
         private static final int LINE = 12;
         private static final int ROWS = 10;
         private final int[] rect;
         private final LootOptions.Source source;
-        /** The text when it opened: until that changes, every option shows, with the one it is picked. */
+        /** The text when the list opened. Until it changes, every option shows, with the current value highlighted. */
         private final String opened;
         private String query;
         private List<LootOptions.Option> shown = List.of();
         private int highlight = -1;
-        // Three rows a notch. Kept in pixels like any list, and read back as whole rows.
+        // Three rows per wheel notch. Stored in pixels like other lists, and read back as whole rows.
         private final Scroll scroll = new Scroll(LINE * 3);
         private int x, y, w, h;
 
@@ -1905,7 +1907,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
                 }
                 shown = new ArrayList<>(starting);
                 shown.addAll(containing);
-                // Only a close match is picked for Enter; otherwise Enter keeps what was typed.
+                // Only a match at the start is highlighted for Enter; otherwise Enter keeps the typed text.
                 highlight = starting.isEmpty() ? -1 : 0;
             }
             scroll.fit(ROWS * LINE, shown.size() * LINE);
@@ -1913,7 +1915,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             layout();
         }
 
-        /** The first row on show. */
+        /** Returns the first visible row. */
         private int first() {
             return (int) Math.round(scroll.offset() / LINE);
         }
@@ -1962,7 +1964,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             Gui.slimBar(g, x + w, y, h, scroll);
         }
 
-        /** Takes hold of the bar when a press is on it, or null. */
+        /** Returns the grabbed scroll bar if the press is on it, or null. */
         HeldBar grabBar(double mouseX, double mouseY) {
             update();
             return shown.isEmpty() ? null : HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
@@ -2002,7 +2004,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         void scroll(double delta) {
-            // Whole rows, however little the wheel says it turned.
+            // Three whole rows per notch, however small the wheel delta.
             scroll.to((first() - (int) Math.signum(delta) * 3) * LINE);
         }
     }
@@ -2018,7 +2020,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         setFocused(null);
     }
 
-    /** Every item in the game, from every mod, to pick one for an entry. */
+    /** A grid of every item in the game, modded ones included, to choose an entry's item. */
     private final class Picker {
         private final String path;
         private List<Item> shown;
@@ -2051,7 +2053,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         void render(GuiGraphics g, int mouseX, int mouseY) {
-            // Bigger on a big screen, so more of every item in the game shows at once.
+            // Larger on a large screen, so more items show at once.
             w = Math.min(Math.max(330, width * 2 / 5), width - 40);
             h = Math.min(Math.max(300, height * 3 / 5), height - 40);
             x = (width - w) / 2;
@@ -2097,7 +2099,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             Gui.fine(g, font, count, x + 8, y + h - 13, Gui.labelSoft());
         }
 
-        /** Takes hold of the grid's bar when a press is on it, or null. */
+        /** Returns the grabbed scroll bar if the press is on the grid's bar, or null. */
         HeldBar grabBar(double mouseX, double mouseY) {
             return HeldBar.at(scroll, mouseX, mouseY, x + w - 2, gridTop, gridH);
         }
@@ -2126,7 +2128,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** The mod's table and this edit side by side. */
+    /** Opens the mod's table and this edit side by side. */
     public void showChanges() {
         if (view != null) {
             Nav.remember();
@@ -2134,7 +2136,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** Merges what the mod changed into the edit once the table's loaded, for Pack tools' Merge. */
+    /** Merges the mod's changes into the edit when the table loads, for Pack tools' Merge. */
     void mergeWhenLoaded() {
         mergeWhenLoaded = true;
     }
@@ -2147,12 +2149,12 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** Picks a pool, and an entry in it or -1 for the pool itself. */
+    /** Selects a pool, and an entry in it or -1 for the pool itself. */
     public void pick(int pool, int entry) {
         select(pool, entry);
     }
 
-    /** The middle of a pool's or an entry's row of the list, with -1 for the entry of a pool's own, or null if it isn't drawn. */
+    /** Returns the centre of a tree row (entry -1 for a pool's row), or null if it isn't drawn. */
     public int[] rowAt(int pool, int entry, String child) {
         for (TreeRow row : treeRows) {
             if (row.pool() == pool && row.entry() == entry && row.child().equals(child)) {
@@ -2162,22 +2164,22 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return null;
     }
 
-    /** Picks an entry inside another, by the path down to it from its pool's entry, like "children.1". */
+    /** Selects a nested entry by its path from the pool's top-level entry, like "children.1". */
     public void pickChild(int pool, int entry, String child) {
         select(pool, entry, child);
     }
 
-    /** Takes back the last change, as Ctrl+Z does. */
+    /** Undoes the last change, like Ctrl+Z. */
     public void undoNow() {
         undo();
     }
 
-    /** Puts back the change last taken back, as Ctrl+Y does. */
+    /** Redoes the last undone change, like Ctrl+Y. */
     public void redoNow() {
         redo();
     }
 
-    /** The table being edited, as text, to tell one state of it from another. */
+    /** Returns the table being edited as text, to compare one state with another. */
     public String draftText() {
         return draft == null ? "" : draft.toString();
     }
@@ -2186,7 +2188,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return view != null || loadProblem != null;
     }
 
-    /** The JSON view with this text in it. */
+    /** Switches to the JSON view and fills it with text. */
     public void showJson(String text) {
         if (!raw) {
             toggleMode();
@@ -2196,7 +2198,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** Types into the picked entry's item, as if typed in its field. */
+    /** Sets the selected entry's item, as if typed in its field. */
     public void typeItem(String text) {
         if (draft != null && selectedPool >= 0 && selectedEntry >= 0) {
             JsonPaths.set(draft, EntryTree.path(selectedPool, selectedEntry, selectedChild) + ".name", new com.google.gson.JsonPrimitive(text));
@@ -2204,35 +2206,35 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
     }
 
-    /** Opens the item picker on the picked entry. */
+    /** Opens the item picker for the selected entry. */
     public void openItemPicker() {
         if (selectedPool >= 0 && selectedEntry >= 0) {
             pickItem(EntryTree.path(selectedPool, selectedEntry, selectedChild) + ".name");
         }
     }
 
-    /** Where a button or link with this label was last drawn, or null. */
+    /** Returns where a button or link with this label was last drawn, or null. */
     public int[] buttonAt(String label) {
         return ui.centre(label);
     }
 
-    /** A point part of the way down the scroll bar of the item grid or the list that's open over the form, or null without one. */
+    /** Returns a point the fraction {@code along} down the scroll bar of the open item grid or list, or null if none is open or it doesn't scroll. */
     public int[] dropBar(float along) {
         return picker != null ? picker.barPoint(along) : choice != null ? choice.barPoint(along) : suggestions != null ? suggestions.barPoint(along) : null;
     }
 
-    /** How far that grid or list is scrolled, or -1 with none open. */
+    /** Returns how far that grid or list is scrolled, or -1 if none is open. */
     public double dropScrolled() {
         return picker != null ? picker.scroll.offset() : choice != null ? choice.scroll.offset() : suggestions != null ? suggestions.scroll.offset() : -1;
     }
 
-    /** Where the field or list box for a path in the table was last drawn, or null. */
+    /** Returns the centre of the field or dropdown for a path in the table, as last drawn, or null. */
     public int[] fieldAt(String path) {
         int[] rect = fieldRects.get(path);
         return rect == null ? null : new int[]{rect[0] + rect[2] / 2, rect[1] + rect[3] / 2};
     }
 
-    /** Where an option is in the open list of choices, or null. */
+    /** Returns the centre of an option in the open dropdown, scrolling it into view, or null. */
     public int[] optionAt(String option) {
         return choice == null ? null : choice.centre(option);
     }

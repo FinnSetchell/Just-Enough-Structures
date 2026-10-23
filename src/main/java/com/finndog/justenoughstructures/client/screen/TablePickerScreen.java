@@ -62,7 +62,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         return new PickerLayer(source, current, containerName);
     }
 
-    /** A table just saved in the editor, typed in here, which picks it. */
+    /** Puts a table just saved in the editor into the search box, which selects it. */
     void useSaved(ResourceLocation id) {
         search.setValue(id.toString());
     }
@@ -91,7 +91,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         }
     }
 
-    /** The table a copy would be of: the one picked in the list, or else the one the container has now. */
+    /** Returns the table a copy would start from: the one selected in the list, otherwise the container's current table. */
     private ResourceLocation copySource() {
         if (picked != null && !picked.equals(typed)) {
             return picked;
@@ -109,8 +109,8 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
                 out.add(id);
             }
         }
-        // An id typed in full, like a table just made in the editor, can be picked even if no structure
-        // uses it yet. Typing one in full is taken as picking it.
+        // A full id, like a table just made in the editor, can be selected even if no structure uses
+        // it yet. Typing a full id selects it, unless another row is already selected.
         ResourceLocation full = query.contains(":") ? ResourceLocation.tryParse(query) : null;
         boolean pickedTyped = picked != null && picked.equals(typed);
         typed = full != null && !all.contains(full) ? full : null;
@@ -177,7 +177,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         }
         search.setValue(id.toString());
         Nav.remember();
-        // Saved under whatever id it ends up with, it's typed in here, which picks it.
+        // On save, useSaved puts the final id in the search box, which selects it.
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), this::useSaved, copyOf));
     }
 

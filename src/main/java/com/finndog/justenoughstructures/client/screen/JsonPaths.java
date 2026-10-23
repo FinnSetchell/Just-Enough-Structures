@@ -8,10 +8,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reading and changing a loot table's JSON by path, like "pools.0.entries.2.weight": object keys
- * and array indexes joined by dots. The editor's form works on the table through these, so anything
- * it doesn't know about is left as it was. A key that isn't the form's own, like an enchantment's id,
- * goes through {@link #key} first, as some mods' ids have a dot in them.
+ * Reads and changes a loot table's JSON by path, like "pools.0.entries.2.weight": object keys and
+ * array indexes joined by dots. The editor's form works on the table through these, so anything it
+ * doesn't know about is left as it was. Keys taken from the data, like an enchantment's id, go
+ * through {@link #key} first, as some mods' ids contain dots.
  */
 public final class JsonPaths {
     private JsonPaths() {
@@ -21,15 +21,12 @@ public final class JsonPaths {
         return path.isEmpty() ? String.valueOf(part) : path + "." + part;
     }
 
-    /**
-     * A key as one step of a path, whatever's in it: a dot in it is marked with a backslash, so it
-     * isn't taken for where the step ends.
-     */
+    /** Escapes a key for use as one path step, with a backslash before each dot and backslash. */
     public static String key(String key) {
         return key.replace("\\", "\\\\").replace(".", "\\.");
     }
 
-    /** A path's steps: split at its dots, other than the ones marked as part of a key. */
+    /** Splits a path into steps at its dots, skipping escaped ones. */
     private static String[] steps(String path) {
         List<String> out = new ArrayList<>();
         StringBuilder step = new StringBuilder();
@@ -45,7 +42,7 @@ public final class JsonPaths {
             }
         }
         out.add(step.toString());
-        // Nothing after a last dot is no step, as it has always been here.
+        // A trailing dot adds no empty step.
         while (out.size() > 1 && out.get(out.size() - 1).isEmpty()) {
             out.remove(out.size() - 1);
         }
@@ -68,7 +65,7 @@ public final class JsonPaths {
         return 0;
     }
 
-    /** A step as the key or index it stands for, without the marks on its dots. */
+    /** Returns a single step with its escapes removed. */
     private static String plain(String step) {
         String[] steps = steps(step);
         return steps.length == 1 ? steps[0] : step;
@@ -163,7 +160,7 @@ public final class JsonPaths {
             return -1;
         }
         JsonArray array = array(root, parent(path));
-        // A list has no way to put one in the middle, so the ones after it each move down a place.
+        // JsonArray has no insert, so shift the later items along by one.
         array.add(array.get(array.size() - 1));
         for (int i = array.size() - 2; i > index + 1; i--) {
             array.set(i, array.get(i - 1));
@@ -204,7 +201,7 @@ public final class JsonPaths {
         }
         JsonElement moved = from.remove(index);
         int at = Math.max(0, Math.min(to, into.size()));
-        // Gson's lists can't be put into partway along, so the ones after it move up one.
+        // JsonArray has no insert, so shift the later items along by one.
         into.add(moved);
         for (int i = into.size() - 1; i > at; i--) {
             into.set(i, into.get(i - 1));
@@ -237,7 +234,7 @@ public final class JsonPaths {
         return indexIn(root, path) < 0 ? 0 : array(root, parent(path)).size();
     }
 
-    /** The place in its list of the item at the path, or -1 if the path isn't to an item of a list. */
+    /** Returns the index of the item at the path in its list, or -1 if the path isn't to a list item. */
     public static int indexIn(JsonElement root, String path) {
         int start = lastStep(path);
         String last = path.substring(start);

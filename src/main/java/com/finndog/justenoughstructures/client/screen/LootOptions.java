@@ -29,16 +29,16 @@ import net.minecraft.world.level.saveddata.maps.MapDecoration;
 *///?}
 
 /**
- * What the editor's boxes can be set to, as misode's generator lists them: items, enchantments,
- * effects, tags and the like from the game's own lists, so mods' are there too; loot tables and
- * structure tags from the server, which only it has; and the fixed words some settings take.
+ * Values the editor's fields can take, listed like misode's generator: registry entries and tags,
+ * mods' included; loot tables and structure tags from the server, which only it has; and fixed
+ * keyword lists.
  */
 final class LootOptions {
-    /** Something a box can be set to: what's written, and a readable name for it. */
+    /** A value a field can take: its id and a readable name. */
     record Option(String id, String name) {
     }
 
-    /** A list of options, worked out when first wanted, with each one's name to hand by its id. */
+    /** A list of options built on first use, with a name lookup by id. */
     static final class Source {
         private final Supplier<List<Option>> make;
         private List<Option> list;
@@ -65,7 +65,7 @@ final class LootOptions {
             return found != null || id.contains(":") || id.isEmpty() ? found : names.get((id.startsWith("#") ? "#minecraft:" + id.substring(1) : "minecraft:" + id));
         }
 
-        /** Worked out again next time, for lists that change, like tags after a /reload. */
+        /** Clears the list so it's rebuilt on next use. */
         void forget() {
             list = null;
             names = null;
@@ -141,7 +141,7 @@ final class LootOptions {
     static final Source TAGS_OR_STRUCTURES = either(
             source(() -> STRUCTURE_TAGS.list().stream().map(o -> new Option("#" + o.id(), o.name())).toList()), STRUCTURES::list);
     *///?}
-    /** The world's clocks, one of which a time check reads from 26.1. None before. */
+    /** The world's clocks, which a time check reads from 26.1. Empty before 26.1. */
     static final Source CLOCKS = source(() -> serverNames(PackToolsState.CLOCKS, null));
 
     // The fixed words some settings take, named by the editor's lang file.
@@ -184,7 +184,7 @@ final class LootOptions {
     private LootOptions() {
     }
 
-    /** Lists that change are worked out afresh, as when the editor opens again after a /reload. */
+    /** Clears every cached list, so tags and server lists are rebuilt after a /reload. */
     static void forget() {
         ALL.forEach(Source::forget);
     }
@@ -249,7 +249,7 @@ final class LootOptions {
                 : connection.registryAccess().registry(key).map(registry -> registry(registry, name, null)).orElseGet(ArrayList::new);
     }
 
-    // And its tags, each with its "#".
+    // Tags of a registry the server sends, each with its "#".
     private static <T> List<Option> fromServerTags(ResourceKey<Registry<T>> key) {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         return connection == null ? new ArrayList<>()
@@ -282,7 +282,7 @@ final class LootOptions {
                 try {
                     shown = name.apply(Regs.value(registry, id));
                 } catch (RuntimeException e) {
-                    // A mod's own thing that can't name itself: its id will do.
+                    // Some mod entries throw when asked for a name; use the id.
                 }
             }
             out.add(new Option(id.toString(), shown == null || shown.isEmpty() ? pretty(id) : shown));
@@ -319,7 +319,7 @@ final class LootOptions {
         return sorted(out);
     }
 
-    /** From what the server last said; asks it again if it hasn't yet. */
+    /** Options from the last Pack tools state the server sent. Requests it if there's none yet. */
     private static List<Option> server(Function<PackToolsState, List<ResourceLocation>> ids, Function<String, String> name) {
         PackToolsState state = ClientRequests.lastTools();
         if (state == null) {

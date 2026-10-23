@@ -10,11 +10,11 @@ import net.minecraft.client.gui.screens.Screen;
 //?}
 
 /**
- * The loot editor's JSON box, and the box the player writes notes in. Before 26.1 a click inside a
- * multi-line box is taken as a click on its scroll area before the cursor is moved, so the cursor
- * stays where it was. This moves it. 26.1 moves it itself, and only makes these boxes through a
- * builder, so there it's a plain one. For a box shown with a {@link BoxBar} it also reads and moves
- * the box's offset, and leaves out the box's own bar where it can.
+ * The loot editor's JSON box, and the box for writing notes. Before 26.1 a click inside a
+ * multi-line box is handled as a click on its scroll area and the cursor doesn't move; this class
+ * moves it. 26.1 moves the cursor itself and only builds these boxes through a builder, so there
+ * it's a plain box. For a box shown with a {@link BoxBar}, it also reads and sets the scroll offset,
+ * and hides the box's built-in bar where it can.
  */
 //? if >=26.1 {
 /*final class JsonEditBox {
@@ -25,7 +25,7 @@ import net.minecraft.client.gui.screens.Screen;
         return MultiLineEditBox.builder().setX(x).setY(y).setPlaceholder(placeholder).build(font, width, height, message);
     }
 
-    // Here the box's own bar can't be left out: BoxBar cuts it off as it draws the box.
+    // Here the built-in bar can't be hidden: BoxBar clips it off as it draws the box.
     static void hideBar(MultiLineEditBox box) {
     }
 
@@ -53,7 +53,7 @@ final class JsonEditBox extends MultiLineEditBox {
         return new JsonEditBox(font, x, y, width, height, placeholder, message);
     }
 
-    /** Leaves out the box's own scroll bar, so it takes no presses beside the box either. */
+    /** Hides the box's built-in scroll bar, so it also takes no presses beside the box. */
     static void hideBar(MultiLineEditBox box) {
         ((JsonEditBox) box).ownBar = false;
     }
@@ -86,7 +86,7 @@ final class JsonEditBox extends MultiLineEditBox {
                 box.justenoughstructures$textField().setSelecting(Screen.hasShiftDown());
                 box.justenoughstructures$seekCursorScreen(mouseX, mouseY);
             } catch (RuntimeException e) {
-                // Then the cursor just doesn't move, as before.
+                // If the accessor fails, the cursor stays where it was.
             }
             return true;
         }
