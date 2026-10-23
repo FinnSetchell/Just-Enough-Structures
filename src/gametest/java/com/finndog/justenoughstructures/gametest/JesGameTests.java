@@ -188,6 +188,12 @@ public final class JesGameTests {
         ServiceTests.treasureMapRollsAreQuick(helper);
     }
 
+    // A batch of its own: it swaps the server's sender for several ticks, as other tests in the default batch do.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_odds")
+    public void lootChancesMatchTheGame(GameTestHelper helper) {
+        ServiceTests.lootChancesMatchTheGame(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void lootIndexFindsItemsInStructures(GameTestHelper helper) {
         ServiceTests.lootIndexFindsItemsInStructures(helper);

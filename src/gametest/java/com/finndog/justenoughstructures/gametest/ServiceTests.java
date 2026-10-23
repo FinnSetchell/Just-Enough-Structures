@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -58,6 +59,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 /*import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.server.permissions.PermissionLevel;
 *///?}
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
@@ -286,6 +288,44 @@ public final class ServiceTests {
         helper.assertTrue(odds.rows().stream().anyMatch(r -> BuiltInRegistries.ITEM.getKey(r.example().getItem()).getPath().contains("map")),
                 "no map came out of the shipwreck map table");
         helper.succeed();
+    }
+
+    /**
+     * The chances a player is sent come out as the game's own. The pillager outpost's chest has a
+     * crossbow in exactly half of them, as its first pool rolls once or not at all. Rolled 2000
+     * times, it comes out within 4.5 points of that all but always.
+     */
+    public static void lootChancesMatchTheGame(GameTestHelper helper) {
+        ServerPlayer player = TestPlayers.mock(helper);
+        ResourceLocation outpost = Ids.parse("chests/pillager_outpost");
+        List<byte[]> answers = new ArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender((target, channel, buf) -> {
+            if (target == player && channel.equals(JesNetwork.ODDS)) {
+                answers.add(Blobs.bytes(buf));
+            } else {
+                before.send(target, channel, buf);
+            }
+        });
+        JesServer.onRequestOdds(player, 5, outpost);
+        boolean[] logged = new boolean[1];
+        // The rolling can finish a few ticks later.
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!answers.isEmpty(), "the outpost's odds haven't come yet");
+            JesNetwork.setServerSender(before);
+            JesServer.left(player);
+            FriendlyByteBuf answer = Blobs.fromBytes(helper.getLevel().registryAccess(), MessageTests.only(helper, answers, "odds"));
+            helper.assertTrue(answer.readVarInt() == 5, "the outpost's odds weren't for the request that asked");
+            LootOdds odds = Codecs.readOdds(answer);
+            double crossbow = odds.rows().stream().filter(r -> r.example().is(Items.CROSSBOW))
+                    .mapToDouble(r -> (double) r.hits() / odds.rolls()).findFirst().orElse(0);
+            String seen = String.format(Locale.ROOT, "the outpost's crossbow came out at %.1f%% in %d rolls", crossbow * 100, odds.rolls());
+            if (!logged[0]) {
+                logged[0] = true;
+                JustEnoughStructures.LOGGER.info("In the test of loot chances: {}", seen);
+            }
+            helper.assertTrue(Math.abs(crossbow - 0.5) <= 0.045, seen + ", not about 50%");
+        });
     }
 
     public static void lootIndexFindsItemsInStructures(GameTestHelper helper) {

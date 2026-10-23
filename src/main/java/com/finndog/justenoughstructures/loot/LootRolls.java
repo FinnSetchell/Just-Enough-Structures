@@ -10,6 +10,7 @@ import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -102,7 +103,11 @@ public final class LootRolls {
         private final LootTable table;
         private final LootParams params;
         private final int rolls;
-        private final long seed;
+        /**
+         * Where each roll's seed comes from. Seeds in a row would start every roll with nearly the
+         * same first number, which skews the odds.
+         */
+        private final RandomSource seeds;
         private final Map<Item, LootOdds.Row> rows = new HashMap<>();
         private int done;
         private int empty;
@@ -116,7 +121,7 @@ public final class LootRolls {
             this.table = table;
             this.params = chestParams(level);
             this.rolls = rolls;
-            this.seed = seed;
+            this.seeds = RandomSource.create(seed);
         }
 
         /** Rolls for about {@code nanos}, at least once if any are left. True once every roll is done. */
@@ -142,11 +147,20 @@ public final class LootRolls {
             return new LootOdds(tableId, done, empty, sorted);
         }
 
+        /** The next roll's seed. The game takes 0 as no seed and rolls from the world's random, so it's never 0. */
+        private long nextSeed() {
+            long next = seeds.nextLong();
+            while (next == 0L) {
+                next = seeds.nextLong();
+            }
+            return next;
+        }
+
         private void rollOnce() {
-            int i = done++;
+            done++;
             List<ItemStack> rolled;
             try {
-                rolled = table.getRandomItems(params, seed + i);
+                rolled = table.getRandomItems(params, nextSeed());
             } catch (RuntimeException | LinkageError e) {
                 // Still one of the rolls, as one that gave nothing, so the odds so far add up.
                 empty++;
