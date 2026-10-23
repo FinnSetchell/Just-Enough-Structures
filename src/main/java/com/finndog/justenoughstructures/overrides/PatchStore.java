@@ -18,9 +18,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The patches of one kind, containers or spawners, kept in their file: read once and then whenever
- * they change, saved and removed one spot at a time, and remembered once undone until the next
- * /reload, as templates loaded before then still have them.
+ * Stores one kind of patch (containers or spawners) in its file. The file is read once, then again
+ * whenever it changes. Patches are saved and removed one spot at a time. An undone patch is
+ * remembered until the next /reload, since templates loaded before then still have it.
  */
 final class PatchStore<P extends PatchStore.Spot> {
     /** What every patch names: its template, and its spot in it. */
@@ -39,7 +39,7 @@ final class PatchStore<P extends PatchStore.Spot> {
     /** Patches undone, by template and spot. */
     private final Map<List<Object>, P> undone = new ConcurrentHashMap<>();
 
-    /** {@code parse} gives null for an entry that doesn't make sense, which is then left out. */
+    /** {@code parse} returns null for an invalid entry, which is then skipped. */
     PatchStore(String fileName, String kind, Function<JsonElement, P> parse, Function<P, JsonObject> toJson) {
         this.file = new PatchFile(fileName);
         this.kind = kind;
@@ -70,15 +70,15 @@ final class PatchStore<P extends PatchStore.Spot> {
     }
 
     /**
-     * Reads the patches again as the server starts or after a /reload. Every template is loaded afresh
-     * from then on, so none still has a patch that was undone, and the undone ones are forgotten.
+     * Reads the patches again as the server starts or after a /reload. Every template loads again from
+     * then on, so none still has an undone patch, and the undone ones are forgotten.
      */
     synchronized void reloaded() {
         undone.clear();
         load();
     }
 
-    /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
+    /** Reads the patches again. Templates loaded from then on use them; templates already loaded are only replaced on /reload. */
     synchronized void load() {
         Map<ResourceLocation, List<P>> out = new HashMap<>();
         try {
@@ -89,7 +89,7 @@ final class PatchStore<P extends PatchStore.Spot> {
                 }
             }
         } catch (IOException | RuntimeException e) {
-            // Read on every /reload, so the same broken file is only worth one warning.
+            // Logged once per problem, since the file is read on every /reload.
             Path path = file.path();
             JesLog.warnOnce(kind + "-patches:" + path + "|" + e.getMessage(), "Couldn't read the " + kind + " patches in {}, leaving " + kind + "s as they are: {}",
                     path, e.toString());
@@ -136,7 +136,7 @@ final class PatchStore<P extends PatchStore.Spot> {
         return Component.translatable("screen.justenoughstructures." + kind + ".saved");
     }
 
-    /** Stops patching a spot. The patch moves to the file's list of removed ones rather than going. */
+    /** Stops patching a spot. The patch moves to the file's removed list instead of being deleted. */
     synchronized Component remove(ResourceLocation template, BlockPos pos) {
         P removing = null;
         for (P patch : all()) {

@@ -39,8 +39,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * Finds the loot tables a jigsaw structure can place by reading its template pools instead of
  * generating it: every piece in every pool it can reach, the chests and minecarts saved in those
  * pieces, and loot added by their processors. That covers rare pieces a few test generations
- * would miss. Structures build their pools in their own ways, so it works from each structure's
- * and pool's own codec output rather than their classes, which covers modded jigsaw types too.
+ * would miss. Structures build their pools in different ways, so it reads each structure's and
+ * pool's codec output instead of their classes, which covers modded jigsaw types too.
  * Loot that structure code sets as it generates still needs a real generation to find.
  */
 final class PoolScan {
@@ -127,11 +127,11 @@ final class PoolScan {
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> next = new HashSet<>();
         try {
-            // Noted as loaded for this mod, as the scan goes through every piece any pool names.
+            // Recorded as loaded by JES (see LoadedPieces), as the scan reads every piece any pool names.
             StructureTemplate template = LoadedPieces.during(server, () -> server.getStructureManager().get(id).orElse(null));
             if (template != null) {
-                // Only what a block or an entity carries can name a table or a pool. Writing the whole
-                // piece out to look through it made several tags for every block there is in it.
+                // Only block and entity NBT can name a table or pool, so scan just those instead of
+                // saving the whole piece, which would make several tags per block.
                 StructureTemplateAccessor parts = (StructureTemplateAccessor) template;
                 List<StructureTemplate.Palette> sets = parts.justenoughstructures$palettes();
                 if (!sets.isEmpty()) {
@@ -173,15 +173,15 @@ final class PoolScan {
         if (tag instanceof CompoundTag compound) {
             Set<String> keys = Nbt.keys(compound);
             if (keys.contains("normal_config") || keys.contains("ominous_config")) {
-                // A trial spawner's: what it drops can be named in its configs, in their own files or
-                // nowhere, for the game's own.
+                // A trial spawner: its loot tables are in its inline configs, in named config files,
+                // or absent (the game's defaults).
                 TrialSpawners.lootOf(compound, server.getResourceManager()).forEach(table -> add(table, tables::add));
             }
             for (String key : keys) {
                 Tag value = compound.get(key);
                 if (value instanceof StringTag string) {
-                    // A container's own table, a vault's, which sits in its config, and what a trial
-                    // spawner drops when it's beaten. Mobs' equipment tables aren't loot.
+                    // A container's table, a vault's (in its config), and what a trial spawner drops
+                    // when beaten. Mobs' equipment tables aren't loot.
                     if (key.equals("LootTable") || key.equals("loot_table") && parent.equals("config")
                             || key.equals("data") && parent.equals("loot_tables_to_eject")) {
                         add(Nbt.value(string), tables::add);

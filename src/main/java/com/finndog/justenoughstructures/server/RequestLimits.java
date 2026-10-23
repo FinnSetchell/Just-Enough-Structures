@@ -31,7 +31,7 @@ public final class RequestLimits {
 
     /**
      * Whether a player may be sent a big answer of this many bytes now. If so, it's taken from what
-     * they have. One bigger than the whole burst can still be sent once they've had a rest.
+     * they have. One bigger than the whole burst can still be sent once their allowance is full again.
      */
     public static boolean send(UUID player, long bytes) {
         return SENT.computeIfAbsent(player, id -> new Bucket(BYTES, BYTES_PER_SECOND)).take(bytes);
@@ -49,7 +49,7 @@ public final class RequestLimits {
         SENT.clear();
     }
 
-    /** An allowance that builds back up at a steady rate, to a most. */
+    /** A token bucket that refills at a steady rate, up to a cap. */
     private static final class Bucket {
         private final double most;
         private final double perSecond;
@@ -66,7 +66,7 @@ public final class RequestLimits {
             long now = System.nanoTime();
             left = Math.min(most, left + (now - last) / 1e9 * perSecond);
             last = now;
-            // More than the most there can be needs it all, and leaves the allowance owing.
+            // A cost above the cap needs a full bucket and leaves it negative.
             if (left < Math.min(cost, most)) {
                 return false;
             }

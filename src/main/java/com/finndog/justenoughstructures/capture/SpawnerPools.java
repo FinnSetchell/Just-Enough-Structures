@@ -33,10 +33,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProc
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
- * Every mob a spawner could have been given, for spawners whose mob a processor picked from a
- * weighted list: Repurposed Structures' and Integrated API's spawner files, and the list Moog's
- * Structure Lib's processor carries itself. Recorded while a capture places templates, and kept
- * only where the spawner still has a mob from the list, since structure code can change it after.
+ * Every mob a spawner could have been given, for spawners whose mob a processor chose from a
+ * weighted list: Repurposed Structures' and Integrated API's spawner files, and the list inside Moog's
+ * Structure Lib's processor. Recorded while a capture places templates, and kept only where the
+ * spawner still has a mob from the list, since structure code can change it afterwards.
  */
 public final class SpawnerPools {
     /** On a spawner's block entity in a snapshot: a list of {entity, weight}. */
@@ -47,8 +47,8 @@ public final class SpawnerPools {
             "integrated_api_spawner_resourcelocation", "integrated_structure_spawners");
     private static final ThreadLocal<Recording> RECORDING = new ThreadLocal<>();
     /**
-     * How many captures are recording just now, on any thread. The game asks a processor about every
-     * block of every piece it places, in any world, and with none recording that's all the hooks look at.
+     * Number of captures recording, across all threads. The processor hooks run for every block placed
+     * in any world, so they return straight away when this is zero.
      */
     private static final AtomicInteger RECORDINGS = new AtomicInteger();
     private static final Map<StructureProcessor, Optional<Pool>> KNOWN = Collections.synchronizedMap(new WeakHashMap<>());
@@ -64,17 +64,17 @@ public final class SpawnerPools {
     }
 
     /**
-     * What a capture saw processors do to spawners: each one's pool by world position, and every
-     * spawner a processor changed at all, pool or not, whose mob the template then doesn't decide.
+     * What processors did to spawners during a capture: each spawner's pool by world position, and
+     * every spawner a processor changed at all, with or without a pool, as the template no longer
+     * decides its mob.
      */
     record Recorded(Map<Long, Pool> pools, LongSet touched) {
         static final Recorded NONE = new Recorded(Map.of(), LongSets.EMPTY_SET);
     }
 
     /**
-     * One thread's capture as it records: what it has seen so far, and the processors being asked
-     * about a block just now with the block as each was handed it. More than one only when a
-     * processor places a template of its own while it's being asked.
+     * Recording state for one thread: what it has seen, and a stack of the processors being called,
+     * with the block each was given. Deeper than one only when a processor places a template itself.
      */
     private static final class Recording {
         private static final int DEEPEST = 16;
@@ -89,7 +89,7 @@ public final class SpawnerPools {
         RECORDINGS.incrementAndGet();
     }
 
-    /** Stops recording, and gives back what was seen. */
+    /** Stops recording and returns what was seen. */
     static Recorded end() {
         Recording recording = RECORDING.get();
         if (recording == null) {
@@ -101,8 +101,8 @@ public final class SpawnerPools {
     }
 
     /**
-     * Called as a processor is about to be asked about a block of a template being placed, with the
-     * block as it's handed to it. Does nothing outside a capture, and makes nothing in one.
+     * Called just before a processor processes a block of a template being placed, with the block it's
+     * given. Does nothing outside a capture and allocates nothing inside one.
      */
     public static void asking(StructureProcessor processor, StructureTemplate.StructureBlockInfo block) {
         if (RECORDINGS.get() == 0) {
@@ -118,7 +118,7 @@ public final class SpawnerPools {
         }
     }
 
-    /** Called with what that processor made of the block. */
+    /** Called with the processor's result for that block. */
     public static void answered(StructureTemplate.StructureBlockInfo after) {
         if (RECORDINGS.get() == 0) {
             return;
@@ -139,7 +139,7 @@ public final class SpawnerPools {
 
     /**
      * A trial spawner a processor changes, like the ones Moog's Structure Lib gives configs, is only
-     * noted as changed: there's no list of mobs to pick from.
+     * recorded as changed: there's no list of mobs to choose from.
      */
     private static void processed(Recorded recorded, StructureProcessor processor, StructureTemplate.StructureBlockInfo before,
                                   StructureTemplate.StructureBlockInfo after) {
@@ -163,7 +163,7 @@ public final class SpawnerPools {
         }
     }
 
-    /** The pool a processor picks spawner mobs from, read from what it saves as, or null if it's not one of these. */
+    /** Returns the pool a processor chooses spawner mobs from, read from its codec output, or null if it isn't one of these. */
     private static Pool read(StructureProcessor processor) {
         try {
             JsonElement json = StructureProcessorType.SINGLE_CODEC.encodeStart(JsonOps.INSTANCE, processor).result().orElse(null);

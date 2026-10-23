@@ -54,13 +54,13 @@ import net.minecraft.tags.TagKey;
 *///?}
 
 /**
- * Loot tables edited in the browser. Each edit is saved as an override in a datapack of its own,
- * in the config folder so it travels with a modpack, and applies from the next /reload.
+ * Loot tables edited in the browser. Each edit is saved as an override in a separate datapack in
+ * the config folder, so it travels with a modpack, and applies from the next /reload.
  *
- * <p>Nothing here ever deletes a dev's work or lets a bad edit break loot. An edit the game can't
- * load is refused when saving, and one broken later by hand is left out of the pack, so the mod's
- * own table stays in use. Each override remembers the table it was made from, so if the mod
- * changes or drops that table it's flagged rather than silently kept or thrown away.
+ * <p>An edit the game can't load is refused when saving, and one broken later by hand is left out of
+ * the pack, so the mod's table stays in use. Each override remembers the table it was made from, so
+ * if the mod changes or drops that table, the override is flagged instead of being silently kept or
+ * thrown away.
  */
 public final class LootOverrides {
     public static final String PACK_ID = "justenoughstructures/loot_overrides";
@@ -68,7 +68,7 @@ public final class LootOverrides {
     private static final int PACK_FORMAT = 15;
     private static final Gson PRETTY = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String META = "overrides.json";
-    /** What the metadata remembers for an override of a table no mod had: nothing to compare with. */
+    /** The base recorded for an override of a table no mod had, so there's nothing to compare with. */
     private static final String NO_ORIGINAL = "none";
 
     private static Path folder;
@@ -76,7 +76,7 @@ public final class LootOverrides {
     private LootOverrides() {
     }
 
-    /** Where overrides are, and what's become of an override compared to the table it replaces. */
+    /** An override's state compared with the table it replaces. */
     public enum Status {
         /** Not overridden. */
         NONE,
@@ -113,8 +113,8 @@ public final class LootOverrides {
     }
 
     /**
-     * The file, after making sure it's in the folder. Ids come from players' requests, and only one
-     * that isn't {@link Ids#fileSafe} could take it out, to any file on the server.
+     * Returns {@code file} after checking it is inside {@code root}. Ids come from player requests, and
+     * one that isn't {@link Ids#fileSafe} could otherwise point at any file on the server.
      */
     private static Path inside(Path root, Path file) {
         if (!file.normalize().startsWith(root.normalize())) {
@@ -144,7 +144,7 @@ public final class LootOverrides {
         if (check(id, override) != null) {
             status = Status.BROKEN;
         } else if (original == null) {
-            // A table a dev made from scratch has no original, and that's fine.
+            // A table made from scratch has no original, which is expected.
             status = NO_ORIGINAL.equals(base) ? Status.ACTIVE : Status.ORIGINAL_MISSING;
         } else if (!hash(original).equals(base)) {
             status = Status.ORIGINAL_CHANGED;
@@ -154,7 +154,7 @@ public final class LootOverrides {
         return new View(id, override, original, baseText(root, id), status);
     }
 
-    /** Every table with an override here, and how each stands, for the browser to mark the ones that are edited. */
+    /** Every table with an override and its status, so the browser can mark edited tables. */
     public static Map<ResourceLocation, Status> statuses(ResourceManager resources) {
         Map<ResourceLocation, Status> out = new TreeMap<>();
         Path data = folder().resolve("data");
@@ -184,7 +184,7 @@ public final class LootOverrides {
     public static String original(ResourceManager resources, ResourceLocation id) {
         ResourceLocation location = Ids.of(id.getNamespace(), Folders.LOOT_TABLES + "/" + id.getPath() + ".json");
         List<Resource> stack = resources.getResourceStack(location);
-        // Lowest priority first, so the last one that isn't ours is what would be used without us.
+        // Lowest priority first, so the last one not from the override pack is what the game would use without it.
         for (int i = stack.size() - 1; i >= 0; i--) {
             Resource resource = stack.get(i);
             if (PACK_ID.equals(resource.sourcePackId())) {
@@ -211,9 +211,10 @@ public final class LootOverrides {
     }
 
     /**
-     * The same, with {@code beforeWorld} while a world is still loading and only the game's own
-     * registries are there to read a table with: anything else it names, like a mod's enchantment or
-     * a datapack's trim, is taken as there, as it will be once the world has loaded.
+     * The same. Set {@code beforeWorld} while a world is still loading. From 1.21, reading a table needs
+     * registries, and before a world loads only the vanilla ones exist. So the table is then read with
+     * lenient vanilla registries: anything else it names, like a mod's enchantment or a datapack's
+     * trim, is assumed to exist, as it will once the world has loaded.
      */
     public static Component check(ResourceLocation id, String json, boolean beforeWorld) {
         JsonElement parsed;
@@ -236,9 +237,8 @@ public final class LootOverrides {
     }
 
     /**
-     * A table the game can't load, with the part that's the matter named when leaving the rest out
-     * shows which it is: a pool by itself, then one of its entries by itself, then one of the entries
-     * inside that. The reason given is the smallest part's, which has the least in it that's fine.
+     * Narrows a load error to the smallest part that still fails on its own: a pool, then an entry,
+     * then a child entry. Returns that part's error.
      */
     private static Component located(ResourceLocation id, JsonElement json, boolean beforeWorld, String whole) {
         // If it fails even with no pools, the fault is in the table's other fields, and there's no part to name.
@@ -270,9 +270,9 @@ public final class LootOverrides {
     }
 
     /**
-     * Follows what's the matter with an entry down into the entries inside it, for as long as leaving
-     * the others out still shows which it is. {@code alone} says what's wrong with the table when this
-     * entry is put in it as given. The way down is added to {@code child}, and the reason at the end of it returned.
+     * Follows an entry's error down into its children while a single child still reproduces it.
+     * {@code alone} returns the table's error with a given entry in place. Appends the path to
+     * {@code child} and returns the deepest error.
      */
     private static String deepest(JsonElement entry, Function<JsonElement, String> alone, StringBuilder child, String reason) {
         if (!(entry instanceof JsonObject holder) || !(holder.get("children") instanceof JsonArray children)
@@ -306,7 +306,8 @@ public final class LootOverrides {
     /**
      * The part of a table a problem from {@link #check} is about: a pool, counted from 0, an entry in
      * it or -1 for the pool itself, and for an entry inside another the path down to it from that
-     * entry, like "children.1". The problem's own words say it to a player; this is for showing it.
+     * entry, like "children.1". The problem's text is what the player reads; this is for highlighting
+     * the part in the editor.
      */
     public record Fault(int pool, int entry, String child) {
         /** The part a problem names, or null if it names none. */
@@ -324,12 +325,12 @@ public final class LootOverrides {
                     return new Fault(number(args[1]) - 1, number(args[0]) - 1, args.length >= 4 ? said(args[3]) : "");
                 }
             } catch (NumberFormatException e) {
-                // Not one of ours after all.
+                // Not a JES problem message after all.
             }
             return null;
         }
 
-        // What it was given as, or the text of that once it has been sent to a player.
+        // An arg is the number as given, or a text component once the message has been sent to a player.
         private static int number(Object arg) {
             return Integer.parseInt(said(arg).trim());
         }
@@ -351,8 +352,7 @@ public final class LootOverrides {
     //? if >=26.1 {
     /*private static HolderLookup.Provider lenient;
 
-    // The game's own registries, where an entry or tag they don't have is taken as there: before a
-    // world has loaded, what its mods and datapacks add to them isn't known.
+    // Vanilla registries that accept any missing entry or tag. See check(id, json, beforeWorld).
     private static synchronized HolderLookup.Provider lenientRegistries() {
         if (lenient == null) {
             HolderLookup.Provider vanilla = VanillaRegistries.createLookup();
@@ -363,8 +363,7 @@ public final class LootOverrides {
     *///?} else if >=1.21 {
     /*private static HolderLookup.Provider lenient;
 
-    // The game's own registries, where an entry or tag they don't have is taken as there: before a
-    // world has loaded, what its mods and datapacks add to them isn't known.
+    // Vanilla registries that accept any missing entry or tag. See check(id, json, beforeWorld).
     private static synchronized HolderLookup.Provider lenientRegistries() {
         if (lenient == null) {
             HolderLookup.Provider vanilla = VanillaRegistries.createLookup();
@@ -380,7 +379,7 @@ public final class LootOverrides {
         });
     }
 
-    // A registry that takes an entry or tag it doesn't have as there, standing alone.
+    // Registry view that returns a stand-alone holder for a missing entry, and an empty set for a missing tag.
     private record Lenient<T>(HolderLookup.RegistryLookup<T> parent, HolderOwner<T> owner) implements HolderLookup.RegistryLookup.Delegate<T> {
         @Override
         public Optional<Holder.Reference<T>> get(ResourceKey<T> key) {
@@ -395,10 +394,9 @@ public final class LootOverrides {
     *///?}
 
     //? if >=26.3 {
-    /*// From 26.3 a table names another table, a predicate or an item modifier as an entry of that
-    // registry, where it used to give its id alone, so reading a table takes those registries too:
-    // the server's own once a world has loaded. One that's named and isn't there is taken as there,
-    // as an id always was: it may be a table saved here that the next reload brings in.
+    /*// From 26.3 a table refers to other tables, predicates and item modifiers as registry entries, not
+    // plain ids, so reading a table needs those registries too: the server's once a world has loaded.
+    // A missing one is assumed to exist, since it may be a table saved here that the next reload loads.
     private static HolderLookup.Provider withLoot(HolderLookup.Provider registries, MinecraftServer server) {
         HolderLookup.Provider loaded = server == null ? null : server.reloadableRegistries().lookup();
         java.util.List<HolderLookup.RegistryLookup<?>> all = new java.util.ArrayList<>();
@@ -417,7 +415,7 @@ public final class LootOverrides {
         return lenient(there != null ? there : new Empty<T>(key));
     }
 
-    // A registry with nothing in it, to stand for the server's before a world has loaded.
+    // An empty registry, standing in for the server's before a world has loaded.
     private record Empty<T>(ResourceKey<? extends net.minecraft.core.Registry<? extends T>> key) implements HolderLookup.RegistryLookup<T> {
         @Override
         public com.mojang.serialization.Lifecycle registryLifecycle() {
@@ -453,8 +451,7 @@ public final class LootOverrides {
     /** Reads a loot table the way the game reads one from a datapack. */
     private static LootTable fromJson(ResourceLocation id, JsonElement json, boolean beforeWorld) {
         //? if >=1.21 {
-        /*// Read with the running server's registries, or before a world has loaded, the game's own,
-        // taking whatever else a table names as there, as a mod's enchantment will be by then.
+        /*// Use the server's registries, or the lenient vanilla ones before a world loads.
         MinecraftServer server = JesServer.running();
         HolderLookup.Provider registries = beforeWorld || server == null ? lenientRegistries() : server.registryAccess();
         HolderLookup.Provider all = withLoot(registries, beforeWorld ? null : server);
@@ -492,8 +489,8 @@ public final class LootOverrides {
         Path file = file(root, id);
         try {
             ensurePack(root);
-            // What it was made from goes down first, so a record that can't be read stops the save
-            // before the table changes, and the table is only put in place once the rest is there.
+            // Write the metadata and original first, so an unreadable metadata file stops the save
+            // before the table changes. The table is written last.
             String original = original(resources, id);
             JsonObject meta = readMeta(root);
             JsonObject entry = new JsonObject();
@@ -643,7 +640,7 @@ public final class LootOverrides {
     private static final Pattern WHERE = Pattern.compile("line (\\d+) column (\\d+)");
 
     /**
-     * Where the JSON goes wrong and what's likely missing, in place of the parser's own message,
+     * Describes where the JSON goes wrong and what's likely missing, instead of the parser's message,
      * which reads like a Java error. The line and column count from the top of the text as typed.
      */
     static Component jsonProblem(JsonParseException e) {

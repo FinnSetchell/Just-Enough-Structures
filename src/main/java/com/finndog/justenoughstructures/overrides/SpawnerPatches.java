@@ -42,10 +42,10 @@ public final class SpawnerPatches {
     public static final ResourceLocation SPAWNER = Ids.of("minecraft", "spawner");
 
     /**
-     * Gives the spawner at {@code pos} in {@code template} the mob {@code mob}, or none when it's
-     * empty, and with {@code to}, makes it that block instead: a spawner a trial spawner, or the other
-     * way round. {@code block} is what it is in the template, {@code original} the mob it had, and
-     * {@code others} how many more it made.
+     * Gives the spawner at {@code pos} in {@code template} the mob {@code mob} (none if empty). With
+     * {@code to}, it also becomes that block: a spawner becomes a trial spawner, or the other way
+     * round. {@code block} is the block in the template, {@code original} the mob it had, and
+     * {@code others} how many other mobs it had.
      */
     public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, int others, String mob,
                         ResourceLocation to) implements PatchStore.Spot {
@@ -71,7 +71,7 @@ public final class SpawnerPatches {
         }
     }
 
-    /** Whether a block in a template is a spawner with a mob of its own, or a trial spawner. */
+    /** Whether a block in a template is a spawner with spawn data, or a trial spawner. */
     public static boolean isSpawner(StructureTemplate.StructureBlockInfo info) {
         return TrialSpawners.is(info.state())
                 || info.nbt() != null && Nbt.hasCompound(info.nbt(), "SpawnData") && info.state().getBlock() instanceof SpawnerBlock;
@@ -87,7 +87,7 @@ public final class SpawnerPatches {
         return Nbt.string(Nbt.compound(Nbt.compound(spawner, "SpawnData"), "entity"), "id");
     }
 
-    /** How many other mobs a spawner's data cycles through besides its own. */
+    /** How many other mobs a spawner's data cycles through besides its current one. */
     public static int othersOf(CompoundTag spawner) {
         Set<String> mobs = new LinkedHashSet<>();
         for (Tag entry : Nbt.list(spawner, "SpawnPotentials", Tag.TAG_COMPOUND)) {
@@ -101,8 +101,8 @@ public final class SpawnerPatches {
     }
 
     /**
-     * The mob a spawner in a template makes, or makes most for a trial spawner: "" for none, or null
-     * for a trial spawner whose config can't be read.
+     * Returns the mob a spawner in a template spawns (for a trial spawner, the most common one): ""
+     * for none, or null for a trial spawner whose config can't be read.
      */
     public static String mobOf(StructureTemplate.StructureBlockInfo info, ResourceManager resources) {
         return TrialSpawners.is(info.state()) ? TrialSpawners.mainMob(info.nbt(), resources) : mobOf(info.nbt());
@@ -117,7 +117,7 @@ public final class SpawnerPatches {
         return BuiltInRegistries.BLOCK.getKey(info.state().getBlock());
     }
 
-    /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
+    /** Reads the patches again. See {@link PatchStore#load}. */
     public static void load() {
         STORE.load();
     }
@@ -133,8 +133,9 @@ public final class SpawnerPatches {
     }
 
     /**
-     * Each template with spawners made the other kind, as text that changes whenever they do. The loot
-     * index goes by these along with changed containers, as a trial spawner drops loot when it's beaten.
+     * Each template with spawners switched to the other kind, as a string that changes whenever they
+     * do. The loot index tracks these along with container patches, as a trial spawner drops loot when
+     * beaten.
      */
     public static Map<ResourceLocation, String> switchesByTemplate() {
         Map<ResourceLocation, String> out = new TreeMap<>();
@@ -158,8 +159,8 @@ public final class SpawnerPatches {
     }
 
     /**
-     * Changes the patched spawners in a template that's just been loaded. {@code resources} has the
-     * trial spawner configs that are named rather than written in, and may be null.
+     * Changes the patched spawners in a template that's just been loaded. {@code resources} holds the
+     * trial spawner configs that are named, not written inline, and may be null.
      */
     public static void apply(ResourceLocation id, StructureTemplate template, ResourceManager resources) {
         List<Patch> patches = STORE.forTemplate(id);
@@ -167,7 +168,7 @@ public final class SpawnerPatches {
             return;
         }
         for (Patch patch : patches) {
-            // Templates load again after every /reload, so each problem is only worth one warning.
+            // Logged once per problem, since templates load again on every /reload.
             String where = id + "@" + patch.pos().toShortString();
             try {
                 if (patch.to() != null && !patch.to().equals(patch.block()) && !canBecome(patch.to())) {
@@ -198,7 +199,7 @@ public final class SpawnerPatches {
                             patch.pos(), patch.template(), patch.original(), now, patch.mob());
                 }
                 if (!patch.target().equals(patch.block())) {
-                    // The other kind of spawner, new, with just the mob.
+                    // Replace it with a new spawner of the other kind, with just the mob.
                     boolean trial = patch.target().equals(TrialSpawners.BLOCK);
                     blocks.set(i, new StructureTemplate.StructureBlockInfo(info.pos(), trial ? TrialSpawners.waiting() : Blocks.SPAWNER.defaultBlockState(),
                             trial ? TrialSpawners.fresh(patch.mob()) : freshSpawner(patch.mob())));
@@ -218,8 +219,8 @@ public final class SpawnerPatches {
     }
 
     /**
-     * Gives a spawner's data just this mob, or none, keeping any rules it has about light. Without
-     * its list of mobs, the spawner makes one from the mob it's given.
+     * Sets a spawner's data to just this mob, or none, keeping any custom spawn rules (like light
+     * levels) in its spawn data. With its list of mobs removed, the spawner always spawns this mob.
      */
     static void setMob(CompoundTag spawner, String mob) {
         CompoundTag data = Nbt.compound(spawner, "SpawnData");
@@ -232,7 +233,7 @@ public final class SpawnerPatches {
         spawner.remove("SpawnPotentials");
     }
 
-    /** A new spawner's data making {@code mob}, or nothing when it's "". */
+    /** Returns new spawner data that spawns {@code mob}, or nothing when it's "". */
     private static CompoundTag freshSpawner(String mob) {
         CompoundTag out = new CompoundTag();
         out.putString("id", "minecraft:mob_spawner");
@@ -245,15 +246,14 @@ public final class SpawnerPatches {
         return STORE.save(patch);
     }
 
-    /** Stops patching a spawner. The patch moves to the file's list of removed ones rather than going. */
+    /** Stops patching a spawner. See {@link PatchStore#remove}. */
     public static Component remove(ResourceLocation template, BlockPos pos) {
         return STORE.remove(template, pos);
     }
 
     /**
-     * The patch undone for a spawner, if the template as it's loaded now still has what it made.
-     * Until the next /reload a template keeps a patch that's been undone, so the spawner in it then
-     * is the patch's, not its own.
+     * Returns the patch undone for a spawner, if the currently loaded template still has its result.
+     * Until the next /reload a template keeps an undone patch, so its spawner may still be the patch's.
      */
     private static Patch undoneHere(ResourceLocation template, BlockPos pos, StructureTemplate.StructureBlockInfo loaded, ResourceManager resources) {
         Patch undone = STORE.undone(template, pos);

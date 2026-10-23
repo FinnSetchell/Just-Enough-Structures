@@ -99,7 +99,7 @@ public final class JesServer {
     private static long cachedBytes;
     private static final Map<UUID, AtomicInteger> QUEUED = new ConcurrentHashMap<>();
     private static byte[] catalog;
-    /** The fingerprint {@link #catalog} was sent with, which tells clients which saved pictures still hold. */
+    /** The fingerprint {@link #catalog} was sent with, which tells clients which saved pictures still match. */
     private static String catalogFingerprint;
 
     private static final Map<ResourceLocation, LootOdds> ODDS_CACHE = new ConcurrentHashMap<>();
@@ -180,9 +180,9 @@ public final class JesServer {
     }
 
     /**
-     * Once the fingerprint of what structures are made from is worked out: a structure list already
-     * sent without it, or with an old one, is sent again, so everyone browsing knows which of their
-     * saved pictures still hold. Server thread only.
+     * Called once the structure fingerprint is known. Resends the structure list to everyone browsing
+     * who got it without that fingerprint, so clients know which saved pictures are still valid.
+     * Server thread only.
      */
     static void fingerprintKnown(MinecraftServer server, String fingerprint) {
         SavedPreviews.use(server, fingerprint);
@@ -255,7 +255,7 @@ public final class JesServer {
             catalog = Blobs.deflate(Blobs.toBytes(player.level().registryAccess(), buf -> {
                 Codecs.writeFingerprint(buf, fingerprint);
                 Codecs.writeCatalog(buf, entries);
-                // After the list, where a version from before names stops reading.
+                // Names go after the list, so older clients that don't read names stop before them.
                 Codecs.writeNames(buf, StructureNameFiles.all());
             }));
             catalogFingerprint = fingerprint;
@@ -295,7 +295,7 @@ public final class JesServer {
         JesNetwork.send(player, JesNetwork.OVERRIDES, buf);
     }
 
-    /** Keeping an override whose original changed, or turning one off. */
+    /** Keeps an override whose original changed, or turns one off. */
     public static Component tableAction(ServerPlayer player, ResourceLocation id, int action) {
         if (!canEdit(player)) {
             return Component.translatable("screen.justenoughstructures.override.no_permission");
@@ -387,7 +387,7 @@ public final class JesServer {
         if (!ServerConfig.get().containerChanges()) {
             return Component.translatable("screen.justenoughstructures.container.turned_off");
         }
-        // The template may already be patched, in which case what it had first is what the patch remembers.
+        // If the spot is already patched, keep the original that patch recorded.
         ContainerPatches.Patch existing = ContainerPatches.find(template, pos);
         String original = existing != null ? existing.original() : ContainerPatches.ownTable(template, pos, Nbt.string(container.nbt(), "LootTable"));
         Component reply = ContainerPatches.save(new ContainerPatches.Patch(template, pos, BuiltInRegistries.BLOCK.getKey(container.state().getBlock()), original, table));
@@ -444,7 +444,7 @@ public final class JesServer {
         if (!mob.isEmpty() && (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id) || !SpawnerPatches.spawnable(Regs.value(BuiltInRegistries.ENTITY_TYPE, id)))) {
             return Component.translatable("screen.justenoughstructures.spawner.not_a_mob", mob);
         }
-        // The template may already be patched, in which case what it had first is what the patch remembers.
+        // If the spot is already patched, keep the original that patch recorded.
         SpawnerPatches.Patch existing = SpawnerPatches.find(template, pos);
         ResourceManager resources = server.getResourceManager();
         ResourceLocation own = existing != null ? existing.block() : SpawnerPatches.ownBlock(template, pos, spawner, resources);
@@ -584,7 +584,7 @@ public final class JesServer {
         compassSearch = search;
     }
 
-    /** What sets a compass searching now, for a test to put back after standing in for it. */
+    /** The current compass search, so a test can restore it after replacing it. */
     public static CompassSearch compassSearch() {
         return compassSearch;
     }
@@ -602,7 +602,7 @@ public final class JesServer {
         JesNetwork.send(player, JesNetwork.SETTINGS, buf);
     }
 
-    /** Every structure, less the ones the server hides, each marked if where its loot is is hidden. */
+    /** Every structure except those the server hides, with loot locations hidden where the server or the structure says so. */
     public static List<StructureCatalog.Entry> visibleCatalog(MinecraftServer server) {
         boolean showLoot = ServerConfig.get().showLootLocations();
         return StructureCatalog.build(server).stream()
@@ -663,11 +663,11 @@ public final class JesServer {
             generation = captureGeneration;
         }
         // A preview stops once its player has moved on to another or left, a picture once its player
-        // has left, and both once the world closes, rather than keep hold of the old world.
+        // has left, and both when the world closes, instead of holding on to the old world.
         BooleanSupplier unwanted = preview
                 ? () -> !server.isRunning() || !Integer.valueOf(requestId).equals(LATEST_PREVIEW.get(playerId))
                 : () -> !server.isRunning() || !BROWSING.contains(playerId);
-        // A first view is usually saved already. It's read on a thread of its own, so it never waits
+        // A first view is usually saved already. It's read on a separate thread, so it never waits
         // behind a structure someone else is having made.
         Path saved = seed == StructureCapture.defaultSeed(structure) ? SavedPreviews.current() : null;
         Runnable build = () -> make(server, player, playerId, requestId, structure, seed, preview, key, generation, unwanted, queued, saved, kept);
@@ -750,13 +750,13 @@ public final class JesServer {
                     payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, reply));
                 }
             } catch (OutOfMemoryError e) {
-                // Whatever the capture had is garbage once this returns, so the server can carry on.
+                // Everything the capture held is garbage once this returns, so the server can carry on.
                 JustEnoughStructures.LOGGER.error("Ran out of memory previewing {}; it's too big for this server's memory", structure);
                 CaptureResult failed = CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.out_of_memory"), List.of(), 0);
                 payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
             } catch (Throwable e) {
-                // Whatever it is, an error of another mod's included: left to end this thread's work,
-                // the player would never be answered, and would be shown "Generating" for good.
+                // Catch everything, including other mods' errors. Otherwise the player would never get
+                // an answer, and would see "Generating" forever.
                 JesLog.errorOnce("preview:" + structure, "Previewing {} failed", structure, e);
                 CaptureResult failed = CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.went_wrong", String.valueOf(e)), List.of(), 0);
                 payload = Ready.of(Codecs.packCapture(player.level().registryAccess(), structure, seed, failed));
@@ -787,7 +787,7 @@ public final class JesServer {
 
     /**
      * A capture ready to send, with its {@link Blobs#hash} to tell whether a player's game kept the
-     * same one. Worked out once, off the server thread, as a big structure takes a few milliseconds.
+     * same one. Computed once, off the server thread, as a big structure takes a few milliseconds.
      */
     private record Ready(byte[] payload, long hash) {
         static Ready of(byte[] payload) {
@@ -865,7 +865,7 @@ public final class JesServer {
             reply.accept(new LootOdds(table, ODDS_ROLLS, ODDS_ROLLS, List.of()));
             return;
         }
-        // Rolled with a fixed seed, so the answer never changes until a reload: work it out once.
+        // Rolled with a fixed seed, so the answer never changes until a reload: compute it once.
         LootOdds known = ODDS_CACHE.get(table);
         if (known != null) {
             reply.accept(known);
@@ -967,8 +967,8 @@ public final class JesServer {
         try {
             return compassSearch.search(player, id);
         } catch (LinkageError e) {
-            // A compass build that's missing something the search calls: it's turned off rather than
-            // let the error stop the server.
+            // A compass build that's missing something the search calls. Turn the search off instead
+            // of letting the error stop the server.
             JesLog.warnOnce("compass-linkage", "Explorer's Compass is missing something the browser calls, so it won't set the compass searching any more: {}",
                     e.toString());
             compassSearch = null;
@@ -1068,7 +1068,7 @@ public final class JesServer {
         return find(level, from, id, null).message();
     }
 
-    /** {@code elsewhere} names the dimension searched when it isn't the player's own, to say where it is. */
+    /** {@code elsewhere} names the dimension searched when it isn't the player's dimension, to say where it is. */
     private static Located find(ServerLevel level, BlockPos from, ResourceLocation id, Component elsewhere) {
         Optional<Holder.Reference<Structure>> holder = Regs.holder(level.registryAccess().registryOrThrow(Registries.STRUCTURE),
                 ResourceKey.create(Registries.STRUCTURE, id));
@@ -1102,7 +1102,7 @@ public final class JesServer {
     }
 
     /**
-     * Somewhere safe to stand at this x and z: on the top block (water counts, you'll float), or in
+     * Somewhere safe to stand at this x and z: on the top block (water counts), or in
      * a dimension with a roof like the Nether, on the highest floor beneath it. Empty if there's
      * only lava or nothing at all, like over the End's void. Loads or generates the chunk, as /tp would.
      */

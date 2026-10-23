@@ -132,7 +132,7 @@ public final class StructureSnapshot {
         return state < 0 ? null : palette.get(state);
     }
 
-    /** Builds what {@link #stateAt} looks blocks up in, which takes a moment for a big structure, ahead of time. */
+    /** Builds the lookup table for {@link #stateAt} ahead of time. This takes a moment for a big structure. */
     public void prepareLookup() {
         lookup();
     }
@@ -174,11 +174,9 @@ public final class StructureSnapshot {
     }
 
     /**
-     * A lighter copy for a list picture, which never shows what's saved in containers. A structure
-     * longer than {@link #PICTURE_MOST} blocks is drawn with fewer, bigger blocks instead, as a picture
-     * is only a couple of hundred pixels across: each takes the block found most in its cube, leaving
-     * out air so thin walls stay. Its block entities and entities go too, as they'd no longer sit on
-     * the blocks they belong to.
+     * A lighter copy for a list picture, without container contents. A structure longer than
+     * {@link #PICTURE_MOST} blocks is downscaled: each cell takes its most common non-air block, so thin
+     * walls survive. Block entities and entities are then dropped, as they'd no longer line up.
      */
     public StructureSnapshot forPicture() {
         int longest = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
@@ -186,7 +184,7 @@ public final class StructureSnapshot {
         if (step <= 1) {
             return withoutLoot();
         }
-        // How many of each block are in each cube, then the commonest for each.
+        // Count each block in each cell, then take the most common one per cell.
         Long2IntOpenHashMap counts = new Long2IntOpenHashMap();
         for (int i = 0; i < positions.length; i++) {
             if (palette.get(states[i]).isAir()) {
@@ -201,13 +199,13 @@ public final class StructureSnapshot {
             int cell = (int) (entry.getLongKey() >>> 32);
             long candidate = ((long) entry.getIntValue() << 32) | (int) entry.getLongKey();
             long current = best.getOrDefault(cell, -1L);
-            // The most of, and on a tie the one first in the palette, so it comes out the same every time.
+            // Highest count wins. Ties go to the lower palette index, so the result is stable.
             if (current < 0 || (candidate >>> 32) > (current >>> 32) || ((candidate >>> 32) == (current >>> 32) && (int) candidate < (int) current)) {
                 best.put(cell, candidate);
             }
         }
         int[] cells = best.keySet().toIntArray();
-        // In the order a capture keeps its blocks, which is also the one they're sent in most cheaply.
+        // Sort into capture order, which is also the cheapest order to send.
         IntArrays.quickSort(cells, (a, b) -> Integer.compare(captureOrder(a), captureOrder(b)));
         List<BlockState> used = new ArrayList<>();
         Int2IntOpenHashMap remap = new Int2IntOpenHashMap();
@@ -233,7 +231,7 @@ public final class StructureSnapshot {
             copy.remove("Items");
             copy.remove(ContainerSources.TAG);
             TrialSpawners.hideLoot(copy);
-            // A vault keeps its table in its config, and has one even without, so it goes altogether.
+            // A vault keeps its table in its config, and has a default one without, so it's dropped entirely.
             if (Nbt.string(copy, "id").equals(VAULT)) {
                 continue;
             }
@@ -276,8 +274,8 @@ public final class StructureSnapshot {
     }
 
     /**
-     * A vault's loot table, which it keeps in its config, or the trial chambers' reward when it has
-     * none of its own, as the game does. Null for anything else.
+     * Returns a vault's loot table from its config, or the trial chambers' reward table when it names
+     * none, as the game does. Null for anything else.
      */
     private static String vaultTable(CompoundTag tag) {
         if (!Nbt.string(tag, "id").equals(VAULT)) {
@@ -287,7 +285,7 @@ public final class StructureSnapshot {
         return table.isEmpty() ? VAULT_DEFAULT_TABLE : table;
     }
 
-    /** Every spawner, worked out once like {@link #containers()}. */
+    /** Every spawner, computed once like {@link #containers()}. */
     public List<Spawner> spawners() {
         List<Spawner> found = spawners;
         if (found == null) {
@@ -318,26 +316,25 @@ public final class StructureSnapshot {
     }
 
     /**
-     * A spawner found in the snapshot: its mob, or "" for none, and how many others it makes as well.
-     * {@code source} is where in which template it came from, with what mob it had before a dev
-     * changed it, or null when it can't be given another mob: structure code placed it, or picked
-     * its mob as it generated.
+     * A spawner found in the snapshot: its mob, or "" for none, and how many other mobs it can spawn.
+     * {@code source} is the template and spot it came from, with its mob before any patch, or null
+     * when it can't be patched: structure code placed it, or chose its mob as it generated.
      */
     public record Spawner(BlockPos pos, String mob, int others, Source source) {
     }
 
     /**
      * A container found in the snapshot. {@code lootTable} is null for one that was saved with items
-     * but no table. {@code source} is where in which template it came from, or null when it wasn't
+     * but no table. {@code source} is the template and spot it came from, or null when it wasn't
      * placed from a template's blocks.
      */
     public record Container(BlockPos pos, String id, String lootTable, long lootSeed, boolean entity, Source source) {
     }
 
     /**
-     * The template a container came from and its spot in it, what block it is there, and the table it
-     * had before a dev changed it, or null if it's not been changed. For a spawner, the mob it had, and
-     * the block it was before a dev made it the other kind of spawner.
+     * The template a container came from, its spot there, the block in the template, and the table it
+     * had before a patch, or null if unpatched. For a spawner, {@code patchedFrom} is the mob it had,
+     * and {@code block} is what it was before a patch made it the other kind of spawner.
      */
     public record Source(ResourceLocation template, BlockPos pos, ResourceLocation block, String patchedFrom) {
         static Source read(CompoundTag tag) {

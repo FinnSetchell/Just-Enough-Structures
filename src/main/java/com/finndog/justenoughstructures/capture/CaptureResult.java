@@ -4,10 +4,10 @@ import java.util.List;
 import net.minecraft.network.chat.Component;
 
 /**
- * The outcome of a capture. {@code attempts} says what was tried, one line per terrain, which is
- * what we show when a structure refuses to generate anywhere. A {@code temporary} failure says
- * nothing about the structure, like the server running short on memory or a wait behind another
- * capture, so trying again later may well work.
+ * The outcome of a capture. {@code attempts} lists what was tried, one line per terrain, and is shown
+ * when a structure refuses to generate anywhere. A {@code temporary} failure says nothing about the
+ * structure, like the server running short on memory or a wait behind another capture, so a retry
+ * later may work.
  */
 public record CaptureResult(StructureSnapshot snapshot, Component reason, List<Component> attempts, long millis, boolean temporary) {
 
@@ -19,7 +19,7 @@ public record CaptureResult(StructureSnapshot snapshot, Component reason, List<C
         return new CaptureResult(null, reason, List.copyOf(attempts), millis, false);
     }
 
-    /** A failure that may well not happen again, as it was down to the server rather than the structure. */
+    /** A failure caused by the server, not the structure, so a retry may succeed. */
     public static CaptureResult temporaryFailure(Component reason, List<Component> attempts, long millis) {
         return new CaptureResult(null, reason, List.copyOf(attempts), millis, true);
     }

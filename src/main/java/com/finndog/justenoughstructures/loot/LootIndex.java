@@ -56,18 +56,17 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int MOST_LAYOUTS = 16;
     /**
-     * A structure without pools is done once the layouts after its first that turned up no new loot
-     * table have placed this many pieces between them. One placed in a piece or a few, like the
-     * igloo, whose basement and its chest come with about one igloo in two, gets many layouts, which
-     * are quick. One placed in many pieces, like a mineshaft, rolls for its rare parts many times in
-     * each layout, and gets as few as two, which take far longer.
+     * A structure without pools is done once the layouts since it last found a new loot table have
+     * placed this many pieces between them. An igloo is one piece or a few, and its basement chest
+     * comes with about one igloo in two, so it gets many quick layouts. A mineshaft rolls for its rare
+     * parts many times in each layout, so it gets as few as two, which take far longer.
      */
     private static final int QUIET_PIECES = 16;
     /** The same in blocks, for a big structure placed in a few pieces. */
     private static final long QUIET_BLOCKS = 50_000;
     /**
-     * The layouts whose seeds follow on from the first one's, as every layout's did when there were
-     * at most this many, so the index still finds what it found with them.
+     * The first this many layouts use consecutive seeds, starting at the first layout's, so the index
+     * finds at least what those seeds find.
      */
     private static final int NEXT_SEEDS = 4;
     /**
@@ -110,24 +109,23 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     /**
-     * The same, also handing {@code early} the scan as it stands once the quick part is done: every
+     * The same, also handing {@code early} the partial scan once the quick part is done: every
      * structure's pools read, and the structures without pools generated. That is most of the loot,
      * long before the rest have each been generated for what their code adds as it places them.
-     * {@code progress} counts the structures that are finished, so those with pools only count once
-     * they've been generated.
+     * {@code progress} counts finished structures, so those with pools only count once they've been
+     * generated.
      */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                      AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
-        // How the containers and spawners changed in the browser stand now, which the templates are loaded with.
+        // Current container and spawner patches, which templates load with.
         Map<ResourceLocation, String> patches = templatePatches();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
         return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews, early));
     }
 
     /**
-     * Each template changed in the browser in a way that changes its loot, as text that changes
-     * whenever the changes do: its containers, and its spawners made trial spawners or the other way
-     * round, as a trial spawner drops loot when it's beaten.
+     * Each patched template's changes that affect loot, as a string that changes whenever they do:
+     * container tables, and spawners switched to or from trial spawners (which drop loot when beaten).
      */
     private static Map<ResourceLocation, String> templatePatches() {
         Map<ResourceLocation, String> out = new TreeMap<>(ContainerPatches.byTemplate());
@@ -231,8 +229,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
             progress.accept(++done);
         }
-        // Those that failed for a reason that may have passed by now get one more go. Any that fail
-        // that way again are kept to try another time.
+        // Those that failed for a temporary reason get one more try. Any that fail that way again
+        // are kept to try another time.
         for (ResourceLocation id : List.copyOf(retry)) {
             Found again = scanOne(server, registry, scan, id, cancelled, firstViews);
             if (again == null) {
@@ -332,7 +330,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     return null;
                 }
                 if (!result.succeeded()) {
-                    // One with layouts in already keeps those rather than being tried again.
+                    // A structure that already has layouts keeps them instead of being tried again.
                     tryAgain = !generated && result.temporary();
                     break;
                 }
@@ -371,7 +369,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     }
                 }
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                // A broken structure from some mod is left out rather than ending the whole index.
+                // A broken structure from some mod is left out instead of ending the whole index.
                 JesLog.debug("Indexing {} failed", id, e);
                 break;
             }
@@ -385,7 +383,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         return layout < NEXT_SEEDS ? first + layout : first + layout * LAYOUT_STEP;
     }
 
-    /** Every item a table can ever give, found by reading the table rather than rolling it. */
+    /** Every item a table can ever give, found by reading the table instead of rolling it. */
     public static Set<ResourceLocation> itemsIn(MinecraftServer server, ResourceLocation tableId, Set<ResourceLocation> seen) {
         Set<ResourceLocation> out = new TreeSet<>();
         if (!seen.add(tableId)) {

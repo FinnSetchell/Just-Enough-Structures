@@ -18,8 +18,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 /**
  * Containers in structure templates that a dev pointed at a different loot table. Each patch names
  * the template, the container's spot in it, the block that should be there and the table it had,
- * and is applied as the template loads rather than by editing the template's file. So it keeps
- * working when the structure mod updates its files, as long as that container is still there.
+ * and is applied as the template loads, without editing the template's file. So it keeps working
+ * when the structure mod updates its files, as long as that container is still there.
  *
  * <p>A patch that no longer fits its template is skipped and logged, never forced, and one that's
  * removed is kept in the file's list of removed patches. Nothing here can stop a template loading.
@@ -27,14 +27,14 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 public final class ContainerPatches {
     private static final PatchStore<Patch> STORE = new PatchStore<>("containers.json", "container", ContainerPatches::parse, ContainerPatches::toJson);
 
-    /** Points the container at {@code pos} in {@code template}, a {@code block} with the table {@code original}, at {@code table}. */
+    /** Points the container at {@code pos} in {@code template} at {@code table}. {@code block} and {@code original} are what the template had there. */
     public record Patch(ResourceLocation template, BlockPos pos, ResourceLocation block, String original, ResourceLocation table) implements PatchStore.Spot {
     }
 
     private ContainerPatches() {
     }
 
-    /** Reads the patches again. Templates loaded from then on use them; loaded ones are dropped on /reload. */
+    /** Reads the patches again. See {@link PatchStore#load}. */
     public static void load() {
         STORE.load();
     }
@@ -45,8 +45,8 @@ public final class ContainerPatches {
     }
 
     /**
-     * Each patched template and its patches in use, as text that changes whenever they do, so the
-     * loot index can tell which templates' containers changed.
+     * Each patched template and its patches in use, as a string that changes whenever they do, so
+     * the loot index can tell which templates' containers changed.
      */
     public static Map<ResourceLocation, String> byTemplate() {
         Map<ResourceLocation, String> out = new TreeMap<>();
@@ -76,7 +76,7 @@ public final class ContainerPatches {
         }
         for (Patch patch : patches) {
             try {
-                // Templates load again after every /reload, so each problem is only worth one warning.
+                // Logged once per problem, since templates load again on every /reload.
                 if (!applyOne(template, patch)) {
                     JesLog.warnOnce("patch:" + id + "@" + patch.pos().toShortString(),
                             "Not changing the container at {} in {}: there's no {} with a loot table there any more", patch.pos(), id, patch.block());
@@ -113,15 +113,15 @@ public final class ContainerPatches {
         return STORE.save(patch);
     }
 
-    /** Stops patching a container. The patch moves to the file's list of removed ones rather than going. */
+    /** Stops patching a container. See {@link PatchStore#remove}. */
     public static Component remove(ResourceLocation template, BlockPos pos) {
         return STORE.remove(template, pos);
     }
 
     /**
-     * The loot table a container had before any patch, given its template as it's loaded now. Until
-     * the next /reload, a template keeps a patch that's been undone, so its table then is the
-     * patch's, not its own.
+     * Returns the loot table a container had before any patch, given its template as currently
+     * loaded. Until the next /reload a template keeps an undone patch, so its loaded table may still
+     * be the patch's.
      */
     public static String ownTable(ResourceLocation template, BlockPos pos, String loaded) {
         Patch undone = STORE.undone(template, pos);

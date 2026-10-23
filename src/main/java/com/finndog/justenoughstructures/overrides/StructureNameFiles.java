@@ -30,7 +30,6 @@ import net.minecraft.resources.ResourceLocation;
  * the name too.
  */
 public final class StructureNameFiles {
-    /** The longest a name can be. */
     public static final int MAX_NAME = 128;
     /** The longest a language's code can be, like en_us. */
     public static final int MAX_LANGUAGE = 16;
@@ -77,12 +76,10 @@ public final class StructureNameFiles {
     }
 
     /**
-     * The game's strings for these languages with the names saved here laid over them, a language at
-     * a time in the order given, which is the order the game loads them in: English, then the
-     * player's language. So a name saved in the player's language comes first, then one saved in
-     * English, then a mod's own, as in the browser, whatever namespace a mod names the structure
-     * under. The files are read again each time, as the names pack's are, and the strings are only
-     * copied when there's a name to lay over them. Anything going wrong leaves them as they were.
+     * Returns the game's strings for these languages with the saved names laid over them, one language
+     * at a time in load order (English, then the player's language). A name saved in the player's
+     * language beats one saved in English, which beats any mod's name for the structure, in any
+     * namespace. The files are read again on every call. On error the strings come back unchanged.
      */
     public static Map<String, String> laidOver(Map<String, String> strings, List<String> languages) {
         try {

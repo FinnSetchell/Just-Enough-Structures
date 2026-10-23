@@ -16,9 +16,9 @@ import net.minecraft.nbt.CompoundTag;
 //?}
 
 /**
- * Makes a loot table's entry give one particular stack: the item, how many of it, and whatever
- * makes it more than a plain one of its kind, like a name, enchantments or damage. It's how the
- * loot editor takes the item a player is holding, which saves writing that out by hand.
+ * Makes a loot table's entry give one particular stack: the item, how many of it, and anything that
+ * sets it apart from a plain item of its kind, like a name, enchantments or damage. The loot editor
+ * uses it to take the item a player is holding, which saves writing that out by hand.
  */
 public final class StackEntry {
     /** The functions an entry gets its count and its data from, which taking a stack replaces. Other functions stay. */
@@ -29,8 +29,8 @@ public final class StackEntry {
 
     /**
      * Turns {@code entry} into an item entry for {@code stack}. Its weight, quality and conditions are
-     * kept, as are functions that don't set a count or the item's data. {@code registries} are what
-     * the stack's data is written out with, the world's own.
+     * kept, as are functions that don't set a count or the item's data. {@code registries} are the
+     * world's, used to encode the stack's data.
      */
     public static void fill(JsonObject entry, ItemStack stack, HolderLookup.Provider registries) {
         JsonArray functions = new JsonArray();
@@ -52,7 +52,7 @@ public final class StackEntry {
                 }
             }
         }
-        // What only another kind of entry has, should this have been one.
+        // Remove fields that only other entry types use, in case it was one.
         for (String key : List.of("value", "items", "expand", "children")) {
             entry.remove(key);
         }

@@ -30,8 +30,8 @@ import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 
 /**
- * The list of structures a client can browse. Definitions are encoded with each structure's own
- * codec, so custom fields from any mod come along without us knowing what they mean.
+ * The list of structures a client can browse. Definitions are encoded with each structure's codec,
+ * so custom fields from any mod come along without JES knowing what they mean.
  */
 public final class StructureCatalog {
     private StructureCatalog() {
@@ -65,7 +65,7 @@ public final class StructureCatalog {
                 out.add(new Entry(id, type, definition, inSets, StructureInfo.forStructure(id), availability(structures, e.getKey(), inSets),
                         dimensions(server, structures, e.getKey())));
             } catch (RuntimeException | LinkageError ex) {
-                // A structure some mod left broken is left out, rather than taking the whole list with it.
+                // A structure some mod left broken is left out, instead of taking the whole list with it.
                 JesLog.warnOnce("catalog:" + id, "Left {} out of the structure list, as it couldn't be read: {}", id, ex.toString());
             }
         }
@@ -74,7 +74,7 @@ public final class StructureCatalog {
     }
 
     /**
-     * The dimensions the structure generates in, as the world's own generators place it, the way
+     * The dimensions the structure generates in, as the world's generators place it, the way
      * locate finds it. None in a superflat world, which places almost nothing.
      */
     private static List<ResourceLocation> dimensions(MinecraftServer server, Registry<Structure> structures, ResourceKey<Structure> key) {
@@ -98,7 +98,7 @@ public final class StructureCatalog {
     private static Availability availability(Registry<Structure> structures, ResourceKey<Structure> key, List<SetInfo> sets) {
         Availability byMod = StructureDisables.check(Ids.of(key));
         if (byMod != null) {
-            // A replacement that isn't there to look at isn't named.
+            // Leave out the replacement's name if that structure isn't registered.
             return byMod.replacedBy() != null && !structures.containsKey(byMod.replacedBy())
                     ? new Availability(byMod.reason(), byMod.by(), null) : byMod;
         }

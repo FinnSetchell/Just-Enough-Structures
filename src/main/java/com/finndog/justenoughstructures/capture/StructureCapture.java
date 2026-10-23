@@ -100,50 +100,49 @@ public final class StructureCapture {
      * next once the capture in progress stops for it.
      */
     private static final ReentrantLock LOCK = new ReentrantLock(true);
-    /** Threads making captures someone is waiting to see, which captures nobody's looking at stop for. */
+    /** Threads making a capture someone is waiting to see. Background captures stop for these. */
     private static final Set<Thread> FOREGROUND = ConcurrentHashMap.newKeySet();
-    /** Whether the capture on this thread is one nobody's looking at yet. */
+    /** Whether the capture on this thread runs in the background, with nobody waiting to see it yet. */
     private static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> false);
-    /** What says the capture on this thread is no longer wanted. */
+    /** The check that returns true once the capture on this thread is no longer wanted. */
     private static final ThreadLocal<BooleanSupplier> UNWANTED = new ThreadLocal<>();
     /** Templates that couldn't be loaded during the capture on this thread. */
     private static final ThreadLocal<Set<ResourceLocation>> NOT_LOADED = new ThreadLocal<>();
-    /** The climates made for a world that has none, by dimension, and the server they're for. */
+    /** Climates made for worlds that have none, by dimension, and the server they belong to. */
     private static final Map<ResourceKey<Level>, RandomState> CLIMATES = new HashMap<>();
     private static WeakReference<MinecraftServer> climatesFor = new WeakReference<>(null);
     /**
-     * When a structure finds nowhere to start on any terrain: how many other seeds and spots are tried
-     * on each, how many of its biomes at most, and how many places in all. A number of places rather
-     * than a time, so a structure previews the same on a slow machine as on a fast one. The time limit
-     * is only a safety net, and running into it counts as a failure that may not happen again.
+     * Limits for trying other places when a structure finds nowhere to start: seeds and spots per
+     * terrain, biomes at most, places in all, and a time cap. Counted in places, not time, so a preview
+     * comes out the same on slow and fast machines. The time cap is only a safety net, and hitting it
+     * is a temporary failure.
      */
     private static final int OTHER_SPOTS = 24;
     private static final int MOST_BIOMES = 64;
     private static final int OTHER_PLACES = 192;
     private static final long OTHER_PLACES_NANOS = 30_000_000_000L;
     /**
-     * How long one call into a structure's own code may take: finding its start, or placing one
-     * chunk of it. Some pieces walk up to find the Nether's roof, or down to find ground, with no
-     * stop of their own, and the sandbox has neither. Left to it, such a call would hold the capture,
-     * and with it the lock every other capture waits for, for good.
+     * Time limit for one call into structure code: finding its start, or placing one chunk of it.
+     * Some pieces walk up to find the Nether's roof, or down to find ground, with no limit, and the
+     * sandbox has neither. Such a call would otherwise hold the capture lock forever, and every other
+     * capture waits on that lock.
      */
     private static final long STEP_NANOS = TimeUnit.MINUTES.toNanos(2);
-    /** How many times structure code comes back to the sandbox between looks at the clock. */
+    /** How many sandbox calls from structure code go by between clock checks. */
     private static final int LOOKS_BETWEEN = 1024;
-    /** The clock on this thread's structure code, while it runs any. */
+    /** The time limit for structure code running on this thread, if any. */
     private static final ThreadLocal<Watch> WATCH = new ThreadLocal<>();
     /** The sandbox's structures while this thread is placing a capture, for {@code ServerLevelMixin}. */
     private static final ThreadLocal<StructureManager> SANDBOX_STRUCTURES = new ThreadLocal<>();
-    /** What draws from the real world's random come from while this thread is placing a capture. */
+    /** Stands in for the real world's random while this thread is placing a capture. */
     private static final ThreadLocal<RandomSource> SANDBOX_RANDOM = new ThreadLocal<>();
 
     private StructureCapture() {
     }
 
     /**
-     * Where a structure is asked to start: on what ground, in which of its biomes, at what chunk, with
-     * what seed, with what climate and in what dimension. A null biome, climate or dimension is the
-     * usual one for the ground.
+     * Where to try starting a structure: terrain, biome, chunk, seed, climate and dimension. A null
+     * biome, climate or dimension means the terrain's usual one.
      */
     private record Place(SandboxTerrain terrain, Holder<Biome> biome, ChunkPos chunk, long seed, RandomState climate, ServerLevel dimension) {
         Place(SandboxTerrain terrain, long seed, ServerLevel dimension) {
@@ -173,10 +172,9 @@ public final class StructureCapture {
     }
 
     /**
-     * A capture that {@code unwanted} says when nobody wants any more, like when the player who asked
-     * has moved on or left, or the world has closed. It's asked again and again as the structure is
-     * placed, and a capture that's no longer wanted stops there and gives back null, letting go of the
-     * world rather than keeping hold of it until it's done.
+     * Captures a structure. {@code unwanted} is checked as it's placed; once it returns true (the
+     * player who asked moved on or left, or the world closed) the capture stops and returns null,
+     * releasing the world.
      */
     public static CaptureResult capture(MinecraftServer server, ResourceLocation structureId, long seed, BooleanSupplier unwanted) {
         boolean foreground = !BACKGROUND.get();
@@ -185,7 +183,7 @@ public final class StructureCapture {
         }
         try {
             try {
-                // Only ever a wait for one other capture, so this is a safety net rather than a limit.
+                // This only waits for one other capture, so the timeout is a safety net, not a limit.
                 if (!LOCK.tryLock(3, TimeUnit.MINUTES)) {
                     return CaptureResult.temporaryFailure(Component.translatable("screen.justenoughstructures.error.still_generating"), List.of(), 0);
                 }
@@ -203,8 +201,8 @@ public final class StructureCapture {
                 if (unwanted.getAsBoolean()) {
                     return null;
                 }
-                // Other mods' pieces make vanilla log warnings by the thousand as they load. They're
-                // not this mod's problem, so they go to the debug log.
+                // Other mods' pieces make vanilla log thousands of warnings as they load. They aren't
+                // JES's problem, so they go to the debug log.
                 CaptureResult result = JesLog.quietly(() -> captureLocked(server, structureId, seed));
                 outOfMemory = JesLog.ranOutOfMemory();
                 return outOfMemory && !result.succeeded()
@@ -216,15 +214,15 @@ public final class StructureCapture {
                 outOfMemory = true;
                 throw e;
             } finally {
-                // The game moves on from a template it ran out of memory loading as though it were
-                // missing, and remembers it that way, real world included. So it's forgotten again,
-                // to be loaded when there's room.
+                // A template the game ran out of memory loading is treated as missing and cached that
+                // way, for the real world too. So it's removed from the cache, to load again when
+                // there's memory.
                 if (outOfMemory) {
                     NOT_LOADED.get().forEach(server.getStructureManager()::remove);
                 }
                 NOT_LOADED.remove();
                 try {
-                    // And the ones it did load aren't all left with the game for the rest of the session.
+                    // Evict pieces this capture loaded, if there are too many (see LoadedPieces).
                     LoadedPieces.end(server);
                 } finally {
                     UNWANTED.remove();
@@ -240,15 +238,15 @@ public final class StructureCapture {
     }
 
     /**
-     * A capture nobody is looking at yet, like a picture for the list or one for the loot index. It
-     * stops for a preview someone is waiting on, which can be minutes for the biggest structures, and
+     * Captures a structure in the background, like a list picture or one for the loot index. It stops
+     * for a preview someone is waiting on, which can take minutes for the biggest structures, and
      * starts again once that's done.
      */
     public static CaptureResult captureInBackground(MinecraftServer server, ResourceLocation structureId, long seed) {
         return captureInBackground(server, structureId, seed, () -> false);
     }
 
-    /** The same, stopping once it's {@code unwanted}, as {@link #capture(MinecraftServer, ResourceLocation, long, BooleanSupplier)} does. */
+    /** The same, but stops once {@code unwanted} returns true, like {@link #capture(MinecraftServer, ResourceLocation, long, BooleanSupplier)}. */
     public static CaptureResult captureInBackground(MinecraftServer server, ResourceLocation structureId, long seed, BooleanSupplier unwanted) {
         BACKGROUND.set(true);
         try {
@@ -264,7 +262,7 @@ public final class StructureCapture {
         }
     }
 
-    /** Notes a template that couldn't be loaded, when it was for a capture. */
+    /** Records a template that failed to load, if a capture on this thread asked for it. */
     public static void couldntLoad(ResourceLocation id) {
         Set<ResourceLocation> notLoaded = NOT_LOADED.get();
         if (notLoaded != null) {
@@ -273,11 +271,11 @@ public final class StructureCapture {
     }
 
     /**
-     * Checks once the server's up that the chunk guard is in place with the mods installed, in the
-     * first world with a chunk loaded to ask about. A mod that replaces how the game looks chunks up
-     * can leave the guard out, and that's worth saying, as a preview's structure code could then load
-     * real chunks. False if no world has a chunk loaded yet, as a server without spawn chunks starts
-     * out with nobody on it: nothing is checked, and it's asked again when someone opens the browser.
+     * Checks, once the server is up, that the chunk guard works with the installed mods, in the first
+     * world that has a chunk loaded. A mod that replaces chunk lookups can leave the guard out, which
+     * would let preview code load real chunks, so that's logged. Returns false if no world has a chunk
+     * loaded yet (a server without spawn chunks starts with nobody on it); then nothing is checked, and
+     * it's tried again after /reload or when someone opens the browser.
      */
     public static boolean checkChunkGuard(MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
@@ -289,8 +287,8 @@ public final class StructureCapture {
     }
 
     /**
-     * The same for one world. False if that's null, as the overworld is on a datapack reload that
-     * comes while the server is still starting, or if it has no chunk loaded: nothing is checked.
+     * The same for one world. Returns false, checking nothing, if {@code level} is null (the overworld
+     * can be, during a datapack reload while the server starts) or has no chunk loaded.
      */
     public static boolean checkChunkGuard(ServerLevel level) {
         CompletableFuture<Boolean> guarded = chunkGuardHolds(level);
@@ -306,12 +304,11 @@ public final class StructureCapture {
     }
 
     /**
-     * Whether the chunk guard answers first: from a thread of its own, as captures run, inside a
-     * sandbox around a chunk {@code level} has loaded, its chunk source must hand over the sandbox's
-     * chunk and not the real one. It has to be a loaded one, as a hook that comes before the guard
-     * can answer for those only and leave the rest to it, as C2ME's does from 1.21. Only a chunk
-     * that's already there is asked for, so nothing is loaded either way. Null if there's no world or
-     * no chunk loaded in it. On the server thread.
+     * Checks that the chunk guard answers first. On a separate thread, as captures run, inside a
+     * sandbox around a chunk {@code level} has loaded, the chunk source must return the sandbox's chunk,
+     * not the real one. It must be a loaded chunk, because a hook ahead of the guard may answer only
+     * for loaded chunks and pass the rest on (C2ME's does from 1.21). Only an existing chunk is asked
+     * for, so nothing loads. Returns null if there's no world or no loaded chunk. Server thread only.
      */
     public static CompletableFuture<Boolean> chunkGuardHolds(ServerLevel level) {
         if (level == null) {
@@ -340,8 +337,8 @@ public final class StructureCapture {
     }
 
     /**
-     * A chunk {@code level} has loaded, never loading one: one a player is in, one that's forced, or
-     * up to 1.21 the overworld's spawn chunk. Null if none of those is. On the server thread.
+     * Returns a chunk {@code level} already has loaded, never loading one: one a player is in, a forced
+     * one, or before 26.1 the overworld's spawn chunk. Null if none is loaded. Server thread only.
      */
     private static LevelChunk loadedChunk(ServerLevel level) {
         LongArrayList chunks = new LongArrayList();
@@ -368,7 +365,7 @@ public final class StructureCapture {
         return null;
     }
 
-    /** Runs {@code action} as though this thread were placing a capture with {@code random} as its own. For tests. */
+    /** Runs {@code action} as though this thread were placing a capture with {@code random} as the sandbox random. For tests. */
     public static <T> T withSandboxRandom(RandomSource random, Supplier<T> action) {
         SANDBOX_RANDOM.set(random);
         try {
@@ -384,11 +381,11 @@ public final class StructureCapture {
     }
 
     /**
-     * Where a capture can stop part way: when nobody wants it any more, and when it's one nobody's
-     * looking at and someone is waiting on one they are.
+     * A point where a capture can stop: when it's no longer wanted, or when it runs in the background
+     * and someone is waiting on a foreground capture.
      */
     private static void checkpoint() {
-        // Whatever of the structure's own code is called next has its time from here.
+        // Start the time limit for the next call into structure code.
         Watch watch = WATCH.get();
         if (watch != null) {
             watch.since = System.nanoTime();
@@ -409,10 +406,9 @@ public final class StructureCapture {
     }
 
     /**
-     * Called wherever a structure's code comes back to the sandbox, for a chunk, a block of the real
-     * level or the height of the ground: code that never returns does one of those over and over.
-     * Once the call under way has had its time, this throws, and goes on throwing should the code
-     * catch it and carry on.
+     * Called wherever structure code calls into the sandbox: for a chunk, a block of the real level or
+     * the ground height. Code that never returns does one of those over and over. Once the current call
+     * has used up its time, this throws, and keeps throwing if the code catches it and carries on.
      */
     static void tick() {
         Watch watch = WATCH.get();
@@ -425,7 +421,7 @@ public final class StructureCapture {
         }
     }
 
-    /** The structure's own code is done with: what reads the sandbox from here on is this mod's, and isn't timed. */
+    /** Marks structure code as returned. What reads the sandbox after this is JES code and isn't timed. */
     private static void rest() {
         Watch watch = WATCH.get();
         if (watch != null) {
@@ -433,7 +429,7 @@ public final class StructureCapture {
         }
     }
 
-    /** How long each call into a structure's code gets, and since when the one under way has been running. */
+    /** The time limit per call into structure code, and when the current call started. */
     private static final class Watch {
         private final long step;
         private long since = System.nanoTime();
@@ -445,18 +441,18 @@ public final class StructureCapture {
         }
     }
 
-    /** A capture stopping part way, which goes straight past everything that catches a structure's failures. */
+    /** Thrown to stop a capture part way. The handlers that catch structure failures let it through. */
     private abstract static class Stopped extends RuntimeException {
         Stopped() {
             super(null, null, false, false);
         }
     }
 
-    /** A capture nobody's looking at stopping for one somebody is. */
+    /** Thrown when a background capture stops for a foreground one. */
     private static final class GaveWay extends Stopped {
     }
 
-    /** A capture nobody wants any more stopping. */
+    /** Thrown when a capture is no longer wanted. */
     private static final class Unwanted extends Stopped {
     }
 
@@ -475,9 +471,9 @@ public final class StructureCapture {
         if (usual.result() != null) {
             return usual.result();
         }
-        // Some only work in a dimension of their own, like Twilight Forest's troll cave on 1.20.1,
-        // which asks the dimension it's in for the height of its sea, and crashes anywhere else. One
-        // that finds nowhere to start gets a try there too, as its own dimension can be another height.
+        // Some only work in their mod's dimension, like Twilight Forest's troll cave on 1.20.1, which
+        // asks the dimension it's in for its sea level and crashes anywhere else. A structure that
+        // finds nowhere to start is tried there too, as that dimension can have a different height.
         Component crash = usual.crash();
         ServerLevel dimension = null;
         ServerLevel own = ownDimension(server, structure);
@@ -498,10 +494,10 @@ public final class StructureCapture {
             return CaptureResult.failure(crash, attempts, elapsed(started));
         }
 
-        // Some structures only start on a share of seeds, like the End City with BetterEnd, which turns
-        // most of them down. Others check for a biome of their own choosing, the height of the ground,
-        // or the world's climate where they'd go. So other biomes, high ground, and other seeds at other
-        // spots are tried, quickly, as a start that can't be made fails before anything's built.
+        // Some structures only start on some seeds, like the End City with BetterEnd, which rejects
+        // most of them. Others check the biome, the ground height or the climate where they'd go. So
+        // other biomes, high ground, and other seeds at other spots are tried. This is quick, as a start
+        // that fails does so before anything is built.
         Registry<Biome> biomes = server.registryAccess().registryOrThrow(Registries.BIOME);
         long deadline = System.nanoTime() + OTHER_PLACES_NANOS;
         int tried = 0;
@@ -533,7 +529,7 @@ public final class StructureCapture {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", other.terrain().name(), e.reason));
                 return CaptureResult.failure(e.reason, attempts, elapsed(started));
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                // Into the game log once for each structure and kind of failure, so a report about it has the cause.
+                // Logged once per structure and kind of failure, so a bug report has the cause.
                 JesLog.warnOnce("capture-crash:" + structureId + "|" + e.getClass().getName(), "Capturing {} on {} terrain somewhere else failed",
                         structureId, other.terrain(), e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", other.terrain().name(), String.valueOf(e)));
@@ -545,14 +541,14 @@ public final class StructureCapture {
         return CaptureResult.failure(Component.translatable("screen.justenoughstructures.error.nowhere_to_generate"), attempts, elapsed(started));
     }
 
-    /** Into the game log once for each structure that never finished, with where its code was at the time, so a report about it has the cause. */
+    /** Logs once per structure that hit the time limit, with where its code was, so a bug report has the cause. */
     private static void noteSlow(ResourceLocation structureId, SandboxTerrain terrain, Refused refused) {
         if (refused instanceof TookTooLong) {
             JesLog.warnOnce("capture-slow:" + structureId, "Capturing {} on {} terrain was stopped, as its own code didn't return", structureId, terrain, refused);
         }
     }
 
-    /** How trying every terrain went: a result to give back, if it came to one, and what it crashed with, if it did. */
+    /** The outcome of trying every terrain: a result to return, if any, and the last crash, if any. */
     private record Round(CaptureResult result, Component crash) {
     }
 
@@ -573,7 +569,7 @@ public final class StructureCapture {
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.failed", terrain.name(), e.reason));
                 return new Round(CaptureResult.failure(e.reason, attempts, elapsed(started)), null);
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                // Into the game log once for each structure and kind of failure, so a report about it has the cause.
+                // Logged once per structure and kind of failure, so a bug report has the cause.
                 JesLog.warnOnce("capture-crash:" + structureId + "|" + e.getClass().getName(), "Capturing {} on {} terrain failed", structureId, terrain, e);
                 attempts.add(Component.translatable("screen.justenoughstructures.attempt.crashed", terrain.name(), String.valueOf(e)));
                 crash = Component.translatable("screen.justenoughstructures.error.crashed", String.valueOf(e));
@@ -623,7 +619,7 @@ public final class StructureCapture {
         }
     }
 
-    /** Other seeds, each at a spot of its own, picked the same way every time for the same seed. */
+    /** Other seeds, each at a different spot, chosen the same way every time for the same seed. */
     private static void addSpots(List<Place> out, SandboxTerrain terrain, long seed, ServerLevel dimension) {
         Random random = new Random(seed * 31 + terrain.ordinal());
         for (int i = 1; i <= OTHER_SPOTS; i++) {
@@ -633,8 +629,8 @@ public final class StructureCapture {
     }
 
     /**
-     * The dimension a structure's biomes are mostly in, when that's one a mod adds. Null for the
-     * Overworld, the Nether and the End, as those are where structures are tried anyway.
+     * Returns the dimension most of a structure's biomes are in, if a mod adds it. Null for the
+     * Overworld, the Nether and the End, where structures are tried anyway.
      */
     private static ServerLevel ownDimension(MinecraftServer server, Structure structure) {
         ServerLevel best = null;
@@ -677,15 +673,16 @@ public final class StructureCapture {
     }
 
     /**
-     * The climate a structure that checks it reads, like Supplementaries' galleon, which only sails where
-     * the sea is deep. A superflat world has none to speak of, so there the dimension's usual climate
-     * stands in. Some mods make one slow to make, so each is kept for as long as the world is open.
+     * Returns the climate for structures that check it, like Supplementaries' galleon, which only
+     * generates where the sea is deep. A superflat world has no real climate, so the dimension's usual
+     * one is used instead. Some mods make climates slow to create, so each is cached until the world
+     * closes.
      */
     private static RandomState climate(MinecraftServer server, ServerLevel level) {
         if (level.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator) {
             return level.getChunkSource().randomState();
         }
-        // Only ever reached holding the lock, so these need nothing more.
+        // Only reached while holding LOCK, so these need no other synchronisation.
         if (climatesFor.get() != server) {
             CLIMATES.clear();
             climatesFor = new WeakReference<>(server);
@@ -703,7 +700,7 @@ public final class StructureCapture {
         });
     }
 
-    /** One place: what was placed, or null if it found nowhere to start or placed nothing. */
+    /** Tries one place. Returns what was placed, or null if the structure found nowhere to start or placed nothing. */
     private static StructureSnapshot attempt(MinecraftServer server, ResourceLocation structureId, Holder<Structure> structure,
                                              Place place, List<Component> attempts) {
         checkpoint();
@@ -727,9 +724,9 @@ public final class StructureCapture {
 
     /**
      * Terrains to try, most likely first, judged by where the structure is allowed to spawn. The
-     * other depths of sea and the lava sea only come into it when the usual ground gets nothing.
-     * One with only some of its biomes in the Nether or the End, like a Nether fossil that Biomes
-     * O' Plenty also lets into one of its Overworld biomes, gets that terrain too, after the rest.
+     * other sea depths and the lava sea come after the usual ground. A structure with only some of
+     * its biomes in the Nether or the End, like a Nether fossil that Biomes O' Plenty also allows in
+     * one of its Overworld biomes, gets that terrain too, after the rest.
      */
     static List<SandboxTerrain> terrainsFor(Structure structure) {
         int nether = 0;
@@ -811,7 +808,7 @@ public final class StructureCapture {
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
 
         StructureStart start = start(server, holder, level, generator, biomeSource, place);
-        // Its code is back, with a start or without: the sandbox made next is this mod's own work.
+        // Structure code has returned; building the sandbox isn't timed.
         rest();
         if (!start.isValid()) {
             attempts.add(Component.translatable("screen.justenoughstructures.attempt.no_start", terrain.name()));
@@ -890,12 +887,12 @@ public final class StructureCapture {
         return snapshot;
     }
 
-    /** What {@code ServerLevel.structureManager()} should answer on this thread, or null to leave it be. */
+    /** Returns what {@code ServerLevel.structureManager()} should return on this thread, or null to leave it alone. */
     public static StructureManager sandboxStructures() {
         return SANDBOX_STRUCTURES.get();
     }
 
-    /** What {@code LegacyRandomSourceMixin} draws from in place of a real world's random, or null outside a capture. */
+    /** Returns the random {@code LegacyRandomSourceMixin} uses in place of a real world's random, or null outside a capture. */
     public static RandomSource sandboxRandom() {
         return SANDBOX_RANDOM.get();
     }
@@ -910,8 +907,8 @@ public final class StructureCapture {
     }
 
     /**
-     * The same, handing {@code action} the sandbox as a structure's code is handed it, and stopping it
-     * as a structure's code is stopped once it has run for {@code stepNanos}. For tests.
+     * The same, passing {@code action} the sandbox as structure code gets it, and stopping it like
+     * structure code once it has run for {@code stepNanos}. For tests.
      */
     public static <T> T inSandbox(ServerLevel level, ChunkPos centre, long stepNanos, Function<WorldGenLevel, T> action) {
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
@@ -1191,7 +1188,7 @@ public final class StructureCapture {
         return (System.nanoTime() - started) / 1_000_000L;
     }
 
-    /** A capture given up on because of what the structure is or does, with the reason to show for it. */
+    /** Thrown when a capture is refused because of what the structure is or does, with the reason to show. */
     private abstract static class Refused extends RuntimeException {
         final Component reason;
 
@@ -1206,7 +1203,7 @@ public final class StructureCapture {
         }
     }
 
-    /** A call into the structure's own code that had its time and hadn't returned. */
+    /** Thrown when a call into structure code runs past its time limit. */
     private static final class TookTooLong extends Refused {
         TookTooLong() {
             super(Component.translatable("screen.justenoughstructures.error.never_finished"));

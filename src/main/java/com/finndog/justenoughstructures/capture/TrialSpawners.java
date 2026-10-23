@@ -31,16 +31,16 @@ import net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerState;
 *///?}
 
 /**
- * What a trial spawner makes and drops, from its configs, and giving one another mob. Up to 1.21.4
- * a config is written into the spawner; from 1.21.5 it's named, and read here from its own file,
- * which the client may not have. Either way a snapshot carries them on the spawner: its mobs as a
- * list of {entity, weight}, the same for once it's ominous, and the loot tables it can drop from when
- * beaten, normal and ominous.
+ * Reads what a trial spawner spawns and drops from its configs, and changes its mob. Up to 1.21.4 a
+ * config is written into the spawner; from 1.21.5 it's named, and read here from its file, which the
+ * client may not have. Either way a snapshot carries the results on the spawner: its mobs as a list of
+ * {entity, weight}, the same for when it's ominous, and the loot tables it can drop when beaten,
+ * normal and ominous.
  */
 public final class TrialSpawners {
     /** On a trial spawner's block entity in a snapshot: a list of {entity, weight}, with gear: true for a mob given equipment. */
     public static final String TAG = "jes:trial";
-    /** The same for what it makes once it's ominous. */
+    /** The same for its ominous mobs. */
     public static final String OMINOUS_TAG = "jes:trial_ominous";
     /** On a trial spawner's block entity in a snapshot: the loot tables it can drop from. */
     public static final String LOOT_TAG = "jes:trial_loot";
@@ -48,9 +48,9 @@ public final class TrialSpawners {
     private static final String ID = "minecraft:trial_spawner";
     private static final String NORMAL = "normal_config";
     private static final String OMINOUS = "ominous_config";
-    /** What a config that doesn't say drops from, as the game has it. */
+    /** The game's default loot tables, for a config that names none. */
     private static final List<String> DEFAULT_LOOT = List.of("minecraft:spawners/trial_chamber/consumables", "minecraft:spawners/trial_chamber/key");
-    /** The armour the trial chambers' ominous mobs wear, which fits any mob, unlike the weapons they're given as well. */
+    /** The armour the trial chambers' ominous mobs wear. Unlike their weapons, it fits any mob. */
     private static final String OMINOUS_GEAR = "minecraft:equipment/trial_chamber";
 
     private TrialSpawners() {
@@ -103,7 +103,7 @@ public final class TrialSpawners {
         Config ominous = config(tag, OMINOUS, resources);
         List<Mob> mobs = normal == null ? List.of() : normal.mobs();
         tag.put(TAG, list(mobs));
-        // Once ominous, one with no mobs of its own keeps making the one it was about to.
+        // Once ominous, a spawner whose ominous config has no mobs keeps spawning its normal ones.
         tag.put(OMINOUS_TAG, list(ominous == null || ominous.mobs().isEmpty() ? mobs : ominous.mobs()));
         ListTag tables = new ListTag();
         loot(normal, ominous).forEach(table -> tables.add(StringTag.valueOf(table)));
@@ -111,14 +111,14 @@ public final class TrialSpawners {
     }
 
     /**
-     * The loot tables a trial spawner with this data, from a template or the world, can drop when it's
-     * beaten, normal and ominous.
+     * Returns the loot tables a trial spawner with this data (from a template or the world) can drop
+     * when beaten, normal and ominous.
      */
     public static Set<String> lootOf(CompoundTag spawner, ResourceManager resources) {
         return loot(config(spawner, NORMAL, resources), config(spawner, OMINOUS, resources));
     }
 
-    /** What a config that doesn't say, or that the spawner doesn't have, drops is the game's own. */
+    /** A missing config, or one that names no loot tables, drops the game's defaults. */
     private static Set<String> loot(Config normal, Config ominous) {
         Set<String> loot = new LinkedHashSet<>(normal == null || normal.loot() == null ? DEFAULT_LOOT : normal.loot());
         loot.addAll(ominous == null || ominous.loot() == null ? DEFAULT_LOOT : ominous.loot());
@@ -126,8 +126,8 @@ public final class TrialSpawners {
     }
 
     /**
-     * Takes what a trial spawner drops off its tag, for a structure whose loot locations are hidden:
-     * the tables noted on it, and those its configs name when they're written into it.
+     * Removes a trial spawner's loot from its tag, for a structure whose loot locations are hidden: the
+     * recorded tables, and those named in inline configs.
      */
     static void hideLoot(CompoundTag tag) {
         tag.remove(LOOT_TAG);
@@ -156,8 +156,8 @@ public final class TrialSpawners {
     }
 
     /**
-     * The mob a trial spawner makes most, or "" for none. Null when its config is named but can't be
-     * read, so what it makes isn't known.
+     * Returns the mob a trial spawner spawns most often, or "" for none. Null when its config is named
+     * but can't be read, so its mobs aren't known.
      */
     public static String mainMob(CompoundTag spawner, ResourceManager resources) {
         List<Mob> mobs = knownMobs(spawner, resources);
@@ -198,17 +198,16 @@ public final class TrialSpawners {
     }
 
     /**
-     * Changes a trial spawner's data to make just {@code mob}, or nothing when it's "", normal and
-     * ominous, with everything else about it kept, as a spawn egg does to one in the world. A named
-     * config is written in, so it can be changed. Each config keeps its first mob's equipment and rules
-     * about where it spawns, so an ominous one still arms what it makes. The mob it was about to make
-     * next goes, or that would come first.
+     * Sets a trial spawner's normal and ominous configs to spawn only {@code mob} (none if ""), keeping
+     * everything else, like a spawn egg does. A named config is copied in so it can be changed. Each
+     * config keeps its first mob's equipment and spawn rules, so ominous mobs stay armed.
+     * {@code spawn_data} is removed, or that mob would spawn first.
      */
     public static void setMob(CompoundTag spawner, String mob, ResourceManager resources) {
         for (String key : List.of(NORMAL, OMINOUS)) {
             CompoundTag config = inline(spawner, key, resources);
             if (config == null && key.equals(OMINOUS)) {
-                // With none of its own, it makes the normal mob once ominous too.
+                // Without an ominous config, it spawns the normal mob when ominous too.
                 continue;
             }
             if (config == null) {
@@ -222,8 +221,8 @@ public final class TrialSpawners {
     }
 
     /**
-     * A new trial spawner's data making {@code mob}, or nothing when it's "", set up like the trial
-     * chambers' own: once ominous, what it makes wears armour and it drops ominous keys.
+     * Returns new trial spawner data that spawns {@code mob} (nothing if ""), set up like the trial
+     * chambers' spawners: when ominous, its mobs wear armour and it drops ominous keys.
      */
     public static CompoundTag fresh(String mob) {
         CompoundTag out = new CompoundTag();
@@ -246,7 +245,7 @@ public final class TrialSpawners {
         return out;
     }
 
-    /** Spawn potentials of just {@code mob}, with {@code data}'s fields besides the mob itself. */
+    /** Spawn potentials with only {@code mob}, copying {@code data}'s other fields. */
     private static ListTag potentials(String mob, CompoundTag data) {
         ListTag out = new ListTag();
         if (mob.isEmpty()) {
@@ -313,8 +312,8 @@ public final class TrialSpawners {
     }
 
     /**
-     * A config as it would be written into the spawner: a copy of its own, or the named one's file
-     * read in. A named one that can't be read comes back empty, and null means it has none.
+     * Returns a config as it would be written inline: a copy of the inline one, or the named one's
+     * file. A named config that can't be read comes back empty; null means the spawner has none.
      */
     private static CompoundTag inline(CompoundTag spawner, String key, ResourceManager resources) {
         if (Nbt.hasCompound(spawner, key)) {

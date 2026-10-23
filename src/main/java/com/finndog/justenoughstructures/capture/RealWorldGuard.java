@@ -23,20 +23,18 @@ import net.minecraft.world.ticks.LevelTicks;
 import net.minecraft.world.ticks.ScheduledTick;
 
 /**
- * Keeps a capture away from the real world.
+ * Stops a capture from touching the real world.
  *
- * <p>Structure code is handed the sandbox, but some of it reaches past it to a real level: through
- * {@code WorldGenLevel.getLevel()}, a mob's own level, or the server. Captures are placed around
- * chunk 0, 0, next to spawn, so reading blocks there would read spawn's, placing blocks would change
- * it, adding a mob would put it there for real, and anything further out would load or generate
- * real chunks on the server thread.
+ * <p>Some structure code reaches past the sandbox to a real level, through
+ * {@code WorldGenLevel.getLevel()}, a mob's level or the server. Captures sit around chunk 0, 0, near
+ * spawn, so those calls would read or change spawn, add real mobs, or load real chunks on the server
+ * thread.
  *
- * <p>While a thread is capturing, the real levels answer that thread from the sandbox instead. In
- * the area being captured, blocks, block entities, heights, ticks and new entities come from and go
- * to the sandbox, just as if the code had used it. Anywhere else, and in other dimensions, there's
- * only air, nothing is kept, and no chunk is loaded. Entity searches find nothing, sounds,
- * particles and block events go nowhere, and work handed to the server to do later never runs,
- * unless the code can wait for it. Other threads, the server's own included, never see any of this.
+ * <p>While a thread is capturing, real levels answer it from the sandbox. Inside the capture area,
+ * blocks, block entities, heights, ticks and new entities go to the sandbox. Elsewhere, and in other
+ * dimensions, everything is air, writes are dropped and no chunk loads. Entity searches find nothing,
+ * sounds and effects are dropped, and tasks handed to the server are discarded unless the code waits
+ * on them. Other threads, including the server thread, are not affected.
  */
 public final class RealWorldGuard {
     private static final AtomicInteger CAPTURING = new AtomicInteger();
@@ -45,12 +43,12 @@ public final class RealWorldGuard {
     private RealWorldGuard() {
     }
 
-    /** The sandbox standing in for the real levels on this thread, or null if it isn't capturing. */
+    /** Returns the sandbox standing in for real levels on this thread, or null if it isn't capturing. */
     public static Sandbox current() {
         return CAPTURING.get() == 0 ? null : CURRENT.get();
     }
 
-    /** Starts standing in for the real levels on this thread, while {@code level} is being captured in. */
+    /** Starts answering real-level calls on this thread from a sandbox, for a capture in {@code level}. */
     static Sandbox begin(ServerLevel level, String what) {
         Sandbox sandbox = new Sandbox(level, what, CURRENT.get());
         CURRENT.set(sandbox);
@@ -62,7 +60,7 @@ public final class RealWorldGuard {
         if (CURRENT.get() != sandbox) {
             return;
         }
-        // Back to whatever this thread was doing before, should a capture ever start inside another.
+        // Restore the outer sandbox if captures were nested.
         if (sandbox.outer != null) {
             CURRENT.set(sandbox.outer);
         } else {
@@ -72,13 +70,13 @@ public final class RealWorldGuard {
         sandbox.report();
     }
 
-    /** What a capture's real levels answer with. Only ever used on the capturing thread. */
+    /** Answers a capturing thread's calls to real levels from the capture. Only used on that thread. */
     public static final class Sandbox {
         private final ServerLevel level;
         private final String what;
         private final Sandbox outer;
         private CaptureRegion region;
-        /** How often each kind of reach was turned away, and where the first one came from. */
+        /** How many times each kind of real-world call was redirected, and where the first came from. */
         private final Map<String, Integer> reaches = new LinkedHashMap<>();
         private final Map<String, String> firstFrom = new LinkedHashMap<>();
 
@@ -88,7 +86,7 @@ public final class RealWorldGuard {
             this.outer = outer;
         }
 
-        /** The structure's own area, once it's being placed. Before that there's nothing to stand in with. */
+        /** Sets the capture area once placement starts. Until then every call gets air. */
         void placing(CaptureRegion region) {
             this.region = region;
         }
@@ -147,7 +145,7 @@ public final class RealWorldGuard {
             return r != null ? r.getChunk(chunkX, chunkZ) : null;
         }
 
-        /** A chunk asked for some other way, which isn't loaded. */
+        /** Records a chunk asked for some other way, which isn't loaded. */
         public void refuseChunk() {
             note("load chunks");
         }
@@ -190,7 +188,7 @@ public final class RealWorldGuard {
         }
 
         private void note(String kind) {
-            // Code that never returns can just as well be asking a real level over and over as the sandbox.
+            // Check the time limit here too. A stuck structure may loop on a real level as easily as on the sandbox.
             StructureCapture.tick();
             Integer count = reaches.merge(kind, 1, Integer::sum);
             if (count == 1) {
@@ -207,7 +205,7 @@ public final class RealWorldGuard {
             }
         }
 
-        /** The first frame outside the game and this mod: the mod whose code reached for the real world. */
+        /** Returns the first stack frame outside the game, JES and the loaders: the mod whose code reached for the real world. */
         private static String caller() {
             return StackWalker.getInstance().walk(frames -> frames
                     .map(StackWalker.StackFrame::getClassName)

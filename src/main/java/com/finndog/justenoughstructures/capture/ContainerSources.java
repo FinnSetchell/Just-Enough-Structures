@@ -39,7 +39,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  */
 final class ContainerSources {
     static final String TAG = "jes:source";
-    /** On a spawner's block entity in a snapshot. Not {@link #TAG}, which goes with the loot when that's kept secret. */
+    /** Tag on a spawner's block entity in a snapshot. Separate from {@link #TAG}, which {@link StructureSnapshot#withoutLoot()} strips. */
     static final String SPAWNER_TAG = "jes:spawner";
 
     private ContainerSources() {
@@ -53,8 +53,8 @@ final class ContainerSources {
      * For containers, the tag names the template, the spot, the block, its table there and, if
      * patched, its old table; for spawners, its mob there (a trial spawner's mobs) and, if patched,
      * its old mob and the block it was before any patch made it the other kind. {@code filledBy} is
-     * the template that really filled each block entity, and {@code resources} has the trial spawner
-     * configs that are named rather than written in.
+     * the template that really filled each block entity, and {@code resources} holds the trial spawner
+     * configs that are named, not written inline.
      */
     static Found find(StructureStart start, StructureTemplateManager templates, Map<Long, StructureTemplate> filledBy, ResourceManager resources) {
         Found out = new Found(new HashMap<>(), new HashMap<>());
@@ -62,7 +62,7 @@ final class ContainerSources {
             try {
                 trace(piece, templates, filledBy, resources, out);
             } catch (RuntimeException e) {
-                // A piece that doesn't give up its template just isn't traced; its containers can't be patched.
+                // A piece whose template can't be read isn't traced, so its containers can't be patched.
                 JesLog.debug("Couldn't trace the containers of {} back to its template", piece, e);
             }
         }
@@ -70,12 +70,11 @@ final class ContainerSources {
     }
 
     /**
-     * Whether the container placed in the world still has the loot table the template gave it.
-     * Processors can set another table as the template places it, and then patching the template
-     * wouldn't change what players find, so the container isn't offered. One whose block was swapped
-     * as it was placed, like Quark's wooden chests, still takes its table from the template, so it
-     * is. Structure code that places its own container afterwards is left out before this, as the
-     * template didn't fill it.
+     * Whether the placed container still has the loot table the template gave it. Processors can set
+     * another table as the template places it; patching the template then wouldn't change what players
+     * find, so the container isn't offered. One whose block was swapped as it was placed, like Quark's
+     * wooden chests, keeps the template's table, so it is still offered. Containers that structure code
+     * places afterwards are already left out, as the template didn't fill them.
      */
     static boolean matches(CompoundTag source, CompoundTag blockEntity) {
         return Nbt.string(blockEntity, "LootTable").equals(Nbt.string(source, "table"));
@@ -83,7 +82,7 @@ final class ContainerSources {
 
     /**
      * Whether a spawner is still the block, with the mob, that the template gave it. A trial spawner's
-     * mobs are on its tag by now, put there by {@link TrialSpawners#describe}.
+     * mobs are already on its tag, added by {@link TrialSpawners#describe}.
      */
     static boolean spawnerMatches(CompoundTag source, BlockState placed, CompoundTag blockEntity) {
         String block = Nbt.hasString(source, "placed") ? Nbt.string(source, "placed") : Nbt.string(source, "block");
@@ -112,7 +111,7 @@ final class ContainerSources {
         }
     }
 
-    /** The templates a pool element places, in order. A list element places each of its own at the same spot. */
+    /** The templates a pool element places, in order. A list element places all of its elements at the same spot. */
     private static List<SinglePoolElement> singles(StructurePoolElement element) {
         if (element instanceof SinglePoolElement single) {
             return List.of(single);
@@ -162,7 +161,7 @@ final class ContainerSources {
                     if (patch != null) {
                         source.putString("patched_from", patch.original());
                         if (!patch.block().equals(patch.target())) {
-                            // Made the other kind: the patch is kept under the block it was.
+                            // Switched to the other kind of spawner: the patch is stored under the original block.
                             source.putString("placed", Nbt.string(source, "block"));
                             source.putString("block", patch.block().toString());
                         }

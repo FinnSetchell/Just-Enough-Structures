@@ -29,10 +29,11 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 /**
- * Each structure's first view, kept on disk just as players are sent it, so it's there straight away
- * for everyone and after a restart, with the lighter version list pictures are drawn from. Only the
- * first layout is kept: New layout makes a fresh one each time. There's a folder for each setup, so a view is never shown for mods, datapacks, Pack tools
- * changes or a world it wasn't made with, and only the few most recently used folders are kept.
+ * Saves each structure's first view to disk exactly as players receive it, plus the lighter copy for
+ * its list picture, so it's ready at once for everyone and survives a restart. Only the first layout
+ * is saved; New layout makes a fresh one each time. Each setup (mods, datapacks, Pack tools changes,
+ * world) gets a separate folder, so a view is never shown for a setup it wasn't made with. Only the
+ * few most recently used folders are kept.
  */
 public final class SavedPreviews {
     /** Goes up whenever what's saved changes shape, so old folders are never read. */
@@ -42,7 +43,7 @@ public final class SavedPreviews {
     /** What else decides how a structure looks, besides the loot index's sources: its biomes, and its notes file. */
     private static final List<String> SOURCES = List.of("worldgen/biome", "tags/worldgen/biome", "justenoughstructures/structures");
 
-    // Reading and saving get a thread of their own, so a saved view never waits behind a structure being made.
+    // Reading and saving run on a separate thread, so a saved view never waits behind a structure being made.
     private static final ExecutorService DISK = Threads.single("Just Enough Structures saved previews");
     private static final ExecutorService FILLER = Threads.single("Just Enough Structures filling saved previews");
     private static final AtomicInteger GENERATION = new AtomicInteger();
@@ -101,7 +102,7 @@ public final class SavedPreviews {
         });
     }
 
-    /** The folder saved views are read from and saved to now, or null while it's being worked out. */
+    /** The folder saved views are currently read from and saved to, or null while it's being computed. */
     public static Path current() {
         return folder;
     }
@@ -119,7 +120,7 @@ public final class SavedPreviews {
         DISK.execute(() -> write(dir, id, picture, payload));
     }
 
-    /** A structure as the loot index made it, which is its first view when made with its first seed: saved, so it's ready before anyone asks. */
+    /** Saves a capture the loot index made, if it used the default seed, so the first view is ready before anyone asks. */
     public static void offer(MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
         offer(folder, server, id, seed, result);
     }

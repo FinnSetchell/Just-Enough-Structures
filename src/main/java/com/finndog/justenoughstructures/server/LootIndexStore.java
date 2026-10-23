@@ -42,40 +42,32 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 /**
- * The loot index, saved to disk so it's only built again when something it comes from changes.
+ * The loot index, saved to disk so it's only rebuilt when its sources change.
  *
- * <p>The slow half, which loot tables each structure uses, is saved as a {@link StructureScan}
- * named after a fingerprint of the installed mods and every structure, pool, processor and
- * template file. Loot tables don't change which tables a structure uses, so they're not in it:
- * what each table can give is read from the tables after every start and /reload, which is quick.
- * Containers changed in the browser only send the structures that place those templates through
- * again, as do structures that failed for a reason that may have passed, like the server running
- * short on memory. Anything else that changes means generating every structure again, as does
- * anything that goes wrong along the way.
+ * <p>The slow part, which loot tables each structure uses, is saved as a {@link StructureScan}
+ * under a fingerprint of the game and mod versions and every structure, pool, processor and
+ * template file. Loot tables aren't in the fingerprint: what each table can give is read again
+ * after every start and /reload, which is quick. Pack tools changes to containers, and spawners
+ * switched to or from trial spawners, regenerate only the structures that place those templates, as
+ * do structures that failed for a temporary reason. Anything else that changes, or a failed update,
+ * rebuilds the whole scan.
  *
- * <p>All of this runs in the background. If a saved scan matches, the index is ready in moments.
- * Otherwise a dedicated server builds it straight away and singleplayer waits until someone wants
- * it, and while it's rebuilt the index from before stays in use. Nothing here holds up the server
- * starting or players joining.
+ * <p>It all runs on a separate thread and never holds up the server starting or players joining.
+ * A dedicated server builds at once; singleplayer waits until someone asks. While a rebuild runs,
+ * the old index stays in use.
  *
- * <p>A build with no index from before to go on using hands one out early: what every structure's
- * template pools hold and the whole of the structures without pools, which is most of the loot and
- * quick to find. The rest, one generation of each structure with pools, takes many times longer in
- * a big pack. The early index says it's early, players are told how far the rest has got, and they
+ * <p>With no old index, a build sends an early one first: every structure's template pools plus
+ * the structures without pools, which is most of the loot. Players see progress for the rest and
  * get the finished index when it's done.
  */
 public final class LootIndexStore {
-    /**
-     * Goes up whenever what's saved changes shape, or what goes in it does, so old files are never
-     * read as new ones. 3: vaults and what trial spawners drop. 4: structures to try again. 5: more
-     * layouts of each structure without pools.
-     */
+    /** Bump when the saved format or what goes in it changes, so old files aren't read as new. */
     private static final String FORMAT = "5";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list");
 
-    // The index captures every structure, so it gets its own thread and never holds up previews.
+    // The index captures every structure, so it runs on a separate thread and never holds up previews.
     private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
     private static final AtomicInteger GENERATION = new AtomicInteger();
     // Players who've asked for the index. They're sent the new one whenever it changes.
@@ -98,7 +90,7 @@ public final class LootIndexStore {
     private static volatile int total;
     // For the debug log: what each source file hashed to last time, to say which ones changed.
     private static volatile Map<String, HashCode> lastFiles = Map.of();
-    // For tests: told how many structures are done, each time another one is.
+    // For tests: called with the number of structures done, each time one finishes.
     private static volatile IntConsumer progressWatcher = d -> {
     };
 
@@ -106,8 +98,8 @@ public final class LootIndexStore {
     }
 
     /**
-     * The fingerprint of what the server's structures are made from, or null while it's still being
-     * worked out after the server started or reloaded. Server thread only.
+     * Returns the fingerprint of the server's structure sources, or null while it's still being
+     * computed after a start or /reload. Server thread only.
      */
     public static String knownFingerprint() {
         return checking ? null : fingerprint;
@@ -118,7 +110,7 @@ public final class LootIndexStore {
         return !checking && !building && index != null;
     }
 
-    /** When the server has started and after /reload: checks whether the index still holds. */
+    /** Called when the server has started and after /reload: checks whether the saved index still matches. */
     public static void refresh(MinecraftServer server) {
         int generation = GENERATION.incrementAndGet();
         checking = true;
@@ -137,8 +129,8 @@ public final class LootIndexStore {
             StructureScan updated = null;
             LootIndex updatedIndex = null;
             if (base != null) {
-                // Only structures placing templates whose containers were changed are generated
-                // again; what each table can give is read from the loot tables as they are now.
+                // Only structures placing patched templates, and those to retry, are generated
+                // again; what each table can give is read from the current loot tables.
                 try {
                     updated = LootIndex.update(server, base, () -> generation != GENERATION.get() || !server.isRunning());
                     if (updated == null) {
@@ -186,8 +178,8 @@ public final class LootIndexStore {
     }
 
     /**
-     * Has {@code watcher} told on the index's thread how many structures are done, each time another
-     * one is and after players have been told. Null for nobody. For tests.
+     * Sets a watcher, called on the index's thread with the number of structures done each time one
+     * finishes, after any progress message to players has been queued. Null clears it. For tests.
      */
     public static void watchProgress(IntConsumer watcher) {
         progressWatcher = watcher != null ? watcher : d -> {
@@ -232,12 +224,10 @@ public final class LootIndexStore {
     }
 
     /**
-     * Tells a player how far the build has got, but never that all of it is done: the finished index
-     * says that by arriving, and a player told so beside an early one would take it for the finished
-     * one. Every structure can be done a while before the finished index is ready, and the index's
-     * thread can get there before the server gets round to saying how far it had got. Once the build
-     * has failed it says that too, after the figure it stopped at, which a version from before goes
-     * on showing as it always has. Server thread.
+     * Tells a player how far the build has got. It never reports all done, as every structure can be
+     * generated a while before the finished index is ready: the finished index says that by arriving,
+     * and "done" beside an early index would read as finished. Once the build fails it says so after
+     * the last count, which older clients just keep showing. Server thread only.
      */
     private static void tellProgress(ServerPlayer player) {
         JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total, broken);
@@ -253,7 +243,7 @@ public final class LootIndexStore {
         inBackground(server, generation, () -> {
             long started = System.nanoTime();
             AtomicInteger failed = new AtomicInteger();
-            // It makes every structure's first view on the way, which is saved for players.
+            // This also captures every structure's first view along the way, which is saved for players.
             StructureScan scanned = LootIndex.scan(server, ids, d -> {
                         done = d;
                         sayProgress(server, generation);
@@ -285,9 +275,9 @@ public final class LootIndexStore {
 
     /**
      * Runs {@code task} on the index's thread. Anything it throws is logged, and the index isn't
-     * tried again until the next /reload, as it would only fail the same way. Left alone, the
-     * thread would end and players would wait for the index for ever, with nothing in the log
-     * when a pack's crash reporter takes over uncaught errors.
+     * tried again until the next /reload, as it would only fail the same way. Otherwise the thread
+     * would end, players would wait for the index forever, and nothing would reach the log when a
+     * pack's crash reporter handles uncaught errors.
      */
     private static void inBackground(MinecraftServer server, int generation, Runnable task) {
         WORKER.execute(() -> {
@@ -301,7 +291,7 @@ public final class LootIndexStore {
                         building = false;
                         broken = true;
                         // Whoever is waiting for an index, or for the rest of an early one, is told
-                        // that none is coming. Those with a finished one from before go on using it.
+                        // that none is coming. Those with an earlier finished index keep using it.
                         if (payload == null || partial) {
                             Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
                         }
@@ -312,9 +302,9 @@ public final class LootIndexStore {
     }
 
     /**
-     * Once the quick part of a build is done: players get the index as far as it goes rather than
-     * nothing until every structure has been generated, unless they have a finished one from before
-     * to go on using. On the index's thread.
+     * Called once the quick part of a build is done. Players get the partial index instead of nothing
+     * until every structure has been generated, unless they already have a finished one. Called on
+     * the index's thread.
      */
     private static void publishEarly(MinecraftServer server, int generation, StructureScan early, long started) {
         LootIndex soon = LootIndex.of(server, early);
@@ -331,7 +321,7 @@ public final class LootIndexStore {
         });
     }
 
-    /** While the rest of an early index is found: tells everyone who has it how far that's got, every couple of seconds. On the index's thread. */
+    /** While the rest of an early index is built, tells everyone who has it how far that has got, at most every 2 seconds. Called on the index's thread. */
     private static void sayProgress(MinecraftServer server, int generation) {
         long now = System.currentTimeMillis();
         // Not once the last one is done: the finished index is on its way, and says so by arriving.
@@ -346,21 +336,21 @@ public final class LootIndexStore {
         });
     }
 
-    /** The finished index goes to everyone who asked, and a dedicated server then saves the first views it hasn't yet. */
+    /** Sends the finished index to everyone who asked; a dedicated server then saves the first views it hasn't saved yet. */
     private static void publish(MinecraftServer server) {
         partial = false;
         send(server);
         SavedPreviews.fill(server);
     }
 
-    /** Works out what players get from the index as it stands, leaving hidden structures out, and sends it to everyone who asked. */
+    /** Builds what players get from the current index, leaving hidden structures out, and sends it to everyone who asked. */
     private static void send(MinecraftServer server) {
         LootIndex shown = visible(index);
         boolean early = partial;
         payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> {
             Codecs.writeIndex(buf, shown);
-            // After the index, where a version from before stops reading. An early one says so, for
-            // EMI, which loads all over again for each index and so waits for the finished one.
+            // Appended after the index, so older clients stop reading before it. Marks an early index
+            // for EMI, which reloads fully for each index and so waits for the finished one.
             Codecs.writeIndexEarly(buf, early);
         }));
         Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
@@ -388,8 +378,8 @@ public final class LootIndexStore {
      * A hash of everything that decides which loot tables each structure uses: the game and mod
      * versions, since structure code can change with them, and the bytes of every structure, pool,
      * processor and template file, in every mod and datapack. Null if the files couldn't be read.
-     * Loot tables and the containers changed in the browser aren't in it; they're brought up to date
-     * without generating everything again.
+     * Loot tables and Pack tools patches aren't in it; they're brought up to date without generating
+     * everything again.
      */
     public static String fingerprintOf(MinecraftServer server) {
         try {
@@ -416,8 +406,8 @@ public final class LootIndexStore {
 
     /**
      * Hashes the name and bytes of every file in these folders of the server's data, from every mod
-     * and datapack, in the same order each time. Each file's own hash goes in {@code files} too, unless
-     * it's null.
+     * and datapack, in the same order each time. Each file's hash also goes in {@code files}, unless
+     * that is null.
      */
     static void hashFiles(Hasher hasher, ResourceManager resources, List<String> sources, Map<String, HashCode> files) throws IOException {
         for (String source : sources) {
@@ -457,7 +447,7 @@ public final class LootIndexStore {
         return JustEnoughStructures.cacheDir().resolve("loot-index");
     }
 
-    /** The scan saved under this fingerprint, or null if there isn't one that reads. */
+    /** Returns the scan saved under this fingerprint, or null if there's none or it can't be read. */
     public static StructureScan read(Path dir, String key) {
         Path file = dir.resolve(key + ".bin");
         if (!Files.exists(file)) {

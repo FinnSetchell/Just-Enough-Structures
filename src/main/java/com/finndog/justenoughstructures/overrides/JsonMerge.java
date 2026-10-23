@@ -109,10 +109,10 @@ public final class JsonMerge {
     }
 
     /**
-     * The array's objects by what each one is, or null if they can't all be told apart. An entry is
-     * its kind and the item, tag or table it names, and the second and later of the same get their
-     * place among those after it, so a Nothing entry, or an item that's there twice, has a key of its
-     * own. Anything else is its name, which has to be different from the others'.
+     * Keys each object in the array, or returns null if they can't all be told apart. An object with a
+     * type is keyed by its type and what it names, and repeats get " #2", " #3" and so on, so an empty
+     * entry, or an item listed twice, still has a unique key. Other objects are keyed by a name field,
+     * which must be unique.
      */
     private static Map<String, JsonElement> byKey(JsonArray array) {
         Map<String, JsonElement> out = new LinkedHashMap<>();

@@ -59,7 +59,7 @@ final class CaptureRegion extends WorldGenRegion {
 
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
-        // Every read and write of a structure's comes through here, so this is where one that never returns is caught.
+        // Every block read and write goes through here, so the capture's time limit is checked here.
         StructureCapture.tick();
         ChunkAccess chunk = chunks.get(Levels.pack(chunkX, chunkZ));
         if (chunk != null && status.isOrBefore(ChunkStatus.FEATURES)) {
@@ -81,16 +81,16 @@ final class CaptureRegion extends WorldGenRegion {
         this.writeRadius = writeRadius;
     }
 
-    // Every read and write of a structure's comes through here, so this is where one that never returns is caught.
+    // Every block read and write goes through here, so the capture's time limit is checked here.
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ, ChunkStatus status, boolean load) {
         StructureCapture.tick();
         return super.getChunk(chunkX, chunkZ, status, load);
     }
 
-    // Lithium, and Canary on Forge, put their own in place of these three in every region: they take
-    // the chunk from a list they keep and never come to the method above, which would let code that
-    // never returns read on for good. Here they come through it, as the game's own do.
+    // Lithium (and Canary on Forge) replace these three methods in every region. Their versions read
+    // from a chunk list they keep and skip the method above, so a looping structure would never hit
+    // the time limit. These overrides route them through it again.
     @Override
     public ChunkAccess getChunk(int chunkX, int chunkZ) {
         return getChunk(chunkX, chunkZ, ChunkStatus.EMPTY, true);
@@ -108,9 +108,9 @@ final class CaptureRegion extends WorldGenRegion {
     //?}
 
     /**
-     * Writable within writeRadius of the chunk being placed, whatever mods do to the game's own
-     * regions. BCLib and Better End let one write only next to its middle chunk, which cut every
-     * capture in a pack with either of them down to the three chunks across round the middle.
+     * Allows writes within writeRadius of the chunk being placed, even if mods change the game's
+     * regions. BCLib and Better End limit writes to the middle chunk's neighbours, which would shrink
+     * every capture to 3x3 chunks.
      */
     @Override
     public boolean ensureCanWrite(BlockPos pos) {

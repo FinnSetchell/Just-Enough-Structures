@@ -127,7 +127,7 @@ final class SandboxChunkGenerator extends ChunkGenerator {
 
     @Override
     public int getBaseHeight(int x, int z, Heightmap.Types type, LevelHeightAccessor level, RandomState randomState) {
-        // A structure looking for ground it likes asks this spot after spot, and may never find any.
+        // Check the time limit. A structure searching for suitable ground calls this repeatedly and may never find any.
         StructureCapture.tick();
         for (int i = column.length - 1; i >= 0; i--) {
             if (type.isOpaque().test(column[i])) {

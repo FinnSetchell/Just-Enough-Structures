@@ -11,13 +11,12 @@ import net.minecraft.resources.ResourceLocation;
  * and the templates it can place. Which items a table can give is read from the tables themselves
  * each time instead, which is quick, so editing a loot table never means generating structures again.
  *
- * <p>{@code patches} is how the containers changed in the browser stood when it was made, per
- * template, along with spawners made trial spawners or back, which change what drops. When they
- * change, only the structures that place one of those templates are generated again.
+ * <p>{@code patches} records, per template, the container patches and spawner kind changes in effect
+ * when the scan was made (a trial spawner changes what drops). When they change, only the structures
+ * that place those templates are generated again.
  *
- * <p>{@code retry} are the structures that couldn't be generated for a reason that may have passed,
- * like the server running short on memory, rather than anything about them. They're generated
- * again the next time the scan is brought up to date.
+ * <p>{@code retry} lists structures that failed for a temporary reason, like the server running short
+ * on memory. They're generated again the next time the scan is brought up to date.
  */
 public record StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables,
                             Map<ResourceLocation, Set<ResourceLocation>> templates,

@@ -17,42 +17,40 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 /**
- * Keeps down how many saved pieces the game holds on this mod's account. The game holds on to every
- * piece it loads for as long as the world is open, which is no trouble while it only loads what
- * generates near players. This mod builds every structure there is, for the list's pictures and the
- * loot index, and reads every piece a pool names: left alone, that's every piece of every structure
- * mod held in memory for the rest of the session.
+ * Limits how many structure pieces stay loaded because of JES. The game keeps every piece it loads
+ * until the world closes. That's fine for normal generation, but JES builds every structure (for
+ * list pictures and the loot index) and reads every piece a pool names, which would keep every piece
+ * of every structure mod in memory for the whole session.
  *
- * <p>So the pieces the game loads while this mod is at work are noted, and once they come to more
- * than {@link #room}, the ones loaded longest ago are forgotten again. The most recent stay, as what
- * comes next often wants the same ones: villages share pieces, and a new layout of a previewed
- * structure uses the pieces of the last. Forgetting them all at once made the loot index take half
- * as long again.
+ * <p>Pieces loaded during JES work are recorded. Once they add up to more than {@link #room} blocks,
+ * the oldest are evicted. The newest stay because the next job often needs them: villages share
+ * pieces, and a new layout of a structure reuses the last layout's pieces.
  *
- * <p>Only a piece loaded on this mod's account is ever forgotten, and only while the game still holds
- * that very one, as it was loaded. One the game had already was loaded for the world. One it has
- * loaded again since, after a /reload, is its own. And one a structure block has saved over is the
- * player's work, which may be nowhere but in memory. All of those stay. A forgotten piece is simply
- * loaded again the next time anything wants it.
+ * <p>A piece is only evicted if JES loaded it and the game still holds that same, unchanged
+ * instance. Pieces loaded by the world, reloaded after /reload, or saved over by a structure block
+ * (which may exist only in memory) are never evicted. An evicted piece loads again when next needed.
  */
 public final class LoadedPieces {
     /**
-     * How much is left loaded, in blocks: every block a piece holds, air too, and in each of its sets
-     * of blocks where it has several. A block is about 55 bytes, so four million is some 220 MB.
+     * Default eviction limit in blocks, counting air and every palette of a piece. A block is about
+     * 55 bytes, so 4 million is about 220 MB.
      */
     private static final long USUAL_ROOM = 4_000_000;
     private static long room = USUAL_ROOM;
-    /** How deep in this mod's own work this thread is. A piece loaded at nought was loaded for the world. */
+    /** Nesting depth of JES work on this thread. A piece loaded at depth 0 was loaded by the world. */
     private static final ThreadLocal<int[]> AT_WORK = ThreadLocal.withInitial(() -> new int[1]);
-    /** The pieces loaded on this mod's account that haven't been let go of yet, oldest first. */
+    /** Pieces JES loaded and hasn't evicted yet, oldest first. */
     private static final Map<ResourceLocation, Held> HELD = new LinkedHashMap<>();
     private static long held;
-    /** Whose pieces those are. Another world's are another game's to hold. */
+    /**
+     * The template manager the recorded pieces belong to. When it changes, another world has loaded
+     * and the old records are dropped.
+     */
     private static WeakReference<StructureTemplateManager> holder = new WeakReference<>(null);
 
     /**
-     * A piece as it was loaded: how many blocks, which piece it was, and the first set of blocks it
-     * had. Neither is held on to here, so a piece the game lets go of by itself is gone.
+     * A loaded piece's block count, with weak references to the piece and its first palette, so the
+     * game can still unload it normally.
      */
     private record Held(long size, WeakReference<StructureTemplate> piece, WeakReference<StructureTemplate.Palette> blocks) {
     }
@@ -74,7 +72,7 @@ public final class LoadedPieces {
             }
             note = new Held(Math.max(1, size), new WeakReference<>(piece), new WeakReference<>(sets.isEmpty() ? null : sets.get(0)));
         } catch (RuntimeException e) {
-            // This is the game loading a piece. One that can't be noted is just never forgotten.
+            // Never throw while the game loads a piece. A piece that can't be measured is never evicted.
             return;
         }
         synchronized (HELD) {
@@ -90,7 +88,7 @@ public final class LoadedPieces {
         }
     }
 
-    /** Runs {@code work} with the pieces the game loads for it noted, then lets go of the oldest if there are too many. */
+    /** Runs {@code work}, recording the pieces the game loads for it, then evicts the oldest if there are too many. */
     public static <T> T during(MinecraftServer server, Supplier<T> work) {
         begin();
         try {
@@ -105,8 +103,8 @@ public final class LoadedPieces {
     }
 
     /**
-     * Ends a stretch of this mod's work. Nothing is forgotten in the middle of one, as a structure
-     * bigger than the room there is would have its own pieces loaded over and over while it's built.
+     * Ends a stretch of JES work. Eviction waits until the outermost stretch ends, or a structure
+     * bigger than the limit would load its pieces over and over while it's built.
      */
     static void end(MinecraftServer server) {
         int[] depth = AT_WORK.get();
@@ -136,9 +134,9 @@ public final class LoadedPieces {
         if (going == null) {
             return;
         }
-        // Only now that the notes are let go of. The game keeps its pieces locked while it loads one,
-        // and loading one makes a note here. Were the two taken the other way round here as well, a
-        // capture ending as the loot index loaded a piece would leave each waiting on the other for good.
+        // Evict outside the HELD lock. The game holds the template map's lock while it loads a piece,
+        // and loading calls loaded(), which takes HELD. Taking them in the opposite order could
+        // deadlock a capture ending while the loot index loads a piece.
         try {
             Map<ResourceLocation, Optional<StructureTemplate>> loaded = ((StructureTemplateManagerAccessor) templates).justenoughstructures$loaded();
             for (Map.Entry<ResourceLocation, Held> entry : going) {
@@ -146,12 +144,12 @@ public final class LoadedPieces {
                 StructureTemplate piece = note.piece().get();
                 Optional<StructureTemplate> now = piece == null ? null : loaded.get(entry.getKey());
                 if (now != null && now.orElse(null) == piece && asLoaded(piece, note)) {
-                    // And only if it's still that one the game holds, should it be swapped this instant.
+                    // remove(key, value) only removes it if the game hasn't replaced it since the check.
                     loaded.remove(entry.getKey(), now);
                 }
             }
         } catch (RuntimeException e) {
-            // Another mod's way of keeping pieces that won't have one taken out. They stay, as they always did.
+            // Another mod's template map doesn't support removal. The pieces stay loaded.
             JesLog.debug("Couldn't let go of loaded structure pieces", e);
         }
     }
@@ -162,12 +160,12 @@ public final class LoadedPieces {
             List<StructureTemplate.Palette> sets = ((StructureTemplateAccessor) piece).justenoughstructures$palettes();
             return (sets.isEmpty() ? null : sets.get(0)) == note.blocks().get();
         } catch (RuntimeException e) {
-            // Being saved over as this looks.
+            // Probably being saved over right now.
             return false;
         }
     }
 
-    /** Sets how much is left loaded, for the tests, and says what it was. Less than nought puts it back as it usually is. */
+    /** Sets the eviction limit in blocks, for tests, and returns the old one. A negative value restores the default. */
     public static long leaveLoaded(long blocks) {
         synchronized (HELD) {
             long was = room;

@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Puts back together what a client sends in parts, like an edited loot table, since one packet
- * from a client can't carry more than 32 KB. Limited per player, so nobody can fill the server's
- * memory with half-sent uploads, and a player's go when they leave.
+ * from a client can't carry more than 32 KB. Limited per player so half-sent uploads can't fill the
+ * server's memory. A player's uploads are dropped when they leave.
  */
 public final class Uploads {
     /** About 1 MB, compressed. A loot table is a small fraction of that. */
@@ -45,7 +45,7 @@ public final class Uploads {
         Pending pending = mine.get(part.transferId());
         if (pending == null) {
             if (mine.size() >= MAX_PENDING) {
-                // Something's gone wrong with earlier uploads; start over rather than pile up.
+                // Something's gone wrong with earlier uploads; start over instead of piling up.
                 mine.clear();
             }
             pending = new Pending(part.count());

@@ -72,7 +72,7 @@ public final class ServerConfig {
             }
             """;
 
-    /** What {@link #get()} returns until a file is read, and whatever a file leaves out. */
+    /** What {@link #get()} returns until a file is read, and the default for anything a file leaves out. */
     public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true, PackTools.NONE, true);
 
     private static volatile Settings current = DEFAULTS;
@@ -269,8 +269,8 @@ public final class ServerConfig {
     }
 
     /**
-     * The server loads its file when it starts and again on every /reload, so a mistake is only
-     * worth one warning. Anywhere else, like the settings screen checking its own values, it's noise.
+     * Logs a config problem once, since the server reads its file at start and on every /reload.
+     * Elsewhere, like the settings screen checking its values, it goes to the debug log.
      */
     private static void problem(boolean report, String source, String format, Object... args) {
         if (report) {
