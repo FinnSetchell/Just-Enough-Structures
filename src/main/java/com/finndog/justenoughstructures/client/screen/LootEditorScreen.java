@@ -613,7 +613,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
 
     /**
      * Test hooks that replace the system clipboard for Copy and Paste. Null uses the real clipboard.
-     * The screenshot harness sets them because its hidden window can't reach the real one.
+     * The scripted scenarios set them because their hidden window can't reach the real one.
      */
     public static Consumer<String> copyTo;
     public static java.util.function.Supplier<String> pasteFrom;
@@ -2141,7 +2141,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         mergeWhenLoaded = true;
     }
 
-    // ------------------------------------------------------------------ for the screenshot harness
+    // ------------------------------------------------------------------ test hooks for the scripted scenarios
 
     public void mergeNow() {
         if (view != null) {

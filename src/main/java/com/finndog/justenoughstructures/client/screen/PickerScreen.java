@@ -15,10 +15,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
- * What the loot table and mob pickers share: a list to search and pick from, Use it, and Use it &
- * reload for players who can run /reload. The pick is saved on the server as a patch to a template,
- * and Pack tools, which a picker goes back to, says so. If the server turns it down, why shows over
- * the list until something else is picked.
+ * What the loot table and mob pickers share: a list to search and choose from, Use it, and Use it &
+ * reload for players who can run /reload. The choice is saved on the server as a template patch. The
+ * picker then returns to Pack tools, which confirms it. If the server refuses, the reason shows over
+ * the list until another row is selected.
  */
 abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     static final int PAD = 6;
@@ -28,7 +28,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     private static final int MOST_WIDTH = 640;
 
     protected final Screen parent;
-    /** Where the picker's own text is in the lang file: "picker" or "mob_picker". */
+    /** The picker's lang key prefix: "picker" or "mob_picker". */
     private final String keys;
     private final NavBar navBar = new NavBar(this);
 
@@ -37,7 +37,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     private Button useReload;
     protected List<T> shown = List.of();
     protected T picked;
-    /** Why the server turned the last pick down, shown until something else is picked. */
+    /** Why the server refused the last choice, shown until another row is selected. */
     private Component problem;
     // The rows sit two pixels inside the list's frame, top and bottom.
     private final Scroll scroll = new Scroll(ROW);
@@ -61,10 +61,10 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
     /** Saves the choice on the server. */
     protected abstract CompletableFuture<ClientRequests.EditReply> save(T choice);
 
-    /** The end of the key the server's reply has when it saved the choice. */
+    /** The lang key ending of the server's reply when the save succeeded. */
     protected abstract String savedReply();
 
-    /** What the choice is called, to say it was saved. */
+    /** The choice's name, for the message saying it was saved. */
     protected abstract String name(T choice);
 
     /** Draws a row's text, from {@code left} up to {@code right}, with the row's top at {@code y}. */
@@ -88,7 +88,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         return Component.translatable("screen.justenoughstructures." + keys + ".none");
     }
 
-    /** A line under the list about the choice picked, or null for none. */
+    /** A line under the list about the selected choice, or null for none. */
     protected Component note() {
         return null;
     }
@@ -152,7 +152,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Asks the server to use the choice picked. If it can't, why stays here to be fixed; if it can, Pack tools says so. */
+    /** Asks the server to apply the selected choice. On refusal the reason stays on this screen; on success Pack tools shows a message. */
     protected void apply(boolean reload) {
         if (picked == null) {
             return;
@@ -259,7 +259,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         scroll.fit(listBottom() - listTop() - 4, shown.size() * ROW);
     }
 
-    /** A point part of the way down the list's scroll bar, for the screenshot harness, or null without one. */
+    /** A point part of the way down the list's scroll bar, or null without one. Test hook for the scripted scenarios. */
     public int[] scrollBar(float along) {
         fitScroll();
         return scroll.scrolls() ? new int[]{right() - 3, listTop() + 1 + Math.round((listBottom() - listTop() - 3) * along)} : null;
@@ -318,7 +318,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
             Gui.drawClipped(g, font, note.getString(), left + 2, listBottom() + 3, w, Gui.labelSoft(), false);
         }
         if (problem != null) {
-            // Over the top of the list, where it's seen, until something else is picked.
+            // Over the top of the list, where it's seen, until another row is selected.
             List<FormattedCharSequence> lines = font.split(problem, w - 12);
             int boxH = Math.min(3, lines.size()) * (font.lineHeight + 1) + 6;
             g.fill(left + 2, listTop() + 2, right - 2, listTop() + 2 + boxH, 0xF0FFE4E4);
@@ -336,7 +336,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
-        // Up and Down move the pick through the list, while typing in the search too, and Enter uses it.
+        // Up and Down move the selection through the list, while typing in the search too, and Enter uses it.
         if (key == InputConstants.KEY_UP || key == InputConstants.KEY_DOWN) {
             movePick(key == InputConstants.KEY_DOWN ? 1 : -1);
             return true;
@@ -348,7 +348,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         return navBar.keyPressed(key, modifiers) || super.keyPressed(key, scanCode, modifiers);
     }
 
-    /** Moves the pick one row up or down, or to the first or last row when nothing's picked, keeping it in view. */
+    /** Moves the selection one row up or down, or to the first or last row when nothing is selected, keeping it in view. */
     private void movePick(int dir) {
         if (shown.isEmpty()) {
             return;
@@ -369,7 +369,7 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
         fitScroll();
     }
 
-    /** Which row is picked, or -1. For the screenshot harness. */
+    /** Which row is selected, or -1. Test hook for the scripted scenarios. */
     public int pickedRow() {
         return picked == null ? -1 : shown.indexOf(picked);
     }

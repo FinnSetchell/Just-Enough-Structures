@@ -17,11 +17,11 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
 /**
- * What a spawner makes, which is how the Mobs tab groups spawners and how far a spawner's popup
- * steps: one mob (none for an empty spawner), a list it got one of as it generated, or a mix it
- * keeps making, each with every mob's weight. Trial spawners are kept apart from the rest, and go by
- * what they make once ominous as well: {@code ominous} is its mobs then, and {@code gear} those of
- * them given equipment.
+ * What a spawner makes. The Mobs tab groups spawners by it, and a spawner's popup steps through those
+ * that share it. MOB is one mob (none for an empty spawner), POOL one chosen from a list when it
+ * generated, MIX a weighted mix it keeps spawning; {@code mobs} holds each mob's weight. Trial
+ * spawners never match other spawners, and also compare {@code ominous}, what they make when ominous,
+ * and {@code gear}, the ominous mobs given equipment.
  */
 public record SpawnerKind(Type type, Map<String, Integer> mobs, boolean trial, Map<String, Integer> ominous, Set<String> gear) {
     public enum Type { MOB, POOL, MIX }
@@ -60,7 +60,7 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs, boolean trial, M
         return mobs.size() == 1 ? mobs.keySet().iterator().next() : "";
     }
 
-    /** Whether a trial spawner makes the same mobs, as often, once it's ominous. */
+    /** Whether a trial spawner makes the same mobs, with the same weights, when it's ominous. */
     boolean sameOminous() {
         return ominous.equals(mobs);
     }
@@ -82,7 +82,7 @@ public record SpawnerKind(Type type, Map<String, Integer> mobs, boolean trial, M
         return out;
     }
 
-    /** The spawners' block entities in a snapshot, by where they are. */
+    /** The spawners' block entities in a snapshot, by position. */
     public static Map<BlockPos, CompoundTag> tags(StructureSnapshot s) {
         Map<BlockPos, CompoundTag> out = new HashMap<>();
         for (CompoundTag tag : s.blockEntities()) {

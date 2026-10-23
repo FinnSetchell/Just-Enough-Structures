@@ -2,7 +2,7 @@ package com.finndog.justenoughstructures.client.screen;
 
 import net.minecraft.client.gui.GuiGraphics;
 
-/** A part of a screen that scrolls on its own: drawn between {@link #begin} and {@link #end}. */
+/** A part of a screen that scrolls separately from the rest: drawn between {@link #begin} and {@link #end}. */
 final class Scroller {
     private final Scroll scroll = new Scroll(20);
     private int x, y, w, h;
@@ -42,7 +42,7 @@ final class Scroller {
         return true;
     }
 
-    /** Takes hold of the scroll bar when a press is on it, or null. */
+    /** Returns the grabbed scroll bar if the press is on it, or null. */
     HeldBar grab(double mouseX, double mouseY) {
         return HeldBar.at(scroll, mouseX, mouseY, x + w, y, h);
     }
@@ -51,7 +51,7 @@ final class Scroller {
         scroll.reset();
     }
 
-    /** A point {@code along} of the way down the scroll bar, for the screenshot harness. */
+    /** A point {@code along} of the way down the scroll bar. Test hook for the scripted scenarios. */
     int[] barPoint(float along) {
         return new int[]{x + w - 3, y + 1 + Math.round((h - 3) * along)};
     }

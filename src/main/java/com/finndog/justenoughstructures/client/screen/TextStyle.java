@@ -7,14 +7,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Text the game shows, like an item's name or a line of its lore, as far as the loot editor's
- * boxes go: the words, a colour, and whether it's bold or italic. That's written as plain text
- * when it has no colour or style, and otherwise as the plainest text component that says so, like
- * {"text": "Fang", "color": "gold", "italic": false}. Plain, with nothing of the screen's in it, so
- * the game tests can run it.
+ * Text the game shows, like an item's name or a line of its lore, as far as the loot editor's boxes
+ * can edit it: the text, a colour, and bold and italic. It's written as a plain string when it has no
+ * colour or style, and otherwise as the simplest text component that holds them, like
+ * {"text": "Fang", "color": "gold", "italic": false}. No screen dependencies, so game tests can use it.
  */
 public final class TextStyle {
-    /** The game's sixteen named colours for text, in its own order. */
+    /** The game's sixteen named text colours, in the game's order. */
     public static final List<String> COLOURS = List.of("black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "gold", "gray",
             "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white");
     private static final int[] RGB = {0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xFFAA00, 0xAAAAAA,
@@ -25,8 +24,8 @@ public final class TextStyle {
     }
 
     /**
-     * Whether the boxes can show all there is to this text: none at all, plain text, or a component
-     * with nothing but its words, a colour, bold and italic. Anything more is left to be edited as JSON.
+     * Whether the boxes can show all of this text: none, a plain string, or a component with only
+     * text, a colour, bold and italic. Anything more is edited as JSON.
      */
     public static boolean simple(JsonElement value) {
         if (value == null) {
@@ -52,17 +51,17 @@ public final class TextStyle {
         return true;
     }
 
-    /** The words. */
+    /** The plain text, without its style. */
     public static String text(JsonElement value) {
         return value == null ? "" : value instanceof JsonObject component ? component.get("text").getAsString() : value.getAsString();
     }
 
-    /** The colour's name, or nothing for the game's own colour for it. */
+    /** The colour name, or "" when unset (the game's default). */
     public static String colour(JsonElement value) {
         return value instanceof JsonObject component && component.has("color") ? component.get("color").getAsString() : "";
     }
 
-    /** Whether it's bold or italic, by that key: yes, no, or null where it's left to the game, which slants names and lore. */
+    /** The bold or italic flag named by {@code key}: true, false, or null when unset and left to the game, which italicises names and lore. */
     public static Boolean flag(JsonElement value, String key) {
         return value instanceof JsonObject component && component.has(key) ? component.get(key).getAsBoolean() : null;
     }
@@ -74,8 +73,8 @@ public final class TextStyle {
     }
 
     /**
-     * The text with its words, its colour or one of its styles changed, by that key, or taken off
-     * with null. Left with words alone, it's plain text again.
+     * The text with one key (text, color, bold or italic) set, or removed when {@code to} is null.
+     * With only text left, it becomes a plain string.
      */
     public static JsonElement with(JsonElement value, String key, JsonElement to) {
         JsonObject out = new JsonObject();

@@ -191,12 +191,14 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         }
     }
 
-    /** Whether the list of tables is here. For the screenshot harness. */
+    // ------------------------------------------------------------------ test hooks for the scripted scenarios
+
+    /** Whether the list of tables is ready. */
     public boolean ready() {
         return indexed;
     }
 
-    /** Picks a row of the list. For the screenshot harness. */
+    /** Selects a row of the list. */
     public void pick(int row) {
         if (row >= 0 && row < shown.size()) {
             picked = shown.get(row);
@@ -204,7 +206,7 @@ public final class TablePickerScreen extends PickerScreen<ResourceLocation> {
         }
     }
 
-    /** Presses Use it. For the screenshot harness. */
+    /** Presses Use it. */
     public void useIt() {
         apply(false);
     }

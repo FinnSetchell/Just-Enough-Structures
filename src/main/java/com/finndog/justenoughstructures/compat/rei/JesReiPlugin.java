@@ -76,17 +76,17 @@ public class JesReiPlugin implements REIClientPlugin {
         }
     }
 
-    /** Whether REI has the structures to show. For the screenshot harness. */
+    /** Whether REI has the structures to show. Test hook for the scripted scenarios. */
     public static boolean ready() {
         return !all.isEmpty();
     }
 
-    /** Where the first row's structure is on screen, or null before REI has shown one. For the screenshot harness. */
+    /** Where the first row's structure is on screen, or null before REI has shown one. Test hook for the scripted scenarios. */
     public static int[] firstRow() {
         return FoundInReiCategory.firstRow;
     }
 
-    /** Opens REI on how to get an item, at the structures it's found in. For the screenshot harness. */
+    /** Opens REI on how to get an item, at the structures it's found in. Test hook for the scripted scenarios. */
     public static void showFoundIn(ItemStack stack) {
         ViewSearchBuilder.builder().addRecipesFor(EntryStacks.of(stack)).setPreferredOpenedCategory(FOUND_IN).open();
     }

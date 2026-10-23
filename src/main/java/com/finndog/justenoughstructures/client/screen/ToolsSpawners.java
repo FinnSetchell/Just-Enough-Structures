@@ -16,8 +16,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * Spawners: picking one in the browser to change, those changed so far, and for the one picked,
- * where it is, what kind of spawner it is, its mob and what it's changed from.
+ * The Spawners section: picking one in the browser to change, the changed ones, and for the selected
+ * one, where it is, its spawner kind, its mob and what it was changed from.
  */
 final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawners.SpawnerRef> {
     private static final ItemStack SPAWNER = new ItemStack(Items.SPAWNER);
@@ -49,7 +49,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
                     source == null ? null : source.template(), source == null ? null : source.pos(), source == null ? null : source.patchedFrom());
         }
 
-        /** Its mob as things stand: the patch's, or with no patch any more, its own. */
+        /** The current mob: the patch's, else the mob from before a since-removed patch, else the clicked one's. */
         String mobNow(SpawnerPatches.Patch patch) {
             return patch != null ? patch.mob() : patchedFrom != null ? patchedFrom : mob;
         }
@@ -58,7 +58,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
             return patch != null || patchedFrom != null ? 0 : others;
         }
 
-        /** The block it is as things stand: what the patch makes it, or with no patch, what it is in its template. */
+        /** The current block: the patch's target, or with no patch, the block in its template. */
         ResourceLocation blockNow(SpawnerPatches.Patch patch) {
             return patch != null ? patch.target() : block;
         }
@@ -128,8 +128,8 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
     }
 
     /**
-     * "Magma Cube > Husk", for a changed spawner's row, saying so when it's been made the other kind,
-     * or only that when its mob is the same.
+     * Row text for a changed spawner, like "Magma Cube > Husk". It mentions a switch to the other
+     * spawner kind, and says only that when the mob is unchanged.
      */
     static String changed(SpawnerPatches.Patch patch) {
         if (patch.to() == null) {
@@ -185,7 +185,7 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
         cy = Gui.fineWrapped(g, font, from, x, cy + 2, w, Gui.labelSoft()) + 2;
 
         if (!ref.byCode() && TrialSpawners.exist()) {
-            // Made the other kind with the mob it has now. Back to what it was in its template, with its own mob, is undoing it.
+            // Switch to the other spawner kind, keeping the current mob. If that restores the template's block and mob, remove the patch instead.
             ResourceLocation other = TrialSpawners.isBlock(ref.block()) != trial ? ref.block() : trial ? SpawnerPatches.SPAWNER : TrialSpawners.BLOCK;
             boolean undoes = patch != null && other.equals(patch.block()) && mob.equals(patch.original());
             String make = trial ? "make_spawner" : "make_trial";
@@ -225,7 +225,10 @@ final class ToolsSpawners extends ToolsPatches<SpawnerPatches.Patch, ToolsSpawne
         return cy;
     }
 
-    /** "Changed from Zombie", or from a spawner or trial spawner making it when it's been made the other kind. */
+    /**
+     * Lang key for the "changed from" line: the old mob, or the old spawner kind when the kind was
+     * switched. Uses the _next key while the change waits for /reload.
+     */
     private static String changedFromKey(SpawnerPatches.Patch patch, boolean waiting) {
         if (patch.to() == null) {
             return waiting ? "screen.justenoughstructures.tools.changed_from_next" : "screen.justenoughstructures.container.changed_from";

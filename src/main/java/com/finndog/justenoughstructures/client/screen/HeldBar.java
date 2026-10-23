@@ -1,14 +1,15 @@
 package com.finndog.justenoughstructures.client.screen;
 
 /**
- * A scroll bar a press has taken hold of, so its list follows the mouse until the button comes up.
- * {@code moved}, when there is one, is told each time the bar moves the list, for a list that keeps its
- * own offset.
+ * A scroll bar being dragged: its list follows the mouse until the button is released. Lists start a
+ * drag through {@link #at}. {@code moved}, if set, runs each time the drag moves the list, for a list
+ * that also stores its offset elsewhere, like a text box.
  */
 record HeldBar(Scroll scroll, int top, int height, Runnable moved) {
     /**
-     * Takes hold of a list's bar when a press is on it or on the strip kept clear for it, the 8
-     * pixels left of {@code right}. Null when the press is elsewhere, or the list has no bar.
+     * Starts dragging a list's bar if the press is on it or on the strip kept clear for it, the 8
+     * pixels left of {@code right}. Returns null if the press is elsewhere or the list doesn't scroll.
+     * {@link Scroll#hold} decides where the thumb is gripped.
      */
     static HeldBar at(Scroll scroll, double mouseX, double mouseY, int right, int top, int height) {
         return at(scroll, mouseX, mouseY, right, top, height, null);

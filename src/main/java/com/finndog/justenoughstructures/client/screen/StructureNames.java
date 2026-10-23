@@ -28,12 +28,12 @@ import net.minecraft.world.item.alchemy.Potion;
 
 /** Readable names for structures, mods, loot tables and mobs. */
 public final class StructureNames {
-    /** Names already worked out, as sorting the list asks for each one many times. Dropped when the language changes. */
+    /** Cached names, since sorting the list asks for each one many times. Cleared when the language or the Pack tools names change. */
     private static final Map<ResourceLocation, String> STRUCTURES = new ConcurrentHashMap<>();
     private static Language namedIn;
-    /** The names Pack tools gave structures on the server, each language's by lang key, or null when it sends none. */
+    /** Structure names saved in Pack tools on the server, by language and then lang key, or null from a server that sends none. */
     private static volatile Map<String, Map<String, String>> given;
-    /** Goes up each time they change, so names worked out from the old ones are dropped. */
+    /** Goes up each time they change, so names cached from the old ones are dropped. */
     private static volatile int givenChanges;
     private static int namedWith;
 
@@ -85,13 +85,13 @@ public final class StructureNames {
         return named == null ? "" : named;
     }
 
-    /** The names Pack tools gave structures, as the server sent them, or null from a server that sends none. */
+    /** Replaces the Pack tools structure names with those the server sent (null from a server that sends none). */
     public static void useGiven(Map<String, Map<String, String>> names) {
         given = names;
         givenChanges++;
     }
 
-    /** A name just saved, put in use here straight away rather than when the structure list next comes. */
+    /** Uses a name just saved right away, instead of waiting for the next structure list. */
     public static void saved(ResourceLocation id, String language, String name) {
         Map<String, Map<String, String>> names = given;
         if (names == null) {
@@ -109,7 +109,7 @@ public final class StructureNames {
         useGiven(next);
     }
 
-    /** Whether the server keeps names Pack tools gives structures, which versions from before them don't. */
+    /** Whether the server supports Pack tools structure names. Older JES servers don't. */
     public static boolean namesFromServer() {
         return given != null;
     }
@@ -144,7 +144,7 @@ public final class StructureNames {
         return kind.equals("chests") ? pretty(path) : pretty(path) + " (" + pretty(kind) + ")";
     }
 
-    /** A mob's own name, or "Nothing" for none, or its id tidied up if the game doesn't know it. */
+    /** A mob type's name, or "Nothing" for none, or its id tidied up if the game doesn't know it. */
     public static Component mob(String id) {
         if (id == null || id.isEmpty()) {
             return Component.translatable("screen.justenoughstructures.tools.no_mob");
@@ -157,8 +157,8 @@ public final class StructureNames {
     }
 
     /**
-     * What a mob placed in a preview calls itself, or the name of its kind if asking fails, as it can
-     * for another mod's mob: a preview makes its mobs without putting them in a world.
+     * The name of a mob placed in a preview, or its type's name if asking throws, as another mod's mob
+     * can: a preview makes its mobs without putting them in a world.
      */
     static Component mobName(Entity mob) {
         try {
@@ -171,7 +171,7 @@ public final class StructureNames {
         }
     }
 
-    /** An item's own name. */
+    /** An item's name. */
     public static Component item(Item item) {
         //? if >=26.1 {
         /*return item.getName(item.getDefaultInstance());

@@ -30,7 +30,7 @@ final class PopupLinks<A extends Enum<A>> {
         return null;
     }
 
-    /** The middle of a link, or null if it isn't shown. For the screenshot harness. */
+    /** The middle of a link, or null if it isn't shown. Test hook for the scripted scenarios. */
     int[] centre(A action) {
         int[] r = drawn.get(action);
         return r == null ? null : new int[]{r[0] + r[2] / 2, r[1] + r[3] / 2};

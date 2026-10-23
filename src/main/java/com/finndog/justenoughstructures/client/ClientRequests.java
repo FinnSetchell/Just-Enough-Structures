@@ -483,7 +483,7 @@ public final class ClientRequests {
         }
     }
 
-    /** Fetches the structure list again when it's next wanted, for the screenshot harness. */
+    /** Fetches the structure list again when it's next wanted. Test hook for the scripted scenarios. */
     public static void forgetCatalog() {
         if (catalog != null && catalog.isDone()) {
             catalog = null;

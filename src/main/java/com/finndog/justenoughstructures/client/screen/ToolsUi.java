@@ -11,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Pack tools' controls, drawn as they're laid out each frame: buttons, links, switches, check boxes
  * and chips that can sit in rows of a scrolling list. Each one drawn leaves a spot to click, and the
- * last drawn on top wins, so a button on a row is clicked rather than the row under it.
+ * last drawn wins, so a button on a row gets the click instead of the row under it.
  */
 final class ToolsUi {
     static final int BUTTON = 14;
@@ -37,12 +37,12 @@ final class ToolsUi {
     }
     static final int SELECTED = 0xFF4B5280;
     /**
-     * Over a dark panel, see-through shades of whatever the panel is: a list's picked row a little
+     * Over a dark panel, translucent shades of the panel colour: a list's selected row a little
      * lighter, and the lines between rows a little darker.
      */
     static final int PICKED_ON_DARK = 0x40FFFFFF;
     static final int LINE_ON_DARK = 0x40000000;
-    /** The kinds of {@link #status} bar, by how what it says stands. */
+    /** Status bar kinds for {@link #status}. */
     static final int STATUS_PLAIN = 0;
     static final int STATUS_GOOD = 1;
     static final int STATUS_CHANGED = 2;
@@ -51,7 +51,7 @@ final class ToolsUi {
 
     private final Font font;
     private final List<Spot> spots = new ArrayList<>();
-    /** The scroll bars drawn this frame, and the one a press took hold of. */
+    /** The scroll bars drawn this frame, and the one being dragged. */
     private final List<Scroller> bars = new ArrayList<>();
     private HeldBar held;
     private int mouseX;
@@ -100,14 +100,14 @@ final class ToolsUi {
         spot(x, y, w, h, action, null);
     }
 
-    /** The same with a name, for a button that's a picture: the name finds it for the screenshot harness. */
+    /** The same with a label, for an icon button: the scripted scenarios find it by that label. */
     void spot(int x, int y, int w, int h, Runnable action, String label) {
         if (action != null) {
             spots.add(new Spot(x, y, w, h, clipTop, clipBottom, action, label));
         }
     }
 
-    /** The middle of the last button or link drawn with this label, for the screenshot harness, or null. */
+    /** The middle of the last button or link drawn with this label, or null. Test hook for the scripted scenarios. */
     int[] centre(String label) {
         for (int i = spots.size() - 1; i >= 0; i--) {
             Spot spot = spots.get(i);
@@ -128,12 +128,12 @@ final class ToolsUi {
         return tooltip;
     }
 
-    /** A scroll bar drawn this frame, for a press to take hold of. */
+    /** Registers a scroll bar drawn this frame, so a press can grab it. */
     void bar(Scroller scroller) {
         bars.add(scroller);
     }
 
-    /** A point part of the way down one of this frame's scroll bars, the first being 0, for the screenshot harness, or null. */
+    /** A point part of the way down one of this frame's scroll bars, the first being 0, or null. Test hook for the scripted scenarios. */
     int[] barPoint(int index, float along) {
         return index < bars.size() ? bars.get(index).barPoint(along) : null;
     }
@@ -152,7 +152,7 @@ final class ToolsUi {
         return true;
     }
 
-    /** The mouse button came up: lets go of a scroll bar. */
+    /** On mouse release, stops dragging a scroll bar. */
     void release() {
         if (held != null) {
             held.letGo();
@@ -220,7 +220,7 @@ final class ToolsUi {
         return w;
     }
 
-    /** A button lit up while it's the one chosen, like the section on show, with an item drawn small before its label. */
+    /** A button highlighted while it's chosen, like the current section, with a small item before its label. */
     void choice(GuiGraphics g, ItemStack icon, Component label, String count, int x, int y, int w, int h, boolean chosen, Runnable action) {
         if (chosen) {
             g.fill(x, y, x + w, y + h, 0xFF000000);
@@ -265,9 +265,8 @@ final class ToolsUi {
     }
 
     /**
-     * A 9 pixel icon that's a button, its top left at x, y. The box behind it lights up in {@code lit}
-     * under the mouse. {@code name} is its tooltip, and {@code label}, when there is one, finds it for
-     * the screenshot harness.
+     * A 9-pixel icon button, its top left at x, y. The box behind it lights up in {@code lit} under the
+     * mouse. {@code name} is its tooltip, and {@code label}, if given, lets the scripted scenarios find it.
      */
     void iconButton(GuiGraphics g, int x, int y, ResourceLocation icon, int lit, Component name, String label, Runnable action) {
         iconButton(g, x, y, icon, lit, 0xFFFFFFFF, true, name, label, action);
@@ -293,7 +292,7 @@ final class ToolsUi {
     void toggle(GuiGraphics g, int x, int y, boolean on, Runnable action, Component... tip) {
         g.fill(x, y, x + 17, y + 10, 0xFF000000);
         g.fill(x + 1, y + 1, x + 16, y + 9, on ? 0xFF4F7A3A : 0xFF555555);
-        // The knob is a little piece of the panel, in the chest texture's own colours, so a pack's.
+        // The knob uses the chest texture's panel tones, so resource packs restyle it.
         int knob = on ? x + 9 : x + 1;
         Gui.tone(g, knob, y + 1, knob + 7, y + 9, Gui.Tone.PANEL);
         Gui.tone(g, knob, y + 1, knob + 6, y + 2, Gui.Tone.LIGHT);
@@ -351,12 +350,12 @@ final class ToolsUi {
         }
     }
 
-    /** How wide a button that's an icon alone is: room for a 9 pixel icon. */
+    /** Width of an icon-only button: room for a 9-pixel icon. */
     static final int ICON_BUTTON = Icons.SMALL + 6;
 
     /**
-     * A {@link #BUTTON} high button that's an icon alone: its words are its tooltip, over {@code tip}
-     * when there is one, and its name for the screenshot harness. Returns its width.
+     * An icon-only button, {@link #BUTTON} high. {@code label} is its tooltip, above {@code tip} if
+     * given, and the name the scripted scenarios find it by. Returns its width.
      */
     int iconOnlyButton(GuiGraphics g, ResourceLocation icon, Component label, int x, int y, boolean active, Runnable action, Component tip) {
         boolean over = hovered(x, y, ICON_BUTTON, BUTTON);
@@ -428,7 +427,7 @@ final class ToolsUi {
         return Gui.darkPanel() ? new int[]{colours[1], colours[0]} : colours;
     }
 
-    /** A coloured bar with a line of text, for how something stands. Returns its height. */
+    /** A coloured status bar with wrapped text. Returns its height. */
     int status(GuiGraphics g, Component text, int x, int y, int w, int kind) {
         int[] colours = statusColours(kind);
         List<net.minecraft.util.FormattedCharSequence> lines = font.split(text, w - 8);

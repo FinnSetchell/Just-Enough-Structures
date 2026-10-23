@@ -464,13 +464,13 @@ final class StructureList {
         scroll.fit(height, contentHeight);
     }
 
-    /** Takes hold of the scroll bar when a press is on it, or null. */
+    /** Returns the grabbed scroll bar if the press is on it, or null. */
     HeldBar grabBar(double mouseX, double mouseY) {
         clampScroll();
         return HeldBar.at(scroll, mouseX, mouseY, x + width, y, height);
     }
 
-    /** A point part of the way down the scroll bar, for the screenshot harness, or null without one. */
+    /** A point part of the way down the scroll bar, or null without one. Test hook for the scripted scenarios. */
     int[] barPoint(float along) {
         return scroll.scrolls() ? new int[]{x + width - 3, y + 1 + Math.round((height - 3) * along)} : null;
     }

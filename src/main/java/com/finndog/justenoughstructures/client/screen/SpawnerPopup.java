@@ -22,10 +22,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
- * A spawner opened from the preview or the Mobs tab: every mob it can make with each one's chance,
- * and how often it spawns them. A trial spawner's list goes on to what it makes once ominous, when
- * that's different. It's drawn like the chest popup and sits beside the preview the same way, with
- * arrows to the other spawners that make the same.
+ * A spawner's popup, opened from the preview or the Mobs tab: every mob it can make with each one's
+ * chance, and how often it spawns them. A trial spawner's list continues with what it makes when
+ * ominous, if that's different. It's drawn and placed like the chest popup, with arrows to the other
+ * spawners of the same kind.
  */
 final class SpawnerPopup extends SidePopup {
     /** The list of mobs scrolls once it's taller than this. */
@@ -57,8 +57,8 @@ final class SpawnerPopup extends SidePopup {
     /** Whether this player sees Pack tools: its shortcut, and what a changed spawner made before. */
     final boolean packTools = ClientRequests.showsPackTools();
     /**
-     * Set while the player is picking a spawner for Pack tools to change: the button that opens it in
-     * Pack tools is pointed out, so it's learnt as the way to change one.
+     * Set while the player is picking a spawner for Pack tools to change. The button that opens it in
+     * Pack tools is then highlighted, so players learn it's the way to change one.
      */
     boolean picking;
     private final Scroll scroll = new Scroll(OddsList.ROW + 1);
@@ -131,7 +131,7 @@ final class SpawnerPopup extends SidePopup {
         int width = (int) ((WIDTH - 14) / Gui.fineScale());
         String changedFrom = spawner.source() == null ? null : spawner.source().patchedFrom();
         if (packTools && changedFrom != null && !overview()) {
-            // Made the other kind of spawner: which kind it was says what changed.
+            // If the spawner kind was switched, say which kind it was; otherwise name the old mob.
             boolean wasTrial = spawner.source().block().equals(TrialSpawners.BLOCK);
             String key = wasTrial == kind.trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
             Component note = Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(changedFrom));
@@ -252,7 +252,6 @@ final class SpawnerPopup extends SidePopup {
             Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.hover_spawns_nothing"), left + 4, top + 4, right - left - 8, Gui.labelSoft());
             return;
         }
-        // A list that scrolls says so with a bar down its side, and its rows make room for it.
         int most = mostScroll();
         int rowRight = most > 0 ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
@@ -324,7 +323,7 @@ final class SpawnerPopup extends SidePopup {
         return links.at(mouseX, mouseY);
     }
 
-    /** The middle of a link, or null if it isn't shown. For the screenshot harness. */
+    /** The middle of a link, or null if it isn't shown. Test hook for the scripted scenarios. */
     int[] linkCentre(Action action) {
         return links.centre(action);
     }

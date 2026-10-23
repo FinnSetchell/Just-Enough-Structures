@@ -36,7 +36,7 @@ final class FoundInPopup {
     private long listedAt;
     /** The index the rows were listed from, as {@link FoundIn#changes()} had it. */
     private int listedFrom;
-    // A row a notch. Kept in pixels like any list, and read back as whole rows.
+    // One row a notch. Stored in pixels like any list, and read back as whole rows.
     private final Scroll scroll = new Scroll(ROW);
     int x;
     int y;
@@ -61,7 +61,7 @@ final class FoundInPopup {
     /** The rows, best chance first, or null until they're ready to show. */
     private List<Row> rows() {
         if (rows != null && listedFrom != FoundIn.changes()) {
-            // The index has changed since, as when the finished one takes an early one's place: listed again.
+            // The loot index changed (for example the full index replaced the early one), so rebuild the list.
             rows = null;
             sorted = false;
         }
@@ -125,7 +125,6 @@ final class FoundInPopup {
         }
         scroll.fit(VISIBLE_ROWS * ROW, list.size() * ROW);
         int first = first();
-        // A list that scrolls says so with a bar down its side, and its rows make room for it.
         int room = scroll.scrolls() ? 7 : 0;
         for (int i = 0; i < VISIBLE_ROWS && first + i < list.size(); i++) {
             Row row = list.get(first + i);
@@ -154,17 +153,17 @@ final class FoundInPopup {
         }
     }
 
-    /** The first row on show. */
+    /** The first visible row. */
     private int first() {
         return (int) Math.round(scroll.offset() / ROW);
     }
 
-    /** Takes hold of the list's scroll bar when a press is on it, or null. */
+    /** Returns the grabbed scroll bar if the press is on it, or null. */
     HeldBar grabBar(double mouseX, double mouseY) {
         return rows() == null ? null : HeldBar.at(scroll, mouseX, mouseY, x + WIDTH - 7, y + 30, VISIBLE_ROWS * ROW);
     }
 
-    /** A point part of the way down the list's scroll bar, for the screenshot harness, or null without one. */
+    /** A point part of the way down the list's scroll bar, or null without one. Test hook for the scripted scenarios. */
     int[] barPoint(float along) {
         return rows() != null && scroll.scrolls() ? new int[]{x + WIDTH - 10, y + 31 + Math.round((VISIBLE_ROWS * ROW - 3) * along)} : null;
     }

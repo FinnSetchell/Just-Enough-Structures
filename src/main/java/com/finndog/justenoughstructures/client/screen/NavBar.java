@@ -19,7 +19,7 @@ import org.lwjgl.glfw.GLFW;
  * buttons.
  */
 final class NavBar {
-    /** Where a screen's own panels start, below the bar. */
+    /** Where a screen's panels start, below the bar. */
     static final int TOP = 20;
     private static final int Y = 3;
     private static final int HEIGHT = 14;
@@ -30,7 +30,7 @@ final class NavBar {
     private final Arrow forward = new Arrow(false, Component.translatable("screen.justenoughstructures.nav.forward"), b -> Nav.forward());
     private Component backTo;
     private Component forwardTo;
-    /** Whether where they go is written beside the buttons, so their tooltips needn't say it. */
+    /** Whether the destinations are written beside the buttons, so their tooltips don't need to say them. */
     private boolean written;
 
     NavBar(Screen screen) {
@@ -48,8 +48,8 @@ final class NavBar {
         forward.setWidth(forward.contentWidth(font) + 10);
         back.setPosition(SIDE, Y);
         forward.setPosition(screen.width - SIDE - forward.getWidth(), Y);
-        // Where each goes, beside it, each given half of what's left between them, or all of it
-        // when the other has nowhere to go.
+        // Each button's destination goes beside it, in half the space between them, or all of it when
+        // the other button has nowhere to go.
         int between = forward.getX() - back.getX() - back.getWidth() - 16;
         int room = newBack != null && newForward != null ? between / 2 : between;
         boolean nowWritten = room > 20;
@@ -86,7 +86,7 @@ final class NavBar {
         return a == null ? b == null : b != null && a.getString().equals(b.getString());
     }
 
-    /** Its keys, and where it goes when that isn't written beside it, or none when there's nowhere to go. */
+    /** The button's tooltip: its keys, plus where it goes when that isn't written beside it. Null when there's nowhere to go. */
     private static Tooltip tooltip(Component to, boolean isBack, boolean written) {
         if (to == null) {
             return null;
@@ -132,7 +132,7 @@ final class NavBar {
                 || focused instanceof MultiLineEditBox text && text.isFocused();
     }
 
-    /** Where the buttons are, for the screenshot harness. */
+    /** The middles of the Back and Forward buttons. Test hooks for the scripted scenarios. */
     int[] backCentre() {
         return new int[]{back.getX() + back.getWidth() / 2, Y + HEIGHT / 2};
     }
@@ -173,7 +173,7 @@ final class NavBar {
         }
     }
 
-    /** The chevron icon in {@code colour} with a shadow, as a button's words, its arrow head five wide and seven tall where a letter at x, y would be. */
+    /** Draws the chevron icon in {@code colour} with a shadow, like button text: its arrow head five wide and seven tall where a letter at x, y would be. */
     static void chevron(GuiGraphics g, int x, int y, int colour, boolean pointsBack) {
         Gui.icon(g, pointsBack ? Icons.CHEVRON_LEFT : Icons.CHEVRON_RIGHT, x - 2, y - 1, Icons.SMALL, Icons.SMALL, colour, true);
     }

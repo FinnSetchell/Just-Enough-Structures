@@ -845,7 +845,7 @@ final class LootForm {
 
     /**
      * Draws the head of a function or condition card: a kind dropdown, then remove, duplicate and move
-     * buttons. The buttons get no label, so the screenshot harness's buttonAt finds the tree row's
+     * buttons. The buttons get no label, so the scripted scenarios' buttonAt finds the tree row's
      * buttons of the same name.
      */
     private int typeHead(GuiGraphics g, int x, int y, int w, String id, List<String> options, String kind, String current,

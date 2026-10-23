@@ -4,10 +4,8 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The browser's own small pictures, each a file of its own in textures/gui so a resource pack can
- * draw it again. Each file is the white shape alone, and its shadow is drawn with it: on a button
- * like the words there, and on a light panel a soft one under the icon in the colour the words there
- * have. The 9 pixel ones sit level with a line of text.
+ * JES's small icons, one file each in textures/gui so resource packs can replace them. Each file is
+ * just the white shape; {@link Gui#icon} draws the shadow. The 9-pixel ones line up with a line of text.
  */
 final class Icons {
     /** 9 pixels square. */
@@ -49,7 +47,7 @@ final class Icons {
     static final ResourceLocation FOLD_CLOSED = icon("fold_closed");
     static final ResourceLocation FOLD_OPEN = icon("fold_open");
 
-    // Pack tools: its rows' buttons, and the badges after names that say how they stand.
+    // Pack tools: its row buttons, and the status badges after names.
     static final ResourceLocation EDIT = icon("edit");
     static final ResourceLocation OPEN = icon("open");
     static final ResourceLocation UNDO_SMALL = icon("undo_small");

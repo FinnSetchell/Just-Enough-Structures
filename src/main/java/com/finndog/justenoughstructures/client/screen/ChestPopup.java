@@ -16,17 +16,17 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * A container opened from the preview, drawn with the vanilla chest texture, or a loot table on its
- * own that this layout doesn't have. It shows one roll of the table, or every item's chance in a
- * container like it, switched by the two tabs by its name.
+ * A container's popup, drawn with the vanilla chest texture, or a popup for a loot table by itself
+ * that isn't in this layout. It shows one roll of the table, or every item's chance in a container
+ * of this kind, switched by the two tabs beside its name.
  */
 final class ChestPopup {
     private static final ResourceLocation TEXTURE = Ids.parse("textures/gui/container/generic_54.png");
     static final int WIDTH = 176;
-    /** How tall the list of chances is, so it's the same size whatever the container. */
+    /** Height of the list of chances, the same for every container. */
     private static final int ODDS_HEIGHT = 108;
     private static final int TAB_HEIGHT = 11;
-    /** One of the tabs by the popup's name: room for its icon. */
+    /** Width of a tab beside the popup's name: room for its icon. */
     private static final int TAB_WIDTH = Icons.SMALL + 4;
 
     enum View { ROLL, ODDS }
@@ -46,7 +46,7 @@ final class ChestPopup {
     private static final ItemStack PAPER = new ItemStack(net.minecraft.world.item.Items.PAPER);
     private static final int ICON = 14;
 
-    /** The container, or null for a loot table on its own. */
+    /** The container, or null for a loot table by itself. */
     final StructureSnapshot.Container container;
     /** Its loot table, or null for a container saved with its items. */
     final String table;
@@ -54,9 +54,9 @@ final class ChestPopup {
     final int size;
     final int rows;
     /**
-     * Which of the {@code count} containers with this table it is, or -1 when it was opened from
-     * something standing for all of them, a row in the Loot tab or a marker they share, and none has
-     * been picked yet. Until one is, what acts on a particular container waits.
+     * Index among the {@code count} containers with this table, or -1 when opened from something that
+     * stands for all of them (a Loot tab row or a shared marker). Actions on a single container are
+     * disabled until one is selected.
      */
     final int index;
     final int count;
@@ -73,15 +73,15 @@ final class ChestPopup {
     private final Scroll scroll = new Scroll(OddsList.ROW + 1);
     /** Where the list of chances' bar was last drawn. */
     private int barRight, barTop, barHeight;
-    /** A tab under the mouse, set as it's drawn. */
+    /** The unselected tab under the mouse, set while drawing, or null. */
     Action hoveredAction;
     /** Lines to add to the tooltip of the hovered item, in the list of chances. */
     List<Component> hoveredExtra = List.of();
     /** The tooltip of a link or icon under the mouse, or null. */
     List<Component> hoveredTip;
     /**
-     * Set while the player is picking a chest for Pack tools to change: the button that opens the
-     * container in Pack tools is pointed out, so it's learnt as the way to change one.
+     * Set while the player is picking a chest for Pack tools to change. The button that opens the
+     * container in Pack tools is then highlighted, so players learn it's the way to change one.
      */
     boolean picking;
     /** The block or entity it is, for the icon that opens it in Pack tools. */
@@ -105,20 +105,20 @@ final class ChestPopup {
     }
 
     /**
-     * A loot table on its own, in a container as big as a chest, showing its chances first. Its title
-     * says it's not in this layout unless {@code title} says otherwise.
+     * A popup for a loot table by itself, sized like a chest, showing its chances first. Unless
+     * {@code title} is given, the title says the table isn't in this layout.
      */
     static ChestPopup forTable(String table, Component title) {
         return new ChestPopup(null, table, title != null ? title : Component.translatable("screen.justenoughstructures.not_in_layout"), 27, 0, 1,
                 Component.translatable("screen.justenoughstructures.container").getString(), View.ODDS);
     }
 
-    /** Showing all the containers with this table rather than a particular one of them. */
+    /** Whether it shows all the containers with this table instead of one. */
     boolean overview() {
         return container != null && index < 0;
     }
 
-    /** "3 / 17", or "all 17" before one is picked, or null for a container that's the only one like it. */
+    /** "3 / 17", or "all 17" before one is selected, or null for a container that's the only one like it. */
     private String indexText() {
         if (count <= 1) {
             return null;
@@ -127,16 +127,16 @@ final class ChestPopup {
                 : Component.translatable("screen.justenoughstructures.container_index", index + 1, count).getString();
     }
 
-    /** Sits beside the preview at {@code x}, so the containers it's about can be seen. */
+    /** Places it at {@code x}, beside the preview, so its containers stay in view. */
     void placeAt(int x, int screenHeight, Font font) {
         this.x = x;
         y = Math.max(4, (screenHeight - placedHeight(font)) / 2);
     }
 
     /**
-     * How tall it's taken to be when it's placed: as tall as it can get, with the taller view and the
-     * most lines of notes, so switching tabs or rolling again changes only how far down it reaches,
-     * and its title and tabs stay where they are.
+     * The height used to place it: its tallest, with the taller view and the most lines of notes, so
+     * switching tabs or rolling again only changes how far down it reaches, and its title and tabs
+     * stay put.
      */
     private int placedHeight(Font font) {
         int body = hasTabs() ? Math.max(rows * 18, ODDS_HEIGHT) : bodyHeight();
@@ -175,8 +175,8 @@ final class ChestPopup {
     }
 
     /**
-     * The line under the table's name, when there's something to say: what a changed container was,
-     * or that each of a group saved with their items has its own. Up to two lines.
+     * Note under the table name, at most two lines: the original table of a changed container, or,
+     * for a group of prefilled containers, that each has its own items.
      */
     private List<FormattedCharSequence> noteLines(Font font) {
         String changedFrom = container == null || container.source() == null ? null : container.source().patchedFrom();
@@ -196,7 +196,7 @@ final class ChestPopup {
     private int titleRoom(Font font) {
         int room = WIDTH - 16;
         if (count > 1) {
-            // Room for the widest it can say, so the popup doesn't change shape as the arrows step.
+            // Room for the widest count text, so the popup doesn't change shape as the arrows step.
             int all = font.width(Component.translatable("screen.justenoughstructures.container_all", count).getString());
             int last = font.width(Component.translatable("screen.justenoughstructures.container_index", count, count).getString());
             room -= Math.max(all, last) + 4;
@@ -212,7 +212,7 @@ final class ChestPopup {
         return font.width(title.getString()) > titleRoom(font) ? 17 + font.lineHeight + 1 : 17;
     }
 
-    /** Whether the name goes on a line of its own under the tabs, as a word of it won't fit beside them. */
+    /** Whether the name goes on a separate line under the tabs, because one of its words won't fit beside them. */
     private boolean titleBelow(Font font) {
         for (String word : title.getString().split(" ")) {
             if (font.width(word) > titleRoom(font)) {
@@ -256,7 +256,7 @@ final class ChestPopup {
         return true;
     }
 
-    /** Takes hold of the list of chances' scroll bar when a press is on it, or null. */
+    /** Returns the grabbed scroll bar if the press is on the list of chances' bar, or null. */
     HeldBar grabBar(double mouseX, double mouseY) {
         if (view != View.ODDS || odds == null) {
             return null;
@@ -269,7 +269,7 @@ final class ChestPopup {
         scroll.fit(bodyHeight() - 4, OddsList.height(odds.rows().size()));
     }
 
-    /** A point part of the way down the list of chances' scroll bar, for the screenshot harness, or null without one. */
+    /** A point part of the way down the list of chances' scroll bar, or null without one. Test hook for the scripted scenarios. */
     int[] barPoint(float along) {
         if (view != View.ODDS || odds == null) {
             return null;
@@ -410,7 +410,6 @@ final class ChestPopup {
         List<LootOdds.Row> rows = OddsList.sorted(odds, false);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
         fitScroll();
-        // A list that scrolls says so with a bar down its side, and its rows make room for it.
         int rowRight = scroll.scrolls() ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
         int detailRoom = OddsList.detailRoom(font, rows.stream().map(OddsList::counts).toList());
@@ -435,7 +434,7 @@ final class ChestPopup {
         return hovered;
     }
 
-    /** The tooltip of what can't be done until a specific container is picked. */
+    /** The tooltip for an action that needs a single container selected first. */
     private static List<Component> pickOne() {
         return List.of(Component.translatable("screen.justenoughstructures.tools.pick_one"));
     }
@@ -485,8 +484,8 @@ final class ChestPopup {
     }
 
     /**
-     * A gently pulsing yellow frame round a button, pointing it out as the one that does what the
-     * player is in the middle of, like the one that changes a chest picked for Pack tools.
+     * Draws a gently pulsing yellow frame around a button, to point it out as the next step in what
+     * the player is doing, like the button that changes a chest picked for Pack tools.
      */
     static void pointOut(GuiGraphics g, int left, int top, int size) {
         float pulse = 0.5f + 0.5f * (float) Math.sin(net.minecraft.Util.getMillis() / 220.0);
@@ -495,7 +494,7 @@ final class ChestPopup {
         g.fill(left - 1, top - 1, left + size + 1, top + size + 1, 0xFFFFF2B0);
     }
 
-    /** A tab by the popup's name, its icon on it and its words as its tooltip, its right edge at {@code right}. Returns its left edge. */
+    /** Draws a tab beside the popup's name, its icon on it and its label as the tooltip, its right edge at {@code right}. Returns its left edge. */
     private int tab(GuiGraphics g, Action action, String key, ResourceLocation icon, boolean on, int right, int mouseX, int mouseY) {
         int w = TAB_WIDTH;
         int left = right - w;
@@ -517,7 +516,7 @@ final class ChestPopup {
         return left;
     }
 
-    /** The badge on an edited table at the right of its line, for players who see Pack tools, its words its tooltip. Returns the room it took. */
+    /** Draws the edited-table badge at the right of the line, with its text as the tooltip. Returns the width used. */
     private int editedMark(GuiGraphics g, Font font, String table, int right, int top, int mouseX, int mouseY) {
         LootOverrides.Status status = ClientRequests.overrideStatus(table);
         Component mark = ToolsSection.editedMark(status);

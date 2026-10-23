@@ -97,7 +97,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
     // ------------------------------------------------------------------ what it shows
 
-    /** What the server last said, or null until it has. */
+    /** The last Pack tools state from the server, or null until it arrives. */
     PackToolsState state() {
         return state;
     }
@@ -107,7 +107,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         return catalog;
     }
 
-    /** Asks the server again how everything stands, after a change or a /reload. */
+    /** Asks the server for the current state again, after a change or a /reload. */
     void refresh() {
         ClientRequests.tools().thenAccept(fresh -> {
             boolean first = state == null;
@@ -121,14 +121,14 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         ClientRequests.requestOverrides();
     }
 
-    /** Says how something went, in the title row, for a while. */
+    /** Shows a message about how something went in the title row, for a few seconds. */
     void say(Component text, boolean good) {
         message = text;
         messageGood = good;
         messageUntil = Util.getMillis() + MESSAGE_MILLIS;
     }
 
-    /** Shows the server's answer, and asks again how everything stands. */
+    /** Shows the server's reply, then asks for the current state again. */
     void replied(ClientRequests.EditReply reply, String goodKeyEnd) {
         if (reply.message() != null) {
             say(reply.message(), JesScreen.replyIs(reply.message(), goodKeyEnd));
@@ -155,7 +155,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         rebuildWidgets();
     }
 
-    /** Picks something in the section on show, as a step. */
+    /** Selects something in the current section, as a step Back can return from. */
     void pick(Object selection) {
         if (java.util.Objects.equals(selection, current().selection())) {
             return;
@@ -177,7 +177,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         return parent instanceof JesScreen browser ? browser : null;
     }
 
-    /** Opens a structure in the browser, on a tab and with a table picked if given. */
+    /** Opens a structure in the browser, on a tab and with a table selected if given. */
     void showInBrowser(ResourceLocation structure, String table) {
         JesScreen browser = browser();
         if (browser == null) {
@@ -222,7 +222,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         minecraft.setScreen(browser);
     }
 
-    /** The table picker for a container, which comes back here once one's picked. */
+    /** Opens the table picker for a container. It returns here after a pick. */
     void changeChest(ToolsChests.ChestRef ref, String table) {
         ResourceLocation block = ResourceLocation.tryParse(ref.block());
         if (ref.byCode() || block == null) {
@@ -244,13 +244,13 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         minecraft.setScreen(editor);
     }
 
-    /** The editor on a new table, which can be named before it's saved. */
+    /** Opens the editor on a new table, which can be named before it's saved. */
     void newTable() {
         ResourceLocation id = Ids.of(JustEnoughStructures.MOD_ID, "chests/new_table");
         openEditor(id, false);
     }
 
-    /** The editor on a new table that starts as a copy of this one, which is left as it is. */
+    /** Opens the editor on a new table that starts as a copy of this one. The original stays unchanged. */
     void copyTable(ResourceLocation table) {
         Set<ResourceLocation> taken = new HashSet<>();
         if (state != null) {
@@ -263,7 +263,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString()), null, table));
     }
 
-    /** The mod's table and the edit side by side. */
+    /** Opens the diff screen: the mod's table beside the edited one. */
     void showChanges(ResourceLocation table) {
         ClientRequests.table(table).thenAccept(reply -> {
             if (reply.view() == null || minecraft.screen != this) {
@@ -291,8 +291,8 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The mob picker for a spawner that makes {@code mob} now and is set to be {@code block}, which
-     * comes back here once one's picked.
+     * Opens the mob picker for a spawner that is currently {@code block}, making {@code mob}. It
+     * returns here after a pick.
      */
     void changeSpawner(ToolsSpawners.SpawnerRef ref, String mob, ResourceLocation block) {
         if (ref.byCode()) {
@@ -304,8 +304,8 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Makes a spawner {@code block}, the other kind of spawner, making {@code mob}. With {@code undo},
-     * that's how it was in its template, so its change is undone instead.
+     * Switches a spawner to {@code block}, the other spawner kind, spawning {@code mob}. With
+     * {@code undo}, that matches its template, so the patch is removed instead.
      */
     void switchSpawner(ToolsSpawners.SpawnerRef ref, String mob, ResourceLocation block, boolean undo) {
         if (ref.byCode()) {
@@ -338,7 +338,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     protected void init() {
-        // Back from the editor or a picker, where something may have changed, so it's asked again.
+        // Back from the editor or a picker, where something may have changed, so the state is asked for again.
         if (covered) {
             covered = false;
             refresh();
@@ -373,7 +373,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         super.tick();
         if (ClientRequests.reloads() != seenReloads) {
             seenReloads = ClientRequests.reloads();
-            // Whatever was waiting for it is in use now, so "from the next /reload" no longer holds.
+            // Changes that were waiting for it are in use now, so a "from the next /reload" message no longer applies.
             message = null;
             refresh();
         }
@@ -524,7 +524,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
 
     // ------------------------------------------------------------------ back and forward
 
-    /** Where Pack tools is: a section, and what's picked in it. */
+    /** Where Pack tools is: a section, and what's selected in it. */
     private record ToolsLayer(Section section, Object selection) implements Nav.Layer {
         @Override
         public Object key() {
@@ -569,7 +569,7 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    // ------------------------------------------------------------------ for the screenshot harness
+    // ------------------------------------------------------------------ test hooks for the scripted scenarios
 
     public void showSection(String name) {
         Section to = Section.valueOf(name.toUpperCase(Locale.ROOT));

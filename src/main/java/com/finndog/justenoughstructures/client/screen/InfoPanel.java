@@ -91,19 +91,19 @@ final class InfoPanel {
     }
 
     private static final int TAB_SIZE = 24;
-    /** A kind of block there are fewer of than this in a layout can be clicked, to go through them one at a time. */
+    /** A kind of block with fewer than this many in a layout can be clicked, to step through them one at a time. */
     static final int BLOCK_TOUR = 20;
     private static final int PAD = 2;
     private static final ItemStack SECRET_ICON = new ItemStack(Items.CHEST);
 
     private final Font font;
     private final Consumer<String> onSelectTable;
-    /** Opens a container, and whether it was picked from a row standing for several. */
+    /** Opens a container, told whether it was opened from a row that stands for several. */
     private final BiConsumer<StructureSnapshot.Container, Boolean> onOpenContainer;
     private final Consumer<ItemStack> onItemClicked;
     private Consumer<String> onOpenTable = table -> {
     };
-    /** Opens a spawner, and whether it was picked from a row standing for several. */
+    /** Opens a spawner, told whether it was opened from a row that stands for several. */
     private BiConsumer<StructureSnapshot.Spawner, Boolean> onOpenSpawner = (spawner, group) -> {
     };
     private Consumer<String> onOpenMobs = type -> {
@@ -112,10 +112,10 @@ final class InfoPanel {
     };
     private Consumer<Block> onOpenBlocks = block -> {
     };
-    /** Opens the player's own notes on a structure, to write. */
+    /** Opens the player's notes on a structure, to write. */
     private Consumer<ResourceLocation> onEditNotes = id -> {
     };
-    /** Where the player's notes, or the line asking for some, were last drawn, for the screenshot harness. */
+    /** Where the player's notes, or the line asking for some, were last drawn. Test hook for the scripted scenarios. */
     private int[] notesSpot;
 
     private Tab tab = Tab.OVERVIEW;
@@ -139,7 +139,7 @@ final class InfoPanel {
     private List<Component> hoveredExtra = List.of();
     private List<Component> hoveredText = List.of();
     private Hovered hoveredBlocks;
-    /** Where each row that tints the preview was last drawn, by its key, for the screenshot harness. */
+    /** Where each row that tints the preview was last drawn, by its key. Test hook for the scripted scenarios. */
     private final Map<String, int[]> highlightRows = new HashMap<>();
 
     private record Hotspot(int x, int y, int w, int h, Runnable action) {
@@ -171,7 +171,7 @@ final class InfoPanel {
         scroll.reset();
     }
 
-    /** The same structure, as the server describes it now, keeping everything else on show. */
+    /** Updates the entry with the server's latest info without resetting the panel. */
     void updateEntry(StructureCatalog.Entry entry) {
         this.entry = entry;
     }
@@ -201,32 +201,32 @@ final class InfoPanel {
         return tab;
     }
 
-    /** What clicking a loot table this layout doesn't have does: opens it in a popup on its own. */
+    /** Sets what happens when a loot table this layout doesn't have is clicked: it opens in a popup by itself. */
     void onOpenTable(Consumer<String> action) {
         onOpenTable = action;
     }
 
-    /** What clicking a row of spawners on the Mobs tab does: opens them in a popup, one at a time. */
+    /** Sets what happens when a row of spawners on the Mobs tab is clicked: they open in a popup, one at a time. */
     void onOpenSpawner(BiConsumer<StructureSnapshot.Spawner, Boolean> action) {
         onOpenSpawner = action;
     }
 
-    /** Told the entity id of a row of placed mobs clicked on the Mobs tab, to open all of that kind. */
+    /** Sets what happens when a row of placed mobs on the Mobs tab is clicked. It gets the entity id, to open all mobs of that type. */
     void onOpenMobs(Consumer<String> action) {
         onOpenMobs = action;
     }
 
-    /** Told the kind of block of a row clicked on the Blocks tab, one there are few enough of to go through one by one. */
+    /** Sets what happens when a row on the Blocks tab is clicked, for a block there are few enough of to step through one by one. */
     void onOpenBlocks(Consumer<Block> action) {
         onOpenBlocks = action;
     }
 
-    /** Told just before the panel moves somewhere else, like another tab, so Back can return. */
+    /** Sets what runs just before the panel moves somewhere else, like another tab, so Back can return. */
     void onMove(Runnable action) {
         beforeMove = action;
     }
 
-    /** What clicking the player's notes on the Info tab does: opens them to write. */
+    /** Sets what happens when the player's notes on the Info tab are clicked: they open to write. */
     void onEditNotes(Consumer<ResourceLocation> action) {
         onEditNotes = action;
     }
@@ -357,13 +357,13 @@ final class InfoPanel {
         scroll.fit(height, contentHeight);
     }
 
-    /** Takes hold of the scroll bar when a press is on it, or null. */
+    /** Returns the grabbed scroll bar if the press is on it, or null. */
     HeldBar grabBar(double mouseX, double mouseY) {
         clampScroll();
         return HeldBar.at(scroll, mouseX, mouseY, x + width, y, height);
     }
 
-    /** A point part of the way down the scroll bar, for the screenshot harness, or null without one. */
+    /** A point part of the way down the scroll bar, or null without one. Test hook for the scripted scenarios. */
     int[] barPoint(float along) {
         return scroll.scrolls() ? new int[]{x + width - 3, y + 1 + Math.round((height - 3) * along)} : null;
     }
@@ -429,7 +429,7 @@ final class InfoPanel {
             cy = field(g, cy, "compass", compassStatus.getString());
         }
 
-        // Whatever the structure's mod or the modpack wrote about it.
+        // Notes the structure's mod or the modpack wrote about it.
         StructureInfo info = entry.info();
         if (info.notes() != null) {
             cy += 3;
@@ -440,8 +440,8 @@ final class InfoPanel {
             cy = Gui.wrapped(g, font, info.notes(), x + PAD, cy, textWidth(), Gui.label()) + 3;
         }
 
-        // The player's own notes, kept on this game only. Clicking them, or the line asking for
-        // some, opens them to write.
+        // The player's notes, saved locally. Clicking them, or the line asking for some, opens them
+        // to write.
         cy += 3;
         Gui.band(g, font, Component.translatable("screen.justenoughstructures.your_notes").getString(), x, cy, contentRight - x, 13);
         cy += 16;
@@ -529,8 +529,8 @@ final class InfoPanel {
             titles.add("layout");
             sections.add(layout);
         }
-        // Labels sit in a column of their own when that leaves the values enough room, and above
-        // their values when it doesn't.
+        // Labels get a separate column when that leaves the values enough room, and go above their
+        // values when it doesn't.
         int labelWidth = 0;
         for (List<String[]> section : sections) {
             for (String[] r : section) {
@@ -622,7 +622,7 @@ final class InfoPanel {
         return out;
     }
 
-    // Some mods leave biomes unnamed, which gets a name made from the id rather than the raw key.
+    // Some mods leave biomes unnamed; those get a name made from the id instead of the raw key.
     private static String biomeName(Holder<Biome> biome) {
         return biome.unwrapKey().map(key -> Component.translatableWithFallback("biome." + Ids.of(key).getNamespace() + "." + Ids.of(key).getPath(),
                 StructureNames.pretty(Ids.of(key).getPath())).getString()).orElse("?");
@@ -660,8 +660,8 @@ final class InfoPanel {
     }
 
     /**
-     * Splits an id into lines that break after underscores, slashes and colons rather than
-     * mid-word. Done by hand because Minecraft's font draws a zero-width space as a missing glyph.
+     * Splits an id into lines that break after underscores, slashes and colons instead of mid-word.
+     * Done by hand because Minecraft's font draws a zero-width space as a missing glyph.
      */
     private List<String> idLines(String text, int width) {
         // An id too long for one line goes over two at its colon first, so its name stays whole.
@@ -1015,7 +1015,7 @@ final class InfoPanel {
     }
 
     /**
-     * For a structure that keeps where its loot is a secret: the previews come without loot, so this
+     * For a structure that keeps its loot locations secret: the previews come without loot, so this
      * lists its loot tables from the loot index instead of from the containers in the layout.
      */
     private int secretLoot(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
@@ -1055,8 +1055,8 @@ final class InfoPanel {
     }
 
     /**
-     * A short note at the right of a table's row when it's been edited: edited, edited with the
-     * mod's table changed since, or an edit that isn't used. Returns the room it took, 0 if none.
+     * A badge at the right of a table's row when it's been edited: edited, edited with the mod's
+     * table changed since, or an edit that isn't used. Returns the width used, 0 if none.
      */
     private int editedMark(GuiGraphics g, String table, int right, int top) {
         LootOverrides.Status status = ClientRequests.showsPackTools() ? ClientRequests.overrideStatus(table) : null;
@@ -1064,7 +1064,7 @@ final class InfoPanel {
         if (mark == null) {
             return 0;
         }
-        // The row's tooltip says how the edit stands, in words.
+        // The row's tooltip describes the edit's status in words.
         int width = ToolsSection.badgeWidth(font, mark);
         ToolsSection.badge(g, font, mark, right - width, top - 1, ToolsSection.markColour(status));
         return width + 4;
@@ -1130,7 +1130,7 @@ final class InfoPanel {
         int full = count / 64;
         int rest = count % 64;
         if (full == 0) {
-            // Under a stack: just how many, rather than "0 stacks and 9".
+            // Under a stack: just the count, not "0 stacks and 9".
             return Component.literal(String.format("%,d", count));
         }
         if (rest == 0) {
@@ -1150,7 +1150,7 @@ final class InfoPanel {
         return new ItemStack(bucket != Items.AIR ? bucket : Items.BARRIER);
     }
 
-    /** The block's own item for block containers (so suspicious sand looks like sand), otherwise by id. */
+    /** The block's item for block containers (so suspicious sand looks like sand), otherwise the item with the container's id. */
     static ItemStack containerIcon(StructureSnapshot snapshot, StructureSnapshot.Container container) {
         if (!container.entity()) {
             BlockState state = snapshot.stateAt(container.pos());
@@ -1352,7 +1352,7 @@ final class InfoPanel {
             cy = mobRow(g, cy, mob, Component.translatable("screen.justenoughstructures.times", e.getValue().size()).getString(), over, true);
             StructureSnapshot.Source was = changedFrom.get(mob);
             if (was != null) {
-                // Made the other kind of spawner: which kind it was says what changed.
+                // If the spawner kind was switched, say which kind it was; otherwise name the old mob.
                 boolean wasTrial = was.block().equals(TrialSpawners.BLOCK);
                 String key = wasTrial == e.getKey().trial() ? "container.changed_from" : wasTrial ? "spawner.was_trial" : "spawner.was_spawner";
                 cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures." + key, StructureNames.mob(was.patchedFrom())),
@@ -1549,13 +1549,13 @@ final class InfoPanel {
         return cy + 23;
     }
 
-    /** Items for entities that have no spawn egg, worked out once for each kind. */
+    /** Items for entities that have no spawn egg, found once per entity type. */
     private static final Map<EntityType<?>, ItemStack> ENTITY_ITEMS = new HashMap<>();
 
     /**
-     * What stands for an entity: its spawn egg, or for one without, like an armor stand, a minecart or
-     * an item frame, the item picking it in creative gives, which mods set for their own entities too.
-     * Failing that, an item with the entity's own id, or nothing.
+     * The icon for an entity: its spawn egg, or for one without, like an armor stand, a minecart or an
+     * item frame, the item that picking it in creative gives, which mods set for their entities too.
+     * Failing that, an item with the entity's id, or nothing.
      */
     static ItemStack entityIcon(EntityType<?> type) {
         //? if >=26.1 {
@@ -1577,8 +1577,8 @@ final class InfoPanel {
         ItemStack found = ItemStack.EMPTY;
         if (level != null) {
             try {
-                // A bare one, never added to the world: an item frame made from the structure's own
-                // data would give the item in it instead of the frame.
+                // A bare one, never added to the world: an item frame made from the structure's data
+                // would give the item in it instead of the frame.
                 //? if >=26.1 {
                 /*Entity entity = type.create(level, EntitySpawnReason.LOAD);
                 *///?} else {

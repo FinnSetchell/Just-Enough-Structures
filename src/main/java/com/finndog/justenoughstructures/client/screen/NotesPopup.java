@@ -10,10 +10,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * The player's own notes on one structure, in a popup over the browser, written in a box. They're
- * kept on this game when the popup closes, however it closes, and show at the bottom of the
- * structure's Info tab. The browser adds the box and Done as its own widgets, for typing and
- * clicking, and has this draw them over everything else.
+ * The player's notes on one structure, edited in a popup over the browser. They're saved locally
+ * whenever the popup closes, and show at the bottom of the structure's Info tab. The browser adds
+ * the box and Done as widgets, so they get typing and clicks, and has this draw them on top.
  */
 final class NotesPopup {
     private static final int MAX_WIDTH = 400;
@@ -21,7 +20,7 @@ final class NotesPopup {
 
     final ResourceLocation id;
     private final Component title;
-    /** What's in the box, kept for when the window changes size and the box is made again. */
+    /** The box's text, kept for when the window is resized and the box is made again. */
     private String text;
     MultiLineEditBox box;
     Button done;
@@ -33,7 +32,7 @@ final class NotesPopup {
         this.text = ClientState.note(id);
     }
 
-    /** Makes the box and Done for a screen this size, in the middle of the space under the bar, keeping what's typed. */
+    /** Makes the box and Done for this screen size, centred in the space under the nav bar, keeping what's typed. */
     void build(Font font, int screenWidth, int screenHeight, Runnable onDone) {
         w = Math.min(screenWidth - 12, MAX_WIDTH);
         h = Math.min(screenHeight - NavBar.TOP - 6, MAX_HEIGHT);
@@ -42,7 +41,7 @@ final class NotesPopup {
         int left = x + 6;
         int right = x + w - 6;
         int top = y + 22;
-        // Under the box, its count of letters on the right, then Done under that.
+        // Under the box: its character count on the right, then Done below that.
         int bottom = y + h - 42;
         box = JsonEditBox.create(font, left, top, right - left, bottom - top,
                 Component.translatable("screen.justenoughstructures.your_notes.placeholder"), title);
@@ -61,14 +60,14 @@ final class NotesPopup {
         Gui.panel(g, x, y, w, h);
         int left = x + 6;
         Gui.drawClipped(g, font, title.getString(), left, y + 8, w - 16, Gui.label(), false);
-        // Beside Done, as a player on a server may wonder who else sees them.
+        // Beside Done, since a player on a server may wonder who else can see them.
         Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.your_notes.private").getString(),
                 left, y + h - 20, done.getX() - left - 6, Gui.labelSoft(), false);
         Gui.render(g, box, mouseX, mouseY, partialTick);
         Gui.render(g, done, mouseX, mouseY, partialTick);
     }
 
-    /** Keeps what's written. */
+    /** Saves what's written. */
     void save() {
         ClientState.setNote(id, text);
     }

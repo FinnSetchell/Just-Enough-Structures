@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * What the Chests and Spawners sections share: picking one in the browser to change, the list of
- * those changed so far, and the one picked beside it, or on its own where there isn't room for both.
+ * changed ones, and the selected one beside it, or alone when there isn't room for both.
  */
 abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSection {
     /** A container or spawner Pack tools shows: one picked in the browser, or one changed before, known only by its template. */
@@ -27,7 +27,7 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
         /** Whether this is the one the patch changes. */
         boolean same(P patch);
 
-        /** Only one in a template can be changed; one a structure's code places can't. */
+        /** Whether the structure's code places it (no template), so it can't be changed. */
         default boolean byCode() {
             return template() == null;
         }
@@ -40,7 +40,7 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
     private final Class<R> refs;
     private final Scroller list = new Scroller();
     private final Scroller detail = new Scroller();
-    /** Whether the list and what's picked were last shown one at a time, rather than side by side. */
+    /** Whether the list and the selected one were last shown one at a time instead of side by side. */
     private boolean single;
     protected R selected;
 
@@ -70,13 +70,13 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
     /** The row for one picked in the browser that hasn't been changed. */
     abstract Line browserLine(R ref);
 
-    /** The row for one changed so far. */
+    /** The row for a changed one. */
     abstract Line patchLine(P patch);
 
-    /** What a change here does, while nothing's picked. Returns the y below it. */
+    /** What a change here does, while nothing is selected. Returns the y below it. */
     abstract int intro(GuiGraphics g, int x, int y, int w);
 
-    /** The one picked. Returns the y below it. */
+    /** Draws the selected one. Returns the y below it. */
     abstract int detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, R ref);
 
     @Override
@@ -112,12 +112,12 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        // Shown one at a time, only the one on show scrolls.
+        // Only the visible one scrolls; see oneAtATime.
         return (!single || selected == null) && list.scroll(mouseX, mouseY, delta)
                 || (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
-    /** The patch for the one picked, if it has one. */
+    /** The patch for {@code ref}, or null if it has none. */
     P patchOf(R ref) {
         if (ref == null || screen.state() == null) {
             return null;
@@ -211,7 +211,7 @@ abstract class ToolsPatches<P, R extends ToolsPatches.Ref<P>> extends ToolsSecti
         return y + Math.max(barH, ToolsUi.BUTTON) + 3;
     }
 
-    /** One picked in the browser whose change was undone, waiting for the /reload that puts it back. */
+    /** Whether its patch was undone and is waiting for a /reload. */
     boolean waitingUndo(R ref) {
         return ref.template() != null && waiting(ref.template(), ref.templatePos());
     }

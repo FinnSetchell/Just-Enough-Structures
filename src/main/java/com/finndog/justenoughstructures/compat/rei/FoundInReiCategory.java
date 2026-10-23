@@ -65,7 +65,7 @@ final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
                 Widgets.createSlot(new Point(x + FoundInRow.ITEM_X, y + FoundInRow.ITEM_Y)).entries(display.getOutputEntries().get(0)).markOutput());
     }
 
-    /** Where the first row's structure is drawn on screen, for the screenshot harness, or null before REI shows one. */
+    /** Where the first row's structure is drawn on screen, or null before REI shows one. Test hook for the scripted scenarios. */
     static volatile int[] firstRow;
 
     /** The structure's part of the row. REI hands it screen positions, so they're made relative to the row. */

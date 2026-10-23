@@ -195,7 +195,7 @@ public final class StructureViewport implements AutoCloseable {
         return view;
     }
 
-    /** The block entities, mobs and blocks this preview gave up on drawing or asking. For the screenshot harness. */
+    /** The block entities, mobs and blocks this preview left out because drawing or querying them failed. Test hook for the scripted scenarios. */
     public List<Object> leftOut() {
         return List.copyOf(failed);
     }

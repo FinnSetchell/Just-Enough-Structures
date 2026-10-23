@@ -73,7 +73,7 @@ final class FoundInEmiRecipe implements EmiRecipe {
         widgets.addSlot(item, FoundInRow.ITEM_X - 1, FoundInRow.ITEM_Y - 1).recipeContext(this);
     }
 
-    /** Where the first row's structure is drawn on screen, for the screenshot harness, or null before EMI shows one. */
+    /** Where the first row's structure is drawn on screen, or null before EMI shows one. Test hook for the scripted scenarios. */
     static volatile int[] firstRow;
 
     /** The structure's part of the row, which EMI hands mouse positions from the recipe's corner. */

@@ -43,7 +43,7 @@ public final class JesEmiPlugin implements EmiPlugin {
      * How long the server can say nothing more of an early index before EMI is loaded with it after
      * all, as the server may have stopped building the rest. While it builds it says how far it has
      * got as structures are done, but a slow one, or a wait for memory, can keep it quiet a while.
-     * Public for the screenshot harness.
+     * Public for the scripted scenarios.
      */
     public static final long QUIET_MS = 5 * 60_000;
 
@@ -127,22 +127,22 @@ public final class JesEmiPlugin implements EmiPlugin {
         });
     }
 
-    /** Whether EMI has loaded with the structures in it. For the screenshot harness. */
+    /** Whether EMI has loaded with the structures in it. Test hook for the scripted scenarios. */
     public static boolean ready() {
         return loaded != null && EmiReloadManager.isLoaded();
     }
 
-    /** How many times EMI has loaded since the game started. For the screenshot harness. */
+    /** How many times EMI has loaded since the game started. Test hook for the scripted scenarios. */
     public static int loads() {
         return loads;
     }
 
-    /** Where the first row's structure is on screen, or null before EMI has shown one. For the screenshot harness. */
+    /** Where the first row's structure is on screen, or null before EMI has shown one. Test hook for the scripted scenarios. */
     public static int[] firstRow() {
         return FoundInEmiRecipe.firstRow;
     }
 
-    /** Opens EMI on how to get an item. For the screenshot harness. */
+    /** Opens EMI on how to get an item. Test hook for the scripted scenarios. */
     public static void showFoundIn(ItemStack stack) {
         EmiApi.displayRecipes(EmiStack.of(stack));
     }

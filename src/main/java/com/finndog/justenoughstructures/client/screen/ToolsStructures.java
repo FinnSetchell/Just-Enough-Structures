@@ -24,8 +24,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
- * Every structure, by mod, with a switch to show or hide each one or a whole mod, and for the one
- * picked, what players are told about it and everything its definition says.
+ * The Structures section: every structure by mod, with a switch to show or hide each one or a whole
+ * mod, and for the selected one, what players are told about it and what its definition says.
  */
 final class ToolsStructures extends ToolsSection {
     private static final int LIST_ROW = 20;
@@ -41,7 +41,7 @@ final class ToolsStructures extends ToolsSection {
      * and the screen changes size, until the list is scrolled or searched by hand.
      */
     private boolean revealSelected;
-    /** Whether the list and the structure were last shown one at a time, rather than side by side. */
+    /** Whether the list and the structure were last shown one at a time instead of side by side. */
     private boolean single;
     private MultiLineEditBox notesBox;
     /** How tall the notes box is: taller on a taller screen, shorter where room is short. */
@@ -79,7 +79,7 @@ final class ToolsStructures extends ToolsSection {
     @Override
     void select(Object selection) {
         selected = selection instanceof ResourceLocation id ? id : null;
-        // Even with none picked, the browser's structure is shown, and found in the list.
+        // Even with none selected, the browser's structure is shown, and found in the list.
         revealSelected = true;
         detail.reset();
     }
@@ -91,7 +91,7 @@ final class ToolsStructures extends ToolsSection {
 
     @Override
     void stateChanged() {
-        // What's saved now, unless something different is being typed.
+        // Reload the saved notes, unless there are unsaved edits.
         if (!notesChanged) {
             notesFor = null;
         }
@@ -102,7 +102,7 @@ final class ToolsStructures extends ToolsSection {
         saveText();
     }
 
-    /** The picked structure, or the browser's if none is picked yet. */
+    /** The selected structure, or the browser's if none is selected yet. */
     private ResourceLocation shownStructure() {
         if (selected != null) {
             return selected;
@@ -128,13 +128,13 @@ final class ToolsStructures extends ToolsSection {
                 list.reset();
             });
         }
-        // Shown on its own, a structure is only shown once it's picked.
+        // When shown alone, a structure appears only once it's selected.
         ResourceLocation shown = single ? selected : shownStructure();
         notesBox = null;
         nameBox = null;
         notesHeight = Math.max(28, Math.min(64, h / 5));
         if (shown != null && screen.state() != null) {
-            // Put in place, and shown, as it's drawn.
+            // Positioned and shown by placeNotes and placeName as they're drawn.
             //? if >=26.1 {
             /*notesBox = screen.add(MultiLineEditBox.builder().setX(x).setY(y).setPlaceholder(Component.translatable("screen.justenoughstructures.tools.notes_hint"))
                     .build(font, detailWidth(w) - 8 - 10, notesHeight, Component.translatable("screen.justenoughstructures.tools.notes")));
@@ -151,8 +151,8 @@ final class ToolsStructures extends ToolsSection {
                     notesChanged = true;
                 }
             });
-            // Only where the server keeps names, as one from before them would drop what's typed, and
-            // for a language with a code the server takes.
+            // Only when the server supports structure names (an older one would drop the edit) and
+            // accepts this language code.
             if (StructureNames.namesFromServer() && StructureNameFiles.isLanguage(StructureNames.language())) {
                 nameBox = screen.add(new EditBox(font, x, y, detailWidth(w) - 8 - 10, NAME_HEIGHT,
                         Component.translatable("screen.justenoughstructures.tools.name")));
@@ -214,18 +214,18 @@ final class ToolsStructures extends ToolsSection {
         }
     }
 
-    /** Saves whatever's been typed and not saved yet, the name and the notes. */
+    /** Saves the name and the notes, where they have unsaved edits. */
     private void saveText() {
         saveName();
         saveNotes();
     }
 
-    /** Where the name box is, for the screenshot harness, or null while it isn't shown. */
+    /** Where the name box is, or null while it isn't shown. Test hook for the scripted scenarios. */
     int[] nameBoxCentre() {
         return nameBox == null || !nameBox.visible ? null : new int[]{nameBox.getX() + nameBox.getWidth() / 2, nameBox.getY() + nameBox.getHeight() / 2};
     }
 
-    /** Types notes as if into the box, for the screenshot harness. */
+    /** Types notes as if into the box. Test hook for the scripted scenarios. */
     void typeNotes(String text) {
         if (notesBox != null) {
             notesBox.setValue(text);
@@ -265,7 +265,7 @@ final class ToolsStructures extends ToolsSection {
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        // Shown one at a time, only the one on show scrolls.
+        // Only the visible one scrolls; see oneAtATime.
         if ((!single || selected == null) && list.scroll(mouseX, mouseY, delta)) {
             revealSelected = false;
             return true;
@@ -273,12 +273,12 @@ final class ToolsStructures extends ToolsSection {
         return (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
-    /** The list's width: all of it when it's shown on its own. */
+    /** The list's width: the full width when it's shown alone. */
     private static int listWidth(int w) {
         return oneAtATime(w) ? w : Math.max(140, Math.min(260, w * 40 / 100));
     }
 
-    /** The picked structure's width: all of it when it's shown on its own, and no wider than reads well. */
+    /** The selected structure's width: the full width when it's shown alone, otherwise at most {@link #READABLE}. */
     private static int detailWidth(int w) {
         return oneAtATime(w) ? w : Math.min(w - listWidth(w) - 6, READABLE);
     }
@@ -407,7 +407,7 @@ final class ToolsStructures extends ToolsSection {
         g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, Gui.ink(0xFFB8B8B8, ToolsUi.LINE_ON_DARK));
     }
 
-    /** The picked structure: a way to see it, what players are told, and its definition. */
+    /** The selected structure: a button to open it in the browser, what players are told, and its definition. */
     private void detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, StructureCatalog.Entry entry, ServerConfig.Settings settings,
                         PackToolsState state) {
         ResourceLocation id = entry.id();
@@ -427,7 +427,7 @@ final class ToolsStructures extends ToolsSection {
         detail.end(g, ui, end - top);
     }
 
-    /** What players are told and shown, in a box of its own. Returns the y below it. */
+    /** What players are told and shown, in a separate box. Returns the y below it. */
     private int forPlayers(GuiGraphics g, ToolsUi ui, int x, int y, int w, ResourceLocation id, ServerConfig.Settings settings, PackToolsState state,
                            int viewTop, int viewBottom) {
         boolean hidden = settings.hides(id);
@@ -445,7 +445,7 @@ final class ToolsStructures extends ToolsSection {
                 : font.split(Component.literal(status), (int) (Math.max(20, w - saveW - 16) / Gui.fineScale()));
         int lineH = Gui.fineLine(font) + 1;
 
-        // Where everything goes, worked out first so the box can be drawn behind it.
+        // Positions first, so the box can be drawn behind everything.
         int checkW = w - 10;
         int nameLabelY = y + 16;
         int nameY = nameLabelY + 9;
@@ -456,7 +456,7 @@ final class ToolsStructures extends ToolsSection {
         int saveY = notesY + notesHeight + 2;
         int boxH = saveY + Math.max(ToolsUi.BUTTON, statusLines.size() * lineH) + 4 - y;
 
-        // Lighter than the panel, as vanilla's light grey or over a dark panel a shade of the pack's own.
+        // A lighter box: vanilla's light grey, or translucent white over a dark panel.
         Gui.outlined(g, x, y, w, boxH, Gui.ink(0xFF9A9A9A, 0x80000000), Gui.ink(0xFFE8E8E8, 0x18FFFFFF));
         Gui.drawClipped(g, font, Component.translatable("screen.justenoughstructures.tools.for_players").getString(), x + 5, y + 4, w - 10, ToolsUi.TEXT, false);
         if (nameBox != null) {
@@ -486,8 +486,8 @@ final class ToolsStructures extends ToolsSection {
     }
 
     /**
-     * Puts the notes box where it's drawn as the detail scrolls. It's a text box only while all of it
-     * is in view; while only some is, a picture of it stands in, cut off at the edge like the rest.
+     * Moves the notes box to where it's drawn as the detail scrolls. It's a real text box only while
+     * fully in view; while partly in view, a drawn copy stands in, cut off at the edge like the rest.
      */
     private void placeNotes(GuiGraphics g, int x, int y, int w, int viewTop, int viewBottom) {
         if (notesBox == null) {
@@ -512,7 +512,7 @@ final class ToolsStructures extends ToolsSection {
         Gui.endScissor(g);
     }
 
-    /** Puts the name box where it's drawn as the detail scrolls, as the notes box is, with a picture of it while only some is in view. */
+    /** Moves the name box as the detail scrolls, like {@link #placeNotes}, with a drawn copy while it's partly in view. */
     private void placeName(GuiGraphics g, int x, int y, int w, int viewTop, int viewBottom) {
         nameBox.setX(x);
         nameBox.setY(y);

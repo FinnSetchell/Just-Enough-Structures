@@ -52,7 +52,7 @@ abstract class ToolsSection {
     void tick() {
     }
 
-    /** What's picked, for Back and Forward. Must be a value that equals itself when picked again. */
+    /** The current selection, for Back and Forward. Must be a value that equals itself when selected again. */
     Object selection() {
         return null;
     }
@@ -60,16 +60,16 @@ abstract class ToolsSection {
     void select(Object selection) {
     }
 
-    /** A selection written as text, for the screenshot harness. */
+    /** Parses a selection written as text. Test hook for the scripted scenarios. */
     Object parse(String text) {
         return null;
     }
 
-    /** The server said how things stand. */
+    /** Called when new state arrives from the server. */
     void stateChanged() {
     }
 
-    /** About to go elsewhere: anything typed and not saved yet is saved. */
+    /** Called before going elsewhere: saves anything typed but not saved yet. */
     void leaving() {
     }
 
@@ -80,18 +80,18 @@ abstract class ToolsSection {
 
     static final int ROW = 22;
 
-    /** The least width a list and what's picked in it share. Narrower, they're shown one at a time. */
+    /** The minimum width for a list and its selected item side by side. Narrower, they're shown one at a time. */
     static final int TWO_COLUMNS = 300;
 
-    /** The widest text, forms and lists of odds get, so they stay easy to read on a wide screen. */
+    /** The maximum width for text, forms and lists of odds, so they stay easy to read on a wide screen. */
     static final int READABLE = 460;
 
-    /** Whether a section {@code w} wide shows its list and what's picked in it one at a time. */
+    /** Whether a section {@code w} wide shows its list and its selected item one at a time. Then only the visible one scrolls. */
     static boolean oneAtATime(int w) {
         return w < TWO_COLUMNS;
     }
 
-    /** Above what's picked when it's shown on its own: a way back to the list. Returns the y below it. */
+    /** Draws a button back to the list, above the selected item when it's shown alone. Returns the y below it. */
     int backToList(GuiGraphics g, ToolsUi ui, int x, int y) {
         ui.backButton(g, screen.section().label(), x, y, true, () -> screen.pick(null));
         return y + ToolsUi.BUTTON + 4;
@@ -118,10 +118,7 @@ abstract class ToolsSection {
     private static final ItemStack MAP = new ItemStack(Items.FILLED_MAP);
     static final ItemStack CHEST = new ItemStack(Items.CHEST);
 
-    /**
-     * The row buttons drawn as an icon alone, by the key of their words, which are then their tooltip:
-     * the ones an icon says as well as words do.
-     */
+    /** Row buttons drawn as an icon only, keyed by their label's lang key. The label becomes the tooltip. */
     private static final Map<String, ResourceLocation> ROW_ICONS = Map.of(
             "screen.justenoughstructures.tools.edit", Icons.EDIT,
             "screen.justenoughstructures.tools.open", Icons.OPEN,
@@ -140,7 +137,7 @@ abstract class ToolsSection {
             return new RowButton(Component.translatable("screen.justenoughstructures." + key), action);
         }
 
-        /** The icon it's drawn as, or null to draw its words. */
+        /** The icon it's drawn as, or null to draw its label. */
         ResourceLocation icon() {
             return label.getContents() instanceof TranslatableContents words ? ROW_ICONS.get(words.getKey()) : null;
         }
@@ -236,7 +233,7 @@ abstract class ToolsSection {
         return h;
     }
 
-    /** Where a container's template came from, readably: its last part, and the one before if that's a single word. */
+    /** A readable template name: the last path part, with the one before it when the last is a single word. */
     static String templateName(ResourceLocation template) {
         String[] parts = template.getPath().split("/");
         String last = StructureNames.pretty(parts[parts.length - 1]);
@@ -295,7 +292,7 @@ abstract class ToolsSection {
         return markIcon(mark) != null ? Icons.SMALL : Gui.fineWidth(font, mark.getString());
     }
 
-    /** A mark after a name as its badge in {@code colour}, its top left at x, y, or its words where it has none. Returns its width. */
+    /** Draws a mark after a name: its badge in {@code colour}, top left at x, y, or its text if it has no badge. Returns its width. */
     static int badge(GuiGraphics g, Font font, Component mark, int x, int y, int colour) {
         ResourceLocation icon = markIcon(mark);
         if (icon == null) {
@@ -314,7 +311,7 @@ abstract class ToolsSection {
         };
     }
 
-    /** How a table's edit stands, as its status bar says it. */
+    /** The status bar text for a table's edit. */
     static Component statusText(LootOverrides.Status status) {
         return Component.translatable("screen.justenoughstructures.editor.status." + status.name().toLowerCase(Locale.ROOT));
     }

@@ -66,25 +66,27 @@ public final class Gui {
         //?}
     }
     /**
-     * The vanilla chest's texture. Frames here are cut from it rather than filled in, so a resource
-     * pack that restyles the chest restyles them with it, and without one they're pixel for pixel
-     * the vanilla container frame.
+     * The vanilla chest texture. Frames are cut from it instead of drawn in fixed colours, so a
+     * resource pack that restyles the chest restyles them too. Without a pack they match the vanilla
+     * container frame exactly.
      */
     private static final ResourceLocation CHEST = Ids.parse("textures/gui/container/generic_54.png");
-    /** The part of that texture the chest takes up. */
+    /** Width and height of the chest GUI in that texture, in pixels. */
     private static final int CHEST_W = 176;
     private static final int CHEST_H = 222;
-    /** How much of the chest's frame each corner of a panel takes: all there is of it before the slots begin. */
+    /** Size of each panel corner cut from the chest: the frame's width, up to where its slots start. */
     private static final int CORNER = 7;
-    /** A row of the plain strip between the chest's slots and the inventory's, where its sides are frame and nothing else. */
+    /**
+     * A texture row between the chest's slots and the inventory's, where the sides are plain frame
+     * with no slots. Panel sides are stretched from it and most tones are sampled from it.
+     */
     private static final int PLAIN = 133;
-    /** Where the chest's first slot is. */
+    /** Top left of the chest's first slot in the texture, including its border. A slot is 18 pixels square. */
     private static final int SLOT_U = 7;
     private static final int SLOT_V = 17;
 
     /**
-     * The colours frames are made of. Each is a pixel of the chest's texture rather than a colour of
-     * its own, so it's whatever a resource pack has made of the chest.
+     * Frame colours, each sampled from a pixel of the chest texture so resource packs restyle them.
      */
     enum Tone {
         /** The frame's outline. */
@@ -102,7 +104,7 @@ public final class Gui {
 
         private final int u;
         private final int v;
-        /** See-through black that goes over it, or 0. */
+        /** Translucent black drawn over it, or 0. */
         private final int over;
 
         Tone(int u, int v, int over) {
@@ -112,8 +114,8 @@ public final class Gui {
         }
     }
 
-    // See-through black and white that make the greys of a card and of a thumb's grip out of the
-    // panel's own, whatever that is. Over the vanilla panel they come to the greys JEI uses.
+    // Translucent overlays that shade the panel colour into the card and scroll bar grip greys.
+    // Over the vanilla panel they match JEI's greys.
     private static final int CARD_OUTLINE = 0x3A000000;
     private static final int CARD_LIGHT = 0x50FFFFFF;
     private static final int CARD_DARK = 0x18000000;
@@ -122,31 +124,31 @@ public final class Gui {
     static final int PANEL = 0xFFC6C6C6;
     static final int EDGE = 0xFF000000;
     /**
-     * Vanilla's own label colour. A resource pack with dark panels changes text of exactly this colour
-     * to one that shows on them, so it's what body text is drawn in over a dark panel.
+     * Vanilla's label colour. Resource packs with dark panels recolour text of exactly this colour so
+     * it shows on them, so body text over a dark panel uses it.
      */
     static final int VANILLA_LABEL = 0xFF404040;
-    /** A panel whose red, green and blue come to less than this on average is a dark one. */
+    /** A panel whose average red, green and blue is below this counts as dark. */
     private static final int DARK_BELOW = 100;
-    /** Whether the chest's texture was a dark one when it was last looked at. */
+    /** Whether the chest texture was dark at the last check. */
     private static boolean dark;
-    /** The game's list of the resource packs in use as it was then. The game makes a new list each time resources load. */
+    /** The selected packs list at the last check. The game makes a new list each time resources load. */
     private static Object packsThen;
     private static long lookedAt;
 
     /**
-     * Whether panels are dark, as a resource pack with a dark look makes them, going by the chest
-     * texture's own panel colour. Text and row highlights made for a light panel can't be seen on one.
+     * Whether panels are dark, as a dark resource pack makes them, judged by the chest texture's panel
+     * colour. Text and row highlights made for a light panel can't be seen on a dark one.
      *
-     * <p>The texture is looked at again when the game's list of packs is a new one, which it is after
-     * every reload, rather than by listening for reloads: NeoForge closes the game's list of reload
-     * listeners once it has started, and on 26.2 adding one after that throws.
+     * <p>The texture is checked again when the selected packs list is a new object, which happens on
+     * every reload. A reload listener isn't used because NeoForge closes the list of reload listeners
+     * once the game has started, and on 26.2 adding one after that throws.
      */
     static boolean darkPanel() {
         Minecraft mc = Minecraft.getInstance();
         Object packs = mc.getResourcePackRepository().getSelectedPacks();
-        // Not while packs are still loading, when the texture could be the old one, and not more than
-        // once a second whatever the list does.
+        // Skip while packs are still loading, when the texture may be the old one, and check at most
+        // once a second.
         if (packs != packsThen && mc.getOverlay() == null && System.currentTimeMillis() - lookedAt > 1000) {
             packsThen = packs;
             lookedAt = System.currentTimeMillis();
@@ -157,38 +159,38 @@ public final class Gui {
 
     private static boolean isDark(ResourceManager resources) {
         try (InputStream in = resources.open(CHEST); NativeImage chest = NativeImage.read(in)) {
-            // A pack's texture may be finer than vanilla's 256 pixels.
+            // A pack's texture may be larger than vanilla's 256 by 256, so the position is scaled.
             int pixel = Thumbnails.pixel(chest, Tone.PANEL.u * chest.getWidth() / 256, Tone.PANEL.v * chest.getHeight() / 256);
-            // The colours come one to a byte, whichever way round they are.
+            // One byte per channel, so the average is the same in either channel order.
             return ((pixel & 0xFF) + (pixel >> 8 & 0xFF) + (pixel >> 16 & 0xFF)) / 3 < DARK_BELOW;
         } catch (IOException | RuntimeException e) {
             return false;
         }
     }
 
-    /** Body text: black as in JEI's recipe layouts, or over a dark panel vanilla's label colour. */
+    /** Body text colour: black, as in JEI's recipe layouts, or vanilla's label colour over a dark panel. */
     public static int label() {
         return darkPanel() ? VANILLA_LABEL : 0xFF000000;
     }
 
-    /** Secondary text, as JEI's cook times and other recipe details. */
+    /** Secondary text colour, as in JEI's cook times and other recipe details. */
     public static int labelSoft() {
         return darkPanel() ? 0xFFA8A8A8 : 0xFF808080;
     }
 
-    /** The same, drawn smaller, as vanilla's dark grey. */
+    /** Secondary text drawn small: vanilla's dark grey, or the same light grey over a dark panel. */
     static int labelSoftSmall() {
         return darkPanel() ? 0xFFA8A8A8 : 0xFF555555;
     }
 
-    // What coloured text is drawn in over a dark panel, where the colours made for a light one can't be read.
+    // Colours for coloured text over a dark panel, where the ones made for a light panel can't be read.
     static final int GOOD_ON_DARK = 0xFF7FD46A;
     static final int BAD_ON_DARK = 0xFFFF6B6B;
     static final int WARN_ON_DARK = 0xFFE6A93C;
     static final int LINK_ON_DARK = 0xFF8FB4FF;
     static final int LINK_HOVER_ON_DARK = 0xFFC4D7FF;
 
-    /** A colour for a light panel, or the one that stands in for it over a dark panel. */
+    /** Returns {@code onLight}, or {@code onDark} over a dark panel. */
     static int ink(int onLight, int onDark) {
         return darkPanel() ? onDark : onLight;
     }
@@ -198,7 +200,7 @@ public final class Gui {
         return darkPanel() ? 0x30FFFFFF : 0x80FFFFFF;
     }
 
-    /** The darker highlight of the row that's picked, darker still over a dark panel. */
+    /** The highlight of the selected row: darker than the hover one, and darker still over a dark panel. */
     static int rowSelected() {
         return darkPanel() ? 0x70000000 : 0x40000000;
     }
@@ -242,8 +244,8 @@ public final class Gui {
     }
 
     /**
-     * The vanilla container frame, which is also JEI's panel: the chest's own corners, with a line of
-     * each of its sides drawn out between them.
+     * The vanilla container frame, which is also JEI's panel: the chest's corners, with one line of
+     * each side stretched between them.
      */
     static void panel(GuiGraphics g, int x, int y, int w, int h) {
         int c = Math.min(CORNER, Math.min(w, h) / 2);
@@ -358,7 +360,7 @@ public final class Gui {
     private static final ResourceLocation CHECKMARK = Ids.parse("textures/gui/checkmark.png");
     //?}
 
-    /** Vanilla's green tick, 9 by 8, its top left at x, y. It's the game's own, so a pack restyles it. */
+    /** Vanilla's green tick, 9 by 8, its top left at x, y. It's the game's texture, so a pack restyles it. */
     static void checkmark(GuiGraphics g, int x, int y) {
         //? if >=26.1 {
         /*g.blitSprite(RenderPipelines.GUI_TEXTURED, CHECKMARK, x, y, 9, 8);
@@ -369,7 +371,7 @@ public final class Gui {
         //?}
     }
 
-    /** Part of a texture 256 pixels square, as GUI textures used to be. */
+    /** Part of a 256x256 texture. */
     public static void blit(GuiGraphics g, ResourceLocation texture, int x, int y, int u, int v, int w, int h) {
         blit(g, texture, x, y, u, v, w, h, 256, 256);
     }
@@ -391,8 +393,8 @@ public final class Gui {
     /**
      * A whole icon file, {@code w} by {@code h}, its white drawn in {@code colour} over a shadow one pixel
      * down and right. The files hold only the shape, so the shadow is drawn here. On a button it's the
-     * colour a quarter as bright, as vanilla gives the words there. On a light panel, where the icon is
-     * dark, it's a soft see-through black, so the icon still stands apart from it on any panel a pack draws.
+     * colour at a quarter brightness, as vanilla shadows button text. On a light panel, where the icon is
+     * dark, it's a soft translucent black, so the icon stands out on any panel a pack draws.
      */
     static void icon(GuiGraphics g, ResourceLocation texture, int x, int y, int w, int h, int colour, boolean onButton) {
         int shadow = onButton ? (colour & 0xFCFCFC) >> 2 | colour & 0xFF000000
@@ -408,7 +410,7 @@ public final class Gui {
         //? if >=26.1 {
         /*g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, w, h, colour);
         *///?} else {
-        // A see-through colour, like the soft shadow, needs blending on. Vanilla's widgets leave it on too.
+        // A translucent colour, like the soft shadow, needs blending on. Vanilla's widgets leave it on too.
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         g.setColor((colour >> 16 & 0xFF) / 255f, (colour >> 8 & 0xFF) / 255f, (colour & 0xFF) / 255f, (colour >>> 24) / 255f);
@@ -417,7 +419,7 @@ public final class Gui {
         //?}
     }
 
-    /** Draws a widget that a screen draws itself, rather than through its list of widgets. */
+    /** Draws a widget that a screen draws itself, not through its list of widgets. */
     public static void render(GuiGraphics g, Renderable widget, int mouseX, int mouseY, float partialTick) {
         //? if >=26.1 {
         /*widget.extractRenderState(g, mouseX, mouseY, partialTick);
@@ -436,8 +438,8 @@ public final class Gui {
     }
 
     // ------------------------------------------------------------------ moving what's drawn
-    // 26.1 lays screens out flat: what's drawn later goes over what it overlaps, so there's no depth
-    // to move things along any more, and moving them about takes two numbers rather than three.
+    // From 26.1 the GUI is flat: later draws go on top, so there's no z, and translate and scale take
+    // two values.
 
     public static void push(GuiGraphics g) {
         //? if >=26.1 {
@@ -538,7 +540,7 @@ public final class Gui {
     }
 
     /**
-     * The size small text is drawn at: about three quarters, picked at each GUI scale so every pixel
+     * The size small text is drawn at: about three quarters, chosen at each GUI scale so every pixel
      * of the font covers a whole number of screen pixels. A plain 0.75 does that only at GUI scale 4
      * and 8, and at the others the letters come out uneven and hard to read. GUI scale 2 has no
      * whole-pixel size near it, so it keeps 0.75; at GUI scale 1 that would be under a screen pixel
@@ -603,7 +605,7 @@ public final class Gui {
         return y;
     }
 
-    /** Whether advanced tooltips are on (F3+H), which brings ids and details back, as vanilla does for items. */
+    /** Whether advanced tooltips are on (F3+H). Then ids and extra details are shown, as vanilla does for items. */
     static boolean advanced() {
         return Minecraft.getInstance().options.advancedItemTooltips;
     }
@@ -630,7 +632,7 @@ public final class Gui {
     }
 
     private static final List<Clipped> CLIPPED = new ArrayList<>();
-    /** The areas text is being drawn into, each within the one before, so text scrolled out of sight isn't counted. */
+    /** The active scissor areas, each clipped to the one outside it, so text scrolled out of sight isn't recorded. */
     private static final Deque<int[]> SCISSORS = new ArrayDeque<>();
 
     /**
@@ -660,7 +662,7 @@ public final class Gui {
         }
     }
 
-    /** The whole of whatever text under the mouse was cut short, the last drawn first, or null. */
+    /** Full text of the clipped text under the mouse (the latest drawn wins), or null. */
     static String clippedAt(double mouseX, double mouseY) {
         for (int i = CLIPPED.size() - 1; i >= 0; i--) {
             Clipped c = CLIPPED.get(i);
@@ -745,8 +747,8 @@ public final class Gui {
     }
 
     /**
-     * The bar of a list that drops down over a screen: a thin thumb and no track, on the list's own
-     * dark ground. {@code right} is the list's right edge and the bar is as tall as the list.
+     * The scroll bar of a dropdown list: a thin thumb and no track, over the list's dark background.
+     * {@code right} is the list's right edge and the bar is as tall as the list.
      */
     static void slimBar(GuiGraphics g, int right, int top, int height, Scroll scroll) {
         if (!scroll.scrolls()) {
@@ -760,7 +762,7 @@ public final class Gui {
         if (font.width(text) <= width) {
             return text;
         }
-        // Not even room for the dots: nothing, rather than spilling over whatever is next to it.
+        // Too narrow even for the dots: draw nothing instead of spilling over the next thing.
         if (width < font.width("...")) {
             return "";
         }

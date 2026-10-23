@@ -79,7 +79,7 @@ public final class JesJeiPlugin implements IModPlugin {
         recipes.addRecipes(FOUND_IN, shown);
     }
 
-    /** Opens JEI on just the structures an item is found in. For the screenshot harness; false without JEI running. */
+    /** Opens JEI on just the structures an item is found in; false without JEI running. Test hook for the scripted scenarios. */
     public static boolean showFoundIn(ItemStack stack) {
         if (runtime == null) {
             return false;

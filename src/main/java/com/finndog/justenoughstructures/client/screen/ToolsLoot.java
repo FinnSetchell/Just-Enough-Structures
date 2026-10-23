@@ -19,8 +19,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Every loot table: those the structures use, those edited, or all of them, and for the one picked,
- * how it stands, where it's used and what it gives.
+ * The Loot section: the loot tables the structures use, the edited ones, or all of them, and for the
+ * selected one, its status, where it's used and what it gives.
  */
 final class ToolsLoot extends ToolsSection {
     private static final int LIST_ROW = 20;
@@ -60,7 +60,7 @@ final class ToolsLoot extends ToolsSection {
         selected = selection instanceof ResourceLocation id ? id : null;
         detail.reset();
         if (selected != null) {
-            // Opened on a table: listed whichever filter it would need.
+            // Opened on a table: switch to All if the current filter would hide it.
             if (!matches(selected, filter)) {
                 filter = Filter.ALL;
             }
@@ -70,11 +70,11 @@ final class ToolsLoot extends ToolsSection {
     }
 
     /**
-     * Whether the list still scrolls to the picked table. It keeps doing so, as tables arrive and the
+     * Whether the list still scrolls to the selected table. It keeps doing so, as tables arrive and the
      * screen changes size, until the list is scrolled, searched or filtered by hand.
      */
     private boolean revealSelected;
-    /** Whether the list and the table were last shown one at a time, rather than side by side. */
+    /** Whether the list and the table were last shown one at a time instead of side by side. */
     private boolean single;
 
     @Override
@@ -121,7 +121,7 @@ final class ToolsLoot extends ToolsSection {
         return Component.translatable("screen.justenoughstructures.tools.filter." + f.name().toLowerCase(Locale.ROOT)).getString();
     }
 
-    /** Whether "+ New" goes beside the search box, there being no room for it after the filters. */
+    /** Whether "+ New" goes beside the search box, because there's no room for it after the filters. */
     private boolean newBesideSearch(int listW) {
         int used = 0;
         for (Filter f : Filter.values()) {
@@ -141,7 +141,7 @@ final class ToolsLoot extends ToolsSection {
 
     @Override
     boolean scroll(double mouseX, double mouseY, double delta) {
-        // Shown one at a time, only the one on show scrolls.
+        // Only the visible one scrolls; see oneAtATime.
         if ((!single || selected == null) && list.scroll(mouseX, mouseY, delta)) {
             revealSelected = false;
             return true;
@@ -149,7 +149,7 @@ final class ToolsLoot extends ToolsSection {
         return (!single || selected != null) && detail.scroll(mouseX, mouseY, delta);
     }
 
-    /** The list's width: all of it when it's shown on its own, and wider on a wide screen so ids aren't cut short. */
+    /** The list's width: the full width when it's shown alone, and wider on a wide screen so ids aren't cut short. */
     private static int listWidth(int w) {
         return oneAtATime(w) ? w : Math.max(130, Math.min(340, w * 38 / 100));
     }
@@ -163,7 +163,7 @@ final class ToolsLoot extends ToolsSection {
         };
     }
 
-    /** The tables the filter and search leave, worked out again only when either changes. */
+    /** The tables the filter and search leave, found again only when either of them or the loot index changes. */
     private List<ResourceLocation> shown() {
         String key = filter + "|" + query + "|" + FoundIn.changes();
         if (key.equals(shownFor)) {
@@ -266,7 +266,7 @@ final class ToolsLoot extends ToolsSection {
         g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, Gui.ink(0xFFB0B0B0, ToolsUi.LINE_ON_DARK));
     }
 
-    /** The picked table: what it is, how it stands, where it's used, and every item's chance. */
+    /** The selected table: what it is, its status, where it's used, and every item's chance. */
     private void detail(GuiGraphics g, ToolsUi ui, int x, int y, int w, int h, PackToolsState state) {
         ResourceLocation table = selected;
         LootOverrides.Status status = state.overrides().getOrDefault(table, LootOverrides.Status.NONE);
@@ -289,7 +289,7 @@ final class ToolsLoot extends ToolsSection {
         }
         cy += ui.status(g, text, x, cy, w, statusKind(status)) + 2;
         if (status == LootOverrides.Status.ORIGINAL_CHANGED) {
-            // Side by side, each on a line of its own once they don't fit.
+            // Side by side, wrapping onto a new line when the next one doesn't fit.
             Component[] labels = {Component.translatable("screen.justenoughstructures.editor.see_changes"),
                     Component.translatable("screen.justenoughstructures.editor.merge"), Component.translatable("screen.justenoughstructures.editor.keep"),
                     Component.translatable("screen.justenoughstructures.editor.use_mods")};

@@ -121,15 +121,15 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** A spawner's popup. Only one popup is open at a time, this or {@link #popup}. */
     private SpawnerPopup spawnerPopup;
     private MobPopup mobPopup;
-    /** One of a kind of block there are only a few of, from the Blocks tab. Only one popup is open at a time. */
+    /** A block's popup, from the Blocks tab, for a kind of block the structure has only a few of. Only one popup is open at a time. */
     private BlockPopup blockPopup;
     private FoundInPopup foundIn;
-    /** The player's own notes on a structure, open over the browser, or null. */
+    /** The player's personal notes on a structure, open over the browser, or null. */
     private NotesPopup notes;
     private String pendingTable;
-    /** Where the camera goes once the structure being gone back to arrives, rather than fitting it to the view. */
+    /** On Back or Forward, the camera to restore once that structure arrives, instead of fitting it to the view. */
     private StructureViewport.Camera pendingCamera;
-    /** A popup to open once the structure being gone back to arrives. */
+    /** On Back or Forward, a popup to reopen once that structure arrives. */
     private Popup pendingPopup;
     /**
      * Picking something in the preview for Pack tools to change. For a chest, markers show and a
@@ -163,11 +163,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private boolean refitAfterTour;
     /** How far from a container the arrows bring the camera, the same for every one. */
     private static final float TOUR_DISTANCE = 10f;
-    /** How far the wheel took the camera from what a popup has it turned to, kept for the next one the arrows go to, or 0. */
+    /** Zoom the player set while a popup had the camera, kept for the next one the arrows go to; 0 for none. */
     private float tourZoom;
-    /** Set when the preview was let go because another screen opened over this one. */
+    /** Set when the preview was dropped because another screen opened over this one. */
     private boolean dropped;
-    /** What the markers button last said it was about, to change what it says when that changes. */
+    /** The marker kind, and whether markers are secret, that the markers button's label was last built for. */
     private String markersFor;
     private long locateUntil = Long.MAX_VALUE;
     private int searchY;
@@ -183,10 +183,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     private boolean pressedInViewport;
     private boolean dragged;
-    /** The scroll bar a press took hold of, until the button comes up. */
+    /** The scroll bar being dragged, until the button is released. */
     private HeldBar heldBar;
     private final List<Marker> markerRects = new ArrayList<>();
-    /** Where a marker of its own went over something highlighted, or shown in a popup, as last drawn. */
+    /** Positions given a separate marker (highlighted, or shown in a popup), as last drawn. */
     private final List<BlockPos> loneMarkers = new ArrayList<>();
 
     /** What the player is picking in the preview for Pack tools, if anything. */
@@ -195,9 +195,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * What markers mark, which follows what the player is doing: containers, or on the Mobs tab, and
-     * with a spawner's popup open or one being picked, mobs and spawners. Anything else worth marking
-     * later is another kind here.
+     * What markers mark, depending on what the player is doing: mobs and spawners on the Mobs tab,
+     * with a spawner, mob or block popup open, or while picking a spawner; containers otherwise.
      */
     private enum MarkerKind { CONTAINERS, MOBS }
 
@@ -270,7 +269,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         this(null);
     }
 
-    /** @param parent where closing the browser goes back to, or null for the game */
+    /** Closing the browser goes back to {@code parent}, or to the game if it's null. */
     public JesScreen(Screen parent) {
         super(Component.translatable("screen.justenoughstructures.title"));
         this.parent = parent;
@@ -327,7 +326,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         listH = searchY - 4 - listY;
         list.layout(listX + 6, listY, listW - 12, listH);
 
-        // Two title rows: previous/next mod around the mod's name, previous/next structure around its own.
+        // Two title rows: previous/next mod around the mod's name, and previous/next structure around the structure's name.
         addRenderableWidget(new ArrowButton(centreX + 6, TOP + 4, true,
                 Component.translatable("screen.justenoughstructures.previous_mod"), b -> step(-1, true)));
         addRenderableWidget(new ArrowButton(centreX + centreW - 19, TOP + 4, false,
@@ -341,9 +340,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         viewY = TOP + 35;
         int toolbarY = height - PAD - 26;
         viewW = centreW - 12;
-        // When the buttons leave the layer slider too little room for its label, it gets a row of its
-        // own under them, as wide as the preview, rather than spilling past the panel's edge. "New
-        // layout" is shortened to its die alone only when that keeps the slider beside the buttons.
+        // When the buttons leave the layer slider too little room for its label, the slider gets a
+        // separate row under them, as wide as the preview, instead of spilling past the panel's edge.
+        // "New layout" shrinks to just its die when that keeps the slider beside the buttons, or when
+        // the row is too narrow for its label.
         Component rerollLabel = Component.translatable("screen.justenoughstructures.reroll");
         int rerollWide = LabelledIconButton.widthFor(font, rerollLabel, Icons.LARGE);
         int others = 22 + 22 + 24;
@@ -376,7 +376,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 b -> locate(hasControlDown() && ClientRequests.canTeleport())));
         locateAccess = -1;
         updateLocateButton();
-        // With a structure compass mod installed, hands the structure over to the compass in your hand.
+        // With a structure compass mod installed, this hands the structure to the player's compass.
         CompassLink compass = CompassLink.get();
         compassButton = compass == null ? null : addRenderableWidget(IconButton.itemTexture(overlayRight - 64, viewY + 2, compass.icon(),
                 Component.empty(), b -> {
@@ -392,7 +392,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         int bx = viewX;
         int rerollW = roomy ? rerollWide : 20;
         rerollButton = addRenderableWidget(new LabelledIconButton(bx, buttonsY, rerollW, 20, Icons.DIE, Icons.LARGE, rerollLabel, b -> reroll()));
-        // Its tooltip gives the shortcut, and its name as well while the die stands alone.
+        // Its tooltip shows the shortcut, plus the button's name when only the die shows.
         Component shortcut = Component.translatable("screen.justenoughstructures.reroll_tooltip");
         rerollButton.setTooltip(Tooltip.create(roomy ? shortcut : rerollLabel.copy().append("\n").append(shortcut)));
         bx += rerollW + 2;
@@ -453,7 +453,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         layoutPopupButtons();
 
-        // Which tables have edits, to mark them, asked again whenever the browser shows, like after the editor.
+        // Which tables have edits, so they can be marked. Asked each time the browser shows, such as after the editor.
         ClientRequests.requestOverrides();
         if (dropped && catalog != null && selected != null) {
             dropped = false;
@@ -482,7 +482,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Opens Pack tools on a section, and on something in it if given. Anything being picked for it has been. */
+    /** Opens Pack tools on a section, and on something in it if given. Ends any picking in progress. */
     void openTools(PackToolsScreen.Section section, Object selection) {
         Nav.remember();
         picking = Picking.NONE;
@@ -517,7 +517,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 select(selected, seed);
             }
         }
-        // Structures hidden or shown, or what's said about them changed, by Pack tools or a /reload.
+        // Structures hidden, shown or changed by Pack tools or a /reload.
         if (ClientRequests.structureChanges() != seenStructureChanges && catalog != null) {
             seenStructureChanges = ClientRequests.structureChanges();
             ClientRequests.catalog().thenAccept(entries -> {
@@ -529,9 +529,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The list again, after structures were hidden, shown or changed. The one on show stays unless
-     * it's gone, and is generated again if what players see of it changed, like its loot becoming a
-     * secret.
+     * Replaces the list after structures were hidden, shown or changed. The current structure stays
+     * unless it's gone, and is generated again if what players see of it changed, like its loot
+     * becoming secret.
      */
     private void onNewCatalog(List<StructureCatalog.Entry> entries) {
         List<StructureCatalog.Entry> before = catalog;
@@ -539,7 +539,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         list.setEntries(entries);
         StructureCatalog.Entry now = selected == null ? null : find(selected.id());
         if (now == null) {
-            // Gone, like a structure just hidden: the next one along that's still here takes its place.
+            // Gone, like a structure just hidden: select the next one that's still listed.
             StructureCatalog.Entry next = null;
             int at = before == null || selected == null ? -1 : before.indexOf(selected);
             for (int i = at + 1; at >= 0 && i < before.size() && next == null; i++) {
@@ -604,7 +604,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     // ------------------------------------------------------------------ selection
 
-    /** Selects a structure by id. Used by the screenshot harness as well as the list. */
+    /** Selects a structure by id, for /jes open. Also a test hook for the scripted scenarios. */
     public boolean select(ResourceLocation id) {
         if (catalog == null) {
             return false;
@@ -684,7 +684,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                         return;
                     }
                     if (error != null) {
-                        // Say so rather than showing "Generating" for ever.
+                        // Show an error instead of "Generating" forever.
                         JesLog.debug("Couldn't show {}", id, error);
                         onCaptured(CaptureResult.failure(Component.translatable("screen.justenoughstructures.unreadable"), List.of(), 0), null);
                     } else if (prepared != null) {
@@ -736,7 +736,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Where the flat ground the structure was generated on sits, as a local height, if it cuts through it. */
+    /** Shows the flat ground the structure was generated on, as a local height, when ground is on and it's within the structure's height. */
     private void updateGround() {
         if (view == null) {
             return;
@@ -747,7 +747,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         viewport.setGround(ClientState.ground && surface != Integer.MIN_VALUE && local >= 0 && local <= s.size().getY() ? local : -1);
     }
 
-    /** The search help only while the box is empty, so it never covers what a search found. */
+    /** Shows the search help only while the box is empty, so it never covers the results. */
     private void updateSearchHelp() {
         search.setTooltip(search.getValue().isEmpty() ? Tooltip.create(Component.translatable("screen.justenoughstructures.search_help")) : null);
     }
@@ -823,14 +823,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Opens a container from the preview. Public so the screenshot harness can open one. */
+    /** Opens a container's popup. Public as a test hook for the scripted scenarios. */
     public void openContainer(StructureSnapshot.Container container) {
         openContainer(container, false);
     }
 
     /**
-     * With {@code group}, it was opened from something standing for several containers, a row in the
-     * Loot tab or a marker they share, so it shows all of them until one is picked.
+     * With {@code group}, it was opened from something that stands for several containers (a Loot tab
+     * row or a shared marker), so it shows all of them until one is selected.
      */
     private void openContainer(StructureSnapshot.Container container, boolean group) {
         if (result == null || !result.succeeded()) {
@@ -843,7 +843,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Shows a container, or with {@code all}, every container with its table, {@code container} standing for them. */
+    /** Shows a container, or with {@code all}, every container with its table, {@code container} representing them. */
     private void showContainer(StructureSnapshot.Container container, boolean all) {
         List<StructureSnapshot.Container> same = sameTable(container);
         spawnerPopup = null;
@@ -859,7 +859,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         placePopup();
         layoutPopupButtons();
         if (container.lootTable() == null) {
-            // Each was saved with its own items, so there's nothing to show until one is picked.
+            // Each was saved with its own items, so there's nothing to show until one is selected.
             popup.items = popup.overview() ? List.of() : prefilledItems(container);
             return;
         }
@@ -883,8 +883,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Container popups sit beside the preview, over the details if they're showing, so the containers
-     * they're about can be seen. A table on its own isn't anywhere, so it goes in the middle.
+     * Places a container popup beside the preview, over the details if they're showing, so its
+     * containers stay in view. A table without a container has no place in the structure, so its
+     * popup goes in the middle.
      */
     private void placePopup() {
         if (popup.container == null) {
@@ -944,7 +945,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return BlockPos.containing(mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ());
     }
 
-    /** Opens a loot table this layout doesn't have in a popup on its own: its chances, and a roll of it. */
+    /** Opens a loot table that isn't in this layout, in a popup by itself: its chances and a roll of it. */
     public void openTable(String table) {
         if (ResourceLocation.tryParse(table) == null) {
             return;
@@ -963,7 +964,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         fetchPopupOdds();
     }
 
-    /** Whether a trial spawner in the layout on show drops from the table when it's beaten. */
+    /** Whether a trial spawner in the current layout drops from the table when it's beaten. */
     private boolean trialDrop(String table) {
         if (result == null || !result.succeeded()) {
             return false;
@@ -1023,7 +1024,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         List<StructureSnapshot.Container> same = sameTable(popup.container);
         if (same.size() > 1) {
-            // From all of them, the first step goes to the first or the last.
+            // From the overview, the first step goes to the first or the last one.
             int at = popup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(popup.container);
             StructureSnapshot.Container next = same.get(Math.floorMod(at + direction, same.size()));
             showContainer(next, false);
@@ -1042,8 +1043,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Opens a spawner, from the preview or the Mobs tab. With {@code group}, it was picked from a row
-     * standing for every spawner like it, so it shows all of them until one is picked.
+     * Opens a spawner's popup, from the preview or the Mobs tab. With {@code group}, it was opened from
+     * a row that stands for every spawner of its kind, so it shows all of them until one is selected.
      */
     private void openSpawnerPopup(StructureSnapshot.Spawner spawner, boolean group) {
         if (result == null || !result.succeeded()) {
@@ -1056,12 +1057,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Opens a spawner's popup, as clicking it in the preview does. For the screenshot harness. */
+    /** Opens a spawner's popup, as clicking it in the preview does. Test hook for the scripted scenarios. */
     public void openSpawnerPopup(StructureSnapshot.Spawner spawner) {
         openSpawnerPopup(spawner, false);
     }
 
-    /** Shows a spawner, or with {@code all}, every spawner that makes the same, {@code spawner} standing for them. */
+    /** Shows a spawner, or with {@code all}, every spawner of the same kind, {@code spawner} representing them. */
     private void showSpawner(StructureSnapshot.Spawner spawner, boolean all) {
         List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawner);
         popup = null;
@@ -1080,7 +1081,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private void stepSpawner(int direction) {
         List<StructureSnapshot.Spawner> same = SpawnerKind.same(result.snapshot(), spawnerPopup.spawner);
         if (same.size() > 1) {
-            // From all of them, the first step goes to the first or the last.
+            // As in stepContainer.
             int at = spawnerPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(spawnerPopup.spawner);
             StructureSnapshot.Spawner next = same.get(Math.floorMod(at + direction, same.size()));
             showSpawner(next, false);
@@ -1095,9 +1096,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Opens a mob the structure places, from the preview or the Mobs tab. With {@code group}, it was
-     * picked from something standing for every one of its kind, so it shows all of them until one is
-     * picked.
+     * Opens the popup for a mob the structure places, from the preview or the Mobs tab. With
+     * {@code group}, it was opened from something that stands for every mob of its type, so it shows
+     * all of them until one is selected.
      */
     private void openMobPopup(Entity mob, boolean group) {
         if (result == null || !result.succeeded() || view == null) {
@@ -1110,7 +1111,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** A popup's arrow to the previous or next of its kind: the arrow alone, its words as its tooltip. */
+    /** A popup's previous or next arrow: icon only, with its label as the tooltip. */
     private LabelledIconButton stepButton(ResourceLocation icon, String key, int step) {
         Component label = Component.translatable("screen.justenoughstructures." + key);
         LabelledIconButton button = new LabelledIconButton(0, 0, 20, 20, icon, Icons.SMALL, label, b -> stepContainer(step));
@@ -1118,7 +1119,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return button;
     }
 
-    /** Opens a mob's popup, as clicking it in the preview does. For the screenshot harness. */
+    /** Opens a mob's popup, as clicking it in the preview does. Test hook for the scripted scenarios. */
     public void openMobPopup(Entity mob) {
         openMobPopup(mob, false);
     }
@@ -1136,7 +1137,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Shows a mob, or with {@code all}, every one of its kind, {@code mob} standing for them. */
+    /** Shows a mob, or with {@code all}, every mob of its type, {@code mob} representing them. */
     private void showMob(Entity mob, boolean all) {
         List<Entity> same = sameMobs(mob);
         popup = null;
@@ -1153,7 +1154,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         List<Entity> same = sameMobs(mobPopup.mob);
         if (same.size() > 1) {
-            // From all of them, the first step goes to the first or the last.
+            // As in stepContainer.
             int at = mobPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(mobPopup.mob);
             Entity next = same.get(Math.floorMod(at + direction, same.size()));
             showMob(next, false);
@@ -1161,7 +1162,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** The mobs in the layout of the same kind as {@code mob}, it among them. */
+    /** The mobs in the layout of the same type as {@code mob}, including it. */
     private List<Entity> sameMobs(Entity mob) {
         List<Entity> out = new ArrayList<>();
         for (Entity other : view.entities()) {
@@ -1173,8 +1174,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Opens every block of a kind there are only a few of, as clicking its row on the Blocks tab does,
-     * to go through them one at a time.
+     * Opens the popup for every block of a kind the structure has only a few of, as clicking its row
+     * on the Blocks tab does, to step through them one at a time.
      */
     private void openBlocks(Block block) {
         if (result == null || !result.succeeded() || view == null) {
@@ -1191,7 +1192,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Shows a block, or with {@code all}, every block of its kind, the one at {@code pos} standing for them. */
+    /** Shows a block, or with {@code all}, every block of its kind, the one at {@code pos} representing them. */
     private void showBlock(BlockPos pos, boolean all) {
         BlockState state = view.rawState(pos.getX(), pos.getY(), pos.getZ());
         List<BlockPos> same = sameBlocks(state.getBlock());
@@ -1209,7 +1210,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         List<BlockPos> same = sameBlocks(blockPopup.state.getBlock());
         if (same.size() > 1) {
-            // From all of them, the first step goes to the first or the last.
+            // As in stepContainer.
             int at = blockPopup.overview() ? (direction > 0 ? -1 : same.size()) : same.indexOf(blockPopup.pos);
             BlockPos next = same.get(Math.floorMod(at + direction, same.size()));
             showBlock(next, false);
@@ -1268,7 +1269,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         Object key();
     }
 
-    /** A container's popup, found again by where the container is, as the same layout comes out the same. */
+    /** A container's popup, found again by the container's position, since a layout always generates the same way. */
     private record ContainerPopup(BlockPos pos, boolean entity, ChestPopup.View view, Component title, boolean all) implements Popup {
         @Override
         public Object key() {
@@ -1276,7 +1277,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** A spawner's popup, found again by where the spawner is. */
+    /** A spawner's popup, found again by the spawner's position. */
     private record SpawnerPlace(BlockPos pos, Component title, boolean all) implements Popup {
         @Override
         public Object key() {
@@ -1284,7 +1285,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** A mob's popup, found again by its kind and where it is. */
+    /** A mob's popup, found again by the mob's type and position. */
     private record MobPlace(EntityType<?> type, BlockPos pos, Component title, boolean all) implements Popup {
         @Override
         public Object key() {
@@ -1299,7 +1300,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** A block's popup, found again by its kind and where it is. */
+    /** A block's popup, found again by the block's kind and position. */
     private record BlockPlace(Block block, BlockPos pos, Component title, boolean all) implements Popup {
         @Override
         public Object key() {
@@ -1314,7 +1315,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** The player's own notes on a structure. */
+    /** The player's notes on a structure. */
     private record NotesPlace(ResourceLocation id) implements Popup {
         @Override
         public Object key() {
@@ -1322,7 +1323,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** The browser as it was: the structure and layout, the tab, the picked table, the camera and any popup. */
+    /** The browser as it was: the structure and layout, the tab, the selected table, the camera and any popup. */
     private record BrowserLayer(ResourceLocation id, long seed, InfoPanel.Tab tab, String table, StructureViewport.Camera camera,
                                 Popup popup, Component label, Picking picking) implements Nav.Layer {
         @Override
@@ -1407,8 +1408,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Comes back to a place in history. Behind another screen, or about to be, it only notes where to
-     * be, and the structure is generated once it shows.
+     * Returns to a place in history. If the browser is behind another screen, or about to be, it only
+     * records the place, and the structure is generated once the browser shows.
      */
     void restorePlace(Nav.Layer layer, boolean shownAfter) {
         StructureCatalog.Entry entry = layer instanceof BrowserLayer place ? find(place.id()) : null;
@@ -1431,7 +1432,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             seed = place.seed();
             list.setSelected(entry.id());
             list.revealSelected();
-            // Anything still on its way is for where it was.
+            // Any reply still on its way is for the previous place.
             captureRequest++;
             if (capturing != null) {
                 capturing.cancel(false);
@@ -1507,17 +1508,18 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The blocks the row under the mouse in the details panel is about, such as every block of a kind
-     * or a group of chests, found once and kept while that row stays hovered. It's from the panel as
-     * last drawn, a frame behind, which can't be seen.
+     * The blocks to tint in the preview: those an open popup steps through, or those the hovered row
+     * in the details panel is about, such as every block of a kind or a group of chests. Found once
+     * and kept while the same thing stays shown. The hovered row is from the panel as last drawn, a
+     * frame behind, which isn't noticeable.
      */
     private Highlight highlight() {
         StructureSnapshot shown = view == null ? null : view.snapshot();
         String key = null;
         Function<StructureSnapshot, LongSet> wanted = null;
         if (popup != null && popup.container != null && popup.count > 1 && foundIn == null) {
-            // Every container the popup steps through, so where they all are shows beside it, but not
-            // the one on show: its marker's white outline marks it, and the tint would hide it close up.
+            // Every container the popup steps through, so where they all are shows beside it, except the
+            // current one: its marker's white outline marks it, and the tint would hide it close up.
             StructureSnapshot.Container anchor = popup.container;
             BlockPos showing = popup.overview() ? null : anchor.pos();
             key = "popup:" + anchor.lootTable() + "|" + anchor.id() + "|" + showing;
@@ -1530,7 +1532,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 return out;
             };
         } else if (spawnerPopup != null && spawnerPopup.count > 1 && foundIn == null) {
-            // The same for a spawner's popup: every spawner its arrows step through, but the one on show.
+            // The same for a spawner's popup: every spawner its arrows step through, except the current one.
             StructureSnapshot.Spawner anchor = spawnerPopup.spawner;
             BlockPos showing = spawnerPopup.overview() ? null : anchor.pos();
             key = "spawner_popup:" + anchor.pos() + "|" + showing;
@@ -1543,7 +1545,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 return out;
             };
         } else if (mobPopup != null && mobPopup.count > 1 && foundIn == null && view != null) {
-            // And for a mob's: every one of its kind but the one on show.
+            // And for a mob's: every mob of its type except the current one.
             Entity anchor = mobPopup.mob;
             BlockPos showing = mobPopup.overview() ? null : mobBlock(anchor);
             key = "mob_popup:" + BuiltInRegistries.ENTITY_TYPE.getKey(anchor.getType()) + "|" + showing;
@@ -1557,7 +1559,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 return out;
             };
         } else if (blockPopup != null && blockPopup.count > 1 && foundIn == null) {
-            // And for a block's: every one of its kind but the one on show.
+            // And for a block's: every block of its kind except the current one.
             Block block = blockPopup.state.getBlock();
             BlockPos showing = blockPopup.overview() ? null : blockPopup.pos;
             key = "block_popup:" + BuiltInRegistries.BLOCK.getKey(block) + "|" + showing;
@@ -1606,7 +1608,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return highlight;
     }
 
-    /** Up to this many highlighted things each get a marker of their own, as from far out they can be a few pixels across. */
+    /** Up to this many highlighted things each get a separate marker, since from far out they can be only a few pixels across. */
     private static final int MARKED_HIGHLIGHTS = 64;
     /** The edge of a marker lit up by the mouse or by a row about what it marks. */
     private static final int LIT = 0xFFFFFF55;
@@ -1654,7 +1656,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         g.fill(x + w, y, width, y + h, shade);
     }
 
-    /** Where the container, spawner or mob a popup is showing is, or null. */
+    /** The position of the container, spawner, mob or block a popup is showing, or null. */
     private BlockPos shownPos() {
         if (spawnerPopup != null && !spawnerPopup.overview()) {
             return spawnerPopup.spawner.pos();
@@ -1672,8 +1674,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The container, spawner or mob a popup is showing gets a marker edged in white, when markers are
-     * off or it has none, so it's clear which one it is.
+     * Draws a white-edged marker over the container, spawner, mob or block a popup is showing, when it
+     * has no marker drawn (markers are off, or it has none), so it's clear which one it is.
      */
     private void markShown(GuiGraphics g, StructureSnapshot s) {
         BlockPos pos = shownPos();
@@ -1717,8 +1719,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** A marker: {@code icon} in a dark box with its top left at left, top, edged in {@code edge}, and how many it stands for when that's more than one. */
     private void drawMarker(GuiGraphics g, float left, float top, int size, ItemStack icon, int edge, int count) {
         Gui.push(g);
-        // Moved by the exact amount rather than to the nearest GUI pixel, which is what made
-        // markers jitter against the smoothly turning preview.
+        // Moved by the exact amount, not rounded to a GUI pixel, so markers don't jitter against
+        // the smoothly turning preview.
         Gui.translate(g, left, top);
         Gui.lift(g, 200);
         g.fill(-1, -1, size + 1, size + 1, edge);
@@ -1779,12 +1781,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         pointCompass();
     }
 
-    /** The chest popup's tabs: one roll, or every item's chance. */
+    /** Handles the chest popup's tabs (one roll, or every item's chance) and its Pack tools links. */
     private void popupAction(ChestPopup open, ChestPopup.Action action) {
         switch (action) {
             case ROLL, ODDS -> {
                 open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
-                // Where it was: beside the preview for a container, in the middle for a table on its own.
+                // Placed as before: beside the preview for a container, in the middle for a table by itself.
                 placePopup();
                 layoutPopupButtons();
             }
@@ -1809,7 +1811,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         foundIn = null;
     }
 
-    /** Starts picking a chest, as Pack tools' button does. For the screenshot harness. */
+    /** Starts picking a chest, as Pack tools' button does. Test hook for the scripted scenarios. */
     public void pickForTools() {
         startPicking(Picking.CHEST);
     }
@@ -1837,12 +1839,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         picking = Picking.NONE;
     }
 
-    /** The structure on show, or null. */
+    /** The current structure, or null. */
     public ResourceLocation selectedStructure() {
         return selected == null ? null : selected.id();
     }
 
-    /** Opens a structure from Pack tools, on a tab and with a table picked if given. */
+    /** Opens a structure from Pack tools, on a tab and with a table selected if given. */
     void showFromTools(ResourceLocation structure, InfoPanel.Tab tab, String table) {
         long layout = selected != null && selected.id().equals(structure) ? seed : defaultSeed(structure);
         restorePlace(new BrowserLayer(structure, layout, tab, table, null, null, Component.empty(), Picking.NONE), true);
@@ -1855,8 +1857,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Where a tab or link on the open popup is, for the screenshot harness, or null: "roll", "odds",
-     * "tools_container" or "tools_table" on a chest's, "tools" on a spawner's.
+     * Where a tab or link on the open popup is, or null: "roll", "odds", "tools_container" or
+     * "tools_table" on a chest's, "tools" on a spawner's. Test hook for the scripted scenarios.
      */
     public int[] popupLink(String name) {
         if (popup != null) {
@@ -1882,8 +1884,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * The editor on a new table, named after the structure on show. The id can be changed before
-     * it's saved; if a table by that name was already made, it opens that one to edit instead.
+     * Opens the editor on a new table named after the current structure. The id can be changed before
+     * saving; if a table with that id was already made, the editor opens that one instead.
      */
     public void openNewTable() {
         String path = selected == null ? "custom" : selected.id().getPath();
@@ -1892,7 +1894,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         minecraft.setScreen(new LootEditorScreen(this, id, StructureNames.lootTable(id.toString())));
     }
 
-    /** The player's own notes on a structure, to write or change, in a popup over the browser. */
+    /** Opens the player's notes on a structure in a popup over the browser, to write or change them. */
     private void openNotes(ResourceLocation id) {
         Nav.remember();
         showNotes(id);
@@ -1905,7 +1907,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         addNotesWidgets();
     }
 
-    /** The notes popup's box and Done, made for the screen as it is now, with the box given the keyboard. */
+    /** Builds the notes popup's box and Done for the current screen size, and focuses the box. */
     private void addNotesWidgets() {
         notes.build(font, width, height, this::closeNotes);
         addWidget(notes.box);
@@ -1914,7 +1916,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         notes.box.setFocused(true);
     }
 
-    /** Closes the notes popup, keeping what's written. */
+    /** Closes the notes popup, saving what's written. */
     private void closeNotes() {
         if (notes == null) {
             return;
@@ -1926,7 +1928,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         notes = null;
     }
 
-    /** The Loot tab with {@code table} picked, as clicking its row would. */
+    /** Shows the Loot tab with {@code table} selected, as clicking its row would. */
     public void showLoot(String table) {
         info.setTab(InfoPanel.Tab.LOOT);
         selectTable(table);
@@ -1937,9 +1939,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         InfoPanel.showDetails(shown);
     }
 
-    // ------------------------------------------------------------------ positions, for the dev harness
+    // ------------------------------------------------------------------ test hooks for the scripted scenarios
 
-    /** Makes the next opened browser start on this structure. */
+    /** Makes the next opened browser start on this structure. Also used by /jes open, found-in rows and Explorer's Compass. */
     public static void startOn(ResourceLocation id) {
         lastSelected = id;
     }
@@ -1974,7 +1976,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return foundIn != null ? foundIn.scrolled() : side != null ? side.scrolled() : popup != null ? popup.scrolled() : -1;
     }
 
-    /** The structure on show, or null. */
+    /** The current structure, or null. */
     public ResourceLocation selectedId() {
         return selected == null ? null : selected.id();
     }
@@ -2030,7 +2032,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return new int[]{b.getX() + b.getWidth() / 2, b.getY() + b.getHeight() / 2};
     }
 
-    /** Which block of how many the block popup shows, -1 while it shows all of them, or null without one. For the screenshot harness. */
+    /** The block popup's index and count, the index -1 while it shows all of them, or null without one. */
     public int[] blockPopupStep() {
         return blockPopup == null ? null : new int[]{blockPopup.index, blockPopup.count};
     }
@@ -2048,7 +2050,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return notes != null;
     }
 
-    /** The notes popup's Done, or null while they aren't open. */
+    /** The notes popup's Done, or null while it isn't open. */
     public int[] notesDone() {
         return notes == null ? null : notes.doneCentre();
     }
@@ -2087,35 +2089,35 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return foundIn != null;
     }
 
-    /** The mobs the layout on show places, for the screenshot harness. */
+    /** The mobs the current layout places. */
     public List<Entity> placedMobs() {
         return view == null ? List.of() : List.copyOf(view.entities());
     }
 
-    /** The mob at a point of the preview, or null, for the screenshot harness. */
+    /** The mob at a point of the preview, or null. */
     public Entity mobAt(int x, int y) {
         return viewport.pick(x, y).map(StructureViewport.Hit::entity).orElse(null);
     }
 
-    /** What the preview's hover text says at a point of it, or nothing, for the screenshot harness. */
+    /** The preview's hover text at a point of it, or an empty list. */
     public List<Component> hoverTextAt(int x, int y) {
         return viewport.pick(x, y).map(this::hoverLines).orElse(List.of());
     }
 
-    /** Whether a marker in the preview, as last drawn, stands for {@code mob}, for the screenshot harness. */
+    /** Whether a marker in the preview, as last drawn, stands for {@code mob}. */
     public boolean marked(Entity mob) {
         return markerRects.stream().anyMatch(m -> m.marks(mob));
     }
 
     /**
-     * Whether a marker in the preview, as last drawn, stands for {@code container}: one of the markers,
-     * or one on its own while it's highlighted or a popup shows it. For the screenshot harness.
+     * Whether a marker in the preview, as last drawn, stands for {@code container}: one of the usual
+     * markers, or a separate one while it's highlighted or a popup shows it.
      */
     public boolean marked(StructureSnapshot.Container container) {
         return markerRects.stream().anyMatch(m -> m.containers().contains(container)) || loneMarkers.contains(container.pos());
     }
 
-    /** What the preview gave up on drawing or asking because it failed, for the screenshot harness. */
+    /** What the preview left out because drawing or querying it failed. */
     public List<Object> leftOut() {
         return viewport.leftOut();
     }
@@ -2128,6 +2130,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
+    // ------------------------------------------------------------------ popups
+
     private void closePopup() {
         closeNotes();
         popup = null;
@@ -2136,7 +2140,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         blockPopup = null;
         layoutPopupButtons();
         if (tourFrom != null) {
-            // Back to the zoom and centre from before, but keeping whatever angle the player turned to.
+            // Restore the earlier zoom and centre, but keep the angle the player turned to.
             StructureViewport.Camera now = viewport.camera();
             StructureViewport.Camera back = new StructureViewport.Camera(now.yaw(), now.pitch(), tourFrom.distance(),
                     tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ());
@@ -2149,7 +2153,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
             tourFrom = null;
         }
-        // The layers back as they were too, when the tour cut it open to show something inside.
+        // Restore the layers too, if the tour cut the structure open to show something inside.
         if (tourSlice >= 0 && view != null && view.sliceY() != tourSlice) {
             view.setSliceY(tourSlice);
             updateSlider();
@@ -2187,7 +2191,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         chestReroll.setX(popup.x + 6);
         chestReroll.setY(rowY);
         chestReroll.active = popup.table != null;
-        // A table on its own has no others like it to step through, so Roll again takes their room.
+        // A table by itself has nothing to step through, so Roll again takes the arrows' space.
         boolean steps = popup.container != null;
         chestReroll.setWidth(steps ? 70 : ChestPopup.WIDTH - 12 - 48);
         chestPrev.visible = chestNext.visible = steps;
@@ -2294,7 +2298,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             thumbnails.tick(wanted, result == null || viewport.meshing());
         }
         renderHeader(g);
-        // The preview still answers the mouse beside a container's popup, so another container can be picked.
+        // The preview still answers the mouse beside a container's popup, so another container can be clicked.
         boolean beside = foundIn == null && notes == null && (side != null ? !side.contains(mouseX, mouseY, font)
                 : popup != null && popup.container != null && !popup.contains(mouseX, mouseY, font));
         StructureViewport.Hit hover = renderViewport(g, beside ? mouseX : mx, beside ? mouseY : my, partialTick);
@@ -2306,7 +2310,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             b.visible = false;
         }
         if (slider.visible) {
-            // The icon sits on a dark end of the slider's own texture, white with a shadow like the
+            // The icon sits on a dark end drawn with the slider's texture, white with a shadow like the
             // slider's numbers, so it reads the same on light panels and dark ones. The end is a pixel
             // wider than its room: the slider's left edge covers its right one, so they share a line.
             int endX = slider.getX() - LAYERS_ICON_ROOM;
@@ -2323,7 +2327,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             Gui.push(g);
             Gui.lift(g, 400);
             if ((side != null || popup.container != null) && view != null) {
-                // The preview stays clear beside a container's, spawner's or mob's popup: it's where they're shown.
+                // The preview stays clear beside a container's, spawner's, mob's or block's popup: it's where they're shown.
                 dimAround(g, viewX, viewY, viewW, viewH);
             } else {
                 g.fill(0, 0, width, height, 0x88000000);
@@ -2438,7 +2442,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return List.of();
     }
 
-    /** Previous or next structure in the list, or the first of the previous or next mod. */
+    /** Selects the previous or next structure in the list, or the first of the previous or next mod. */
     private void step(int dir, boolean byMod) {
         if (selected != null) {
             list.step(selected.id(), dir, byMod).ifPresent(e -> {
@@ -2781,7 +2785,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** Short by default; holding Shift adds block states, ids and positions for people who want them. */
+    /** Short by default; with advanced tooltips on (F3+H) it adds block states, ids and positions. */
     private List<Component> hoverLines(StructureViewport.Hit hit) {
         List<Component> lines = new ArrayList<>();
         StructureSnapshot.Container container = containerAt(hit);
@@ -2834,7 +2838,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     /**
      * Opens what a marker stands for: its container, its spawner or its mob. One standing for several
-     * opens all of their kind. Returns whether one opened.
+     * containers or mobs opens all of them. Returns whether one opened.
      */
     private boolean openMarker(Marker m) {
         if (m.container() != null) {
@@ -2854,7 +2858,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return false;
     }
 
-    /** What a marker shows: its container's own item, a spawner, or the mob's egg or item. */
+    /** What a marker shows: its container's item, a spawner, or the mob's egg or item. */
     private ItemStack markerIcon(StructureSnapshot s, Marker m) {
         Spot first = m.spots().get(0);
         if (first.what() instanceof StructureSnapshot.Container c) {
@@ -2908,8 +2912,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Beside a container's, spawner's or mob's popup, opens the container, spawner or mob under the
-     * mouse in the preview instead, by its marker or by itself. False if there's none.
+     * With a container's, spawner's, mob's or block's popup open, opens the container, spawner or mob
+     * under the mouse in the preview instead, by its marker or by itself. False if there's none.
      */
     private boolean openClicked(double mouseX, double mouseY) {
         boolean beside = side() != null || popup != null && popup.container != null;
@@ -2960,15 +2964,15 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        // A click anywhere but the search lets go of it, as a text box does, so the keys pressed next
-        // are the browser's own again, like R for a new layout, rather than more typing.
+        // A click outside the search unfocuses it, as with any text box, so the next keys go to the
+        // browser again (like R for a new layout) instead of typing.
         if (search.isFocused() && !search.isMouseOver(mouseX, mouseY)) {
             setFocused(null);
         }
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        // The notes take every click while they're open: one outside closes them, keeping what's written.
+        // The notes take every click while they're open: one outside closes them and saves what's written.
         if (notes != null) {
             if (!notes.contains(mouseX, mouseY)) {
                 closeNotes();
@@ -3068,7 +3072,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (sides) {
-                // Before the list's rows, which run on under its bar.
+                // Checked before the list's rows, which extend under its bar.
                 HeldBar bar = list.grabBar(mouseX, mouseY);
                 heldBar = bar != null ? bar : info.grabBar(mouseX, mouseY);
                 if (heldBar != null) {
@@ -3194,7 +3198,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean keyPressed(int key, int scanCode, int modifiers) {
-        // While the notes are open every key is typing, not one of the browser's own, and Escape closes them.
+        // While the notes are open, keys type into the box instead of working as the browser's shortcuts, and Escape closes them.
         if (notes != null) {
             if (key == InputConstants.KEY_ESCAPE) {
                 closeNotes();
@@ -3335,14 +3339,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
     }
 
-    /** True when the selected structure keeps where its loot is a secret, so its previews come without loot. */
+    /** Whether the selected structure keeps its loot locations secret, so its previews come without loot. */
     private boolean lootSecret() {
         return selected != null && selected.info().hideLootLocations();
     }
 
     /**
-     * The button says what markers mark now, which changes with the tab; container markers mean
-     * nothing for a structure whose loot is kept secret, so it says so instead.
+     * Updates the markers button's label when what markers mark changes, such as with the tab. For a
+     * structure whose loot is secret, container markers mean nothing, so the label says that instead.
      */
     private void updateMarkersButton() {
         String now = markersSecret() + "|" + markerKind();
