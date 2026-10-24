@@ -30,6 +30,7 @@ public final class Autoshot implements ClientModInitializer {
         Scenarios.add("viewer", ViewerScenario::build);
         Scenarios.add("jei", JeiScenario::build);
         Scenarios.add("found_in_waiting", WaitingScenario::build);
+        Scenarios.add("chest_loot_tabs", ChestLootTabsScenario::build);
         WaitingScenario.holdIfPlayed();
         ScriptRun run = ScriptRun.fromProperties();
         if (run == null) {

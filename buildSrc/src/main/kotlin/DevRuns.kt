@@ -18,6 +18,7 @@ import org.gradle.api.GradleException
  * - -Pshow keeps the window visible.
  * - -Pjoin=host:port joins that server instead of making a world.
  * - -Pusername=name joins as that player. Not on Forge 1.21.1 and later.
+ * - -Pemi_loot adds EMI Loot beside EMI (-Pviewer=emi). Fabric 1.20.1 only (AutoshotMods.kt).
  */
 fun prepareAutoshotFolder(root: File, modId: String) {
     // The browser remembers its toggles in config, which would carry over from the last run.

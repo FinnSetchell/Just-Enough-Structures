@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
+import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import com.finndog.justenoughstructures.loot.LootIndex;
@@ -11,10 +12,13 @@ import dev.emi.emi.api.EmiApi;
 import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
+import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.runtime.EmiReloadManager;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
@@ -29,6 +33,9 @@ import net.minecraft.world.item.ItemStack;
  * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one. A load
  * without an index has a waiting row for each item chest loot can give, if the server has said
  * which, so the page is there with the server's progress until the index comes.
+ *
+ * <p>The player's chest loot setting can hide other mods' chest loot tabs, or leave out JES's rows,
+ * in which case EMI isn't reloaded for an index either. Changing it reloads EMI.
  */
 // The annotation is how EMI finds it on Forge and NeoForge; Fabric uses the entrypoint in fabric.mod.json.
 @EmiEntrypoint
@@ -61,6 +68,7 @@ public final class JesEmiPlugin implements EmiPlugin {
     private static boolean lookDue;
     private static volatile int loads;
     private static volatile int waitingRows;
+    private static boolean settingWatched;
 
     @Override
     public void register(EmiRegistry registry) {
@@ -69,6 +77,16 @@ public final class JesEmiPlugin implements EmiPlugin {
         asked = null;
         try {
             registry.addCategory(FOUND_IN);
+            // EMI drops these once every plugin has added its recipes, so other mods' tabs go
+            // whichever order the plugins load in. A tab left with no recipes isn't shown.
+            if (ChestLootTabs.hidesOthers()) {
+                registry.removeRecipes(JesEmiPlugin::otherChestLoot);
+            }
+            if (!ChestLootTabs.showsOwn()) {
+                loaded = null;
+                waitingRows = 0;
+                return;
+            }
             LootIndex index = ClientRequests.awaitIndex(INDEX_WAIT_MS);
             loaded = index;
             // Waiting rows only come with a load: reloading EMI for them would take longer than many
@@ -86,8 +104,22 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
     }
 
+    /** Whether a recipe is in another mod's chest loot tab. */
+    private static boolean otherChestLoot(EmiRecipe recipe) {
+        try {
+            EmiRecipeCategory category = recipe.getCategory();
+            return category != null && category.getId() != null && ChestLootTabs.hides(category.getId().toString());
+        } catch (RuntimeException | LinkageError e) {
+            return false;
+        }
+    }
+
     /** Runs on the client thread after each load: subscribes to every later index, and catches up with one that arrived since. */
     private static void listen() {
+        if (!settingWatched) {
+            settingWatched = true;
+            ChestLootTabs.onChange(JesEmiPlugin::settingChanged);
+        }
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesEmiPlugin::arrived);
@@ -101,7 +133,24 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
     }
 
+    /** EMI only reads recipes while it loads, so it loads again. Out of a world, the next join loads it anyway. */
+    private static void settingChanged() {
+        if (Minecraft.getInstance().level == null || loads == 0) {
+            return;
+        }
+        JesLog.debug("EMI is loaded again, for the chest loot setting");
+        try {
+            EmiReloadManager.reload();
+        } catch (LinkageError | RuntimeException e) {
+            JesLog.warnOnce("emi-reload-setting", "Couldn't reload EMI for the chest loot setting; it applies when the world is joined again", e);
+        }
+    }
+
     private static void arrived(LootIndex index) {
+        // With JES's rows left out, an index changes nothing.
+        if (!ChestLootTabs.showsOwn()) {
+            return;
+        }
         // An index that arrives while EMI loads is left for the check after the load. The server resends
         // its index each time it has checked it, and one equal to what EMI has, or is about to load,
         // isn't worth a reload.
@@ -152,6 +201,17 @@ public final class JesEmiPlugin implements EmiPlugin {
     /** Where the first row's structure is on screen, or null before EMI has shown one. Test hook for the scripted scenarios. */
     public static int[] firstRow() {
         return FoundInEmiRecipe.firstRow;
+    }
+
+    /** The tabs EMI has for how to get an item, by id. Test hook for the scripted scenarios. */
+    public static Set<String> tabsFor(ItemStack stack) {
+        Set<String> ids = new TreeSet<>();
+        for (EmiRecipe recipe : EmiApi.getRecipeManager().getRecipesByOutput(EmiStack.of(stack))) {
+            if (recipe.getCategory() != null) {
+                ids.add(recipe.getCategory().getId().toString());
+            }
+        }
+        return ids;
     }
 
     /** Opens EMI on how to get an item. Test hook for the scripted scenarios. */

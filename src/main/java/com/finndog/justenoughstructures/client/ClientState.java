@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
@@ -23,8 +24,9 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * Browser settings that carry over to the next time it's opened, even after a restart: spin,
  * markers, ground, maximise, the Info tab's details, the loot sort order and the player's favourite
- * structures. Saved as the player uses the browser, as JEI saves its state. The player's notes on
- * structures are saved the same way, in a separate file.
+ * structures, and which chest loot tabs the recipe viewers show. Saved as the player uses the
+ * browser, as JEI saves its state. The player's notes on structures are saved the same way, in a
+ * separate file.
  */
 public final class ClientState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -37,6 +39,8 @@ public final class ClientState {
     public static boolean rarestFirst;
     /** Hides Pack tools for players who can use it but don't want to see it: no button, no popup icons, no marks on edited tables. */
     public static boolean hidePackTools;
+    /** Which chest loot tabs the recipe viewers show when another mod has one too. Set through {@code ChestLootTabs.choose}. */
+    public static volatile ChestLoot chestLoot = ChestLoot.BOTH;
     /** Structure ids the player starred, shown at the top of the list in every world that has them. */
     public static final Set<String> favourites = new LinkedHashSet<>();
     /**
@@ -61,8 +65,36 @@ public final class ClientState {
         return JustEnoughStructures.configDir().resolve("notes.json");
     }
 
-    /** Reads the saved state and notes the first time the browser opens. */
-    public static void load() {
+    /** Which chest loot tabs the recipe viewers show. */
+    public enum ChestLoot {
+        /** JES's Found in structures and other mods' chest loot tabs, as without the setting. */
+        BOTH,
+        /** Found in structures, with other mods' chest loot tabs hidden. */
+        JUST_ENOUGH_STRUCTURES,
+        /** Other mods' chest loot tabs, without Found in structures. */
+        OTHER_MODS;
+
+        /** How it's written in state.json. */
+        public String key() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /** The value written as {@code key}, or null if there's none. */
+        public static ChestLoot of(String key) {
+            for (ChestLoot value : values()) {
+                if (value.key().equals(key)) {
+                    return value;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Reads the saved state and notes the first time the browser, the settings screen or a recipe
+     * viewer needs them. Viewers load on threads of their own, so only one reads at a time.
+     */
+    public static synchronized void load() {
         if (!loaded) {
             loaded = true;
             read(file());
@@ -92,6 +124,10 @@ public final class ClientState {
             details = flag(json, "details", details);
             rarestFirst = flag(json, "rarest_first", rarestFirst);
             hidePackTools = flag(json, "hide_pack_tools", hidePackTools);
+            if (json != null && json.has("chest_loot_in_viewers") && json.get("chest_loot_in_viewers").isJsonPrimitive()) {
+                ChestLoot saved = ChestLoot.of(json.get("chest_loot_in_viewers").getAsString());
+                chestLoot = saved != null ? saved : chestLoot;
+            }
             if (json != null && json.has("favourites") && json.get("favourites").isJsonArray()) {
                 favourites.clear();
                 for (JsonElement id : json.getAsJsonArray("favourites")) {
@@ -118,6 +154,7 @@ public final class ClientState {
         json.addProperty("details", details);
         json.addProperty("rarest_first", rarestFirst);
         json.addProperty("hide_pack_tools", hidePackTools);
+        json.addProperty("chest_loot_in_viewers", chestLoot.key());
         JsonArray starred = new JsonArray();
         favourites.forEach(starred::add);
         json.add("favourites", starred);

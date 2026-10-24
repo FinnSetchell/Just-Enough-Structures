@@ -553,6 +553,21 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void chestLootSettingSurvivesARestart(GameTestHelper helper) {
+        ChestLootTabsTests.chestLootSettingSurvivesARestart(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void chestLootSettingPicksTheRightTabs(GameTestHelper helper) {
+        ChestLootTabsTests.chestLootSettingPicksTheRightTabs(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void chestLootSettingTellsTheViewers(GameTestHelper helper) {
+        ChestLootTabsTests.chestLootSettingTellsTheViewers(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void structureNamesAreKeptInLangFiles(GameTestHelper helper) {
         NameTests.structureNamesAreKeptInLangFiles(helper);
     }

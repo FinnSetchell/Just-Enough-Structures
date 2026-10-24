@@ -3,6 +3,8 @@ package com.finndog.justenoughstructures.compat.cloth;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientState;
+import com.finndog.justenoughstructures.client.ClientState.ChestLoot;
+import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonArray;
@@ -58,6 +60,11 @@ public final class JesConfigScreen {
         browser.addEntry(entries.startBooleanToggle(text("hide_pack_tools"), ClientState.hidePackTools).setDefaultValue(false)
                 .setTooltip(text("hide_pack_tools.tooltip"))
                 .setSaveConsumer(value -> ClientState.hidePackTools = value).build());
+        browser.addEntry(entries.startEnumSelector(Component.translatable("config.justenoughstructures.chest_loot"), ChestLoot.class, ClientState.chestLoot)
+                .setDefaultValue(ChestLoot.BOTH)
+                .setEnumNameProvider(value -> chestLootName((ChestLoot) value))
+                .setTooltip(Component.translatable("config.justenoughstructures.chest_loot.tooltip"))
+                .setSaveConsumer(ChestLootTabs::choose).build());
 
         ConfigCategory serverSettings = builder.getOrCreateCategory(text("server"));
         serverSettings.addEntry(entries.startTextDescription(text("server.about")).build());
@@ -151,6 +158,14 @@ public final class JesConfigScreen {
                 ? !mod.isEmpty() && ResourceLocation.tryParse(mod + ":any") != null
                 : !value.isEmpty() && ResourceLocation.tryParse(value) != null;
         return valid ? Optional.empty() : Optional.of(text("hidden.invalid"));
+    }
+
+    private static Component chestLootName(ChestLoot value) {
+        return Component.translatable(switch (value) {
+            case BOTH -> "config.justenoughstructures.chest_loot.both";
+            case JUST_ENOUGH_STRUCTURES -> "config.justenoughstructures.chest_loot.just_enough_structures";
+            case OTHER_MODS -> "config.justenoughstructures.chest_loot.other_mods";
+        });
     }
 
     private static Component permission(int level) {

@@ -154,6 +154,10 @@ val luckPerms = mapOf(
 )
 // Which recipe viewer the dev runtime has, as they don't all get along: -Pviewer=jei (the default), emi or rei.
 val viewer = findProperty("viewer")?.toString() ?: "jei"
+// EMI Loot in the screenshot run, with -Pemi_loot and -Pviewer=emi (AutoshotMods.kt). Its jars go in
+// their own folder, never on the classpath of a built jar.
+val autoshotMods = AutoshotMods(project, useDevMods, viewer)
+val autoshotModsDir: File = layout.buildDirectory.dir("autoshot-mods").get().asFile
 
 dependencies {
     minecraft("com.mojang:minecraft:$mcBuild")
@@ -261,6 +265,7 @@ loom {
             vmArg("-Djes.autoshot.join=${hasProperty("join")}")
             findProperty("join")?.let { programArgs("--quickPlayMultiplayer", it.toString()) }
             findProperty("username")?.let { programArgs("--username", it.toString()) }
+            if (autoshotMods.emiLoot) vmArg("-Dfabric.addMods=$autoshotModsDir")
         }
         // Starts a dedicated server, times a build of every structure, then lets crowds of simulated
         // players use the browser and writes how the server held up to build/loadtest/report.md
@@ -408,6 +413,7 @@ tasks {
         val dir = layout.buildDirectory.dir("autoshot")
         doFirst {
             prepareAutoshotFolder(dir.get().asFile, modId)
+            autoshotMods.fill(autoshotModsDir)
         }
     }
 
