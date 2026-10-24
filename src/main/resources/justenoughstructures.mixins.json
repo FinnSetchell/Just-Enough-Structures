@@ -8,6 +8,7 @@
     "BlockableEventLoopGuardMixin",
     "C2meRandomMixin",
     "EntityTypeMixin",
+    "ExplorationMapFunctionMixin",
     "LegacyRandomSourceMixin",
     "LevelTicksMixin",
     "ListPoolElementAccessor",

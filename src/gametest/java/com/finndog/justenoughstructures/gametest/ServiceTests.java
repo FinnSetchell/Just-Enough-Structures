@@ -33,11 +33,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -352,6 +354,81 @@ public final class ServiceTests {
         helper.assertTrue(vault.contains(Ids.parse("heavy_core")), "the ominous vault's table should list the heavy core, found " + vault);
         *///?}
         helper.succeed();
+    }
+
+    /**
+     * Found in lists what a chest can give and nothing else, so no item it lists shows at 0%. The
+     * desert pyramid's books are all enchanted, so it has enchanted books but no plain ones. A
+     * treasure map is listed as the item it comes out as, and the odds players are sent count it
+     * as that item too. The shipwreck's map chest also has plain books and maps, which stay.
+     */
+    public static void foundInListsWhatChestsGive(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation pyramid = Ids.parse("desert_pyramid");
+        ResourceLocation shipwreck = Ids.parse("shipwreck");
+        ResourceLocation shipwreckMap = Ids.parse("chests/shipwreck_map");
+        ResourceLocation ruin = Ids.parse("chests/underwater_ruin_small");
+        LootIndex index = LootIndex.build(server, List.of(pyramid, shipwreck), done -> {
+        }, () -> false);
+        helper.assertTrue(index != null, "the index wasn't built");
+        helper.assertTrue(index.tablesByStructure().getOrDefault(pyramid, Set.of()).contains(DESERT_PYRAMID_LOOT)
+                        && index.tablesByStructure().getOrDefault(shipwreck, Set.of()).contains(shipwreckMap),
+                "the desert pyramid and the shipwreck should use their chest tables, found " + index.tablesByStructure());
+        Map<ResourceLocation, Set<ResourceLocation>> listed = new LinkedHashMap<>();
+        listed.put(DESERT_PYRAMID_LOOT, index.itemsByTable().getOrDefault(DESERT_PYRAMID_LOOT, Set.of()));
+        listed.put(shipwreckMap, index.itemsByTable().getOrDefault(shipwreckMap, Set.of()));
+        // Not every ocean ruin has a chest, so its table is read the way the index reads each table.
+        listed.put(ruin, LootIndex.itemsIn(server, ruin, new HashSet<>()));
+        helper.assertTrue(listed.get(shipwreckMap).contains(Ids.parse("book")),
+                "the shipwreck's map chest has plain books, but the index lists " + listed.get(shipwreckMap));
+
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<ResourceLocation> asked = new ArrayList<>(listed.keySet());
+        List<byte[]> answers = new ArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender((target, channel, buf) -> {
+            if (target == player && channel.equals(JesNetwork.ODDS)) {
+                answers.add(Blobs.bytes(buf));
+            } else {
+                before.send(target, channel, buf);
+            }
+        });
+        for (int i = 0; i < asked.size(); i++) {
+            JesServer.onRequestOdds(player, i, asked.get(i));
+        }
+        boolean[] logged = new boolean[1];
+        // The rolling can finish a few ticks later.
+        helper.succeedWhen(() -> {
+            helper.assertTrue(answers.size() == asked.size(), "the odds of " + answers.size() + " of " + asked.size() + " tables have come");
+            JesNetwork.setServerSender(before);
+            JesServer.left(player);
+            List<String> wrong = new ArrayList<>();
+            for (byte[] bytes : answers) {
+                FriendlyByteBuf answer = Blobs.fromBytes(helper.getLevel().registryAccess(), bytes);
+                ResourceLocation table = asked.get(answer.readVarInt());
+                LootOdds odds = Codecs.readOdds(answer);
+                helper.assertTrue(odds.tableId().equals(table), "the odds of " + odds.tableId() + " came for " + table);
+                // By item, as Found in finds an item's chance.
+                Set<ResourceLocation> rolled = odds.rows().stream().filter(r -> r.hits() > 0)
+                        .map(r -> BuiltInRegistries.ITEM.getKey(r.example().getItem())).collect(Collectors.toCollection(TreeSet::new));
+                for (ResourceLocation item : listed.get(table)) {
+                    if (!rolled.contains(item)) {
+                        wrong.add(table + " lists " + item + ", which never came out of " + odds.rolls() + " rolls");
+                    }
+                }
+                for (ResourceLocation item : rolled) {
+                    if (!listed.get(table).contains(item)) {
+                        wrong.add(table + " gave " + item + ", which the index doesn't list");
+                    }
+                }
+            }
+            // Logged once, as some versions leave a timed-out test's reason out of the summary.
+            if (!logged[0]) {
+                logged[0] = true;
+                JustEnoughStructures.LOGGER.info("In the test of what Found in lists: {}", wrong.isEmpty() ? "every item matched" : String.join("; ", wrong));
+            }
+            helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
+        });
     }
 
     /** JEI gets one entry per item per structure, listing every table in the structure that gives it. */

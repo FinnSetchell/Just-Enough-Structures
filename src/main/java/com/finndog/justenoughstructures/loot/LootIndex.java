@@ -75,6 +75,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      * picks a part.
      */
     private static final long LAYOUT_STEP = 0x6A09E667F3BCC909L;
+    /** The game's functions that turn a plain book into an enchanted one. */
+    private static final List<String> ENCHANTING = List.of("enchant_randomly", "enchant_with_levels", "set_enchantments");
 
     /**
      * Captures every structure and reads every loot table they use. {@code progress} gets the number
@@ -435,15 +437,24 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         if (name != null) {
             switch (type) {
                 case "minecraft:item", "item" -> {
-                    out.add(name);
                     // From 26.3 an entry's functions are its modifier.
-                    String functions = (object.has("functions") ? object.get("functions").toString() : "")
-                            + (object.has("modifier") ? object.get("modifier").toString() : "");
-                    if (name.getPath().equals("book") && functions.contains("enchant")) {
+                    JsonElement functions = object.has("functions") ? object.get("functions") : object.get("modifier");
+                    String text = functions == null ? "" : functions.toString();
+                    // Whether every item the entry gives is turned into the other one listed here.
+                    boolean turned = false;
+                    if (name.equals(Ids.parse("book")) && text.contains("enchant")) {
                         out.add(Ids.parse("enchanted_book"));
+                        turned = alwaysRuns(functions, ENCHANTING);
                     }
-                    if (name.getPath().equals("map") && functions.contains("exploration_map")) {
+                    //? if <26.3 {
+                    // An exploration map turns a plain map into a filled one. From 26.3 it draws on the entry's own item.
+                    if (name.equals(Ids.parse("map")) && text.contains("exploration_map")) {
                         out.add(Ids.parse("filled_map"));
+                        turned = alwaysRuns(functions, List.of("exploration_map"));
+                    }
+                    //?}
+                    if (!turned) {
+                        out.add(name);
                     }
                 }
                 case "minecraft:tag", "tag" -> {
@@ -459,6 +470,29 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         for (Map.Entry<String, JsonElement> e : object.entrySet()) {
             walk(server, e.getValue(), out, seen);
         }
+    }
+
+    /**
+     * Whether one of an entry's functions is one of the game's own of these kinds and has no
+     * condition, so every item the entry gives goes through it.
+     */
+    private static boolean alwaysRuns(JsonElement functions, List<String> kinds) {
+        if (functions == null) {
+            return false;
+        }
+        for (JsonElement function : functions instanceof JsonArray list ? list : List.of(functions)) {
+            if (!(function instanceof JsonObject f)) {
+                continue;
+            }
+            // From 26.3 a function's kind is its type, and it has one condition rather than a list.
+            JsonElement conditions = f.has("conditions") ? f.get("conditions") : f.get("condition");
+            ResourceLocation kind = idAt(f, f.has("function") ? "function" : "type");
+            if ((conditions == null || conditions instanceof JsonArray none && none.isEmpty())
+                    && kind != null && kind.getNamespace().equals("minecraft") && kinds.contains(kind.getPath())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ResourceLocation idAt(JsonObject object, String key) {

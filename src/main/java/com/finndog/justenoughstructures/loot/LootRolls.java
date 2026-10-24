@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -29,6 +30,11 @@ import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionUtils;
 import net.minecraft.world.item.alchemy.Potions;
 //?}
+//? if >=26.3 {
+/*import net.minecraft.world.level.saveddata.maps.MapId;
+*///?} else {
+import net.minecraft.world.item.Items;
+//?}
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
@@ -36,10 +42,46 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 /**
  * Rolls loot tables with the game's loot code, so functions and conditions added by any mod run as
  * they do in a real chest. The rolls have no origin, player or entity, though, so anything that reads
- * one, like an exploration map, comes out differently (see chestParams).
+ * one comes out differently (see chestParams). An exploration map is the exception (see blankMap).
  */
 public final class LootRolls {
+    /** Set while this thread rolls a table for JES. */
+    private static final ThreadLocal<Boolean> ROLLING = ThreadLocal.withInitial(() -> false);
+
     private LootRolls() {
+    }
+
+    /** Whether this thread is rolling a table for JES. */
+    public static boolean rolling() {
+        return ROLLING.get();
+    }
+
+    /**
+     * What an exploration map gives in JES's rolls: the map it would draw on, left blank, without
+     * the search for a structure, which is slow and saves a new map each time. Before 26.3 that is a
+     * filled map in place of a plain one. From 26.3 it's the entry's own item, which the table throws
+     * away without a map id, so it gets one that no map in the world has.
+     */
+    public static ItemStack blankMap(ItemStack stack) {
+        //? if >=26.3 {
+        /*if (!stack.isEmpty()) {
+            stack.set(DataComponents.MAP_ID, new MapId(-1));
+        }
+        return stack;
+        *///?} else {
+        return stack.is(Items.MAP) ? new ItemStack(Items.FILLED_MAP) : stack;
+        //?}
+    }
+
+    /** Runs {@code roll} as one of JES's rolls. */
+    private static <T> T asRoll(Supplier<T> roll) {
+        boolean before = ROLLING.get();
+        ROLLING.set(true);
+        try {
+            return roll.get();
+        } finally {
+            ROLLING.set(before);
+        }
     }
 
     public static boolean exists(ServerLevel level, ResourceLocation tableId) {
@@ -67,7 +109,7 @@ public final class LootRolls {
      */
     public static List<ItemStack> fill(ServerLevel level, ResourceLocation tableId, LootTable table, long seed, int size) {
         try {
-            return JesLog.quietly(() -> {
+            return JesLog.quietly(() -> asRoll(() -> {
                 SimpleContainer container = new SimpleContainer(size);
                 table.fill(container, chestParams(level), seed);
                 List<ItemStack> out = new ArrayList<>(size);
@@ -75,7 +117,7 @@ public final class LootRolls {
                     out.add(container.getItem(i).copy());
                 }
                 return out;
-            });
+            }));
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
             JesLog.warnOnce("loot-fill:" + tableId, "Couldn't roll the loot table {}, so its container shows as empty", tableId, e);
             return new ArrayList<>(Collections.nCopies(size, ItemStack.EMPTY));
@@ -160,7 +202,7 @@ public final class LootRolls {
             done++;
             List<ItemStack> rolled;
             try {
-                rolled = table.getRandomItems(params, nextSeed());
+                rolled = asRoll(() -> table.getRandomItems(params, nextSeed()));
             } catch (RuntimeException | LinkageError e) {
                 // Still one of the rolls, as one that gave nothing, so the odds so far add up.
                 empty++;
@@ -209,7 +251,7 @@ public final class LootRolls {
 
     // Deliberately no origin. With one, exploration_map searches the real world for the nearest
     // structure on every roll, which is the slow treasure map lookup, thousands of times over for the
-    // odds. Without it maps come out blank but keep their name.
+    // odds. Without one, ExplorationMapFunctionMixin gives blankMap instead.
     private static LootParams chestParams(ServerLevel level) {
         return new LootParams.Builder(level).create(LootContextParamSets.EMPTY);
     }

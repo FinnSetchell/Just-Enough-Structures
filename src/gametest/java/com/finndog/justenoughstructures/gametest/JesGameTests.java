@@ -199,6 +199,12 @@ public final class JesGameTests {
         ServiceTests.lootIndexFindsItemsInStructures(helper);
     }
 
+    // A batch of its own, like lootChancesMatchTheGame's: it swaps the server's sender while the odds roll.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "found_in_odds", timeoutTicks = 400)
+    public void foundInListsWhatChestsGive(GameTestHelper helper) {
+        ServiceTests.foundInListsWhatChestsGive(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void foundInRecipesComeFromTheIndex(GameTestHelper helper) {
         ServiceTests.foundInRecipesComeFromTheIndex(helper);
