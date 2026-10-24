@@ -20,7 +20,8 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Adds a "Found in structures" category to JEI, so looking up how to get an item also lists the
  * structures whose loot can give it. The recipes come from the loot index, which the server builds
- * after the world is joined, so they're added when it arrives rather than when JEI starts.
+ * after the world is joined, so they're added when it arrives rather than when JEI starts. Until
+ * then each item chest loot can give has a waiting row, if the server has said which.
  */
 @JeiPlugin
 public final class JesJeiPlugin implements IModPlugin {
@@ -28,6 +29,8 @@ public final class JesJeiPlugin implements IModPlugin {
 
     private static IJeiRuntime runtime;
     private static List<FoundInRecipe> shown = List.of();
+    // Whether what's shown came from an index, rather than being waiting rows.
+    private static boolean fromIndex;
     private static boolean listening;
 
     @Override
@@ -44,9 +47,11 @@ public final class JesJeiPlugin implements IModPlugin {
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         runtime = jeiRuntime;
         shown = List.of();
+        fromIndex = false;
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesJeiPlugin::show);
+            ClientRequests.onChestItems(JesJeiPlugin::showWaiting);
             ClientRequests.wantIndex();
         }
         if (!ClientRequests.serverSupported()) {
@@ -58,6 +63,8 @@ public final class JesJeiPlugin implements IModPlugin {
         ClientRequests.catalog();
         if (ClientRequests.indexReady()) {
             show(ClientRequests.index().join());
+        } else {
+            showWaiting();
         }
     }
 
@@ -65,17 +72,29 @@ public final class JesJeiPlugin implements IModPlugin {
     public void onRuntimeUnavailable() {
         runtime = null;
         shown = List.of();
+        fromIndex = false;
     }
 
     private static void show(LootIndex index) {
-        if (runtime == null) {
-            return;
+        if (runtime != null) {
+            replace(FoundInRecipe.fromIndex(index, StructureNames::structure));
+            fromIndex = true;
         }
+    }
+
+    /** Waiting rows for the items chest loot can give, while there's no index. They go when it comes. */
+    private static void showWaiting() {
+        if (runtime != null && !fromIndex && ClientRequests.latestIndex() == null) {
+            replace(FoundInRecipe.waitingFor(ClientRequests.chestItems()));
+        }
+    }
+
+    private static void replace(List<FoundInRecipe> rows) {
         IRecipeManager recipes = runtime.getRecipeManager();
         if (!shown.isEmpty()) {
             recipes.hideRecipes(FOUND_IN, shown);
         }
-        shown = FoundInRecipe.fromIndex(index, StructureNames::structure);
+        shown = rows;
         recipes.addRecipes(FOUND_IN, shown);
     }
 

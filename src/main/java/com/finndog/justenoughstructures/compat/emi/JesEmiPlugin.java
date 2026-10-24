@@ -14,6 +14,7 @@ import dev.emi.emi.api.EmiRegistry;
 import dev.emi.emi.api.recipe.EmiRecipeCategory;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.runtime.EmiReloadManager;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
@@ -25,7 +26,9 @@ import net.minecraft.world.item.ItemStack;
  * structures whose loot can give it. The recipes come from the loot index, which the server sends
  * after the world is joined. EMI only reads recipes while it loads, which starts as the world is
  * joined, so its load waits briefly for an index on its way. An index that arrives later, or
- * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one.
+ * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one. A load
+ * without an index has a waiting row for each item chest loot can give, if the server has said
+ * which, so the page is there with the server's progress until the index comes.
  */
 // The annotation is how EMI finds it on Forge and NeoForge; Fabric uses the entrypoint in fabric.mod.json.
 @EmiEntrypoint
@@ -57,6 +60,7 @@ public final class JesEmiPlugin implements EmiPlugin {
     // Whether a recheck of an early index is scheduled. Client thread only, like listening.
     private static boolean lookDue;
     private static volatile int loads;
+    private static volatile int waitingRows;
 
     @Override
     public void register(EmiRegistry registry) {
@@ -67,10 +71,13 @@ public final class JesEmiPlugin implements EmiPlugin {
             registry.addCategory(FOUND_IN);
             LootIndex index = ClientRequests.awaitIndex(INDEX_WAIT_MS);
             loaded = index;
-            if (index != null) {
-                for (FoundInRecipe recipe : FoundInRecipe.fromIndex(index, StructureNames::structure)) {
-                    registry.addRecipe(new FoundInEmiRecipe(recipe));
-                }
+            // Waiting rows only come with a load: reloading EMI for them would take longer than many
+            // indexes take to arrive.
+            List<FoundInRecipe> recipes = index != null ? FoundInRecipe.fromIndex(index, StructureNames::structure)
+                    : FoundInRecipe.waitingFor(ClientRequests.chestItems());
+            waitingRows = index != null ? 0 : recipes.size();
+            for (FoundInRecipe recipe : recipes) {
+                registry.addRecipe(new FoundInEmiRecipe(recipe));
             }
         } finally {
             loading = false;
@@ -130,6 +137,11 @@ public final class JesEmiPlugin implements EmiPlugin {
     /** Whether EMI has loaded with the structures in it. Test hook for the scripted scenarios. */
     public static boolean ready() {
         return loaded != null && EmiReloadManager.isLoaded();
+    }
+
+    /** How many waiting rows EMI last loaded with. Test hook for the scripted scenarios. */
+    public static int waitingRows() {
+        return waitingRows;
     }
 
     /** How many times EMI has loaded since the game started. Test hook for the scripted scenarios. */

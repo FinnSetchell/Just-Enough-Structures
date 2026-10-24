@@ -211,6 +211,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void waitingRowsAreOnePerItem(GameTestHelper helper) {
+        ServiceTests.waitingRowsAreOnePerItem(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void chestItemsComeFromChestLootOnly(GameTestHelper helper) {
+        IndexStoreTests.chestItemsComeFromChestLootOnly(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
     }

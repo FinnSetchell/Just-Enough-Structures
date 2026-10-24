@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -41,38 +42,61 @@ public final class MessageTests {
 
     /**
      * Whether the build failed is one byte after how far it got, where older clients stop reading, so
-     * they still read the progress and leave that byte. An older server sends nothing there, which
-     * reads as not failed.
+     * they still read the progress and leave that byte. The items chest loot can give follow it,
+     * compressed, where clients from before them stop. An older server sends nothing after how far
+     * it got, or after whether it failed, which reads as not failed and no items.
      */
     public static void indexProgressReadsBack(GameTestHelper helper) {
-        for (boolean failed : new boolean[]{false, true}) {
-            Codecs.IndexProgress progress = new Codecs.IndexProgress(3, 898, failed);
-            byte[] written = bytes(helper, buf -> Codecs.writeIndexProgress(buf, progress));
-            same(helper, written, bytes(helper, buf -> {
-                buf.writeVarInt(3);
-                buf.writeVarInt(898);
-                buf.writeBoolean(failed);
-            }), "the loot index's progress");
-            Codecs.IndexProgress back = read(helper, written, Codecs::readIndexProgress);
-            helper.assertTrue(back.equals(progress), "sent " + progress + " but read " + back);
-            // Read as an older client reads it: how far, out of how many, and no further.
-            FriendlyByteBuf old = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
-            int done = old.readVarInt();
-            int total = old.readVarInt();
-            helper.assertTrue(done == 3 && total == 898 && old.readableBytes() == 1,
-                    "read as a version from before reads it, " + progress + " was " + done + " of " + total + " with " + old.readableBytes() + " bytes after");
+        Set<ResourceLocation> items = Set.of(Ids.parse("diamond"), Ids.parse("emerald"), Ids.of("test", "relic"));
+        for (Set<ResourceLocation> chestItems : List.of(Set.<ResourceLocation>of(), items)) {
+            byte[] packed = chestItems.isEmpty() ? new byte[0] : Blobs.deflate(bytes(helper, buf -> {
+                buf.writeVarInt(chestItems.size());
+                new TreeSet<>(chestItems).forEach(buf::writeResourceLocation);
+            }));
+            for (boolean failed : new boolean[]{false, true}) {
+                Codecs.IndexProgress progress = new Codecs.IndexProgress(3, 898, failed, chestItems);
+                byte[] written = bytes(helper, buf -> Codecs.writeIndexProgress(buf, progress));
+                same(helper, written, bytes(helper, buf -> {
+                    buf.writeVarInt(3);
+                    buf.writeVarInt(898);
+                    buf.writeBoolean(failed);
+                    buf.writeByteArray(packed);
+                }), "the loot index's progress");
+                Codecs.IndexProgress back = read(helper, written, Codecs::readIndexProgress);
+                helper.assertTrue(back.equals(progress), "sent " + progress + " but read " + back);
+                // Read as an older client reads it: how far, out of how many, and no further.
+                FriendlyByteBuf old = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
+                int done = old.readVarInt();
+                int total = old.readVarInt();
+                helper.assertTrue(done == 3 && total == 898 && old.readableBytes() == written.length - 3,
+                        "read as a version from before failed builds reads it, " + progress + " was " + done + " of " + total + " with " + old.readableBytes() + " bytes after");
+                // Read as a client from before the items: how far, out of how many, whether it failed, and no further.
+                FriendlyByteBuf before = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
+                done = before.readVarInt();
+                total = before.readVarInt();
+                boolean said = before.isReadable() && before.readBoolean();
+                helper.assertTrue(done == 3 && total == 898 && said == failed,
+                        "read as a version from before the items reads it, " + progress + " was " + done + " of " + total + (said ? ", failed" : ""));
+            }
         }
         byte[] fromBefore = bytes(helper, buf -> {
             buf.writeVarInt(3);
             buf.writeVarInt(898);
         });
         Codecs.IndexProgress back = read(helper, fromBefore, Codecs::readIndexProgress);
-        helper.assertTrue(back.equals(new Codecs.IndexProgress(3, 898, false)), "progress from a server before builds said they failed read as " + back);
+        helper.assertTrue(back.equals(new Codecs.IndexProgress(3, 898, false, Set.of())), "progress from a server before builds said they failed read as " + back);
+        byte[] beforeItems = bytes(helper, buf -> {
+            buf.writeVarInt(3);
+            buf.writeVarInt(898);
+            buf.writeBoolean(true);
+        });
+        back = read(helper, beforeItems, Codecs::readIndexProgress);
+        helper.assertTrue(back.equals(new Codecs.IndexProgress(3, 898, true, Set.of())), "progress from a server before the items read as " + back);
 
         ServerPlayer player = TestPlayers.mock(helper);
-        byte[] sent = only(helper, sent(player, JesNetwork.INDEX_PROGRESS, () -> JesServer.sendIndexProgress(player, 41, 1200, true)), "index progress");
+        byte[] sent = only(helper, sent(player, JesNetwork.INDEX_PROGRESS, () -> JesServer.sendIndexProgress(player, 41, 1200, true, items)), "index progress");
         Codecs.IndexProgress told = read(helper, sent, Codecs::readIndexProgress);
-        helper.assertTrue(told.equals(new Codecs.IndexProgress(41, 1200, true)), "the server's build failed 41 of 1200 through but it said " + told);
+        helper.assertTrue(told.equals(new Codecs.IndexProgress(41, 1200, true, items)), "the server's build failed 41 of 1200 through but it said " + told);
         helper.succeed();
     }
 

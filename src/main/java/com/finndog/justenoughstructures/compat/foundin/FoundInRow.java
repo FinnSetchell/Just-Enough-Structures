@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.compat.foundin;
 
+import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.screen.Gui;
@@ -13,13 +14,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 /**
  * How a "Found in structures" row looks and behaves in every recipe viewer: the structure's picture
  * and name, then the chance of the item in each container it has, then the item. Clicking the
- * structure opens it in the browser. Positions are from the row's top left corner.
+ * structure opens it in the browser. A waiting row has the server's progress instead, and does
+ * nothing when clicked. Positions are from the row's top left corner.
  */
 public final class FoundInRow {
     public static final int WIDTH = 160;
@@ -31,6 +34,13 @@ public final class FoundInRow {
 
     private static final int TEXT = 0xFF404040;
     private static final int TEXT_DARK = 0xFFBBBBBB;
+    // Where a row's text starts, after the picture, and how much room it has before the item.
+    private static final int TEXT_X = 22;
+    private static final int TEXT_WIDTH = ITEM_X - 3 - TEXT_X;
+
+    // The text a waiting row last drew and when, for the scripted scenarios.
+    private static volatile String waitingDrawn;
+    private static volatile long waitingDrawnAt;
 
     private FoundInRow() {
     }
@@ -43,6 +53,10 @@ public final class FoundInRow {
     public static void draw(GuiGraphics g, FoundInRecipe recipe, double mouseX, double mouseY, boolean dark) {
         Font font = Minecraft.getInstance().font;
         int text = dark ? TEXT_DARK : TEXT;
+        if (recipe.isWaiting()) {
+            drawWaiting(g, font, text);
+            return;
+        }
         String chance = FoundIn.percent(FoundIn.chance(recipe.item().getItem(), recipe.tables()));
         int chanceX = WIDTH - 22 - font.width(chance);
         if (overStructure(mouseX, mouseY)) {
@@ -57,6 +71,33 @@ public final class FoundInRow {
         g.drawString(font, chance, chanceX, 8, text, false);
     }
 
+    /** The server's progress beside the map, small, over as many lines as fit and cut short on the last. */
+    private static void drawWaiting(GuiGraphics g, Font font, int color) {
+        g.renderItem(MAP, 2, 4);
+        String text = ClientRequests.viewerWaitText().getString();
+        waitingDrawn = text;
+        waitingDrawnAt = System.nanoTime();
+        float scale = Gui.smallScale();
+        int width = (int) (TEXT_WIDTH / scale);
+        int step = (int) Math.ceil(font.lineHeight * scale) + 1;
+        int fit = Math.max(1, (HEIGHT + 1) / step);
+        List<String> lines = font.getSplitter().splitLines(text, width, Style.EMPTY).stream().map(line -> line.getString().strip()).toList();
+        int shown = Math.min(lines.size(), fit);
+        int y = (HEIGHT - shown * step + 1) / 2;
+        for (int i = 0; i < shown; i++) {
+            String line = lines.get(i);
+            if (i == shown - 1 && lines.size() > shown) {
+                line = Gui.clipSmall(font, line + " " + String.join(" ", lines.subList(shown, lines.size())), TEXT_WIDTH);
+            }
+            Gui.small(g, font, line, TEXT_X, y + i * step, color);
+        }
+    }
+
+    /** The text a waiting row last drew, or null if none has been since {@code nanos}. Test hook for the scripted scenarios. */
+    public static String waitingDrawn(long nanos) {
+        return waitingDrawn != null && waitingDrawnAt - nanos >= 0 ? waitingDrawn : null;
+    }
+
     /** Whether a point is over the structure's part of the row, which opens it when clicked. */
     public static boolean overStructure(double mouseX, double mouseY) {
         return mouseX >= 0 && mouseX < WIDTH - 20 && mouseY >= 0 && mouseY < HEIGHT;
@@ -64,6 +105,9 @@ public final class FoundInRow {
 
     /** The structure's name and mod, which of its loot tables give the item, the chance, and how to open it. */
     public static List<Component> tooltip(FoundInRecipe recipe) {
+        if (recipe.isWaiting()) {
+            return List.of(ClientRequests.viewerWaitText());
+        }
         List<Component> lines = new ArrayList<>();
         String name = StructureNames.structure(recipe.structure());
         lines.add(Component.literal(name));
@@ -82,10 +126,14 @@ public final class FoundInRow {
         return lines;
     }
 
-    /** Opens the structure in the browser, coming back to the viewer when it's closed. */
-    public static void open(FoundInRecipe recipe) {
+    /** Opens the structure in the browser, coming back to the viewer when it's closed. False for a waiting row, which has none. */
+    public static boolean open(FoundInRecipe recipe) {
+        if (recipe.isWaiting()) {
+            return false;
+        }
         Minecraft minecraft = Minecraft.getInstance();
         JesScreen.startOn(recipe.structure());
         minecraft.setScreen(new JesScreen(minecraft.screen));
+        return true;
     }
 }

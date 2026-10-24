@@ -23,6 +23,7 @@ import io.netty.handler.codec.DecoderException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ import net.minecraft.network.chat.ComponentSerialization;
 /** Binary formats for JES packets in both directions, and for the loot index cache. */
 public final class Codecs {
     private static final int MAX_JSON = 1 << 20;
+    private static final int MAX_PACKED_IDS = 1 << 20;
     /** Maximum length of the player notes Pack tools sends. */
     public static final int MAX_NOTES = 8192;
 
@@ -649,26 +651,59 @@ public final class Codecs {
 
     /**
      * Loot index build progress: structures done out of the total. {@code failed} when the build
-     * stopped there, so nothing more comes until the next /reload.
+     * stopped there, so nothing more comes until the next /reload. {@code chestItems} are the items
+     * the server's chest loot can give, which recipe viewers show a waiting row on until the index
+     * arrives.
      */
-    public record IndexProgress(int done, int total, boolean failed) {
+    public record IndexProgress(int done, int total, boolean failed, Set<ResourceLocation> chestItems) {
         public IndexProgress(int done, int total) {
             this(done, total, false);
         }
+
+        public IndexProgress(int done, int total, boolean failed) {
+            this(done, total, failed, Set.of());
+        }
     }
 
-    // failed is appended last, so older clients skip it, and it reads as false from older servers.
+    // failed, then chestItems, are appended last, so older clients skip them. From older servers they
+    // read as false and none.
     public static void writeIndexProgress(FriendlyByteBuf buf, IndexProgress progress) {
         buf.writeVarInt(progress.done());
         buf.writeVarInt(progress.total());
         buf.writeBoolean(progress.failed());
+        buf.writeByteArray(packIds(progress.chestItems()));
     }
 
     public static IndexProgress readIndexProgress(FriendlyByteBuf buf) {
         int done = buf.readVarInt();
         int total = buf.readVarInt();
         boolean failed = buf.isReadable() && buf.readBoolean();
-        return new IndexProgress(done, total, failed);
+        Set<ResourceLocation> chestItems = buf.isReadable() ? unpackIds(buf.readByteArray(MAX_PACKED_IDS)) : Set.of();
+        return new IndexProgress(done, total, failed, chestItems);
+    }
+
+    /** Ids, compressed, as a modpack's chest loot names hundreds of items. Nothing at all for none. */
+    static byte[] packIds(Set<ResourceLocation> ids) {
+        if (ids.isEmpty()) {
+            return new byte[0];
+        }
+        return Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> {
+            buf.writeVarInt(ids.size());
+            new TreeSet<>(ids).forEach(buf::writeResourceLocation);
+        }));
+    }
+
+    static Set<ResourceLocation> unpackIds(byte[] packed) {
+        if (packed.length == 0) {
+            return Set.of();
+        }
+        FriendlyByteBuf buf = Blobs.fromBytes(RegistryAccess.EMPTY, Blobs.inflate(packed, MAX_PACKED_IDS * 8));
+        int count = buf.readVarInt();
+        Set<ResourceLocation> ids = new TreeSet<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(buf.readResourceLocation());
+        }
+        return Collections.unmodifiableSet(ids);
     }
 
     /**

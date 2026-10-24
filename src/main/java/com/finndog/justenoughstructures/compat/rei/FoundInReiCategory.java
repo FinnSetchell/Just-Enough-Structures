@@ -90,7 +90,7 @@ final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
         @Override
         public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         //?}
-            if (firstRow == null || bounds.y < firstRow[1]) {
+            if (!recipe.isWaiting() && (firstRow == null || bounds.y < firstRow[1])) {
                 firstRow = new int[]{bounds.x + 30, bounds.y + bounds.height / 2};
             }
             Gui.push(g);
@@ -112,11 +112,7 @@ final class FoundInReiCategory implements DisplayCategory<FoundInDisplay> {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
         //?}
-            if (button != InputConstants.MOUSE_BUTTON_LEFT || !containsMouse(mouseX, mouseY)) {
-                return false;
-            }
-            FoundInRow.open(recipe);
-            return true;
+            return button == InputConstants.MOUSE_BUTTON_LEFT && containsMouse(mouseX, mouseY) && FoundInRow.open(recipe);
         }
 
         @Override

@@ -19,8 +19,31 @@ import net.minecraft.world.item.Items;
 /**
  * An item a structure's loot can give, and which of the structure's loot tables give it. Shared by
  * the JEI, EMI and REI pages, and kept free of their classes so it can be tested without them.
+ * Without a structure it's a waiting row, shown on an item while the server builds the loot index.
  */
 public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables) {
+
+    /** A waiting row for an item, with no structure yet. */
+    public static FoundInRecipe waiting(ItemStack item) {
+        return new FoundInRecipe(null, item, Set.of());
+    }
+
+    /** A waiting row for each of these items the game knows. */
+    public static List<FoundInRecipe> waitingFor(Set<ResourceLocation> items) {
+        List<FoundInRecipe> out = new ArrayList<>();
+        for (ResourceLocation id : items) {
+            Item item = Regs.value(BuiltInRegistries.ITEM, id);
+            if (item != Items.AIR) {
+                out.add(waiting(new ItemStack(item)));
+            }
+        }
+        return out;
+    }
+
+    /** Whether this is a waiting row rather than a structure's. */
+    public boolean isWaiting() {
+        return structure == null;
+    }
 
     /** One recipe for each item each structure can give, with structures in the order of their names. */
     public static List<FoundInRecipe> fromIndex(LootIndex index, Function<ResourceLocation, String> names) {

@@ -449,6 +449,17 @@ public final class ServiceTests {
         helper.succeed();
     }
 
+    /** Recipe viewers' waiting rows: one for each item the game knows, with no structure, and leaving out an id that isn't an item. */
+    public static void waitingRowsAreOnePerItem(GameTestHelper helper) {
+        List<FoundInRecipe> rows = FoundInRecipe.waitingFor(Set.of(Ids.parse("diamond"), Ids.parse("gold_ingot"), Ids.of("test", "not_an_item")));
+        List<String> got = rows.stream().map(r -> BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + (r.isWaiting() ? "" : " with a structure"))
+                .sorted().toList();
+        helper.assertTrue(got.equals(List.of("diamond", "gold_ingot")), "expected waiting rows for a diamond and gold, got " + got);
+        helper.assertFalse(FoundInRecipe.fromIndex(new LootIndex(Map.of(Ids.of("test", "a"), Set.of(Ids.of("test", "chests/one"))),
+                Map.of(Ids.of("test", "chests/one"), Set.of(Ids.parse("diamond")))), ResourceLocation::toString).get(0).isWaiting(), "a structure's row reads as a waiting one");
+        helper.succeed();
+    }
+
     /**
      * A client asking far faster than the browser does is turned away once it's used up its allowance,
      * and one big answer bigger than the whole allowance still goes, but nothing straight after it.

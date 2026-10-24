@@ -101,8 +101,8 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
 
             @Override
             public boolean handleInput(double mouseX, double mouseY, IJeiUserInput input) {
-                if (input.getKey().getType() != InputConstants.Type.MOUSE || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT
-                        || !FoundInRow.overStructure(mouseX, mouseY)) {
+                if (recipe.isWaiting() || input.getKey().getType() != InputConstants.Type.MOUSE
+                        || input.getKey().getValue() != InputConstants.MOUSE_BUTTON_LEFT || !FoundInRow.overStructure(mouseX, mouseY)) {
                     return false;
                 }
                 if (!input.isSimulate()) {
@@ -126,8 +126,7 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
                 || !FoundInRow.overStructure(mouseX, mouseY)) {
             return false;
         }
-        FoundInRow.open(recipe);
-        return true;
+        return FoundInRow.open(recipe);
     }
     //?}
 }

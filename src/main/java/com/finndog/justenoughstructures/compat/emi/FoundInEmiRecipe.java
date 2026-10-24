@@ -28,8 +28,8 @@ final class FoundInEmiRecipe implements EmiRecipe {
         this.item = EmiStack.of(recipe.item());
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(recipe.item().getItem());
         // EMI's convention for recipes that aren't in the game's recipe list: a path starting with a slash.
-        this.id = JustEnoughStructures.id("/found_in/" + recipe.structure().getNamespace() + "/" + recipe.structure().getPath()
-                + "/" + itemId.getNamespace() + "/" + itemId.getPath());
+        String structure = recipe.isWaiting() ? "/waiting" : "/found_in/" + recipe.structure().getNamespace() + "/" + recipe.structure().getPath();
+        this.id = JustEnoughStructures.id(structure + "/" + itemId.getNamespace() + "/" + itemId.getPath());
     }
 
     @Override
@@ -93,7 +93,7 @@ final class FoundInEmiRecipe implements EmiRecipe {
         public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
             // EMI draws the recipe moved into place, so where it is on screen comes from the pose.
             org.joml.Vector4f corner = g.pose().last().pose().transform(new org.joml.Vector4f(0, 0, 0, 1));
-            if (firstRow == null || corner.y() < firstRow[1] - FoundInRow.HEIGHT / 2) {
+            if (!recipe.isWaiting() && (firstRow == null || corner.y() < firstRow[1] - FoundInRow.HEIGHT / 2)) {
                 firstRow = new int[]{(int) corner.x() + 30, (int) corner.y() + FoundInRow.HEIGHT / 2};
             }
             FoundInRow.draw(g, recipe, mouseX, mouseY, false);
@@ -106,11 +106,7 @@ final class FoundInEmiRecipe implements EmiRecipe {
 
         @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
-            if (button != InputConstants.MOUSE_BUTTON_LEFT) {
-                return false;
-            }
-            FoundInRow.open(recipe);
-            return true;
+            return button == InputConstants.MOUSE_BUTTON_LEFT && FoundInRow.open(recipe);
         }
     }
 }

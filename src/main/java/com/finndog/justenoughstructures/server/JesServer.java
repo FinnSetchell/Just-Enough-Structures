@@ -245,9 +245,9 @@ public final class JesServer {
         }
     }
 
-    public static void sendIndexProgress(ServerPlayer player, int done, int total, boolean failed) {
+    public static void sendIndexProgress(ServerPlayer player, int done, int total, boolean failed, Set<ResourceLocation> chestItems) {
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
-        Codecs.writeIndexProgress(buf, new Codecs.IndexProgress(done, total, failed));
+        Codecs.writeIndexProgress(buf, new Codecs.IndexProgress(done, total, failed, chestItems));
         JesNetwork.send(player, JesNetwork.INDEX_PROGRESS, buf);
     }
 

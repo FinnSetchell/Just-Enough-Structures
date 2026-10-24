@@ -44,6 +44,7 @@ import net.minecraft.world.level.storage.loot.LootDataType;
 //?}
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 
 /**
  * Which loot tables each structure uses and which items each table can give. Built from each
@@ -383,6 +384,39 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     public static long layoutSeed(ResourceLocation id, int layout) {
         long first = StructureCapture.defaultSeed(id);
         return layout < NEXT_SEEDS ? first + layout : first + layout * LAYOUT_STEP;
+    }
+
+    /**
+     * Every item the server's chest loot tables can give: the tables of the chest type, and any in a
+     * chests folder. More than structures place, as it doesn't need the index. Recipe viewers show a
+     * waiting row on these items while the index is built. Empty if the tables can't be listed.
+     */
+    public static Set<ResourceLocation> chestItems(MinecraftServer server) {
+        try {
+            return JesLog.quietly(() -> {
+                Set<ResourceLocation> out = new TreeSet<>();
+                for (ResourceLocation id : tableIds(server)) {
+                    if (id.getPath().startsWith("chests/") || LootRolls.table(server, id).getParamSet() == LootContextParamSets.CHEST) {
+                        out.addAll(itemsIn(server, id, new HashSet<>()));
+                    }
+                }
+                return out;
+            });
+        } catch (RuntimeException | LinkageError e) {
+            JesLog.debug("Couldn't list the items chest loot can give", e);
+            return Set.of();
+        }
+    }
+
+    /** Every loot table the server has loaded. */
+    private static List<ResourceLocation> tableIds(MinecraftServer server) {
+        //? if >=26.1 {
+        /*return server.reloadableRegistries().lookup().lookupOrThrow(Registries.LOOT_TABLE).listElementIds().map(Ids::of).toList();
+        *///?} else if >=1.21 {
+        /*return List.copyOf(server.reloadableRegistries().getKeys(Registries.LOOT_TABLE));
+        *///?} else {
+        return List.copyOf(server.getLootData().getKeys(LootDataType.TABLE));
+        //?}
     }
 
     /** Every item a table can ever give, found by reading the table instead of rolling it. */

@@ -89,6 +89,9 @@ public final class LootIndexStore {
     private static volatile long progressSaid;
     private static volatile int done;
     private static volatile int total;
+    // The items chest loot can give, sent with progress so recipe viewers can show a waiting row on
+    // them. Null until worked out for a build. Written on the index's thread.
+    private static volatile Set<ResourceLocation> chestItems;
     // For the debug log: what each source file hashed to last time, to say which ones changed.
     private static volatile Map<String, HashCode> lastFiles = Map.of();
     // For tests: called with the number of structures done, each time one finishes.
@@ -150,6 +153,10 @@ public final class LootIndexStore {
             long millis = (System.nanoTime() - started) / 1_000_000L;
             StructureScan ready = updated;
             LootIndex readyIndex = updatedIndex;
+            if (ready == null) {
+                // A build can follow, so this is ready before anyone is told how it's going.
+                chestItems = LootIndex.chestItems(server);
+            }
             server.execute(() -> {
                 if (generation != GENERATION.get()) {
                     return;
@@ -203,6 +210,7 @@ public final class LootIndexStore {
         // before it has started a build of its own would be told how far this one got.
         done = 0;
         total = 0;
+        chestItems = null;
         WAITING.clear();
     }
 
@@ -233,10 +241,12 @@ public final class LootIndexStore {
      * Tells a player how far the build has got. It never reports all done, as every structure can be
      * generated a while before the finished index is ready: the finished index says that by arriving,
      * and "done" beside an early index would read as finished. Once the build fails it says so after
-     * the last count, which older clients just keep showing. Server thread only.
+     * the last count, which older clients just keep showing. The items chest loot can give come last,
+     * for recipe viewers to show a waiting row on. Server thread only.
      */
     private static void tellProgress(ServerPlayer player) {
-        JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total, broken);
+        Set<ResourceLocation> items = chestItems;
+        JesServer.sendIndexProgress(player, Math.max(0, Math.min(done, total - 1)), total, broken, items == null ? Set.of() : items);
     }
 
     private static void build(MinecraftServer server, int generation) {
@@ -248,6 +258,9 @@ public final class LootIndexStore {
         Path dir = folder();
         inBackground(server, generation, () -> {
             long started = System.nanoTime();
+            if (chestItems == null) {
+                chestItems = LootIndex.chestItems(server);
+            }
             AtomicInteger failed = new AtomicInteger();
             // This also captures every structure's first view along the way, which is saved for players.
             StructureScan scanned = LootIndex.scan(server, ids, d -> {

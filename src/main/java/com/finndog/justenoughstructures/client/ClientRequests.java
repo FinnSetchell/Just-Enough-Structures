@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -71,6 +72,9 @@ public final class ClientRequests {
     // The server's index build failed, so nothing more comes until it reloads.
     private static boolean indexFailed;
     private static long lastIndexPoll;
+    // What the server's chest loot can give, sent with the index's progress. Read from recipe viewers' threads too.
+    private static volatile Set<ResourceLocation> chestItems = Set.of();
+    private static final List<Runnable> CHEST_ITEMS_LISTENERS = new ArrayList<>();
     // Permission levels the server requires to locate and teleport. Until it says, those of /locate and /tp.
     private static int locatePermission = 2;
     private static int teleportPermission = 2;
@@ -126,6 +130,7 @@ public final class ClientRequests {
         indexDone = 0;
         indexTotal = 0;
         indexFailed = false;
+        chestItems = Set.of();
         FoundIn.clear();
         locatePermission = 2;
         teleportPermission = 2;
@@ -414,6 +419,28 @@ public final class ClientRequests {
         return indexReady() && indexFailed;
     }
 
+    /**
+     * The items the server's chest loot can give, which recipe viewers show a waiting row on until
+     * the index arrives. Empty from servers too old to send them. Safe from any thread.
+     */
+    public static Set<ResourceLocation> chestItems() {
+        return chestItems;
+    }
+
+    /** Runs {@code listener} on the client thread whenever the items chest loot can give change. */
+    public static void onChestItems(Runnable listener) {
+        CHEST_ITEMS_LISTENERS.add(listener);
+    }
+
+    /** A recipe viewer's waiting row: how many structures the server has looked through, or that its build failed. */
+    public static Component viewerWaitText() {
+        if (indexFailed) {
+            return Component.translatable("screen.justenoughstructures.index_failed");
+        }
+        return indexTotal <= 0 ? Component.translatable("screen.justenoughstructures.indexing")
+                : Component.translatable("viewer.justenoughstructures.indexing_count", indexDone, indexTotal);
+    }
+
     /** Text to show while there's no index: the server's progress, or that its build failed. */
     public static Component indexWaitText() {
         if (indexFailed) {
@@ -466,9 +493,12 @@ public final class ClientRequests {
         });
     }
 
-    public static void onIndexProgress(int done, int total, boolean failed) {
+    public static void onIndexProgress(int done, int total, boolean failed, Set<ResourceLocation> items) {
         indexDone = done;
         indexTotal = total;
+        // Before EMI's load is told the index is still being built, so it finds these.
+        boolean itemsChanged = !items.equals(chestItems);
+        chestItems = items;
         boolean stopped = failed && !indexFailed;
         indexFailed = failed;
         if (failed) {
@@ -478,6 +508,9 @@ public final class ClientRequests {
         }
         if (stopped) {
             STOPPED_LISTENERS.forEach(Runnable::run);
+        }
+        if (itemsChanged) {
+            CHEST_ITEMS_LISTENERS.forEach(Runnable::run);
         }
     }
 

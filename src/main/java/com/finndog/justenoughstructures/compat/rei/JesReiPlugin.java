@@ -22,13 +22,15 @@ import me.shedaniel.rei.api.common.category.CategoryIdentifier;
 import me.shedaniel.rei.api.common.entry.EntryStack;
 import me.shedaniel.rei.api.common.util.EntryStacks;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * Adds a "Found in structures" category to REI, so looking up how to get an item also lists the
  * structures whose loot can give it. The rows are made when REI asks for them, from the last loot
- * index received, so they appear as soon as the server sends it, without REI reloading.
+ * index received, so they appear as soon as the server sends it, without REI reloading. Before the
+ * first index, an item chest loot can give has a waiting row, if the server has said which.
  */
 // Not final: on Forge and NeoForge, REI finds a subclass by an annotation only its Forge build has.
 public class JesReiPlugin implements REIClientPlugin {
@@ -51,7 +53,12 @@ public class JesReiPlugin implements REIClientPlugin {
             public Optional<List<FoundInDisplay>> getRecipeFor(EntryStack<?> entry) {
                 if (entry.getValue() instanceof ItemStack stack) {
                     List<FoundInDisplay> found = byItem.get(stack.getItem());
-                    return found == null ? Optional.empty() : Optional.of(found);
+                    if (found != null) {
+                        return Optional.of(found);
+                    }
+                    if (waitingFor(stack)) {
+                        return Optional.of(List.of(new FoundInDisplay(FoundInRecipe.waiting(new ItemStack(stack.getItem())))));
+                    }
                 }
                 return Optional.empty();
             }
@@ -74,6 +81,12 @@ public class JesReiPlugin implements REIClientPlugin {
         if (ClientRequests.indexReady()) {
             arrived(ClientRequests.index().join());
         }
+    }
+
+    /** Whether an item gets a waiting row: there's been no index yet, and chest loot can give it. Safe from any thread. */
+    private static boolean waitingFor(ItemStack stack) {
+        return all.isEmpty() && ClientRequests.latestIndex() == null
+                && ClientRequests.chestItems().contains(BuiltInRegistries.ITEM.getKey(stack.getItem()));
     }
 
     /** Whether REI has the structures to show. Test hook for the scripted scenarios. */

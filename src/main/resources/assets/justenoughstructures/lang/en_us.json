@@ -908,6 +908,7 @@
   "viewer.justenoughstructures.found_in": "Found in structures",
   "viewer.justenoughstructures.chance": "%s chance in each container",
   "viewer.justenoughstructures.open": "Click to open it in the structure browser",
+  "viewer.justenoughstructures.indexing_count": "Looking through every structure's loot... %s of %s",
 
   "_comment.explorers_compass": "Explorer's Compass",
   "screen.justenoughstructures.field.compass": "Your compass",

@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.server.LootIndexStore;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,9 +37,29 @@ public final class IndexStoreTests {
 
     /**
      * One message the player was sent: an index with its early flag (null if the flag byte was
-     * missing), or progress with done, total and whether the build failed.
+     * missing), or progress with done, total, whether the build failed and the items chest loot can give.
      */
-    private record Sent(LootIndex index, Boolean early, int done, int total, boolean failed) {
+    private record Sent(LootIndex index, Boolean early, int done, int total, boolean failed, Set<ResourceLocation> chestItems) {
+    }
+
+    /**
+     * The items sent with progress, for recipe viewers' waiting rows, are what chest loot tables can
+     * give: everything in a desert pyramid's chest, a diamond among them, but not a blaze rod or
+     * dirt, which only a blaze and a block drop.
+     */
+    public static void chestItemsComeFromChestLootOnly(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Set<ResourceLocation> items = LootIndex.chestItems(server);
+        Set<ResourceLocation> pyramid = LootIndex.itemsIn(server, Ids.parse("chests/desert_pyramid"), new HashSet<>());
+        helper.assertTrue(pyramid.contains(Ids.parse("diamond")), "a desert pyramid's chest can't give a diamond here, only " + pyramid);
+        helper.assertTrue(items.containsAll(pyramid), "chest loot was said to give " + items.size() + " items, not all of a desert pyramid's chest " + pyramid);
+        for (String[] other : new String[][]{{"entities/blaze", "blaze_rod"}, {"blocks/dirt", "dirt"}}) {
+            ResourceLocation item = Ids.parse(other[1]);
+            helper.assertTrue(LootIndex.itemsIn(server, Ids.parse(other[0]), new HashSet<>()).contains(item), other[0] + " doesn't give " + item + " here");
+            helper.assertFalse(items.contains(item), "chest loot was said to give " + item + ", which only " + other[0] + " gives");
+        }
+        JustEnoughStructures.LOGGER.info("In the test of what chest loot can give: {} items", items.size());
+        helper.succeed();
     }
 
     /**
@@ -56,6 +77,7 @@ public final class IndexStoreTests {
         RegistryAccess registries = server.registryAccess();
         ServerPlayer player = TestPlayers.mock(helper);
         List<Sent> sent = new CopyOnWriteArrayList<>();
+        Set<ResourceLocation> chestItems = LootIndex.chestItems(server);
         // How many structures there are, from what the player is told, and how holding the server up went.
         AtomicInteger structures = new AtomicInteger(Integer.MAX_VALUE);
         AtomicBoolean holding = new AtomicBoolean();
@@ -126,6 +148,10 @@ public final class IndexStoreTests {
             }
             LootIndex early = indexes.get(0).index();
             LootIndex finished = indexes.get(1).index();
+            // Recipe viewers show a waiting row on each item chest loot can give, which comes with progress.
+            helper.assertTrue(!chestItems.isEmpty() && all.subList(firstIndex + 1, lastIndex).stream().allMatch(s -> s.chestItems().equals(chestItems)),
+                    "between the two indexes the player was told of " + all.subList(firstIndex + 1, lastIndex).stream().map(s -> s.chestItems().size()).toList()
+                            + " items chest loot can give, not the " + chestItems.size() + " it can");
             // EMI, which loads all over again for each index, goes by these to wait for the finished one.
             helper.assertTrue(Boolean.TRUE.equals(indexes.get(0).early()), "the early index was sent saying " + indexes.get(0).early() + " to it being early");
             helper.assertTrue(Boolean.FALSE.equals(indexes.get(1).early()), "the finished index was sent saying " + indexes.get(1).early() + " to it being early");
@@ -353,7 +379,7 @@ public final class IndexStoreTests {
                 others.send(target, channel, buf);
             } else if (channel.equals(JesNetwork.INDEX_PROGRESS)) {
                 Codecs.IndexProgress progress = Codecs.readIndexProgress(buf);
-                sent.add(new Sent(null, null, progress.done(), progress.total(), progress.failed()));
+                sent.add(new Sent(null, null, progress.done(), progress.total(), progress.failed(), progress.chestItems()));
                 onProgress.accept(progress);
             } else if (channel.equals(JesNetwork.TRANSFER)) {
                 Blobs.Part part = Blobs.Part.read(buf);
@@ -367,7 +393,7 @@ public final class IndexStoreTests {
                     FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
                     LootIndex index = Codecs.readIndex(message);
                     Boolean early = message.readableBytes() == 1 ? Codecs.readIndexEarly(message) : null;
-                    sent.add(new Sent(index, early, 0, 0, false));
+                    sent.add(new Sent(index, early, 0, 0, false, Set.of()));
                 }
             }
         };
