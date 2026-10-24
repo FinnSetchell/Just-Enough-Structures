@@ -211,6 +211,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
+        ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void savedLootIndexReadsBack(GameTestHelper helper) {
         ServiceTests.savedLootIndexReadsBack(helper);
     }

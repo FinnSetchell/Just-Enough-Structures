@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Regs;
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -127,7 +128,7 @@ final class OddsList {
         if (containers > 1) {
             double atLeastOne = 1 - Math.pow(1 - chance, containers);
             lines.add(Component.translatable("screen.justenoughstructures.tip_total", containers, containerName,
-                    String.format("%.0f%%", atLeastOne * 100)).withStyle(ChatFormatting.GRAY));
+                    FoundIn.wholePercent(atLeastOne)).withStyle(ChatFormatting.GRAY));
         }
         lines.addAll(variantLines(row.variants()));
         return lines;

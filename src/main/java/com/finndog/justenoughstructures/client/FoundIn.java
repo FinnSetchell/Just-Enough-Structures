@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
@@ -23,6 +24,8 @@ public final class FoundIn {
     private static LootIndex index;
     private static Map<ResourceLocation, Set<ResourceLocation>> byTable = Map.of();
     private static final Map<ResourceLocation, String> NAMES = new HashMap<>();
+    /** Below this a chance reads 0.0% to one decimal place. */
+    private static final double READS_AS_NOTHING = 0.0005;
     private static int changes;
 
     private FoundIn() {
@@ -108,9 +111,27 @@ public final class FoundIn {
         return best;
     }
 
-    /** A chance as a short percentage, with a decimal place for rare things. */
+    /**
+     * A chance from {@link #chance} as a short percentage, with a decimal place for rare things. The
+     * item is listed, so it can come: a chance that would read 0.0%, or rolls that never gave it,
+     * read {@code <0.1%}.
+     */
     public static String percent(double chance) {
-        return chance < 0 ? "..." : chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format(Locale.ROOT, "%.1f%%", chance * 100);
+        if (chance < 0) {
+            return "...";
+        }
+        if (chance < READS_AS_NOTHING) {
+            return Component.translatable("screen.justenoughstructures.rare_chance").getString();
+        }
+        return chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format(Locale.ROOT, "%.1f%%", chance * 100);
+    }
+
+    /**
+     * A chance of something that can happen, to the nearest whole percent, or as {@link #percent}
+     * gives it where that would read 0%.
+     */
+    public static String wholePercent(double chance) {
+        return chance < 0.005 ? percent(chance) : String.format("%.0f%%", chance * 100);
     }
 
     /** True if any loot in the structure can give an item whose name or id contains {@code text}. */

@@ -141,6 +141,7 @@
   "screen.justenoughstructures.always_empty": "Never gives anything",
   "screen.justenoughstructures.empty_rolls": "Empty %s of the time",
   "screen.justenoughstructures.odds_note": "From %s rolls",
+  "screen.justenoughstructures.rare_chance": "<0.1%",
   "screen.justenoughstructures.count_exact": "%s at a time",
   "screen.justenoughstructures.count_range": "%s-%s (avg %s)",
   "screen.justenoughstructures.container": "container",
