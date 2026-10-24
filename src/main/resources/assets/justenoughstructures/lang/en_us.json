@@ -146,7 +146,7 @@
   "screen.justenoughstructures.count_range": "%s-%s (avg %s)",
   "screen.justenoughstructures.container": "container",
   "screen.justenoughstructures.tip_chance": "%2$s chance in each %1$s",
-  "screen.justenoughstructures.tip_total": "With %s %ss here: %s chance of at least one",
+  "screen.justenoughstructures.tip_total": "%s chance of at least one in all %s",
   "screen.justenoughstructures.tip_variants": "Can come with:",
   "screen.justenoughstructures.whole_structure": "Combined chances",
   "screen.justenoughstructures.whole_structure_short": "Combined",

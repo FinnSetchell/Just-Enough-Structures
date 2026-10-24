@@ -29,7 +29,7 @@ import net.minecraft.core.registries.Registries;
  * Rows of items with how likely each is: its icon and name, then a line with how many come, a bar
  * and the chance.
  */
-final class OddsList {
+public final class OddsList {
     static final int ROW = 20;
     /** Below this chance an item counts as rare and stands out. */
     static final float RARE_BELOW = 0.1f;
@@ -122,13 +122,13 @@ final class OddsList {
     }
 
     /** The tooltip for an item in one table: its chance in each container, in all of them, and what it can come with. */
-    static List<Component> tooltip(LootOdds.Row row, float chance, int containers, String containerName) {
+    public static List<Component> tooltip(LootOdds.Row row, float chance, int containers, String containerName) {
         List<Component> lines = new ArrayList<>();
         lines.add(Component.translatable("screen.justenoughstructures.tip_chance", containerName, String.format("%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
         if (containers > 1) {
             double atLeastOne = 1 - Math.pow(1 - chance, containers);
-            lines.add(Component.translatable("screen.justenoughstructures.tip_total", containers, containerName,
-                    FoundIn.wholePercent(atLeastOne)).withStyle(ChatFormatting.GRAY));
+            lines.add(Component.translatable("screen.justenoughstructures.tip_total", FoundIn.wholePercent(atLeastOne), containers)
+                    .withStyle(ChatFormatting.GRAY));
         }
         lines.addAll(variantLines(row.variants()));
         return lines;

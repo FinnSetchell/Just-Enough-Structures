@@ -3,16 +3,27 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
+import com.finndog.justenoughstructures.client.screen.OddsList;
 import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
+import java.util.TreeMap;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 /** How loot chances read. */
 public final class ChanceTextTests {
@@ -60,5 +71,47 @@ public final class ChanceTextTests {
         helper.assertTrue(twoChests.equals("0.1%") && few.equals("0.4%"), "at least one in two chests reads " + twoChests + " and 0.4% reads " + few);
         helper.assertTrue(most.equals(String.format("%.0f%%", 25.6)), "25.6% reads " + most);
         helper.succeed();
+    }
+
+    /**
+     * An odds tooltip's chance of at least one in several containers like this one doesn't make a
+     * plural from the container's name: adding an "s" gave "shulker boxs", and other languages can't
+     * do it at all. A dedicated server doesn't load JES's lang file, so the line is put together from
+     * it here as the game would in English.
+     */
+    public static void containerNamesAreNeverMadePlural(GameTestHelper helper) {
+        // Named as the chest popup names a container: its block's name in lower case.
+        String name = Blocks.SHULKER_BOX.getName().getString().toLowerCase(Locale.ROOT);
+        LootOdds.Row row = new LootOdds.Row(new ItemStack(Items.DIAMOND), 125, 125, 1, 1, new TreeMap<>());
+        List<Component> lines = OddsList.tooltip(row, 0.125f, 3, name);
+        TranslatableContents total = lines.stream().map(Component::getContents)
+                .filter(c -> c instanceof TranslatableContents t && t.getKey().equals("screen.justenoughstructures.tip_total"))
+                .map(TranslatableContents.class::cast).findFirst().orElse(null);
+        helper.assertTrue(total != null, "a tooltip for 3 containers has no chance of at least one: " + lines);
+        String line = String.format(Locale.ROOT, english(total.getKey()), total.getArgs());
+        JustEnoughStructures.LOGGER.info("In the test of container names: with 3 of \"{}\" the chance of at least one reads \"{}\"", name, line);
+        helper.assertFalse(line.contains("boxs") || line.contains(name + "s"), "the container's name was made plural: " + line);
+        for (Object arg : total.getArgs()) {
+            helper.assertTrue(line.contains(String.valueOf(arg)), "\"" + arg + "\" is passed but not shown: " + line);
+        }
+        // 1 - (1 - 0.125)^3 is 33.0%, to the nearest whole percent.
+        helper.assertTrue(line.contains("33%"), "the chance of at least one isn't 33%: " + line);
+        helper.succeed();
+    }
+
+    /** A line of JES's English lang file, read from the mod's own resources. */
+    private static String english(String key) {
+        try (InputStream in = JustEnoughStructures.class.getClassLoader().getResourceAsStream("assets/justenoughstructures/lang/en_us.json")) {
+            if (in == null) {
+                throw new AssertionError("JES's en_us.json isn't on the classpath");
+            }
+            JsonObject lang = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (!lang.has(key)) {
+                throw new AssertionError("en_us.json has no " + key);
+            }
+            return lang.get(key).getAsString();
+        } catch (IOException e) {
+            throw new AssertionError("couldn't read JES's en_us.json", e);
+        }
     }
 }
