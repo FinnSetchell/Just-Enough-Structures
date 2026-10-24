@@ -103,6 +103,8 @@ public final class IndexStoreTests {
                 seen.add(List.copyOf(sent.subList(had, sent.size())));
                 JesNetwork.setServerSender(before);
                 LootIndexStore.watchProgress(null);
+                // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
+                JesServer.left(player);
                 // Back to how a started server has it: what is saved is looked for, and built if it isn't there.
                 LootIndexStore.refresh(server);
             }
@@ -180,6 +182,8 @@ public final class IndexStoreTests {
                 JesServer.onRequestIndex(player);
                 seen.add(List.copyOf(sent.subList(had, sent.size())));
                 JesNetwork.setServerSender(before);
+                // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
+                JesServer.left(player);
             }
             List<Sent> told = seen.get(0);
             helper.assertTrue(told.size() == 1 && told.get(0).index() == null && told.get(0).done() == 0 && told.get(0).total() == 0,

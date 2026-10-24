@@ -147,13 +147,17 @@ public final class JesServer {
     }
 
     /**
-     * After Pack tools changed which structures are shown or what's said about them: the list is
-     * built again, previews that showed where secret loot is are dropped, and everyone browsing is
-     * told, along with whether they can still use Pack tools.
+     * After Pack tools changed the server's rules, which structures are shown or what's said about
+     * them: the list is built again, the previews kept in memory are dropped, saved first views are
+     * read from the folder for the new settings, everyone with the loot index gets it again if a
+     * structure was hidden or shown, and everyone browsing is told, along with whether they can still
+     * use Pack tools.
      */
     public static void structuresChanged(MinecraftServer server) {
         catalog = null;
         clearCaptures();
+        SavedPreviews.use(server, LootIndexStore.knownFingerprint());
+        LootIndexStore.hiddenChanged(server);
         Players.forEachOnline(server, BROWSING, player -> sendSettings(player, false, true));
     }
 
@@ -202,7 +206,10 @@ public final class JesServer {
         }
     }
 
-    /** When a player leaves: drops anything they were halfway through sending, and stops their previews and pictures. */
+    /**
+     * When a player leaves: drops anything they were halfway through sending, stops their previews and
+     * pictures, and stops sending them the loot index, as they may come back without the mod.
+     */
     public static void left(ServerPlayer player) {
         UUID id = player.getUUID();
         Uploads.forget(id);
@@ -210,6 +217,7 @@ public final class JesServer {
         LATEST_PREVIEW.remove(id);
         BROWSING.remove(id);
         QUEUED.remove(id);
+        LootIndexStore.left(id);
     }
 
     /** When the server stops: drops what belonged to that world, and stops the loot index and the captures under way. */
@@ -741,7 +749,8 @@ public final class JesServer {
                     if (picture != null) {
                         cache(cacheKey(structure, seed, true), picture, generation);
                     }
-                    if (saved != null && first) {
+                    // Not into a folder that's no longer in use, as what's sent may have changed meanwhile.
+                    if (saved != null && first && saved.equals(SavedPreviews.current())) {
                         SavedPreviews.save(saved, structure, false, full.payload());
                         SavedPreviews.save(saved, structure, true, picture.payload());
                     }

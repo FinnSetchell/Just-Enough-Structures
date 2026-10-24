@@ -6,7 +6,10 @@ import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.capture.CaptureResult;
+import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
@@ -14,17 +17,29 @@ import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsServer;
 import com.finndog.justenoughstructures.server.PackToolsState;
+import com.finndog.justenoughstructures.server.SavedPreviews;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.finndog.justenoughstructures.server.Uploads;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -36,6 +51,11 @@ import net.minecraft.world.item.Items;
 public final class PackToolsTests {
     private static final ResourceLocation IGLOO = Ids.parse("igloo");
     private static final ResourceLocation IGLOO_TABLE = Ids.parse("chests/igloo_chest");
+    /** Always has chests, and nothing in the test datapack keeps them secret. */
+    private static final ResourceLocation DESERT_PYRAMID = Ids.parse("desert_pyramid");
+    /** What {@link #containers} gives for a view that isn't saved, and for a capture that failed. */
+    private static final int NOT_SAVED = -1;
+    private static final int FAILED = -2;
 
     private PackToolsTests() {
     }
@@ -204,5 +224,294 @@ public final class PackToolsTests {
             ServerConfig.set(before);
         }
         helper.succeed();
+    }
+
+    /**
+     * Keeping a structure's loot secret in Pack tools, or turning show_loot_locations off there,
+     * reaches its saved first view straight away: a preview asked for afterwards has no containers,
+     * and neither has the first view saved for it then. Switched back, the containers are there again.
+     */
+    public static void secretLootLeavesSavedFirstViews(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        RegistryAccess registries = server.registryAccess();
+        ServerPlayer player = TestPlayers.mock(helper);
+        long seed = StructureCapture.defaultSeed(DESERT_PYRAMID);
+        ServerConfig.Settings before = ServerConfig.get();
+        ServerConfig.Settings noLootShown = new ServerConfig.Settings(before.hiddenStructures(), before.hiddenMods(), before.locatePermission(),
+                before.teleportPermission(), false, before.packTools(), before.containerChanges());
+        StructureInfo infoBefore = StructureInfo.forStructure(DESERT_PYRAMID);
+        Path configRoot = JustEnoughStructures.configDir().getParent();
+        JesNetwork.ServerSender sender = JesNetwork.serverSender();
+        Map<Integer, byte[]> answers = new ConcurrentHashMap<>();
+        // What each step saw, and what of that was wrong.
+        List<String> seen = new ArrayList<>();
+        List<String> wrong = new ArrayList<>();
+        int[] step = {0};
+        boolean[] logged = {false};
+        Runnable restore = () -> {
+            JesNetwork.setServerSender(sender);
+            JesServer.left(player);
+            JustEnoughStructures.setConfigDir(configRoot);
+            LootOverrides.setFolder(null);
+            StructureInfo.put(DESERT_PYRAMID, infoBefore);
+            ServerConfig.set(before);
+            JesServer.structuresChanged(server);
+        };
+        helper.succeedWhen(() -> {
+            while (step[0] < 7) {
+                switch (step[0]) {
+                    case 0 -> {
+                        Path saved = SavedPreviews.current();
+                        waitFor(helper, saved != null, "no folder of saved first views is in use yet");
+                        // A first view with the pyramid's chests is saved, as the loot index saves one.
+                        SavedPreviews.offer(saved, server, DESERT_PYRAMID, seed, StructureCapture.capture(server, DESERT_PYRAMID, seed));
+                        int chests = containers(registries, readSaved(saved, DESERT_PYRAMID));
+                        seen.add("to start with, the desert pyramid's saved first view had " + described(chests));
+                        if (chests <= 0) {
+                            wrong.add("the desert pyramid's saved first view had no chests to start with, so this test can't see them go");
+                            restore.run();
+                            step[0] = 7;
+                            break;
+                        }
+                        JustEnoughStructures.setConfigDir(temp("jes-config"));
+                        LootOverrides.setFolder(temp("jes-overrides"));
+                        JesNetwork.setServerSender(captures(player, sender, answers));
+                        PackToolsServer.saveStructure(server, DESERT_PYRAMID, "", true);
+                        JesServer.onRequestCapture(player, 1, DESERT_PYRAMID, seed, true, 0);
+                        step[0] = 1;
+                    }
+                    case 1 -> {
+                        byte[] answer = answers.get(1);
+                        waitFor(helper, answer != null, "the preview asked for after keeping its loot secret hasn't come yet");
+                        checkContainers(seen, wrong, "after keeping its loot secret, the preview sent", containers(registries, answer), false, false);
+                        step[0] = 2;
+                    }
+                    case 2 -> {
+                        Path saved = SavedPreviews.current();
+                        waitFor(helper, saved != null, "no folder of saved first views is in use after keeping its loot secret");
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), false, true);
+                        PackToolsServer.saveStructure(server, DESERT_PYRAMID, "", false);
+                        PackToolsServer.saveRules(server, noLootShown);
+                        JesServer.onRequestCapture(player, 2, DESERT_PYRAMID, seed, true, 0);
+                        step[0] = 3;
+                    }
+                    case 3 -> {
+                        byte[] answer = answers.get(2);
+                        waitFor(helper, answer != null, "the preview asked for after turning show_loot_locations off hasn't come yet");
+                        checkContainers(seen, wrong, "after turning show_loot_locations off, the preview sent", containers(registries, answer), false, false);
+                        step[0] = 4;
+                    }
+                    case 4 -> {
+                        Path saved = SavedPreviews.current();
+                        waitFor(helper, saved != null, "no folder of saved first views is in use after turning show_loot_locations off");
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), false, true);
+                        PackToolsServer.saveRules(server, before);
+                        JesServer.onRequestCapture(player, 3, DESERT_PYRAMID, seed, true, 0);
+                        step[0] = 5;
+                    }
+                    case 5 -> {
+                        byte[] answer = answers.get(3);
+                        waitFor(helper, answer != null, "the preview asked for after showing loot again hasn't come yet");
+                        checkContainers(seen, wrong, "with loot shown again, the preview sent", containers(registries, answer), true, false);
+                        step[0] = 6;
+                    }
+                    default -> {
+                        Path saved = SavedPreviews.current();
+                        waitFor(helper, saved != null, "no folder of saved first views is in use after showing loot again");
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), true, false);
+                        restore.run();
+                        step[0] = 7;
+                    }
+                }
+            }
+            if (!logged[0]) {
+                logged[0] = true;
+                // The game's summary of a failed test leaves out the reason on some versions.
+                JustEnoughStructures.LOGGER.info("In the test of secret loot in saved first views: {}", String.join("; ", seen));
+            }
+            helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
+        });
+    }
+
+    /**
+     * Hiding a structure in Pack tools sends the loot index again straight away, without it, to
+     * everyone who has the index, and a player asking afterwards gets it without it too. Shown
+     * again, it's back in the next one.
+     */
+    public static void hidingAStructureSendsTheIndexAgain(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        ServerConfig.Settings before = ServerConfig.get();
+        Set<ResourceLocation> hidden = new HashSet<>(before.hiddenStructures());
+        hidden.add(DESERT_PYRAMID);
+        ServerConfig.Settings hiding = new ServerConfig.Settings(Set.copyOf(hidden), before.hiddenMods(), before.locatePermission(),
+                before.teleportPermission(), before.showLootLocations(), before.packTools(), before.containerChanges());
+        Path configRoot = JustEnoughStructures.configDir().getParent();
+        JesNetwork.ServerSender sender = JesNetwork.serverSender();
+        List<SentIndex> sent = new CopyOnWriteArrayList<>();
+        JesNetwork.setServerSender(indexes(player, server.registryAccess(), sender, sent));
+        JesServer.onRequestIndex(player);
+        List<String> seen = new ArrayList<>();
+        List<String> wrong = new ArrayList<>();
+        boolean[] done = {false};
+        boolean[] logged = {false};
+        helper.succeedWhen(() -> {
+            if (!done[0]) {
+                SentIndex had = sent.stream().filter(s -> !s.early()).reduce((a, b) -> b).orElse(null);
+                waitFor(helper, had != null, "the player hasn't been sent a finished loot index yet");
+                done[0] = true;
+                try {
+                    if (!had.index().tablesByStructure().containsKey(DESERT_PYRAMID)) {
+                        wrong.add("the index the player had doesn't list the desert pyramid, so hiding it can't be seen");
+                    } else {
+                        // All in one go on the server thread, so nothing else the index does comes in between.
+                        JustEnoughStructures.setConfigDir(temp("jes-config"));
+                        int count = sent.size();
+                        PackToolsServer.saveRules(server, hiding);
+                        checkIndexes(seen, wrong, "hiding the desert pyramid", List.copyOf(sent.subList(count, sent.size())), false);
+                        count = sent.size();
+                        JesServer.onRequestIndex(player);
+                        checkIndexes(seen, wrong, "asking for the index after that", List.copyOf(sent.subList(count, sent.size())), false);
+                        count = sent.size();
+                        PackToolsServer.saveRules(server, before);
+                        checkIndexes(seen, wrong, "showing it again", List.copyOf(sent.subList(count, sent.size())), true);
+                    }
+                } finally {
+                    JesNetwork.setServerSender(sender);
+                    // Otherwise the mock player would be sent every index after this test.
+                    JesServer.left(player);
+                    JustEnoughStructures.setConfigDir(configRoot);
+                    ServerConfig.set(before);
+                    JesServer.structuresChanged(server);
+                }
+            }
+            if (!logged[0]) {
+                logged[0] = true;
+                // The game's summary of a failed test leaves out the reason on some versions.
+                JustEnoughStructures.LOGGER.info("In the test of hiding a structure from the loot index: {}", String.join("; ", seen));
+            }
+            helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
+        });
+    }
+
+    /** Fails this look at the test, after a short wait, unless {@code ready}. The idle test server ticks very fast. */
+    private static void waitFor(GameTestHelper helper, boolean ready, String waiting) {
+        if (!ready) {
+            pause(50);
+        }
+        helper.assertTrue(ready, waiting);
+    }
+
+    /** Notes how many containers a view had, and whether that's wrong when they're {@code shown} or not. */
+    private static void checkContainers(List<String> seen, List<String> wrong, String what, int containers, boolean shown, boolean saved) {
+        String line = what + " had " + described(containers);
+        seen.add(line);
+        boolean right = shown ? containers > 0 : containers == 0 || saved && containers == NOT_SAVED;
+        if (!right) {
+            wrong.add(line + (shown ? ", not the desert pyramid's chests" : ", not none"));
+        }
+    }
+
+    private static String described(int containers) {
+        return containers == NOT_SAVED ? "nothing saved" : containers == FAILED ? "a failed capture" : containers + " containers";
+    }
+
+    /** How many containers a capture as players are sent it has, or {@link #NOT_SAVED} for none, or {@link #FAILED}. */
+    private static int containers(RegistryAccess registries, byte[] payload) {
+        if (payload == null) {
+            return NOT_SAVED;
+        }
+        CaptureResult result = Codecs.unpackCapture(registries, payload).result();
+        return result.succeeded() ? result.snapshot().containers().size() : FAILED;
+    }
+
+    /** A structure's saved first view in this folder, or null. Waits for the saved previews' thread. */
+    private static byte[] readSaved(Path dir, ResourceLocation id) {
+        CompletableFuture<byte[]> read = new CompletableFuture<>();
+        SavedPreviews.load(dir, id, false, read::complete);
+        try {
+            return read.get(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("reading a saved first view took too long", e);
+        }
+    }
+
+    /**
+     * Stands in for sending to {@code player}: the captures it's sent go in {@code answers} by request,
+     * and nothing reaches the mock player, which NeoForge refuses to send to. Anything for anyone else
+     * goes on to {@code others}.
+     */
+    private static JesNetwork.ServerSender captures(ServerPlayer player, JesNetwork.ServerSender others, Map<Integer, byte[]> answers) {
+        Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
+        return (target, channel, buf) -> {
+            if (target != player) {
+                others.send(target, channel, buf);
+                return;
+            }
+            if (!channel.equals(JesNetwork.TRANSFER)) {
+                return;
+            }
+            Blobs.Part part = Blobs.Part.read(buf);
+            ByteArrayOutputStream bytes = parts.computeIfAbsent(part.transferId(), transfer -> new ByteArrayOutputStream());
+            bytes.writeBytes(part.data());
+            if (part.index() == part.count() - 1) {
+                parts.remove(part.transferId());
+                if (part.kind() == JesNetwork.KIND_CAPTURE) {
+                    answers.put(part.requestId(), bytes.toByteArray());
+                }
+            }
+        };
+    }
+
+    /** A loot index a player was sent, and whether it was an early one. */
+    private record SentIndex(LootIndex index, boolean early) {
+    }
+
+    /** Notes the indexes sent after something, and whether that's wrong: one should come, listing the desert pyramid or not. */
+    private static void checkIndexes(List<String> seen, List<String> wrong, String what, List<SentIndex> got, boolean listed) {
+        String line = what + " sent " + got.size() + " indexes" + (got.isEmpty() ? "" : " " + got.stream()
+                .map(s -> s.index().tablesByStructure().containsKey(DESERT_PYRAMID) ? "listing it" : "without it").toList());
+        seen.add(line);
+        if (got.size() != 1 || got.get(0).index().tablesByStructure().containsKey(DESERT_PYRAMID) != listed) {
+            wrong.add(line + ", not one " + (listed ? "listing" : "without") + " the desert pyramid");
+        }
+    }
+
+    /**
+     * Stands in for sending to {@code player}: the loot indexes it's sent go in {@code sent}, and nothing
+     * reaches the mock player, which NeoForge refuses to send to. Anything for anyone else goes on to
+     * {@code others}.
+     */
+    private static JesNetwork.ServerSender indexes(ServerPlayer player, RegistryAccess registries, JesNetwork.ServerSender others, List<SentIndex> sent) {
+        Map<Integer, ByteArrayOutputStream> parts = new HashMap<>();
+        return (target, channel, buf) -> {
+            if (target != player) {
+                others.send(target, channel, buf);
+                return;
+            }
+            if (!channel.equals(JesNetwork.TRANSFER)) {
+                return;
+            }
+            Blobs.Part part = Blobs.Part.read(buf);
+            if (part.kind() != JesNetwork.KIND_INDEX) {
+                return;
+            }
+            ByteArrayOutputStream bytes = parts.computeIfAbsent(part.transferId(), transfer -> new ByteArrayOutputStream());
+            bytes.writeBytes(part.data());
+            if (part.index() == part.count() - 1) {
+                parts.remove(part.transferId());
+                FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
+                LootIndex index = Codecs.readIndex(message);
+                sent.add(new SentIndex(index, Codecs.readIndexEarly(message)));
+            }
+        };
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

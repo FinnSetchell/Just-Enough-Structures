@@ -573,6 +573,19 @@ public final class JesGameTests {
         PackToolsTests.draftsRollIntoAChest(helper);
     }
 
+    // A batch of its own: for many ticks it swaps the server's sender and changes the server's settings
+    // and what's said about the desert pyramid.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools_views", timeoutTicks = 1200)
+    public void secretLootLeavesSavedFirstViews(GameTestHelper helper) {
+        PackToolsTests.secretLootLeavesSavedFirstViews(helper);
+    }
+
+    // A batch of its own: it swaps the server's sender until the loot index comes, then hides a structure.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools_index", timeoutTicks = 1200)
+    public void hidingAStructureSendsTheIndexAgain(GameTestHelper helper) {
+        PackToolsTests.hidingAStructureSendsTheIndexAgain(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void uploadsAreCapped(GameTestHelper helper) {
         PackToolsTests.uploadsAreCapped(helper);

@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,6 +206,11 @@ public final class LootIndexStore {
         WAITING.clear();
     }
 
+    /** When a player leaves: they're no longer sent the index. */
+    public static void left(UUID player) {
+        WAITING.remove(player);
+    }
+
     /** Sends the index if it's ready. Otherwise starts it if nothing else will, and says how far along it is, or that it failed. */
     public static void request(ServerPlayer player) {
         WAITING.add(player.getUUID());
@@ -345,15 +351,35 @@ public final class LootIndexStore {
 
     /** Builds what players get from the current index, leaving hidden structures out, and sends it to everyone who asked. */
     private static void send(MinecraftServer server) {
+        payload = shown(server);
+        Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
+    }
+
+    /**
+     * After Pack tools changed which structures are hidden: everyone who asked gets the index again,
+     * if that changed what they're sent. Only then, as EMI reloads fully for each index. Server thread only.
+     */
+    public static void hiddenChanged(MinecraftServer server) {
+        if (index == null) {
+            return;
+        }
+        byte[] now = shown(server);
+        if (!Arrays.equals(now, payload)) {
+            payload = now;
+            Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, now));
+        }
+    }
+
+    /** What players are sent of the current index. */
+    private static byte[] shown(MinecraftServer server) {
         LootIndex shown = visible(index);
         boolean early = partial;
-        payload = Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> {
+        return Blobs.deflate(Blobs.toBytes(server.registryAccess(), buf -> {
             Codecs.writeIndex(buf, shown);
             // Appended after the index, so older clients stop reading before it. Marks an early index
             // for EMI, which reloads fully for each index and so waits for the finished one.
             Codecs.writeIndexEarly(buf, early);
         }));
-        Players.forEachOnline(server, WAITING, player -> JesServer.sendIndex(player, payload));
     }
 
     /** The index without the structures the server hides, and without loot tables only they use. */

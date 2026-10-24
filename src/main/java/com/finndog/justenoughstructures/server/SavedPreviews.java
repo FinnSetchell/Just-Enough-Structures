@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
+import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -40,8 +41,8 @@ public final class SavedPreviews {
     private static final String FORMAT = "2";
     private static final int KEPT_FOLDERS = 3;
     private static final int MAGIC = 0x4A455331;
-    /** What else decides how a structure looks, besides the loot index's sources: its biomes, and its notes file. */
-    private static final List<String> SOURCES = List.of("worldgen/biome", "tags/worldgen/biome", "justenoughstructures/structures");
+    /** What else decides how a structure looks, besides the loot index's sources: its biomes. */
+    private static final List<String> SOURCES = List.of("worldgen/biome", "tags/worldgen/biome");
 
     // Reading and saving run on a separate thread, so a saved view never waits behind a structure being made.
     private static final ExecutorService DISK = Threads.single("Just Enough Structures saved previews");
@@ -62,7 +63,7 @@ public final class SavedPreviews {
 
     /**
      * Picks the folder for the server's setup now, once the loot index knows its fingerprint, which
-     * is null if its sources couldn't be read. Server thread.
+     * is null if its sources couldn't be read, and again when Pack tools changes what's sent. Server thread.
      */
     public static void use(MinecraftServer server, String fingerprint) {
         forget();
@@ -71,11 +72,14 @@ public final class SavedPreviews {
             return;
         }
         ServerConfig.Settings settings = ServerConfig.get();
+        // From the structure info files and Pack tools, which changes them without a /reload.
+        List<String> secret = StructureInfo.all().entrySet().stream().filter(e -> e.getValue().hideLootLocations())
+                .map(e -> e.getKey().toString()).sorted().toList();
         ServerLevel overworld = server.overworld();
         // Structures that read the climate look different in another world, as can the ground.
         String world = overworld.getSeed() + "|" + overworld.getChunkSource().getGenerator().getClass().getName();
         DISK.execute(() -> {
-            String key = keyFor(server, fingerprint, settings, world);
+            String key = keyFor(server, fingerprint, settings, secret, world);
             if (key == null) {
                 return;
             }
@@ -167,7 +171,8 @@ public final class SavedPreviews {
                 long seed = StructureCapture.defaultSeed(id);
                 try {
                     CaptureResult result = StructureCapture.captureInBackground(server, id, seed, cancelled);
-                    if (result == null) {
+                    // Not into a folder that's no longer in use, as what's sent may have changed meanwhile.
+                    if (result == null || cancelled.getAsBoolean()) {
                         return;
                     }
                     if (result.succeeded()) {
@@ -207,15 +212,15 @@ public final class SavedPreviews {
     }
 
     /**
-     * A name for everything a first view is made from: the loot index's fingerprint, the biomes and
-     * notes files, the world, Pack tools' container and spawner changes, and the server settings that
-     * change what's sent. Null if any of it couldn't be read.
+     * A name for everything a first view is made from: the loot index's fingerprint, the biomes, the
+     * world, Pack tools' container and spawner changes, and what changes what's sent: the server
+     * settings and which structures keep their loot secret. Null if any of it couldn't be read.
      */
-    private static String keyFor(MinecraftServer server, String fingerprint, ServerConfig.Settings settings, String world) {
+    private static String keyFor(MinecraftServer server, String fingerprint, ServerConfig.Settings settings, List<String> secret, String world) {
         try {
             Hasher hasher = Hashing.sha256().newHasher();
             hasher.putString(FORMAT + "|" + JesNetwork.PROTOCOL + "|" + fingerprint + "|" + world + "|"
-                    + settings.showLootLocations() + "|" + settings.containerChanges() + "|", StandardCharsets.UTF_8);
+                    + settings.showLootLocations() + "|" + settings.containerChanges() + "|" + String.join(",", secret) + "|", StandardCharsets.UTF_8);
             for (String changes : List.of("containers.json", "spawners.json")) {
                 Path file = LootOverrides.folder().resolve(changes);
                 hasher.putString(changes, StandardCharsets.UTF_8);
