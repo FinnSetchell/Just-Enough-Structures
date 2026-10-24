@@ -40,8 +40,8 @@ public final class ServerConfig {
               // everything from one mod. For example: ["minecraft:ancient_city", "somemod:*"]
               "hidden": %s,
 
-              // Who can use the locate button, as a vanilla permission level: 0 is everyone, 2 is
-              // operators and singleplayer with cheats on (the same as /locate), 4 is the server owner.
+              // Who can use the locate button, as a vanilla permission level: 0 is everyone, 2 is the
+              // same as /locate. /op gives level 4, and so does singleplayer with cheats on.
               "locate_permission": %s,
 
               // Who can Ctrl-click it to teleport there. 2 is the same as /tp.

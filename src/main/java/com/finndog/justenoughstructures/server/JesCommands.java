@@ -43,9 +43,10 @@ public final class JesCommands {
     private static int open(CommandSourceStack source, ResourceLocation structure) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         if (!JesNetwork.canSend(player, JesNetwork.OPEN_BROWSER)) {
-            // Their game doesn't have the mod, so it can't show this text in their language either.
+            // Their game has another version of JES, which shows its own text for this key, or no JES and
+            // so no lang file, which shows the fallback. The fallback says the same as en_us.json.
             source.sendFailure(Component.translatableWithFallback("commands.justenoughstructures.open.no_mod",
-                    "Just Enough Structures isn't installed on your game, so there's no structure browser to open."));
+                    "To open the structure browser, install the same version of Just Enough Structures as the server"));
             return 0;
         }
         if (structure != null && (ServerConfig.hides(structure)

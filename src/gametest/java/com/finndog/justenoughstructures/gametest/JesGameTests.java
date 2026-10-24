@@ -221,6 +221,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void langFileHasEachKeyOnce(GameTestHelper helper) {
+        LangFileTests.langFileHasEachKeyOnce(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void everyKeyInTheCodeIsInTheLangFile(GameTestHelper helper) {
+        LangFileTests.everyKeyInTheCodeIsInTheLangFile(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void savedLootIndexReadsBack(GameTestHelper helper) {
         ServiceTests.savedLootIndexReadsBack(helper);
     }
