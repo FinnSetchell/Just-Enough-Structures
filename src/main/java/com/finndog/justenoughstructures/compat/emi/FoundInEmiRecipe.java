@@ -32,6 +32,20 @@ final class FoundInEmiRecipe implements EmiRecipe {
         this.id = JustEnoughStructures.id(structure + "/" + itemId.getNamespace() + "/" + itemId.getPath());
     }
 
+    /** A table row, whose output is the stack another mod's page shows for the table, so that page's link lists it. */
+    FoundInEmiRecipe(FoundInRecipe recipe, EmiStack table) {
+        this.recipe = recipe;
+        this.item = table;
+        ResourceLocation tableId = recipe.tables().iterator().next();
+        this.id = JustEnoughStructures.id("/found_in_table/" + recipe.structure().getNamespace() + "/" + recipe.structure().getPath()
+                + "/" + tableId.getNamespace() + "/" + tableId.getPath());
+    }
+
+    /** The row's structure, or null for a waiting row. */
+    ResourceLocation structure() {
+        return recipe.structure();
+    }
+
     @Override
     public EmiRecipeCategory getCategory() {
         return JesEmiPlugin.FOUND_IN;
@@ -70,7 +84,10 @@ final class FoundInEmiRecipe implements EmiRecipe {
     @Override
     public void addWidgets(WidgetHolder widgets) {
         widgets.add(new Row(recipe));
-        widgets.addSlot(item, FoundInRow.ITEM_X - 1, FoundInRow.ITEM_Y - 1).recipeContext(this);
+        // A table row's stack draws nothing, so it gets no slot.
+        if (!recipe.isTable()) {
+            widgets.addSlot(item, FoundInRow.ITEM_X - 1, FoundInRow.ITEM_Y - 1).recipeContext(this);
+        }
     }
 
     /** Where the first row's structure is drawn on screen, or null before EMI shows one. Test hook for the scripted scenarios. */

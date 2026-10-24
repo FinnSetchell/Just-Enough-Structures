@@ -90,6 +90,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     // One frame of the recovery compass. The item itself spins forever when there's no death point.
     private static final ResourceLocation LOCATE_ICON = Ids.parse("textures/item/recovery_compass_20.png");
     private static ResourceLocation lastSelected;
+    /** A loot table to pick in the Loot tab of the structure the next browser starts on, or null. */
+    private static String startTable;
 
     private final Screen parent;
     private final StructureList list = new StructureList();
@@ -593,8 +595,15 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         list.setEntries(entries);
         StructureCatalog.Entry start = entries.stream().filter(e -> e.id().equals(lastSelected)).findFirst()
                 .orElse(entries.isEmpty() ? null : entries.get(0));
+        String table = start != null && start.id().equals(lastSelected) ? startTable : null;
+        startTable = null;
         if (start != null) {
             select(start, defaultSeed(start.id()));
+        }
+        if (table != null) {
+            // Picked once the structure arrives, as a Found in list's row does.
+            info.setTab(InfoPanel.Tab.LOOT);
+            pendingTable = table;
         }
     }
 
@@ -1944,6 +1953,23 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** Makes the next opened browser start on this structure. Also used by /jes open, found-in rows and Explorer's Compass. */
     public static void startOn(ResourceLocation id) {
         lastSelected = id;
+        startTable = null;
+    }
+
+    /** Makes the next opened browser start on this structure, with {@code table} picked in its Loot tab. */
+    public static void startOn(ResourceLocation id, ResourceLocation table) {
+        lastSelected = id;
+        startTable = table.toString();
+    }
+
+    /** The loot table picked in the Loot tab, or about to be once the structure arrives, or null. */
+    public String selectedTable() {
+        return info.selectedTable() != null ? info.selectedTable() : pendingTable;
+    }
+
+    /** Which tab of the details panel is showing, such as "LOOT". */
+    public String detailsTab() {
+        return info.tab().name();
     }
 
     public void setSpin(boolean on) {

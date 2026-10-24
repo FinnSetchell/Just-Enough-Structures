@@ -43,12 +43,17 @@ public final class FoundIn {
             }
         }
         byItem = out;
+        byTable = structuresByTable(built);
+        index = built;
+        changes++;
+    }
+
+    /** For each loot table in an index, the structures that use it. */
+    public static Map<ResourceLocation, Set<ResourceLocation>> structuresByTable(LootIndex built) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new HashMap<>();
         built.tablesByStructure().forEach((structure, used) -> used.forEach(table ->
                 tables.computeIfAbsent(table, t -> new TreeSet<>()).add(structure)));
-        byTable = tables;
-        index = built;
-        changes++;
+        return tables;
     }
 
     static void clear() {

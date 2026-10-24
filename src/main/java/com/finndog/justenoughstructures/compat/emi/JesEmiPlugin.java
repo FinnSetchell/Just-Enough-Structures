@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
+import com.finndog.justenoughstructures.compat.foundin.ChestLootPages;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
@@ -23,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -33,6 +35,9 @@ import net.minecraft.world.item.ItemStack;
  * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one. A load
  * without an index has a waiting row for each item chest loot can give, if the server has said
  * which, so the page is there with the server's progress until the index comes.
+ *
+ * <p>With EMI Loot, each loot table also gets a row for each structure that uses it, made for the
+ * stack EMI Loot's chest loot page stands for, so clicking the table's name there lists them.
  *
  * <p>The player's chest loot setting can hide other mods' chest loot tabs, or leave out JES's rows,
  * in which case EMI isn't reloaded for an index either. Changing it reloads EMI.
@@ -68,6 +73,7 @@ public final class JesEmiPlugin implements EmiPlugin {
     private static boolean lookDue;
     private static volatile int loads;
     private static volatile int waitingRows;
+    private static volatile int tableRows;
     private static boolean settingWatched;
 
     @Override
@@ -85,6 +91,7 @@ public final class JesEmiPlugin implements EmiPlugin {
             if (!ChestLootTabs.showsOwn()) {
                 loaded = null;
                 waitingRows = 0;
+                tableRows = 0;
                 return;
             }
             LootIndex index = ClientRequests.awaitIndex(INDEX_WAIT_MS);
@@ -97,11 +104,30 @@ public final class JesEmiPlugin implements EmiPlugin {
             for (FoundInRecipe recipe : recipes) {
                 registry.addRecipe(new FoundInEmiRecipe(recipe));
             }
+            tableRows = addTableRows(registry, index);
         } finally {
             loading = false;
             // After the load ends, so an index that arrived during it is checked once, afterwards.
             Minecraft.getInstance().execute(JesEmiPlugin::listen);
         }
+    }
+
+    /** Adds the rows for EMI Loot's chest loot pages, if it's installed, and says how many. */
+    private static int addTableRows(EmiRegistry registry, LootIndex index) {
+        int added = 0;
+        try {
+            for (ChestLootPages.Page page : ChestLootPages.pages(index, StructureNames::structure)) {
+                if (page.stack() instanceof EmiStack stack) {
+                    for (FoundInRecipe row : page.rows()) {
+                        registry.addRecipe(new FoundInEmiRecipe(row, stack));
+                        added++;
+                    }
+                }
+            }
+        } catch (RuntimeException | LinkageError e) {
+            JesLog.warnOnce("emi-loot-pages", "Couldn't add the structures to EMI Loot's chest loot pages", e);
+        }
+        return added;
     }
 
     /** Whether a recipe is in another mod's chest loot tab. */
@@ -193,6 +219,11 @@ public final class JesEmiPlugin implements EmiPlugin {
         return waitingRows;
     }
 
+    /** How many rows for EMI Loot's chest loot pages EMI last loaded with. Test hook for the scripted scenarios. */
+    public static int tableRows() {
+        return tableRows;
+    }
+
     /** How many times EMI has loaded since the game started. Test hook for the scripted scenarios. */
     public static int loads() {
         return loads;
@@ -201,6 +232,16 @@ public final class JesEmiPlugin implements EmiPlugin {
     /** Where the first row's structure is on screen, or null before EMI has shown one. Test hook for the scripted scenarios. */
     public static int[] firstRow() {
         return FoundInEmiRecipe.firstRow;
+    }
+
+    /** Forgets where the first row was, so the next page shown sets it again. Test hook for the scripted scenarios. */
+    public static void forgetFirstRow() {
+        FoundInEmiRecipe.firstRow = null;
+    }
+
+    /** The structures of the Found in structures rows among these recipes, in order. Test hook for the scripted scenarios. */
+    public static List<ResourceLocation> structuresIn(List<EmiRecipe> recipes) {
+        return recipes.stream().filter(r -> r instanceof FoundInEmiRecipe).map(r -> ((FoundInEmiRecipe) r).structure()).toList();
     }
 
     /** The tabs EMI has for how to get an item, by id. Test hook for the scripted scenarios. */

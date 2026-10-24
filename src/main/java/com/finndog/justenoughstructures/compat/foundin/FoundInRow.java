@@ -22,7 +22,8 @@ import net.minecraft.world.item.Items;
  * How a "Found in structures" row looks and behaves in every recipe viewer: the structure's picture
  * and name, then the chance of the item in each container it has, then the item. Clicking the
  * structure opens it in the browser. A waiting row has the server's progress instead, and does
- * nothing when clicked. Positions are from the row's top left corner.
+ * nothing when clicked. A table row has no item or chance, and opens the structure with its loot
+ * table picked. Positions are from the row's top left corner.
  */
 public final class FoundInRow {
     public static final int WIDTH = 160;
@@ -57,7 +58,7 @@ public final class FoundInRow {
             drawWaiting(g, font, text);
             return;
         }
-        String chance = FoundIn.percent(FoundIn.chance(recipe.item().getItem(), recipe.tables()));
+        String chance = recipe.isTable() ? "" : FoundIn.percent(FoundIn.chance(recipe.item().getItem(), recipe.tables()));
         int chanceX = WIDTH - 22 - font.width(chance);
         if (overStructure(mouseX, mouseY)) {
             g.fill(0, 0, WIDTH - 20, HEIGHT, 0x40FFFFFF);
@@ -112,13 +113,13 @@ public final class FoundInRow {
         String name = StructureNames.structure(recipe.structure());
         lines.add(Component.literal(name));
         lines.add(Component.literal(StructureNames.mod(recipe.structure().getNamespace())).withStyle(ChatFormatting.BLUE, ChatFormatting.ITALIC));
-        // Which of its loot tables, unless that only repeats the structure's name.
-        String tables = recipe.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct().sorted()
+        // Which of its loot tables, unless that only repeats the structure's name, or the row is on the table's own page.
+        String tables = recipe.isTable() ? "" : recipe.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct().sorted()
                 .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
         if (!tables.isEmpty()) {
             lines.add(Component.literal(tables).withStyle(ChatFormatting.GRAY));
         }
-        double chance = FoundIn.chance(recipe.item().getItem(), recipe.tables());
+        double chance = recipe.isTable() ? -1 : FoundIn.chance(recipe.item().getItem(), recipe.tables());
         if (chance >= 0) {
             lines.add(Component.translatable("viewer.justenoughstructures.chance", FoundIn.percent(chance)).withStyle(ChatFormatting.GRAY));
         }
@@ -126,13 +127,20 @@ public final class FoundInRow {
         return lines;
     }
 
-    /** Opens the structure in the browser, coming back to the viewer when it's closed. False for a waiting row, which has none. */
+    /**
+     * Opens the structure in the browser, coming back to the viewer when it's closed, with a table
+     * row's loot table picked. False for a waiting row, which has none.
+     */
     public static boolean open(FoundInRecipe recipe) {
         if (recipe.isWaiting()) {
             return false;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        JesScreen.startOn(recipe.structure());
+        if (recipe.isTable()) {
+            JesScreen.startOn(recipe.structure(), recipe.tables().iterator().next());
+        } else {
+            JesScreen.startOn(recipe.structure());
+        }
         minecraft.setScreen(new JesScreen(minecraft.screen));
         return true;
     }
