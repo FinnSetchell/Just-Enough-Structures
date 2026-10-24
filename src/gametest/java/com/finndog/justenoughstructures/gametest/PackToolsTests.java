@@ -36,7 +36,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
@@ -248,6 +247,8 @@ public final class PackToolsTests {
         List<String> wrong = new ArrayList<>();
         int[] step = {0};
         boolean[] logged = {false};
+        // The saved first view read for each step, so a step that waits for it doesn't start another.
+        Map<Integer, CompletableFuture<byte[]>> reads = new HashMap<>();
         Runnable restore = () -> {
             JesNetwork.setServerSender(sender);
             JesServer.left(player);
@@ -264,8 +265,10 @@ public final class PackToolsTests {
                         Path saved = SavedPreviews.current();
                         waitFor(helper, saved != null, "no folder of saved first views is in use yet");
                         // A first view with the pyramid's chests is saved, as the loot index saves one.
-                        SavedPreviews.offer(saved, server, DESERT_PYRAMID, seed, StructureCapture.capture(server, DESERT_PYRAMID, seed));
-                        int chests = containers(registries, readSaved(saved, DESERT_PYRAMID));
+                        if (!reads.containsKey(0)) {
+                            SavedPreviews.offer(saved, server, DESERT_PYRAMID, seed, StructureCapture.capture(server, DESERT_PYRAMID, seed));
+                        }
+                        int chests = containers(registries, readSaved(helper, reads, 0, saved, DESERT_PYRAMID));
                         seen.add("to start with, the desert pyramid's saved first view had " + described(chests));
                         if (chests <= 0) {
                             wrong.add("the desert pyramid's saved first view had no chests to start with, so this test can't see them go");
@@ -289,7 +292,7 @@ public final class PackToolsTests {
                     case 2 -> {
                         Path saved = SavedPreviews.current();
                         waitFor(helper, saved != null, "no folder of saved first views is in use after keeping its loot secret");
-                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), false, true);
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(helper, reads, step[0], saved, DESERT_PYRAMID)), false, true);
                         PackToolsServer.saveStructure(server, DESERT_PYRAMID, "", false);
                         PackToolsServer.saveRules(server, noLootShown);
                         JesServer.onRequestCapture(player, 2, DESERT_PYRAMID, seed, true, 0);
@@ -304,7 +307,7 @@ public final class PackToolsTests {
                     case 4 -> {
                         Path saved = SavedPreviews.current();
                         waitFor(helper, saved != null, "no folder of saved first views is in use after turning show_loot_locations off");
-                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), false, true);
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(helper, reads, step[0], saved, DESERT_PYRAMID)), false, true);
                         PackToolsServer.saveRules(server, before);
                         JesServer.onRequestCapture(player, 3, DESERT_PYRAMID, seed, true, 0);
                         step[0] = 5;
@@ -318,7 +321,7 @@ public final class PackToolsTests {
                     default -> {
                         Path saved = SavedPreviews.current();
                         waitFor(helper, saved != null, "no folder of saved first views is in use after showing loot again");
-                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(saved, DESERT_PYRAMID)), true, false);
+                        checkContainers(seen, wrong, "and the saved first view", containers(registries, readSaved(helper, reads, step[0], saved, DESERT_PYRAMID)), true, false);
                         restore.run();
                         step[0] = 7;
                     }
@@ -425,15 +428,19 @@ public final class PackToolsTests {
         return result.succeeded() ? result.snapshot().containers().size() : FAILED;
     }
 
-    /** A structure's saved first view in this folder, or null. Waits for the saved previews' thread. */
-    private static byte[] readSaved(Path dir, ResourceLocation id) {
-        CompletableFuture<byte[]> read = new CompletableFuture<>();
-        SavedPreviews.load(dir, id, false, read::complete);
-        try {
-            return read.get(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new AssertionError("reading a saved first view took too long", e);
-        }
+    /**
+     * A structure's saved first view in this folder, or null. It's read on the saved previews' thread,
+     * which can be busy saving every first view again after a change, so the step is tried again on
+     * later ticks until the read started for it has finished. The server thread doesn't wait.
+     */
+    private static byte[] readSaved(GameTestHelper helper, Map<Integer, CompletableFuture<byte[]>> reads, int step, Path dir, ResourceLocation id) {
+        CompletableFuture<byte[]> read = reads.computeIfAbsent(step, s -> {
+            CompletableFuture<byte[]> started = new CompletableFuture<>();
+            SavedPreviews.load(dir, id, false, started::complete);
+            return started;
+        });
+        waitFor(helper, read.isDone(), "the saved first view hasn't been read yet");
+        return read.join();
     }
 
     /**
