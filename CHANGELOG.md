@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0] - Unreleased
+
+### Fixed
+- Loot chances are now more accurate
+- Markers outside the preview no longer take clicks from the structure list, Reroll or the layer slider
+- Found in no longer lists Book where chests only have enchanted books
+- Treasure maps now show their real chance in Found in, the Loot tab and chest previews
+- Very rare loot reads <0.1% instead of 0.0%, including the chance of finding at least one
+- Keeping a structure's loot secret or hiding a structure in Pack tools now applies straight away, without /reload
+- The chances tooltip no longer says things like "shulker boxs"
+- /jes open now tells players without the mod, or with a different version, what to install
+
+### Changed
+- Clearer wording in the browser, Pack tools and the loot editor, and permission levels read the same on both settings screens
+
 ## [1.0.0] - Unreleased
 
 First public release.
