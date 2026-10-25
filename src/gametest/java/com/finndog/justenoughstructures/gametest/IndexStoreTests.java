@@ -3,17 +3,25 @@ package com.finndog.justenoughstructures.gametest;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -29,6 +37,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Items;
 
 /** What a player is sent while the server builds its loot index from nothing, and once that server has stopped. */
 public final class IndexStoreTests {
@@ -340,6 +349,95 @@ public final class IndexStoreTests {
             helper.assertTrue(askedAfter.get(0).stream().noneMatch(s -> s.index() != null), told);
             helper.assertTrue(!askedAfter.get(1).isEmpty() && Boolean.TRUE.equals(askedAfter.get(1).get(0).early()), told);
         });
+    }
+
+    /**
+     * What a loot modifier adds to a chest is listed in Found in, under the structures with that
+     * chest. On Forge and NeoForge the test mod's modifier puts a nether star in every ancient city
+     * ice box, and on Fabric from 26.1 its listener to Fabric's drops event does, which reading the
+     * ice box's table can't show. The index built from nothing lists it, the index saved with it lists
+     * it when read back, and so does the index the next start sends. Fabric before 26.1 has no such
+     * event, so there the test passes at once.
+     */
+    public static void lootModifierItemsAreListed(GameTestHelper helper) {
+        //? if fabric && <26.1 {
+        JustEnoughStructures.LOGGER.info("In the test of loot modifiers in Found in: nothing to check on Fabric before 26.1");
+        helper.succeed();
+        //?} else {
+        /*MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation city = Ids.parse("ancient_city");
+        ResourceLocation iceBox = Ids.parse("chests/ancient_city_ice_box");
+        ResourceLocation star = Ids.parse("nether_star");
+        // Only worth checking with the modifier at work, and with the table not giving a star itself.
+        LootOdds odds = LootRolls.odds(helper.getLevel(), iceBox, 10, 1L);
+        helper.assertTrue(odds.rows().stream().anyMatch(r -> r.example().is(Items.NETHER_STAR)),
+                "the test mod put no nether star in an ice box, which gave " + odds.rows().stream().map(r -> r.example().getItem()).toList());
+        helper.assertFalse(LootIndex.itemsIn(server, iceBox, new HashSet<>()).contains(star), "the ice box's own table lists a nether star");
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<Sent> sent = new CopyOnWriteArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        // Built from nothing and saved, as on a server's first start: what was saved for these sources goes first.
+        String fingerprint = LootIndexStore.fingerprintOf(server);
+        Path saved = JustEnoughStructures.cacheDir().resolve("loot-index");
+        try {
+            Files.deleteIfExists(saved.resolve(fingerprint + ".bin"));
+        } catch (IOException e) {
+            throw new AssertionError("couldn't delete the saved index", e);
+        }
+        LootIndexStore.stop();
+        LootIndexStore.refresh(server);
+        JesServer.onRequestIndex(player);
+        // The finished index the build sent, the saved one read back, and the one sent after the next start.
+        Map<String, LootIndex> seen = new LinkedHashMap<>();
+        boolean[] logged = new boolean[1];
+        helper.succeedWhen(() -> {
+            if (seen.isEmpty()) {
+                LootIndex built = sent.stream().filter(s -> Boolean.FALSE.equals(s.early())).map(Sent::index).findFirst().orElse(null);
+                if (built == null) {
+                    // The idle test server ticks very fast, so wait a little between looks.
+                    pause(50);
+                }
+                helper.assertTrue(built != null, "the index isn't finished yet");
+                seen.put("built", built);
+                // As the server's next start does: what was saved is read rather than built again.
+                LootIndexStore.stop();
+                LootIndexStore.refresh(server);
+            }
+            if (seen.size() == 1) {
+                boolean ready = LootIndexStore.ready();
+                if (!ready) {
+                    pause(50);
+                }
+                helper.assertTrue(ready, "the saved index hasn't been read back yet");
+                StructureScan scan = LootIndexStore.read(saved, fingerprint);
+                seen.put("saved", scan == null ? null : LootIndex.of(server, scan));
+                int had = sent.size();
+                JesServer.onRequestIndex(player);
+                seen.put("sent after the next start", sent.subList(had, sent.size()).stream().map(Sent::index).filter(Objects::nonNull).findFirst().orElse(null));
+                JesNetwork.setServerSender(before);
+                // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
+                JesServer.left(player);
+            }
+            List<String> wrong = new ArrayList<>();
+            seen.forEach((which, index) -> {
+                if (index == null) {
+                    wrong.add("there was no " + which + " index");
+                } else if (!index.tablesByStructure().getOrDefault(city, Set.of()).contains(iceBox)) {
+                    wrong.add("the " + which + " index has no ice box in the ancient city");
+                } else if (!index.itemsByTable().getOrDefault(iceBox, Set.of()).contains(star)) {
+                    wrong.add("the " + which + " index lists " + index.itemsByTable().get(iceBox) + " in the ice box, without the nether star");
+                }
+            });
+            if (!logged[0]) {
+                logged[0] = true;
+                // The game's summary of a failed test leaves out the reason on some versions.
+                JustEnoughStructures.LOGGER.info("In the test of loot modifiers in Found in: {}", wrong.isEmpty() ? "each index lists the nether star" : String.join("; ", wrong));
+            }
+            helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
+        });
+        *///?}
     }
 
     /**

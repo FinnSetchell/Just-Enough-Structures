@@ -548,6 +548,13 @@ public final class Codecs {
         buf.writeVarInt(scan.retry().size());
         scan.retry().forEach(buf::writeResourceLocation);
         writeIdMap(buf, scan.placed());
+        buf.writeVarInt(scan.rolled().size());
+        scan.rolled().forEach((table, rolled) -> {
+            buf.writeResourceLocation(table);
+            buf.writeUtf(rolled.hash());
+            buf.writeVarInt(rolled.items().size());
+            rolled.items().forEach(buf::writeResourceLocation);
+        });
     }
 
     public static StructureScan readScan(FriendlyByteBuf buf) {
@@ -563,7 +570,20 @@ public final class Codecs {
         for (int i = 0; i < retrying; i++) {
             retry.add(buf.readResourceLocation());
         }
-        return new StructureScan(tables, templates, patches, retry, readIdMap(buf));
+        Map<ResourceLocation, Set<ResourceLocation>> placed = readIdMap(buf);
+        int rolledCount = buf.readVarInt();
+        Map<ResourceLocation, StructureScan.Rolled> rolled = new TreeMap<>();
+        for (int i = 0; i < rolledCount; i++) {
+            ResourceLocation table = buf.readResourceLocation();
+            String hash = buf.readUtf();
+            int size = buf.readVarInt();
+            Set<ResourceLocation> items = new TreeSet<>();
+            for (int v = 0; v < size; v++) {
+                items.add(buf.readResourceLocation());
+            }
+            rolled.put(table, new StructureScan.Rolled(hash, items));
+        }
+        return new StructureScan(tables, templates, patches, retry, placed, rolled);
     }
 
     private static void writeIdMap(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> map) {

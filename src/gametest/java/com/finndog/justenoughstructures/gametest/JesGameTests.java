@@ -938,6 +938,12 @@ public final class JesGameTests {
         IndexStoreTests.aFailedBuildSaysSo(helper);
     }
 
+    // Builds the whole loot index, then reads it back as the next start does, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "modified_loot", timeoutTicks = 6000)
+    public void lootModifierItemsAreListed(GameTestHelper helper) {
+        IndexStoreTests.lootModifierItemsAreListed(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "spawner_patch_reload", timeoutTicks = 1200)
     public void spawnerPatchesApplyOnReload(GameTestHelper helper) {

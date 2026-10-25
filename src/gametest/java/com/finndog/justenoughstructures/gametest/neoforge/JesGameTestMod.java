@@ -16,12 +16,14 @@ public final class JesGameTestMod {
     //? if >=26.1 {
     /*public JesGameTestMod(IEventBus modBus) {
         NeoForgeGameTests.register(modBus);
+        AddItemModifier.register(modBus);
         if (FMLEnvironment.getDist() == Dist.CLIENT) {
             NeoForgeAutoshot.install();
         }
     }
     *///?} else {
-    public JesGameTestMod() {
+    public JesGameTestMod(net.neoforged.bus.api.IEventBus modBus) {
+        AddItemModifier.register(modBus);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             NeoForgeAutoshot.install();
         }

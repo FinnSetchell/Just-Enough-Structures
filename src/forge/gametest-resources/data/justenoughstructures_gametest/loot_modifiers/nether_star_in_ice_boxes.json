@@ -1,0 +1,5 @@
+{
+  "type": "justenoughstructures_gametest:add_item",
+  "table": "minecraft:chests/ancient_city_ice_box",
+  "item": "minecraft:nether_star"
+}

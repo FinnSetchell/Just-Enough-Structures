@@ -925,7 +925,7 @@ public final class JesServer {
     }
 
     /** Runs {@code task} on the server thread in its spare time, or a few ticks on at the latest. */
-    private static void later(MinecraftServer server, Runnable task) {
+    static void later(MinecraftServer server, Runnable task) {
         //? if >=26.1 {
         /*server.schedule(new TickTask(server.getTickCount(), task));
         *///?} else {

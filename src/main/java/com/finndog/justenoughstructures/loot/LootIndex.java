@@ -11,9 +11,11 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.SpawnerPatches;
+import com.google.common.hash.Hashing;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -51,7 +53,9 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
  * structure places itself without a loot table, like the elytra in an End city ship's item frame.
  * Built from each structure's template pools where it has them, plus generating it to catch loot set
  * by code, so it only knows about loot that structures actually place. An item counts as placed when
- * any piece the pools can reach, or any layout generated for the index, places it.
+ * any piece the pools can reach, or any layout generated for the index, places it. What a table can
+ * give is read from the table, plus what rolling it shows that reading can't, like what loot
+ * modifiers add.
  */
 public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure,
                         Map<ResourceLocation, Set<ResourceLocation>> itemsByTable,
@@ -173,10 +177,14 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         placed.putAll(part.placed());
         JesLog.debug("Generated {} of {} structures again for what was changed in {} and {} tried again", affected.size(), base.templates().size(),
                 changed, base.retry());
-        return new StructureScan(tables, templates, now, part.retry(), placed);
+        return new StructureScan(tables, templates, now, part.retry(), placed, base.rolled());
     }
 
-    /** The index from a scan, with the items each table can give read from the loot tables as they are now, and the items each structure places. */
+    /**
+     * The index from a scan, with the items each table can give read from the loot tables as they are
+     * now, and the items each structure places. What the scan kept from rolling a table is added
+     * while the table is still as it was rolled.
+     */
     public static LootIndex of(MinecraftServer server, StructureScan scan) {
         return JesLog.quietly(() -> {
             Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
@@ -185,8 +193,45 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     items.computeIfAbsent(table, t -> itemsIn(server, t, new HashSet<>()));
                 }
             }
+            scan.rolled().forEach((table, rolled) -> {
+                Set<ResourceLocation> read = items.get(table);
+                if (read != null && rolled.hash().equals(tableHash(server, table))) {
+                    read.addAll(rolled.items());
+                }
+            });
             return new LootIndex(scan.tables(), items, scan.placed());
         });
+    }
+
+    /**
+     * The tables the scan's structures use that it has kept no rolls of as they are now, each with
+     * its hash for keeping the rolls under.
+     */
+    public static Map<ResourceLocation, String> unrolled(MinecraftServer server, StructureScan scan) {
+        return JesLog.quietly(() -> {
+            Map<ResourceLocation, String> out = new TreeMap<>();
+            for (ResourceLocation table : scan.usedTables()) {
+                String hash = tableHash(server, table);
+                StructureScan.Rolled kept = scan.rolled().get(table);
+                if (kept == null || !kept.hash().equals(hash)) {
+                    out.put(table, hash);
+                }
+            }
+            return out;
+        });
+    }
+
+    /** The index with these items added to what each of its tables can give. */
+    public LootIndex withItems(Map<ResourceLocation, Set<ResourceLocation>> more) {
+        Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
+        itemsByTable.forEach((table, given) -> items.put(table, new TreeSet<>(given)));
+        more.forEach((table, extra) -> {
+            Set<ResourceLocation> given = items.get(table);
+            if (given != null) {
+                given.addAll(extra);
+            }
+        });
+        return new LootIndex(tablesByStructure, items, placedByStructure);
     }
 
     private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
@@ -444,26 +489,50 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         //?}
     }
 
-    /** Every item a table can ever give, found by reading the table instead of rolling it. */
+    /**
+     * Every item a table can ever give, found by reading the table instead of rolling it. What loot
+     * modifiers add only shows when it's rolled.
+     */
     public static Set<ResourceLocation> itemsIn(MinecraftServer server, ResourceLocation tableId, Set<ResourceLocation> seen) {
         Set<ResourceLocation> out = new TreeSet<>();
         if (!seen.add(tableId)) {
             return out;
         }
-        LootTable table = LootRolls.table(server, tableId);
-        if (table == LootTable.EMPTY) {
-            return out;
-        }
         try {
-            //? if >=1.21 {
-            /*walk(server, LootTable.DIRECT_CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()), table).getOrThrow(), out, seen);
-            *///?} else {
-            walk(server, LootDataType.TABLE.parser().toJsonTree(table), out, seen);
-            //?}
+            JsonElement json = json(server, tableId);
+            if (json != null) {
+                walk(server, json, out, seen);
+            }
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read loot table {}", tableId, e);
         }
         return out;
+    }
+
+    /**
+     * A hash of the loaded table, which its rolls are kept under, so they're made again once it
+     * changes. The same for every table that can't be read.
+     */
+    public static String tableHash(MinecraftServer server, ResourceLocation tableId) {
+        try {
+            JsonElement json = json(server, tableId);
+            return json == null ? "" : Hashing.murmur3_128().hashString(json.toString(), StandardCharsets.UTF_8).toString();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** The loaded table written out as JSON, or null if there's no such table. */
+    private static JsonElement json(MinecraftServer server, ResourceLocation tableId) {
+        LootTable table = LootRolls.table(server, tableId);
+        if (table == LootTable.EMPTY) {
+            return null;
+        }
+        //? if >=1.21 {
+        /*return LootTable.DIRECT_CODEC.encodeStart(RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()), table).getOrThrow();
+        *///?} else {
+        return LootDataType.TABLE.parser().toJsonTree(table);
+        //?}
     }
 
     private static void walk(MinecraftServer server, JsonElement json, Set<ResourceLocation> out, Set<ResourceLocation> seen) {

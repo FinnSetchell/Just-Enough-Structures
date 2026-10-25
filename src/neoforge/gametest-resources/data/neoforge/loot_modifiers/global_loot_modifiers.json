@@ -1,0 +1,12 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "justenoughstructures_no_such_mod"
+    }
+  ],
+  "replace": false,
+  "entries": [
+    "justenoughstructures_gametest:nether_star_in_ice_boxes"
+  ]
+}

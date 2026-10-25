@@ -9,6 +9,8 @@ import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -23,18 +25,24 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -46,12 +54,17 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * The loot index, saved to disk so it's only rebuilt when its sources change.
  *
  * <p>The slow part, which loot tables each structure uses and what it places itself, is saved as a {@link StructureScan}
- * under a fingerprint of the game and mod versions and every structure, pool, processor and
- * template file. Loot tables aren't in the fingerprint: what each table can give is read again
- * after every start and /reload, which is quick. Pack tools changes to containers, and spawners
+ * under a fingerprint of the game and mod versions and every structure, pool, processor, template
+ * and loot modifier file. Loot tables aren't in the fingerprint: what each table can give is read
+ * again after every start and /reload, which is quick. Pack tools changes to containers, and spawners
  * switched to or from trial spawners, regenerate only the structures that place those templates, as
  * do structures that failed for a temporary reason. Anything else that changes, or a failed update,
  * rebuilds the whole scan.
+ *
+ * <p>Loot modifiers on Forge and NeoForge, and Fabric's event that changes what a table drops, only
+ * show what they add when a table is rolled. So before the finished index goes out, each table is
+ * rolled a few hundred times on the server thread, and what that adds is saved with the scan under a
+ * hash of the table. Only a table that changed, or one no structure used before, is rolled again.
  *
  * <p>It all runs on a separate thread and never holds up the server starting or players joining.
  * A dedicated server builds at once; singleplayer waits until someone asks. While a rebuild runs,
@@ -63,10 +76,20 @@ import net.minecraft.server.packs.resources.ResourceManager;
  */
 public final class LootIndexStore {
     /** Bump when the saved format or what goes in it changes, so old files aren't read as new. */
-    private static final String FORMAT = "6";
+    private static final String FORMAT = "7";
     private static final int KEPT_FILES = 4;
+    // Loot modifiers are Forge's and NeoForge's, listed in forge/ or neoforge/ except on NeoForge from 26.1.
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
-            "worldgen/processor_list");
+            "worldgen/processor_list", "loot_modifiers");
+    /**
+     * How many times each loot table is rolled for the index. The odds players see are rolled more
+     * times from the same seed, so whatever these rolls find has a chance there too.
+     */
+    private static final int ROLLS = 500;
+    /** The most of the server's time one table's rolls take. A table some mod makes slow to roll gets fewer. */
+    private static final long TABLE_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+    /** How long the rolls run in one go on the server thread, before the next tick gets its turn. */
+    private static final long SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     // The index captures every structure, so it runs on a separate thread and never holds up previews.
     private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
@@ -132,6 +155,7 @@ public final class LootIndexStore {
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             StructureScan updated = null;
             LootIndex updatedIndex = null;
+            Map<ResourceLocation, String> unrolled = Map.of();
             if (base != null) {
                 // Only structures placing patched templates, and those to retry, are generated
                 // again; what each table can give is read from the current loot tables.
@@ -141,6 +165,7 @@ public final class LootIndexStore {
                         return;
                     }
                     updatedIndex = LootIndex.of(server, updated);
+                    unrolled = LootIndex.unrolled(server, updated);
                     if (updated != base && current != null) {
                         write(dir, current, updated);
                     }
@@ -153,6 +178,7 @@ public final class LootIndexStore {
             long millis = (System.nanoTime() - started) / 1_000_000L;
             StructureScan ready = updated;
             LootIndex readyIndex = updatedIndex;
+            Map<ResourceLocation, String> toRoll = unrolled;
             if (ready == null) {
                 // A build can follow, so this is ready before anyone is told how it's going.
                 chestItems = LootIndex.chestItems(server);
@@ -165,10 +191,8 @@ public final class LootIndexStore {
                 fingerprint = current;
                 JesServer.fingerprintKnown(server, current);
                 if (ready != null) {
-                    JesLog.debug("The loot index is up to date in {} ms", millis);
-                    scan = ready;
-                    index = readyIndex;
-                    publish(server);
+                    JesLog.debug("The loot index is up to date in {} ms, with {} loot tables to roll", millis, toRoll.size());
+                    rollThenPublish(server, generation, ready, readyIndex, toRoll, current, dir);
                     return;
                 }
                 scan = null;
@@ -276,20 +300,140 @@ public final class LootIndexStore {
                 return;
             }
             LootIndex built = LootIndex.of(server, scanned);
+            Map<ResourceLocation, String> unrolled = LootIndex.unrolled(server, scanned);
             JesLog.debug("Indexed the loot of {} structures in {} s ({} wouldn't generate, {} to try again)", ids.size(),
                     (System.nanoTime() - started) / 1_000_000_000L, failed.get(), scanned.retry().size());
             if (key != null) {
+                // Saved before the rolls as well, so a server stopped during them only has those left to do.
                 write(dir, key, scanned);
             }
             server.execute(() -> {
                 if (generation == GENERATION.get()) {
-                    building = false;
-                    scan = scanned;
-                    index = built;
-                    publish(server);
+                    rollThenPublish(server, generation, scanned, built, unrolled, key, dir);
                 }
             });
         });
+    }
+
+    /**
+     * Rolls the tables in {@code unrolled}, adds to the index what the rolls gave that reading the
+     * tables doesn't show, then makes it the index and sends it. It's sent only then, as EMI loads
+     * all over again for each index. The scan is saved again with the rolls, under {@code key} unless
+     * that's null. Server thread only.
+     */
+    private static void rollThenPublish(MinecraftServer server, int generation, StructureScan scanned, LootIndex read,
+                                        Map<ResourceLocation, String> unrolled, String key, Path dir) {
+        if (unrolled.isEmpty()) {
+            finish(server, scanned, read);
+            return;
+        }
+        building = true;
+        new TableRolls(server, unrolled.keySet(), () -> generation != GENERATION.get() || !server.isRunning(), seen -> {
+            Map<ResourceLocation, StructureScan.Rolled> rolled = new TreeMap<>();
+            Map<ResourceLocation, Set<ResourceLocation>> added = new TreeMap<>();
+            seen.forEach((table, items) -> {
+                Set<ResourceLocation> unread = new TreeSet<>(items);
+                unread.removeAll(read.itemsByTable().getOrDefault(table, Set.of()));
+                rolled.put(table, new StructureScan.Rolled(unrolled.get(table), unread));
+                if (!unread.isEmpty()) {
+                    added.put(table, unread);
+                }
+            });
+            JesLog.debug("Rolling found items that reading doesn't show in {} loot tables {}", added.size(), added);
+            StructureScan withRolls = scanned.withRolled(rolled);
+            finish(server, withRolls, read.withItems(added));
+            if (key != null) {
+                inBackground(server, generation, () -> write(dir, key, withRolls));
+            }
+        }).run();
+    }
+
+    /** Makes these the scan and the index, and sends the index. Server thread only. */
+    private static void finish(MinecraftServer server, StructureScan done, LootIndex finished) {
+        building = false;
+        scan = done;
+        index = finished;
+        publish(server);
+    }
+
+    /**
+     * Rolls loot tables on the server thread, a few milliseconds at a time in its spare time, then
+     * hands {@code done} the items each one gave. Loot modifiers and other mods' loot code run in the
+     * rolls as they do when a chest is filled, and some of them touch the world, so the rolls can't
+     * run on the index's thread. Stops once {@code stale} is true, without calling {@code done}.
+     */
+    private static final class TableRolls implements Runnable {
+        private final MinecraftServer server;
+        private final Iterator<ResourceLocation> tables;
+        private final int count;
+        private final BooleanSupplier stale;
+        private final Consumer<Map<ResourceLocation, Set<ResourceLocation>>> done;
+        private final Map<ResourceLocation, Set<ResourceLocation>> seen = new TreeMap<>();
+        private final long started = System.nanoTime();
+        private ResourceLocation table;
+        private LootRolls.Roller roller;
+        private long tableNanos;
+        private long rollingNanos;
+        private int rolls;
+
+        TableRolls(MinecraftServer server, Set<ResourceLocation> tables, BooleanSupplier stale,
+                   Consumer<Map<ResourceLocation, Set<ResourceLocation>>> done) {
+            this.server = server;
+            this.tables = List.copyOf(tables).iterator();
+            this.count = tables.size();
+            this.stale = stale;
+            this.done = done;
+        }
+
+        @Override
+        public void run() {
+            if (stale.getAsBoolean()) {
+                return;
+            }
+            long sliceStarted = System.nanoTime();
+            long left;
+            while ((left = SLICE_NANOS - (System.nanoTime() - sliceStarted)) > 0) {
+                if (table == null) {
+                    if (!tables.hasNext()) {
+                        rollingNanos += System.nanoTime() - sliceStarted;
+                        JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms",
+                                count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L);
+                        done.accept(seen);
+                        return;
+                    }
+                    table = tables.next();
+                    roller = null;
+                    tableNanos = 0;
+                }
+                long before = System.nanoTime();
+                boolean finished;
+                try {
+                    if (roller == null) {
+                        // From the seed the odds are rolled with.
+                        roller = new LootRolls.Roller(server.overworld(), table, ROLLS, table.hashCode());
+                    }
+                    finished = roller.rollFor(Math.min(left, TABLE_NANOS - tableNanos));
+                } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                    JesLog.debug("Rolling {} for the loot index failed", table, e);
+                    finished = true;
+                }
+                tableNanos += System.nanoTime() - before;
+                if (finished || tableNanos >= TABLE_NANOS) {
+                    Set<ResourceLocation> items = new TreeSet<>();
+                    if (roller != null) {
+                        LootOdds odds = roller.odds();
+                        rolls += odds.rolls();
+                        for (LootOdds.Row row : odds.rows()) {
+                            items.add(BuiltInRegistries.ITEM.getKey(row.example().getItem()));
+                        }
+                    }
+                    seen.put(table, items);
+                    table = null;
+                }
+            }
+            rollingNanos += System.nanoTime() - sliceStarted;
+            JesServer.later(server, this);
+        }
     }
 
     /**
@@ -424,9 +568,9 @@ public final class LootIndexStore {
     /**
      * A hash of everything that decides which loot tables each structure uses: the game and mod
      * versions, since structure code can change with them, and the bytes of every structure, pool,
-     * processor and template file, in every mod and datapack. Null if the files couldn't be read.
-     * Loot tables and Pack tools patches aren't in it; they're brought up to date without generating
-     * everything again.
+     * processor and template file, in every mod and datapack. Loot modifier files too, as what they
+     * add is saved with the scan. Null if the files couldn't be read. Loot tables and Pack tools
+     * patches aren't in it; they're brought up to date without generating everything again.
      */
     public static String fingerprintOf(MinecraftServer server) {
         try {

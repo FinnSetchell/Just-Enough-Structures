@@ -590,20 +590,24 @@ public final class ServiceTests {
         helper.succeed();
     }
 
-    /** The saved scan reads back as it was, a damaged one is rebuilt rather than trusted, and old ones are cleared out. */
+    /**
+     * The saved scan reads back as it was, with what rolling its tables found, a damaged one is
+     * rebuilt rather than trusted, and old ones are cleared out.
+     */
     public static void savedLootIndexReadsBack(GameTestHelper helper) {
         ResourceLocation structure = Ids.of("test", "tower");
         ResourceLocation table = Ids.of("test", "chests/tower");
         ResourceLocation template = Ids.of("test", "tower/top");
         StructureScan index = new StructureScan(Map.of(structure, Set.of(table)), Map.of(structure, Set.of(template)),
                 Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"), Set.of(Ids.of("test", "too_big_for_now")),
-                Map.of(structure, Set.of(Ids.parse("elytra"))));
+                Map.of(structure, Set.of(Ids.parse("elytra"))), Map.of(table, new StructureScan.Rolled("a1b2", Set.of(Ids.parse("nether_star")))));
         try {
             Path dir = Files.createTempDirectory("jes-index");
             LootIndexStore.write(dir, "abc", index);
             StructureScan read = LootIndexStore.read(dir, "abc");
             helper.assertTrue(read != null && read.tables().equals(index.tables()) && read.templates().equals(index.templates())
-                    && read.patches().equals(index.patches()) && read.retry().equals(index.retry()) && read.placed().equals(index.placed()),
+                    && read.patches().equals(index.patches()) && read.retry().equals(index.retry()) && read.placed().equals(index.placed())
+                    && read.rolled().equals(index.rolled()),
                     "the saved scan read back as " + read);
             helper.assertTrue(LootIndexStore.read(dir, "missing") == null, "an index that was never saved was read");
             Files.write(dir.resolve("broken.bin"), new byte[]{1, 2, 3});

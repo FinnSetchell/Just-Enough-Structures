@@ -9,6 +9,9 @@
     "justenoughstructures_gametest.mixins.json"
   ],
   "entrypoints": {
+    "main": [
+      "com.finndog.justenoughstructures.gametest.fabric.ChangedDrops"
+    ],
     "fabric-gametest": [
       "com.finndog.justenoughstructures.gametest.JesGameTests"
     ],

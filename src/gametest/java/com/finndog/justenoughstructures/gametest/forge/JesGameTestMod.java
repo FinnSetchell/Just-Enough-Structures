@@ -16,12 +16,14 @@ public final class JesGameTestMod {
     //? if >=26.1 {
     /*public JesGameTestMod(FMLJavaModLoadingContext context) {
         ForgeGameTests.register(context.getModBusGroup());
+        AddItemModifier.register(context.getModBusGroup());
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeAutoshot.install();
         }
     }
     *///?} else {
     public JesGameTestMod() {
+        AddItemModifier.register(net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ForgeAutoshot.install();
         }
