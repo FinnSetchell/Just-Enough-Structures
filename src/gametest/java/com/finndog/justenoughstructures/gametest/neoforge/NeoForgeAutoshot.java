@@ -1,23 +1,33 @@
 package com.finndog.justenoughstructures.gametest.neoforge;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.gametest.Gallery;
 import com.finndog.justenoughstructures.gametest.scripted.ScriptRun;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.neoforged.fml.ModLoader;
+import net.neoforged.fml.ModLoadingIssue;
+import net.neoforged.fml.i18n.FMLTranslations;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.gui.LoadingErrorScreen;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforgespi.language.IModInfo;
 
 /**
  * Runs the screenshot {@link Gallery}, or one of the scripted scenarios through {@link ScriptRun}, on
  * NeoForge, when {@code -Djes.autoshot=<folder>} asks for it.
  */
 final class NeoForgeAutoshot {
+    /** JES's mod id, or its test mod's. */
+    private static final Pattern JES = Pattern.compile("\\b" + JustEnoughStructures.MOD_ID + "(_gametest)?\\b");
+
     private NeoForgeAutoshot() {
     }
 
@@ -48,21 +58,42 @@ final class NeoForgeAutoshot {
 
     // NeoForge stops at a list of the warnings mods loaded with until someone carries on, which a hidden
     // window never does. From 26.2 it warns about mods' own metadata, which some of the dev runtime's
-    // structure mods set off. A list with errors is left alone, as the game can't go on from it.
+    // structure mods set off, so other mods' warnings are logged and carried past. A warning about JES
+    // crashes the run instead, so it fails rather than going by unseen. A list with errors is left
+    // alone, as the game can't go on from it.
     private static void carryOnPastWarnings(Screen screen) {
         if (!(screen instanceof LoadingErrorScreen)) {
             return;
         }
+        Runnable carryOn;
         try {
             Field errors = LoadingErrorScreen.class.getDeclaredField("modLoadErrors");
             Field next = LoadingErrorScreen.class.getDeclaredField("nextScreenTask");
             errors.setAccessible(true);
             next.setAccessible(true);
-            if (((List<?>) errors.get(screen)).isEmpty()) {
-                ((Runnable) next.get(screen)).run();
+            if (!((List<?>) errors.get(screen)).isEmpty()) {
+                return;
             }
+            carryOn = (Runnable) next.get(screen);
         } catch (ReflectiveOperationException | RuntimeException e) {
             JesLog.debug("Couldn't carry on past NeoForge's mod loading warnings", e);
+            return;
         }
+        List<String> aboutJes = new ArrayList<>();
+        for (ModLoadingIssue issue : ModLoader.getLoadingIssues()) {
+            if (issue.severity() != ModLoadingIssue.Severity.WARNING) {
+                continue;
+            }
+            String text = FMLTranslations.translateIssueEnglish(issue);
+            JustEnoughStructures.LOGGER.warn("Autoshot found a mod loading warning: {}", text);
+            IModInfo mod = issue.affectedMod();
+            if ((mod != null && JES.matcher(mod.getModId()).matches()) || JES.matcher(text).find()) {
+                aboutJes.add(text);
+            }
+        }
+        if (!aboutJes.isEmpty()) {
+            throw new IllegalStateException("NeoForge warned about JES while loading: " + String.join("; ", aboutJes));
+        }
+        carryOn.run();
     }
 }

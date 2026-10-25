@@ -60,13 +60,24 @@ fun prepareGameTestWorld(world: File, properties: File) {
  * A test server that fails to start still exits cleanly, so this goes by what it logged. At midnight
  * the game starts a new latest.log and zips the one before beside it, so a run that crosses midnight
  * has its result in the zipped one.
+ *
+ * The run also fails when the mod loader warned about JES or its test mod while loading, such as for
+ * a deprecated key in its metadata. Some of those only show in dev runs, where they stop the client on
+ * a screen. Other mods' warnings don't count.
  */
-fun requireGameTestsPassed(log: File) {
+fun requireGameTestsPassed(log: File, modId: String) {
     val passed = Regex("All \\d+ required tests passed")
     val zipped = log.parentFile.listFiles { file -> file.name.endsWith(".log.gz") }.orEmpty()
-    val logged = sequenceOf(log).filter { it.exists() }.map { it.readText() } +
-        zipped.asSequence().map { file -> GZIPInputStream(file.inputStream()).bufferedReader().use { it.readText() } }
+    val logged = (sequenceOf(log).filter { it.exists() }.map { it.readText() } +
+        zipped.asSequence().map { file -> GZIPInputStream(file.inputStream()).bufferedReader().use { it.readText() } }).toList()
     if (logged.none { passed.containsMatchIn(it) }) {
         throw GradleException("Not every game test passed, see $log")
+    }
+    // NeoForge and Forge log what they warn about while loading with the LOADING marker, a line each:
+    // [main/WARN] [...ServerModLoader/LOADING]: Mod %s uses the deprecated ... [[justenoughstructures]]
+    val warning = Regex("""^\[[^\]]*] \[[^\]]*/(WARN|ERROR)] \[[^\]]*/LOADING]: .*\b${Regex.escape(modId)}(_gametest)?\b.*$""", RegexOption.MULTILINE)
+    val warnings = logged.flatMap { text -> warning.findAll(text).map { it.value.trim() } }
+    if (warnings.isNotEmpty()) {
+        throw GradleException("The mod loader warned about $modId while loading, see $log:\n" + warnings.joinToString("\n"))
     }
 }

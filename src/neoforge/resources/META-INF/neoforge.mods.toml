@@ -10,7 +10,10 @@ displayName = "${mod_name}"
 authors = "${mod_author}"
 description = '''${description}'''
 displayURL = "https://github.com/FinnSetchell/Just-Enough-Structures"
+# NeoForge up to 26.1 only reads logoFile. From 26.2 the mod list shows iconFile beside the mod's name,
+# and dev runs warn about a logoFile with neither iconFile nor bannerFile.
 logoFile = "assets/justenoughstructures/icon.png"
+iconFile = "assets/justenoughstructures/icon.png"
 
 [[mixins]]
 config = "${mod_id}.mixins.json"

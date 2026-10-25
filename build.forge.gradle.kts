@@ -299,7 +299,7 @@ tasks {
             gameTestMods.fill(mods.get().asFile)
         }
         doLast {
-            requireGameTestsPassed(log.get().asFile)
+            requireGameTestsPassed(log.get().asFile, modId)
         }
     }
 
