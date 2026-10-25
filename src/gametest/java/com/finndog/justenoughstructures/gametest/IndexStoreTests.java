@@ -166,6 +166,13 @@ public final class IndexStoreTests {
                         entry.getKey() + " had loot in the early index that the finished one doesn't");
             }
             helper.assertTrue(finished.tablesByStructure().size() >= early.tablesByStructure().size(), "the finished index has fewer structures than the early one");
+            // What structures place themselves comes too, like the elytra in an End city ship's item frame.
+            for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : early.placedByStructure().entrySet()) {
+                helper.assertTrue(finished.placedByStructure().getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue()),
+                        entry.getKey() + " placed items in the early index that the finished one doesn't");
+            }
+            Set<ResourceLocation> city = finished.placedByStructure().getOrDefault(Ids.parse("end_city"), Set.of());
+            helper.assertTrue(city.contains(Ids.parse("elytra")), "the finished index lists the End city as placing " + city + ", without its elytra");
             List<Sent> again = seen.get(1);
             helper.assertTrue(again.size() == 1 && finished.equals(again.get(0).index()) && Boolean.FALSE.equals(again.get(0).early()),
                     "asking after the build was answered with " + again.size() + " messages, " + again);
@@ -391,8 +398,10 @@ public final class IndexStoreTests {
                 if (part.index() == part.count() - 1) {
                     parts.remove(part.transferId());
                     FriendlyByteBuf message = Blobs.fromBytes(registries, Blobs.inflate(bytes.toByteArray()));
-                    LootIndex index = Codecs.readIndex(message);
-                    Boolean early = message.readableBytes() == 1 ? Codecs.readIndexEarly(message) : null;
+                    LootIndex read = Codecs.readIndex(message);
+                    Boolean early = message.isReadable() ? Codecs.readIndexEarly(message) : null;
+                    // Then what structures place, as the client reads it.
+                    LootIndex index = new LootIndex(read.tablesByStructure(), read.itemsByTable(), Codecs.readIndexPlaced(message));
                     sent.add(new Sent(index, early, 0, 0, false, Set.of()));
                 }
             }

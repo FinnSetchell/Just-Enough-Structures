@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -18,7 +17,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Lists the structures whose loot can give an item, like pressing U on an item in JEI. */
+/**
+ * Lists the structures whose loot can give an item, like pressing U on an item in JEI, and those that
+ * place it themselves. Those that only place it show "Placed" instead of a chance, and come first.
+ */
 final class FoundInPopup {
     static final int WIDTH = 230;
     private static final int ROW = 22;
@@ -27,7 +29,11 @@ final class FoundInPopup {
     /** How long the list waits for every chance before showing anyway. */
     private static final long SORT_WAIT_MILLIS = 3000;
 
-    record Row(ResourceLocation structure, Set<ResourceLocation> tables) {
+    /** {@code placed} when the structure places the item itself, whether or not its loot can give it too. */
+    record Row(ResourceLocation structure, Set<ResourceLocation> tables, boolean placed) {
+        boolean onlyPlaced() {
+            return placed && tables.isEmpty();
+        }
     }
 
     final ItemStack item;
@@ -69,7 +75,7 @@ final class FoundInPopup {
             listedFrom = FoundIn.changes();
             rows = new ArrayList<>();
             for (Map.Entry<ResourceLocation, Set<ResourceLocation>> e : FoundIn.structuresFor(item.getItem()).entrySet()) {
-                rows.add(new Row(e.getKey(), e.getValue()));
+                rows.add(new Row(e.getKey(), e.getValue(), FoundIn.places(e.getKey(), item.getItem())));
                 e.getValue().forEach(ClientRequests::odds);
             }
             rows.sort(Comparator.comparing(r -> StructureNames.structure(r.structure())));
@@ -89,8 +95,9 @@ final class FoundInPopup {
         return (int) rows.stream().filter(r -> chance(r) >= 0).count();
     }
 
+    /** A row's chance, with an item that's only placed counted as always there, as it is wherever its part is. */
     private double chance(Row row) {
-        return FoundIn.chance(item.getItem(), row.tables());
+        return row.onlyPlaced() ? 1 : FoundIn.chance(item.getItem(), row.tables());
     }
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
@@ -136,14 +143,17 @@ final class FoundInPopup {
             if (!Thumbnails.draw(g, row.structure(), x + 9, ry + 2, 18)) {
                 g.renderItem(STRUCTURE_ICON, x + 10, ry + 3);
             }
-            double chance = chance(row);
-            String pct = FoundIn.percent(chance);
+            String pct = row.onlyPlaced() ? FoundIn.placedText() : FoundIn.percent(chance(row));
             Gui.fitted(g, font, StructureNames.structure(row.structure()), x + 30, ry + 3, WIDTH - 50 - room - font.width(pct), Gui.ink(0xFF202020, Gui.VANILLA_LABEL));
             g.drawString(font, pct, x + WIDTH - 10 - room - font.width(pct), ry + 3, Gui.ink(0xFF202020, Gui.VANILLA_LABEL), false);
-            // Which of its loot tables, unless that only repeats the structure's name.
+            // Which of its loot tables, unless that only repeats the structure's name, after "Placed" when it's placed too.
             String name = StructureNames.structure(row.structure());
-            String tables = row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct()
-                    .filter(t -> !t.equals(name)).collect(Collectors.joining(", "));
+            List<String> sources = new ArrayList<>();
+            if (row.placed() && !row.onlyPlaced()) {
+                sources.add(FoundIn.placedText());
+            }
+            row.tables().stream().map(t -> StructureNames.lootTable(t.toString())).distinct().filter(t -> !t.equals(name)).forEach(sources::add);
+            String tables = row.onlyPlaced() ? Component.translatable("screen.justenoughstructures.placed_tip").getString() : String.join(", ", sources);
             Gui.smallClipped(g, font, tables, x + 30, ry + 13, WIDTH - 40 - room, Gui.labelSoft());
         }
         Gui.scrollbar(g, x + WIDTH - 11, top, VISIBLE_ROWS * ROW, scroll.offset(), scroll.most());

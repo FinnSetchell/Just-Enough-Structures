@@ -199,6 +199,16 @@ public final class JesGameTests {
         ServiceTests.lootIndexFindsItemsInStructures(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void lootIndexListsPlacedItems(GameTestHelper helper) {
+        ServiceTests.lootIndexListsPlacedItems(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void placedItemsLeaveOutFuel(GameTestHelper helper) {
+        ServiceTests.placedItemsLeaveOutFuel(helper);
+    }
+
     // A batch of its own, like lootChancesMatchTheGame's: it swaps the server's sender while the odds roll.
     @GameTest(template = EMPTY_STRUCTURE, batch = "found_in_odds", timeoutTicks = 400)
     public void foundInListsWhatChestsGive(GameTestHelper helper) {
@@ -757,6 +767,11 @@ public final class JesGameTests {
     @GameTest(template = EMPTY_STRUCTURE)
     public void indexProgressReadsBack(GameTestHelper helper) {
         MessageTests.indexProgressReadsBack(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void placedItemsComeAfterTheEarlyMark(GameTestHelper helper) {
+        MessageTests.placedItemsComeAfterTheEarlyMark(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

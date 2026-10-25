@@ -4,6 +4,7 @@ import static com.finndog.justenoughstructures.gametest.TestSupport.key;
 import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -97,6 +98,70 @@ public final class MessageTests {
         byte[] sent = only(helper, sent(player, JesNetwork.INDEX_PROGRESS, () -> JesServer.sendIndexProgress(player, 41, 1200, true, items)), "index progress");
         Codecs.IndexProgress told = read(helper, sent, Codecs::readIndexProgress);
         helper.assertTrue(told.equals(new Codecs.IndexProgress(41, 1200, true, items)), "the server's build failed 41 of 1200 through but it said " + told);
+        helper.succeed();
+    }
+
+    /**
+     * The loot index is sent as one message: the index, whether it's early, then the items each
+     * structure places itself. Older clients stop reading after the early mark, so they still read the
+     * index and the mark as before. An older server sends nothing after the mark, or after the index,
+     * which reads as nothing placed.
+     */
+    public static void placedItemsComeAfterTheEarlyMark(GameTestHelper helper) {
+        ResourceLocation city = Ids.parse("end_city");
+        ResourceLocation table = Ids.parse("chests/end_city_treasure");
+        ResourceLocation diamond = Ids.parse("diamond");
+        ResourceLocation elytra = Ids.parse("elytra");
+        LootIndex index = new LootIndex(Map.of(city, Set.of(table)), Map.of(table, Set.of(diamond)), Map.of(city, Set.of(elytra)));
+        for (boolean early : new boolean[]{false, true}) {
+            byte[] written = bytes(helper, buf -> {
+                Codecs.writeIndex(buf, index);
+                Codecs.writeIndexEarly(buf, early);
+                Codecs.writeIndexPlaced(buf, index.placedByStructure());
+            });
+            same(helper, written, bytes(helper, buf -> {
+                // Each structure's tables, each table's items, the early mark, each structure's placed items.
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(city);
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(table);
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(table);
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(diamond);
+                buf.writeBoolean(early);
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(city);
+                buf.writeVarInt(1);
+                buf.writeResourceLocation(elytra);
+            }), "the loot index with what structures place");
+            LootIndex back = read(helper, written, buf -> {
+                LootIndex read = Codecs.readIndex(buf);
+                helper.assertTrue(Codecs.readIndexEarly(buf) == early, "an index sent as " + (early ? "early" : "finished") + " read as the other");
+                return new LootIndex(read.tablesByStructure(), read.itemsByTable(), Codecs.readIndexPlaced(buf));
+            });
+            helper.assertTrue(back.equals(index), "sent " + index + " but read " + back);
+            // Read as a client from before the placed items: the index and the early mark, and no further.
+            FriendlyByteBuf old = Blobs.fromBytes(helper.getLevel().registryAccess(), written);
+            LootIndex oldRead = Codecs.readIndex(old);
+            boolean oldEarly = Codecs.readIndexEarly(old);
+            helper.assertTrue(oldRead.equals(new LootIndex(index.tablesByStructure(), index.itemsByTable())) && oldEarly == early,
+                    "read as a version from before the placed items reads it, " + index + " was " + oldRead + (oldEarly ? ", early" : ""));
+        }
+        // An older server sends the index and the early mark, and one older still only the index.
+        for (boolean marked : new boolean[]{true, false}) {
+            LootIndex back = read(helper, bytes(helper, buf -> {
+                Codecs.writeIndex(buf, index);
+                if (marked) {
+                    Codecs.writeIndexEarly(buf, true);
+                }
+            }), buf -> {
+                LootIndex read = Codecs.readIndex(buf);
+                Codecs.readIndexEarly(buf);
+                return new LootIndex(read.tablesByStructure(), read.itemsByTable(), Codecs.readIndexPlaced(buf));
+            });
+            helper.assertTrue(back.placedByStructure().isEmpty(), "an index from a server before the placed items read as placing " + back.placedByStructure());
+        }
         helper.succeed();
     }
 

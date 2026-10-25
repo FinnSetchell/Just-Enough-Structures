@@ -18,9 +18,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
-/** The loot index inverted: for each item, the structures and loot tables it can come from. */
+/**
+ * The loot index inverted: for each item, the structures and loot tables it can come from, and the
+ * structures that place it themselves.
+ */
 public final class FoundIn {
+    // Structures that place an item and no loot of theirs rolls it are here too, with no tables.
     private static Map<ResourceLocation, Map<ResourceLocation, Set<ResourceLocation>>> byItem = Map.of();
+    private static Map<ResourceLocation, Set<ResourceLocation>> placedByItem = Map.of();
     private static LootIndex index;
     private static Map<ResourceLocation, Set<ResourceLocation>> byTable = Map.of();
     private static final Map<ResourceLocation, String> NAMES = new HashMap<>();
@@ -42,7 +47,13 @@ public final class FoundIn {
                 }
             }
         }
+        Map<ResourceLocation, Set<ResourceLocation>> placed = new HashMap<>();
+        built.placedByStructure().forEach((structure, items) -> items.forEach(item -> {
+            out.computeIfAbsent(item, i -> new TreeMap<>()).computeIfAbsent(structure, s -> new TreeSet<>());
+            placed.computeIfAbsent(item, i -> new TreeSet<>()).add(structure);
+        }));
         byItem = out;
+        placedByItem = placed;
         byTable = structuresByTable(built);
         index = built;
         changes++;
@@ -58,6 +69,7 @@ public final class FoundIn {
 
     static void clear() {
         byItem = Map.of();
+        placedByItem = Map.of();
         byTable = Map.of();
         index = null;
         changes++;
@@ -90,9 +102,22 @@ public final class FoundIn {
         return byTable.getOrDefault(table, Set.of());
     }
 
-    /** Structure id to the loot tables in it that can give this item. Empty if none do. */
+    /**
+     * Structure id to the loot tables in it that can give this item. Empty if none do. A structure
+     * that places the item and has no loot that gives it is there with no tables.
+     */
     public static Map<ResourceLocation, Set<ResourceLocation>> structuresFor(Item item) {
         return byItem.getOrDefault(BuiltInRegistries.ITEM.getKey(item), Map.of());
+    }
+
+    /** Whether the structure places this item itself, in an item frame, on an armour stand or in a container without a loot table. */
+    public static boolean places(ResourceLocation structure, Item item) {
+        return placedByItem.getOrDefault(BuiltInRegistries.ITEM.getKey(item), Set.of()).contains(structure);
+    }
+
+    /** What shows in place of a chance for an item a structure places and none of its loot gives. */
+    public static String placedText() {
+        return Component.translatable("screen.justenoughstructures.placed").getString();
     }
 
     /**
@@ -139,7 +164,7 @@ public final class FoundIn {
         return chance < 0.005 ? percent(chance) : String.format("%.0f%%", chance * 100);
     }
 
-    /** True if any loot in the structure can give an item whose name or id contains {@code text}. */
+    /** True if any loot in the structure can give an item whose name or id contains {@code text}, or the structure places one. */
     public static boolean structureHasItem(ResourceLocation structure, String text) {
         if (index == null) {
             return false;
@@ -151,10 +176,15 @@ public final class FoundIn {
                 }
             }
         }
+        for (ResourceLocation item : index.placedByStructure().getOrDefault(structure, Set.of())) {
+            if (item.getPath().contains(text) || name(item).contains(text)) {
+                return true;
+            }
+        }
         return false;
     }
 
-    /** Loot items whose name or id contains {@code text}, most widespread first. */
+    /** Loot items and placed items whose name or id contains {@code text}, most widespread first. */
     public static List<Item> itemsMatching(String text, int limit) {
         List<ResourceLocation> matches = new ArrayList<>();
         for (ResourceLocation item : byItem.keySet()) {

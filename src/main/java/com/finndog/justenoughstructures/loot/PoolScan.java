@@ -40,15 +40,16 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * generating it: every piece in every pool it can reach, the chests and minecarts saved in those
  * pieces, and loot added by their processors. That covers rare pieces a few test generations
  * would miss. Structures build their pools in different ways, so it reads each structure's and
- * pool's codec output instead of their classes, which covers modded jigsaw types too.
+ * pool's codec output instead of their classes, which covers modded jigsaw types too. It also finds
+ * the items those pieces place themselves (see {@link PlacedItems}).
  * Loot that structure code sets as it generates still needs a real generation to find.
  */
 final class PoolScan {
-    private record Pool(Set<ResourceLocation> tables, Set<ResourceLocation> pools, Set<ResourceLocation> templates) {
+    private record Pool(Set<ResourceLocation> tables, Set<ResourceLocation> pools, Set<ResourceLocation> templates, Set<ResourceLocation> items) {
     }
 
-    /** The loot tables a structure's pieces can hold and the templates those pieces are. */
-    record Reach(Set<ResourceLocation> tables, Set<ResourceLocation> templates) {
+    /** The loot tables a structure's pieces can hold, the templates those pieces are, and the items they place. */
+    record Reach(Set<ResourceLocation> tables, Set<ResourceLocation> templates, Set<ResourceLocation> items) {
     }
 
     private final MinecraftServer server;
@@ -75,6 +76,7 @@ final class PoolScan {
         }
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> templates = new HashSet<>();
+        Set<ResourceLocation> items = new HashSet<>();
         Set<ResourceLocation> seen = new HashSet<>();
         Deque<ResourceLocation> queue = new ArrayDeque<>(starts);
         while (!queue.isEmpty()) {
@@ -85,9 +87,10 @@ final class PoolScan {
             Pool pool = pool(id);
             tables.addAll(pool.tables());
             templates.addAll(pool.templates());
+            items.addAll(pool.items());
             queue.addAll(pool.pools());
         }
-        return new Reach(tables, templates);
+        return new Reach(tables, templates, items);
     }
 
     private Pool pool(ResourceLocation id) {
@@ -98,6 +101,7 @@ final class PoolScan {
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> next = new HashSet<>();
         Set<ResourceLocation> locations = new HashSet<>();
+        Set<ResourceLocation> items = new HashSet<>();
         Registry<StructureTemplatePool> registry = server.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
         StructureTemplatePool pool = Regs.value(registry, id);
         JsonElement json = pool == null ? null : StructureTemplatePool.DIRECT_CODEC.encodeStart(ops, pool).result().orElse(null);
@@ -110,15 +114,16 @@ final class PoolScan {
                 Pool template = template(location);
                 tables.addAll(template.tables());
                 next.addAll(template.pools());
+                items.addAll(template.items());
             }
         }
         next.remove(Ids.parse("empty"));
-        Pool result = new Pool(tables, next, locations);
+        Pool result = new Pool(tables, next, locations, items);
         pools.put(id, result);
         return result;
     }
 
-    /** Loot tables in a saved piece's blocks and entities, and the pools its jigsaw blocks lead to. */
+    /** Loot tables in a saved piece's blocks and entities, the pools its jigsaw blocks lead to, and the items it places. */
     private Pool template(ResourceLocation id) {
         Pool cached = templates.get(id);
         if (cached != null) {
@@ -126,6 +131,7 @@ final class PoolScan {
         }
         Set<ResourceLocation> tables = new HashSet<>();
         Set<ResourceLocation> next = new HashSet<>();
+        Set<ResourceLocation> items = new HashSet<>();
         try {
             // Recorded as loaded by JES (see LoadedPieces), as the scan reads every piece any pool names.
             StructureTemplate template = LoadedPieces.during(server, () -> server.getStructureManager().get(id).orElse(null));
@@ -138,19 +144,21 @@ final class PoolScan {
                     for (StructureTemplate.StructureBlockInfo block : sets.get(0).blocks()) {
                         if (block.nbt() != null) {
                             nbt(block.nbt(), "nbt", tables, next);
+                            PlacedItems.fromBlockEntity(block.nbt(), items);
                         }
                     }
                 }
                 for (StructureTemplate.StructureEntityInfo entity : parts.justenoughstructures$entities()) {
                     if (entity.nbt != null) {
                         nbt(entity.nbt, "nbt", tables, next);
+                        PlacedItems.fromEntity(entity.nbt, items);
                     }
                 }
             }
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't read structure piece {}", id, e);
         }
-        Pool result = new Pool(tables, next, Set.of());
+        Pool result = new Pool(tables, next, Set.of(), items);
         templates.put(id, result);
         return result;
     }

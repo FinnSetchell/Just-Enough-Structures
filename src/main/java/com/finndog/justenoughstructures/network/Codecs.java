@@ -523,6 +523,19 @@ public final class Codecs {
         return buf.isReadable() && buf.readBoolean();
     }
 
+    /**
+     * Written after the early mark: the items each structure places itself, without a loot table.
+     * Older clients stop reading before it.
+     */
+    public static void writeIndexPlaced(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> placed) {
+        writeIdMap(buf, placed);
+    }
+
+    /** The items each structure places, read after the early mark. Older servers send nothing there, which reads as none. */
+    public static Map<ResourceLocation, Set<ResourceLocation>> readIndexPlaced(FriendlyByteBuf buf) {
+        return buf.isReadable() ? readIdMap(buf) : Map.of();
+    }
+
     /** The saved part of the loot index, the structure scan, for the server's disk cache. */
     public static void writeScan(FriendlyByteBuf buf, StructureScan scan) {
         writeIdMap(buf, scan.tables());
@@ -534,6 +547,7 @@ public final class Codecs {
         });
         buf.writeVarInt(scan.retry().size());
         scan.retry().forEach(buf::writeResourceLocation);
+        writeIdMap(buf, scan.placed());
     }
 
     public static StructureScan readScan(FriendlyByteBuf buf) {
@@ -549,7 +563,7 @@ public final class Codecs {
         for (int i = 0; i < retrying; i++) {
             retry.add(buf.readResourceLocation());
         }
-        return new StructureScan(tables, templates, patches, retry);
+        return new StructureScan(tables, templates, patches, retry, readIdMap(buf));
     }
 
     private static void writeIdMap(FriendlyByteBuf buf, Map<ResourceLocation, Set<ResourceLocation>> map) {

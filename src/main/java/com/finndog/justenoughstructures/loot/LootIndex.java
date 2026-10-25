@@ -47,12 +47,19 @@ import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 
 /**
- * Which loot tables each structure uses and which items each table can give. Built from each
- * structure's template pools where it has them, plus generating it to catch loot set by code, so
- * it only knows about loot that structures actually place.
+ * Which loot tables each structure uses and which items each table can give, and the items each
+ * structure places itself without a loot table, like the elytra in an End city ship's item frame.
+ * Built from each structure's template pools where it has them, plus generating it to catch loot set
+ * by code, so it only knows about loot that structures actually place. An item counts as placed when
+ * any piece the pools can reach, or any layout generated for the index, places it.
  */
 public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure,
-                        Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
+                        Map<ResourceLocation, Set<ResourceLocation>> itemsByTable,
+                        Map<ResourceLocation, Set<ResourceLocation>> placedByStructure) {
+
+    public LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure, Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
+        this(tablesByStructure, itemsByTable, Map.of());
+    }
 
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int MOST_LAYOUTS = 16;
@@ -155,18 +162,21 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         }
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>(base.tables());
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>(base.templates());
+        Map<ResourceLocation, Set<ResourceLocation>> placed = new TreeMap<>(base.placed());
         for (ResourceLocation structure : affected) {
             tables.remove(structure);
             templates.remove(structure);
+            placed.remove(structure);
         }
         tables.putAll(part.tables());
         templates.putAll(part.templates());
+        placed.putAll(part.placed());
         JesLog.debug("Generated {} of {} structures again for what was changed in {} and {} tried again", affected.size(), base.templates().size(),
                 changed, base.retry());
-        return new StructureScan(tables, templates, now, part.retry());
+        return new StructureScan(tables, templates, now, part.retry(), placed);
     }
 
-    /** The index from a scan, with the items each table can give read from the loot tables as they are now. */
+    /** The index from a scan, with the items each table can give read from the loot tables as they are now, and the items each structure places. */
     public static LootIndex of(MinecraftServer server, StructureScan scan) {
         return JesLog.quietly(() -> {
             Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
@@ -175,7 +185,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     items.computeIfAbsent(table, t -> itemsIn(server, t, new HashSet<>()));
                 }
             }
-            return new LootIndex(scan.tables(), items);
+            return new LootIndex(scan.tables(), items, scan.placed());
         });
     }
 
@@ -184,6 +194,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                                              BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
+        Map<ResourceLocation, Set<ResourceLocation>> placed = new TreeMap<>();
         Set<ResourceLocation> retry = new TreeSet<>();
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
@@ -201,12 +212,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     return generate(server, id, null, cancelled, firstViews);
                 }
                 pooled.put(id, reach);
-                return new Found(new TreeSet<>(reach.tables()), new TreeSet<>(reach.templates()), true, false);
+                return new Found(new TreeSet<>(reach.tables()), new TreeSet<>(reach.templates()), new TreeSet<>(reach.items()), true, false);
             });
             if (found == null) {
                 return null;
             }
-            keep(id, found, tables, templates);
+            keep(id, found, tables, templates, placed);
             if (!pooled.containsKey(id)) {
                 if (found.tryAgain()) {
                     retry.add(id);
@@ -216,7 +227,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 progress.accept(++done);
             }
         }
-        early.accept(new StructureScan(new TreeMap<>(tables), new TreeMap<>(templates), patches, new TreeSet<>(retry)));
+        early.accept(new StructureScan(new TreeMap<>(tables), new TreeMap<>(templates), patches, new TreeSet<>(retry), new TreeMap<>(placed)));
         // Then the slow part: one generation of each structure that has pools, for loot its code sets as it's placed.
         for (Map.Entry<ResourceLocation, PoolScan.Reach> entry : pooled.entrySet()) {
             ResourceLocation id = entry.getKey();
@@ -224,7 +235,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             if (found == null) {
                 return null;
             }
-            keep(id, found, tables, templates);
+            keep(id, found, tables, templates, placed);
             if (found.tryAgain()) {
                 retry.add(id);
             } else if (!found.generated()) {
@@ -241,31 +252,37 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
             if (!again.tryAgain()) {
                 retry.remove(id);
-                keep(id, again, tables, templates);
+                keep(id, again, tables, templates, placed);
                 if (!again.generated()) {
                     failed.incrementAndGet();
                 }
             }
         }
-        return new StructureScan(tables, templates, patches, retry);
+        return new StructureScan(tables, templates, patches, retry, placed);
     }
 
     /**
-     * What generating a structure found: the loot tables it uses and the templates it places, whether
-     * it generated at all, and whether it's worth trying again, as it failed for a reason that may pass.
+     * What generating a structure found: the loot tables it uses, the templates it places and the
+     * items it places itself, whether it generated at all, and whether it's worth trying again, as it
+     * failed for a reason that may pass.
      */
-    private record Found(Set<ResourceLocation> tables, Set<ResourceLocation> templates, boolean generated, boolean tryAgain) {
+    private record Found(Set<ResourceLocation> tables, Set<ResourceLocation> templates, Set<ResourceLocation> items, boolean generated,
+                         boolean tryAgain) {
     }
 
     private static void keep(ResourceLocation id, Found found, Map<ResourceLocation, Set<ResourceLocation>> tables,
-                             Map<ResourceLocation, Set<ResourceLocation>> templates) {
+                             Map<ResourceLocation, Set<ResourceLocation>> templates, Map<ResourceLocation, Set<ResourceLocation>> placed) {
         tables.remove(id);
         templates.remove(id);
+        placed.remove(id);
         if (!found.tables().isEmpty()) {
             tables.put(id, found.tables());
         }
         if (!found.templates().isEmpty()) {
             templates.put(id, found.templates());
+        }
+        if (!found.items().isEmpty()) {
+            placed.put(id, found.items());
         }
     }
 
@@ -311,10 +328,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         }
         Set<ResourceLocation> found = new TreeSet<>();
         Set<ResourceLocation> placed = new TreeSet<>();
+        Set<ResourceLocation> items = new TreeSet<>();
         // One generation still runs for a structure with pools, for loot that code sets as it places.
         if (fromPools != null) {
             found.addAll(fromPools.tables());
             placed.addAll(fromPools.templates());
+            items.addAll(fromPools.items());
         }
         // Otherwise keep generating new layouts until enough of them in a row turn up nothing new.
         int layouts = fromPools != null ? 1 : MOST_LAYOUTS;
@@ -341,7 +360,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 if (i == 0) {
                     firstViews.accept(id, result);
                 }
-                int before = found.size();
+                int before = found.size() + items.size();
                 for (StructureSnapshot.Container c : result.snapshot().containers()) {
                     ResourceLocation table = c.lootTable() == null ? null : ResourceLocation.tryParse(c.lootTable());
                     if (table != null) {
@@ -360,8 +379,14 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                             found.add(table);
                         }
                     }
+                    PlacedItems.fromBlockEntity(tag, items);
                 }
-                if (i == 0 || found.size() > before) {
+                // What item frames and armour stands hold, including what structure code put there.
+                for (CompoundTag tag : result.snapshot().entities()) {
+                    PlacedItems.fromEntity(tag, items);
+                }
+                // A new placed item counts as something new, as a new loot table does.
+                if (i == 0 || found.size() + items.size() > before) {
                     quietPieces = 0;
                     quietBlocks = 0;
                 } else {
@@ -377,7 +402,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 break;
             }
         }
-        return new Found(found, placed, generated, tryAgain);
+        return new Found(found, placed, items, generated, tryAgain);
     }
 
     /** The seed of a structure's layout for the loot index. The first is the one it's shown with. */

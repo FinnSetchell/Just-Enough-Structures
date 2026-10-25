@@ -20,10 +20,11 @@ import net.minecraft.world.item.Items;
 
 /**
  * How a "Found in structures" row looks and behaves in every recipe viewer: the structure's picture
- * and name, then the chance of the item in each container it has, then the item. Clicking the
- * structure opens it in the browser. A waiting row has the server's progress instead, and does
- * nothing when clicked. A table row has no item or chance, and opens the structure with its loot
- * table picked. Positions are from the row's top left corner.
+ * and name, then the chance of the item in each container it has, or "Placed" when the structure
+ * only places it itself, then the item. Clicking the structure opens it in the browser. A waiting
+ * row has the server's progress instead, and does nothing when clicked. A table row has no item or
+ * chance, and opens the structure with its loot table picked. Positions are from the row's top left
+ * corner.
  */
 public final class FoundInRow {
     public static final int WIDTH = 160;
@@ -58,7 +59,8 @@ public final class FoundInRow {
             drawWaiting(g, font, text);
             return;
         }
-        String chance = recipe.isTable() ? "" : FoundIn.percent(FoundIn.chance(recipe.item().getItem(), recipe.tables()));
+        String chance = recipe.isTable() ? "" : recipe.onlyPlaced() ? FoundIn.placedText()
+                : FoundIn.percent(FoundIn.chance(recipe.item().getItem(), recipe.tables()));
         int chanceX = WIDTH - 22 - font.width(chance);
         if (overStructure(mouseX, mouseY)) {
             g.fill(0, 0, WIDTH - 20, HEIGHT, 0x40FFFFFF);
@@ -104,7 +106,7 @@ public final class FoundInRow {
         return mouseX >= 0 && mouseX < WIDTH - 20 && mouseY >= 0 && mouseY < HEIGHT;
     }
 
-    /** The structure's name and mod, which of its loot tables give the item, the chance, and how to open it. */
+    /** The structure's name and mod, which of its loot tables give the item, the chance, whether it places it, and how to open it. */
     public static List<Component> tooltip(FoundInRecipe recipe) {
         if (recipe.isWaiting()) {
             return List.of(ClientRequests.viewerWaitText());
@@ -122,6 +124,10 @@ public final class FoundInRow {
         double chance = recipe.isTable() ? -1 : FoundIn.chance(recipe.item().getItem(), recipe.tables());
         if (chance >= 0) {
             lines.add(Component.translatable("viewer.justenoughstructures.chance", FoundIn.percent(chance)).withStyle(ChatFormatting.GRAY));
+        }
+        if (recipe.placed() && !recipe.isTable()) {
+            String placed = recipe.onlyPlaced() ? "screen.justenoughstructures.placed_tip" : "screen.justenoughstructures.placed_too";
+            lines.add(Component.translatable(placed).withStyle(ChatFormatting.GRAY));
         }
         lines.add(Component.translatable("viewer.justenoughstructures.open").withStyle(ChatFormatting.DARK_GRAY));
         return lines;

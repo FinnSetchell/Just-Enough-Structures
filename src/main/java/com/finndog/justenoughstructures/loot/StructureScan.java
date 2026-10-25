@@ -17,15 +17,23 @@ import net.minecraft.resources.ResourceLocation;
  *
  * <p>{@code retry} lists structures that failed for a temporary reason, like the server running short
  * on memory. They're generated again the next time the scan is brought up to date.
+ *
+ * <p>{@code placed} holds the items each structure places itself, without a loot table.
  */
 public record StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables,
                             Map<ResourceLocation, Set<ResourceLocation>> templates,
                             Map<ResourceLocation, String> patches,
-                            Set<ResourceLocation> retry) {
+                            Set<ResourceLocation> retry,
+                            Map<ResourceLocation, Set<ResourceLocation>> placed) {
 
     public StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables, Map<ResourceLocation, Set<ResourceLocation>> templates,
                          Map<ResourceLocation, String> patches) {
         this(tables, templates, patches, Set.of());
+    }
+
+    public StructureScan(Map<ResourceLocation, Set<ResourceLocation>> tables, Map<ResourceLocation, Set<ResourceLocation>> templates,
+                         Map<ResourceLocation, String> patches, Set<ResourceLocation> retry) {
+        this(tables, templates, patches, retry, Map.of());
     }
 
     /** The templates whose changes differ between the scan and {@code now}. */

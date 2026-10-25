@@ -45,7 +45,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 /**
  * The loot index, saved to disk so it's only rebuilt when its sources change.
  *
- * <p>The slow part, which loot tables each structure uses, is saved as a {@link StructureScan}
+ * <p>The slow part, which loot tables each structure uses and what it places itself, is saved as a {@link StructureScan}
  * under a fingerprint of the game and mod versions and every structure, pool, processor and
  * template file. Loot tables aren't in the fingerprint: what each table can give is read again
  * after every start and /reload, which is quick. Pack tools changes to containers, and spawners
@@ -63,7 +63,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
  */
 public final class LootIndexStore {
     /** Bump when the saved format or what goes in it changes, so old files aren't read as new. */
-    private static final String FORMAT = "5";
+    private static final String FORMAT = "6";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list");
@@ -392,6 +392,8 @@ public final class LootIndexStore {
             // Appended after the index, so older clients stop reading before it. Marks an early index
             // for EMI, which reloads fully for each index and so waits for the finished one.
             Codecs.writeIndexEarly(buf, early);
+            // Then what structures place themselves, where clients from before it stop.
+            Codecs.writeIndexPlaced(buf, shown.placedByStructure());
         }));
     }
 
@@ -403,6 +405,12 @@ public final class LootIndexStore {
                 tables.put(id, used);
             }
         });
+        Map<ResourceLocation, Set<ResourceLocation>> placed = new TreeMap<>();
+        full.placedByStructure().forEach((id, items) -> {
+            if (!ServerConfig.hides(id)) {
+                placed.put(id, items);
+            }
+        });
         Set<ResourceLocation> stillUsed = tables.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
         Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
         full.itemsByTable().forEach((table, found) -> {
@@ -410,7 +418,7 @@ public final class LootIndexStore {
                 items.put(table, found);
             }
         });
-        return new LootIndex(tables, items);
+        return new LootIndex(tables, items, placed);
     }
 
     /**

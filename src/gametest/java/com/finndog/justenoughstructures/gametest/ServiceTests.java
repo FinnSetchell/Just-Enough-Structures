@@ -16,6 +16,7 @@ import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.loot.PlacedItems;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -61,6 +62,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 /*import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.server.permissions.PermissionLevel;
 *///?}
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -357,6 +360,82 @@ public final class ServiceTests {
     }
 
     /**
+     * Fuel isn't counted as placed: a furnace's or smoker's fuel slot and a brewing stand's blaze
+     * powder. What else they hold is. Furnaces are told apart by the keys they save, before and after
+     * 1.21.4, as a template's block entity may leave its id out.
+     */
+    public static void placedItemsLeaveOutFuel(GameTestHelper helper) {
+        CompoundTag furnace = new CompoundTag();
+        furnace.putShort("BurnTime", (short) 0);
+        furnace.put("Items", slots(0, "minecraft:raw_iron", 1, "minecraft:coal", 2, "minecraft:iron_ingot"));
+        CompoundTag smoker = new CompoundTag();
+        smoker.putInt("lit_time_remaining", 0);
+        smoker.put("Items", slots(1, "minecraft:charcoal", 2, "minecraft:cooked_beef"));
+        CompoundTag brewingStand = new CompoundTag();
+        brewingStand.putShort("BrewTime", (short) 0);
+        brewingStand.put("Items", slots(0, "minecraft:potion", 4, "minecraft:blaze_powder"));
+        Set<ResourceLocation> placed = new TreeSet<>();
+        PlacedItems.fromBlockEntity(furnace, placed);
+        PlacedItems.fromBlockEntity(smoker, placed);
+        PlacedItems.fromBlockEntity(brewingStand, placed);
+        JustEnoughStructures.LOGGER.info("In the test of fuel in placed items: {}", placed);
+        Set<ResourceLocation> wanted = Set.of(Ids.parse("raw_iron"), Ids.parse("iron_ingot"), Ids.parse("cooked_beef"), Ids.parse("potion"));
+        helper.assertTrue(placed.equals(wanted), "placed items should be " + wanted + " without the fuel, but were " + placed);
+        helper.succeed();
+    }
+
+    /** A container's Items list: each slot number followed by the item in it. */
+    private static ListTag slots(Object... slotsAndIds) {
+        ListTag list = new ListTag();
+        for (int i = 0; i < slotsAndIds.length; i += 2) {
+            CompoundTag item = new CompoundTag();
+            item.putByte("Slot", ((Integer) slotsAndIds[i]).byteValue());
+            item.putString("id", (String) slotsAndIds[i + 1]);
+            list.add(item);
+        }
+        return list;
+    }
+
+    /**
+     * Items a structure places itself are listed as placed: the elytra its code puts in an End city
+     * ship's item frame, the armour on the taiga village armourer's stands, and the splash potion in
+     * the igloo basement's brewing stand, which has no loot table. What mobs hold isn't, like the
+     * bastion piglins' swords and crossbows. The taiga village's chestplate is rolled in its
+     * weaponsmith's chest too.
+     */
+    public static void lootIndexListsPlacedItems(GameTestHelper helper) {
+        ResourceLocation taiga = Ids.parse("village_taiga");
+        ResourceLocation chestplate = Ids.parse("iron_chestplate");
+        LootIndex index = LootIndex.build(helper.getLevel().getServer(),
+                List.of(Ids.parse("end_city"), taiga, Ids.parse("igloo"), Ids.parse("bastion_remnant")), done -> {
+                }, () -> false);
+        helper.assertTrue(index != null, "the index wasn't built");
+        List<String> wrong = new ArrayList<>();
+        String[][] expected = {
+                {"end_city", "elytra", "listed"},
+                {"village_taiga", "iron_chestplate", "listed"},
+                {"igloo", "splash_potion", "listed"},
+                {"bastion_remnant", "golden_sword", "left out"},
+                {"bastion_remnant", "crossbow", "left out"}};
+        for (String[] e : expected) {
+            boolean listed = index.placedByStructure().getOrDefault(Ids.parse(e[0]), Set.of()).contains(Ids.parse(e[1]));
+            if (listed != e[2].equals("listed")) {
+                wrong.add(e[0] + (listed ? " lists " : " doesn't list ") + e[1] + " as placed");
+            }
+        }
+        boolean rolled = index.tablesByStructure().getOrDefault(taiga, Set.of()).stream()
+                .anyMatch(table -> index.itemsByTable().getOrDefault(table, Set.of()).contains(chestplate));
+        if (!rolled) {
+            wrong.add("the taiga village's loot no longer gives an iron chestplate, found " + index.tablesByStructure().get(taiga));
+        }
+        // Logged once, as some versions leave a timed-out test's reason out of the summary.
+        JustEnoughStructures.LOGGER.info("In the test of placed items: {}, placed {}", wrong.isEmpty() ? "all as expected" : String.join("; ", wrong),
+                index.placedByStructure());
+        helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
+        helper.succeed();
+    }
+
+    /**
      * Found in lists what a chest can give and nothing else, so no item it lists shows at 0%. The
      * desert pyramid's books are all enchanted, so it has enchanted books but no plain ones. A
      * treasure map is listed as the item it comes out as, and the odds players are sent count it
@@ -431,21 +510,29 @@ public final class ServiceTests {
         });
     }
 
-    /** JEI gets one entry per item per structure, listing every table in the structure that gives it. */
+    /**
+     * JEI gets one entry per item per structure, listing every table in the structure that gives it.
+     * An item the structure places is one entry too, marked placed, with the tables that also give it
+     * if any. A structure that only places things is there as well.
+     */
     public static void foundInRecipesComeFromTheIndex(GameTestHelper helper) {
         ResourceLocation a = Ids.of("test", "a");
         ResourceLocation b = Ids.of("test", "b");
+        ResourceLocation c = Ids.of("test", "c");
         ResourceLocation t1 = Ids.of("test", "chests/one");
         ResourceLocation t2 = Ids.of("test", "chests/two");
         LootIndex index = new LootIndex(
                 Map.of(b, Set.of(t2), a, Set.of(t1, t2)),
                 Map.of(t1, Set.of(Ids.parse("diamond"), Ids.parse("gold_ingot")),
-                        t2, Set.of(Ids.parse("diamond"), Ids.of("test", "not_an_item"))));
+                        t2, Set.of(Ids.parse("diamond"), Ids.of("test", "not_an_item"))),
+                Map.of(a, Set.of(Ids.parse("gold_ingot")), c, Set.of(Ids.parse("elytra"), Ids.of("test", "not_an_item"))));
         List<FoundInRecipe> recipes = FoundInRecipe.fromIndex(index, ResourceLocation::toString);
         List<String> got = recipes.stream()
-                .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size())
+                .map(r -> r.structure().getPath() + " " + BuiltInRegistries.ITEM.getKey(r.item().getItem()).getPath() + " " + r.tables().size()
+                        + (r.onlyPlaced() ? " placed only" : r.placed() ? " placed too" : ""))
                 .toList();
-        helper.assertTrue(got.equals(List.of("a diamond 2", "a gold_ingot 1", "b diamond 1")), "expected diamonds from both tables in a, gold in a and diamonds in b, got " + got);
+        helper.assertTrue(got.equals(List.of("a diamond 2", "a gold_ingot 1 placed too", "b diamond 1", "c elytra 0 placed only")),
+                "expected diamonds from both tables in a, gold in a also placed, diamonds in b and an elytra only placed in c, got " + got);
         helper.succeed();
     }
 
@@ -509,13 +596,15 @@ public final class ServiceTests {
         ResourceLocation table = Ids.of("test", "chests/tower");
         ResourceLocation template = Ids.of("test", "tower/top");
         StructureScan index = new StructureScan(Map.of(structure, Set.of(table)), Map.of(structure, Set.of(template)),
-                Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"), Set.of(Ids.of("test", "too_big_for_now")));
+                Map.of(template, "1, 2, 3 minecraft:chest test:chests/other"), Set.of(Ids.of("test", "too_big_for_now")),
+                Map.of(structure, Set.of(Ids.parse("elytra"))));
         try {
             Path dir = Files.createTempDirectory("jes-index");
             LootIndexStore.write(dir, "abc", index);
             StructureScan read = LootIndexStore.read(dir, "abc");
             helper.assertTrue(read != null && read.tables().equals(index.tables()) && read.templates().equals(index.templates())
-                    && read.patches().equals(index.patches()) && read.retry().equals(index.retry()), "the saved scan read back as " + read);
+                    && read.patches().equals(index.patches()) && read.retry().equals(index.retry()) && read.placed().equals(index.placed()),
+                    "the saved scan read back as " + read);
             helper.assertTrue(LootIndexStore.read(dir, "missing") == null, "an index that was never saved was read");
             Files.write(dir.resolve("broken.bin"), new byte[]{1, 2, 3});
             helper.assertTrue(LootIndexStore.read(dir, "broken") == null, "a damaged file was read as an index");
@@ -860,20 +949,23 @@ public final class ServiceTests {
         helper.succeed();
     }
 
-    /** Players never get hidden structures in the index, or loot tables only they use. */
+    /** Players never get hidden structures in the index, loot tables only they use, or what they place. */
     public static void hiddenStructuresLeaveTheLootIndex(GameTestHelper helper) {
         ResourceLocation shown = Ids.of("test", "shown");
         ResourceLocation hidden = Ids.of("test", "secret");
         ResourceLocation shared = Ids.of("test", "chests/shared");
         ResourceLocation own = Ids.of("test", "chests/secret");
         LootIndex full = new LootIndex(Map.of(shown, Set.of(shared), hidden, Set.of(shared, own)),
-                Map.of(shared, Set.of(Ids.parse("bread")), own, Set.of(Ids.parse("diamond"))));
+                Map.of(shared, Set.of(Ids.parse("bread")), own, Set.of(Ids.parse("diamond"))),
+                Map.of(shown, Set.of(Ids.parse("iron_helmet")), hidden, Set.of(Ids.parse("elytra"))));
         ServerConfig.Settings before = ServerConfig.get();
         try {
             ServerConfig.set(new ServerConfig.Settings(Set.of(hidden), Set.of(), 2, 2, true, ServerConfig.PackTools.level(4)));
             LootIndex visible = LootIndexStore.visible(full);
             helper.assertTrue(visible.tablesByStructure().keySet().equals(Set.of(shown)), "the hidden structure is still in the index");
             helper.assertTrue(visible.itemsByTable().keySet().equals(Set.of(shared)), "a loot table only the hidden structure uses is still there");
+            helper.assertTrue(visible.placedByStructure().equals(Map.of(shown, Set.of(Ids.parse("iron_helmet")))),
+                    "what the structures place came out as " + visible.placedByStructure());
         } finally {
             ServerConfig.set(before);
         }

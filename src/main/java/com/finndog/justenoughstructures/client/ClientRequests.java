@@ -681,9 +681,11 @@ public final class ClientRequests {
             }
             catalog.complete(entries);
         } else if (part.kind() == JesNetwork.KIND_INDEX) {
-            LootIndex built = Codecs.readIndex(buf);
+            LootIndex read = Codecs.readIndex(buf);
             // Newer servers mark an early index, with the finished one to follow.
             boolean early = Codecs.readIndexEarly(buf);
+            // Then what structures place themselves. Older servers send none.
+            LootIndex built = new LootIndex(read.tablesByStructure(), read.itemsByTable(), Codecs.readIndexPlaced(buf));
             JesLog.debug("The loot index came with {} structures{}", built.tablesByStructure().size(), early ? ", an early one" : "");
             // Progress so far described the build of this index, so reset it.
             indexDone = 0;

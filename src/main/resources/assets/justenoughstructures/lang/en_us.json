@@ -242,6 +242,9 @@
   "screen.justenoughstructures.found_in_chance": "In %s structures (chance per container)",
   "screen.justenoughstructures.found_in_working": "Working out each one's chance... %s of %s",
   "screen.justenoughstructures.found_in_range": "%s-%s / %s",
+  "screen.justenoughstructures.placed": "Placed",
+  "screen.justenoughstructures.placed_tip": "Placed by the structure, not rolled from loot",
+  "screen.justenoughstructures.placed_too": "Also placed by the structure",
 
   "_comment.locate": "Finding the nearest structure and teleporting to it",
   "screen.justenoughstructures.locate": "Find the nearest one",

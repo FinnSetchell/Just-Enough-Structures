@@ -1265,8 +1265,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             Nav.remember();
             foundIn = null;
             select(entry, defaultSeed(entry.id()));
-            info.setTab(InfoPanel.Tab.LOOT);
-            pendingTable = row.tables().iterator().next().toString();
+            // A structure that only places the item has no loot table to pick.
+            if (!row.tables().isEmpty()) {
+                info.setTab(InfoPanel.Tab.LOOT);
+                pendingTable = row.tables().iterator().next().toString();
+            }
         }
         foundIn = null;
     }
