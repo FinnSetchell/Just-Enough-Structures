@@ -15,11 +15,15 @@ import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+//? if >=26.1 {
+/*import mezz.jei.api.recipe.types.IRecipeType;
+*///?} else {
+import mezz.jei.api.recipe.RecipeType;
+//?}
 
 /**
  * Adds a "Found in structures" category to JEI, so looking up how to get an item also lists the
@@ -32,7 +36,12 @@ import net.minecraft.world.item.ItemStack;
  */
 @JeiPlugin
 public final class JesJeiPlugin implements IModPlugin {
+    //? if >=26.1 {
+    /*// From JEI 20 RecipeType is marked for removal in favour of IRecipeType, which the JEI for 1.21.1 and older doesn't have.
+    static final IRecipeType<FoundInRecipe> FOUND_IN = IRecipeType.create(JustEnoughStructures.MOD_ID, "found_in", FoundInRecipe.class);
+    *///?} else {
     static final RecipeType<FoundInRecipe> FOUND_IN = RecipeType.create(JustEnoughStructures.MOD_ID, "found_in", FoundInRecipe.class);
+    //?}
 
     private static IJeiRuntime runtime;
     private static List<FoundInRecipe> shown = List.of();

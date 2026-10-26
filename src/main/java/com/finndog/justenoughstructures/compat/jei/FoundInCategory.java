@@ -12,7 +12,6 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
-import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -21,8 +20,11 @@ import net.minecraft.network.chat.Component;
 import mezz.jei.api.gui.inputs.IJeiInputHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
+import mezz.jei.api.recipe.types.IRecipeType;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
-*///?}
+*///?} else {
+import mezz.jei.api.recipe.RecipeType;
+//?}
 
 /** JEI's side of a {@link FoundInRow}: one row per structure that can give the item. */
 final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
@@ -36,10 +38,17 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         slot = gui.getSlotDrawable();
     }
 
+    //? if >=26.1 {
+    /*@Override
+    public IRecipeType<FoundInRecipe> getRecipeType() {
+        return JesJeiPlugin.FOUND_IN;
+    }
+    *///?} else {
     @Override
     public RecipeType<FoundInRecipe> getRecipeType() {
         return JesJeiPlugin.FOUND_IN;
     }
+    //?}
 
     @Override
     public Component getTitle() {
@@ -72,9 +81,16 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
 
     @Override
     public void setRecipe(IRecipeLayoutBuilder builder, FoundInRecipe recipe, IFocusGroup focuses) {
+        //? if >=26.1 {
+        /*// From JEI 20 addItemStack is marked for removal in favour of add.
+        builder.addSlot(RecipeIngredientRole.OUTPUT, FoundInRow.ITEM_X, FoundInRow.ITEM_Y)
+                .add(recipe.item())
+                .setBackground(slot, -1, -1);
+        *///?} else {
         builder.addSlot(RecipeIngredientRole.OUTPUT, FoundInRow.ITEM_X, FoundInRow.ITEM_Y)
                 .addItemStack(recipe.item())
                 .setBackground(slot, -1, -1);
+        //?}
     }
 
     @Override
