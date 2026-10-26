@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
@@ -118,6 +119,28 @@ public final class PackToolsServer {
         }
         JesServer.structuresChanged(server);
         return Component.translatable("screen.justenoughstructures.tools.rules_saved");
+    }
+
+    /**
+     * Saves the server settings from the settings screen. With a world open in this game, whose server
+     * is {@code running}, they're put in use there as {@link #saveRules} puts Pack tools' rules in use,
+     * on the server's thread, so changes waiting for a /reload still wait and undone patches are still
+     * known. With none, null, they're only saved.
+     */
+    public static void saveFromSettingsScreen(MinecraftServer running, ServerConfig.Settings settings) {
+        if (running != null) {
+            running.execute(() -> {
+                saveRules(running, settings);
+                JesServer.warnUnknownHidden(running, ServerConfig.get());
+            });
+            return;
+        }
+        try {
+            ServerConfig.save(ServerConfig.file(), settings);
+        } catch (IOException e) {
+            JustEnoughStructures.LOGGER.warn("Couldn't save {}: {}", ServerConfig.file(), e.toString());
+            JesLog.debug("Couldn't save {}", ServerConfig.file(), e);
+        }
     }
 
     /** Only what server.json5 allows: levels from 0 to 4, or -1 to 4 for Pack tools, and real player names. */

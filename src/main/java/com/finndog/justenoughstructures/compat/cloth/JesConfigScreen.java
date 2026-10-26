@@ -1,15 +1,12 @@
 package com.finndog.justenoughstructures.compat.cloth;
 
-import com.finndog.justenoughstructures.JesLog;
-import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.ClientState.ChestLoot;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
-import com.finndog.justenoughstructures.server.JesServer;
+import com.finndog.justenoughstructures.server.PackToolsServer;
 import com.finndog.justenoughstructures.server.ServerConfig;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 
 /**
  * The settings screen that Mod Menu and the Forge and NeoForge mod lists open, built with Cloth
@@ -138,17 +134,7 @@ public final class JesConfigScreen {
         json.add("pack_tools", packTools);
         json.addProperty("container_changes", edit.containers);
         ServerConfig.Settings settings = ServerConfig.parse(json.toString(), "the settings screen");
-        try {
-            ServerConfig.save(ServerConfig.file(), settings);
-        } catch (IOException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't save {}: {}", ServerConfig.file(), e.toString());
-            JesLog.debug("Couldn't save {}", ServerConfig.file(), e);
-            return;
-        }
-        MinecraftServer running = Minecraft.getInstance().getSingleplayerServer();
-        if (running != null) {
-            running.execute(() -> JesServer.reload(running));
-        }
+        PackToolsServer.saveFromSettingsScreen(Minecraft.getInstance().getSingleplayerServer(), settings);
     }
 
     private static Optional<Component> hiddenEntryError(String entry) {

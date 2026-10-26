@@ -1,11 +1,14 @@
 package com.finndog.justenoughstructures.gametest;
 
 import static com.finndog.justenoughstructures.gametest.TestSupport.DIAMONDS_ONLY;
+import static com.finndog.justenoughstructures.gametest.TestSupport.expect;
+import static com.finndog.justenoughstructures.gametest.TestSupport.firstBlock;
 import static com.finndog.justenoughstructures.gametest.TestSupport.key;
 import static com.finndog.justenoughstructures.gametest.TestSupport.packToolsFor;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
@@ -13,6 +16,7 @@ import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
+import com.finndog.justenoughstructures.overrides.ContainerPatches;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsServer;
@@ -45,11 +49,14 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /** What Pack tools changes on the server besides loot tables: its rules, and what players are told about structures. */
 public final class PackToolsTests {
     private static final ResourceLocation IGLOO = Ids.parse("igloo");
     private static final ResourceLocation IGLOO_TABLE = Ids.parse("chests/igloo_chest");
+    /** Has a chest with a loot table. */
+    private static final ResourceLocation TOWER = Ids.parse("pillager_outpost/watchtower");
     /** Always has chests, and nothing in the test datapack keeps them secret. */
     private static final ResourceLocation DESERT_PYRAMID = Ids.parse("desert_pyramid");
     /** What {@link #containers} gives for a view that isn't saved, and for a capture that failed. */
@@ -100,6 +107,77 @@ public final class PackToolsTests {
                     "a structure shown again is still listed as hidden");
         } finally {
             JustEnoughStructures.setConfigDir(configRoot);
+            ServerConfig.set(before);
+            JesServer.structuresChanged(server);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The settings screen's server settings are put in use the way Pack tools' rules are, so changes
+     * waiting for a /reload are still waiting and an undone patch is still known. With no world open
+     * in the game they're only written to server.json5.
+     */
+    public static void settingsScreenKeepsWaitingChanges(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        Path configRoot = JustEnoughStructures.configDir().getParent();
+        ServerConfig.Settings before = ServerConfig.get();
+        JustEnoughStructures.setConfigDir(temp("jes-config"));
+        LootOverrides.setFolder(temp("jes-overrides"));
+        ContainerPatches.load();
+        try {
+            ServerConfig.set(packToolsFor(0));
+            StructureTemplate tower = server.getStructureManager().get(TOWER).orElse(null);
+            helper.assertTrue(tower != null, "the watchtower template didn't load");
+            StructureTemplate.StructureBlockInfo chest = firstBlock(tower, info -> info.nbt() != null && Nbt.hasString(info.nbt(), "LootTable"));
+            helper.assertTrue(chest != null, "the watchtower has no container with a loot table");
+            String original = Nbt.string(chest.nbt(), "LootTable");
+            expect(helper, JesServer.patchContainer(player, TOWER, chest.pos(), IGLOO_TABLE), "container.saved");
+            expect(helper, JesServer.unpatchContainer(player, TOWER, chest.pos()), "container.removed");
+            expect(helper, JesServer.saveTable(player, IGLOO_TABLE, DIAMONDS_ONLY), "override.saved");
+            helper.assertTrue(original.equals(ContainerPatches.ownTable(TOWER, chest.pos(), IGLOO_TABLE.toString())),
+                    "the undone patch isn't known before the settings are saved");
+
+            // The igloo hidden, locating for everyone, and changed containers switched off.
+            ServerConfig.Settings asked = new ServerConfig.Settings(Set.of(IGLOO), Set.of(), 0, 2, true, ServerConfig.PackTools.level(0), false);
+            PackToolsServer.saveFromSettingsScreen(server, asked);
+
+            List<String> wrong = new ArrayList<>();
+            ServerConfig.Settings now = ServerConfig.get();
+            if (!now.hides(IGLOO) || now.locatePermission() != 0 || now.containerChanges()) {
+                wrong.add("the settings aren't in use: " + now);
+            }
+            if (!ServerConfig.read(ServerConfig.file()).equals(now)) {
+                wrong.add("server.json5 doesn't read back as what's in use");
+            }
+            if (JesServer.visibleCatalog(server).stream().anyMatch(entry -> entry.id().equals(IGLOO))) {
+                wrong.add("the hidden igloo is still listed");
+            }
+            Set<String> pending = PackToolsServer.state(server).pending();
+            if (!pending.contains(PackToolsState.tableKey(IGLOO_TABLE))) {
+                wrong.add("the loot table edit stopped waiting for a /reload");
+            }
+            if (!pending.contains(PackToolsState.chestKey(TOWER, chest.pos()))) {
+                wrong.add("the undone container stopped waiting for a /reload");
+            }
+            if (!pending.contains(PackToolsState.RULES)) {
+                wrong.add("switching changed containers off isn't waiting for a /reload");
+            }
+            if (!original.equals(ContainerPatches.ownTable(TOWER, chest.pos(), IGLOO_TABLE.toString()))) {
+                wrong.add("the undone patch was forgotten");
+            }
+            helper.assertTrue(wrong.isEmpty(), "saving the settings screen: " + String.join("; ", wrong) + " (waiting: " + pending + ")");
+
+            ServerConfig.Settings later = new ServerConfig.Settings(Set.of(), Set.of(), 3, 3, false, ServerConfig.PackTools.level(0), true);
+            PackToolsServer.saveFromSettingsScreen(null, later);
+            helper.assertTrue(ServerConfig.read(ServerConfig.file()).equals(later), "with no world open, server.json5 wasn't written");
+            helper.assertTrue(ServerConfig.get().equals(now), "with no world open, the settings in use changed");
+        } finally {
+            JustEnoughStructures.setConfigDir(configRoot);
+            LootOverrides.setFolder(null);
+            ContainerPatches.reloaded();
+            PackToolsServer.reloaded();
             ServerConfig.set(before);
             JesServer.structuresChanged(server);
         }

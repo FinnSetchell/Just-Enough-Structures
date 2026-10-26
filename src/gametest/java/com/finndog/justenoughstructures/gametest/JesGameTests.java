@@ -624,6 +624,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
+    public void settingsScreenKeepsWaitingChanges(GameTestHelper helper) {
+        PackToolsTests.settingsScreenKeepsWaitingChanges(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, batch = "pack_tools")
     public void packToolsNotesGoInThePack(GameTestHelper helper) {
         PackToolsTests.structureNotesGoInThePack(helper);
     }

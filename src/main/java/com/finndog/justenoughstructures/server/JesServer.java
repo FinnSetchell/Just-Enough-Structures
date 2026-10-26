@@ -131,19 +131,23 @@ public final class JesServer {
         if (!guardChecked) {
             guardChecked = StructureCapture.checkChunkGuard(server);
         }
-        ServerConfig.Settings settings = ServerConfig.load();
-        var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
-        for (ResourceLocation id : settings.hiddenStructures()) {
-            if (!structures.containsKey(id)) {
-                JustEnoughStructures.LOGGER.warn("{} is set to be hidden, but there's no structure with that id", id);
-            }
-        }
+        warnUnknownHidden(server, ServerConfig.load());
         invalidate();
         PackToolsServer.reloaded();
         // Saved first views wait for the loot index's fingerprint, as what they were made from may have changed.
         SavedPreviews.forget();
         LootIndexStore.refresh(server);
         Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, true));
+    }
+
+    /** Mentions hidden ids that aren't structures, which are usually typos. */
+    static void warnUnknownHidden(MinecraftServer server, ServerConfig.Settings settings) {
+        var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        for (ResourceLocation id : settings.hiddenStructures()) {
+            if (!structures.containsKey(id)) {
+                JustEnoughStructures.LOGGER.warn("{} is set to be hidden, but there's no structure with that id", id);
+            }
+        }
     }
 
     /**
