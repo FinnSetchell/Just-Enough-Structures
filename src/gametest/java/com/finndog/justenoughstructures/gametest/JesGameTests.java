@@ -613,6 +613,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void handEditedFilesTakeTrailingCommas(GameTestHelper helper) {
+        SettingsTests.handEditedFilesTakeTrailingCommas(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void brokenSettingsKeepThoseInUse(GameTestHelper helper) {
+        SettingsTests.brokenSettingsKeepThoseInUse(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void packToolsFollowTheRules(GameTestHelper helper) {
         SettingsTests.packToolsFollowTheRules(helper);
     }

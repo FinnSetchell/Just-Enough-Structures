@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.TrailingCommas;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -76,6 +77,8 @@ public final class ServerConfig {
     public static final Settings DEFAULTS = new Settings(Set.of(), Set.of(), 2, 2, true, PackTools.NONE, true);
 
     private static volatile Settings current = DEFAULTS;
+    /** Whether the settings in use were read from the file since the server started. */
+    private static volatile boolean inUseFromFile;
 
     private ServerConfig() {
     }
@@ -125,26 +128,68 @@ public final class ServerConfig {
         return JustEnoughStructures.configDir().resolve(FILE_NAME);
     }
 
+    /** Reads the file in the config folder when the server starts. See {@link #start(Path)}. */
+    public static Settings start() {
+        return start(file());
+    }
+
+    /**
+     * Reads the file when the server starts. Nothing read from it is in use yet, so a file that can't
+     * be read gives the defaults.
+     */
+    public static Settings start(Path file) {
+        inUseFromFile = false;
+        return load(file);
+    }
+
     /** Reads the file in the config folder, writing a commented one first if there isn't one. */
     public static Settings load() {
         return load(file());
     }
 
+    /**
+     * The same for any file. Once settings read from it are in use, a file that can't be read keeps
+     * them, so a mistake made before a /reload doesn't show hidden structures again or change who can
+     * use Pack tools. Before that it gives the defaults. The log says which.
+     */
     public static Settings load(Path file) {
+        String text;
         try {
             if (!Files.exists(file)) {
                 Files.createDirectories(file.getParent());
                 SafeFiles.write(file, render(DEFAULTS));
             }
-            String text = Files.readString(file);
-            current = parse(text, file.toString(), true);
-            addMissingSettings(file, text, current);
+            text = Files.readString(file);
         } catch (IOException e) {
-            JesLog.warnOnce("read:" + file + "|" + e, "Couldn't read {}, using the default settings: {}", file, e.toString());
+            String kept = keepOrReset();
+            JesLog.warnOnce("read:" + file + "|" + e + "|" + kept, "Couldn't read {}, {}: {}", file, kept, e.toString());
             JesLog.debug("Couldn't read {}", file, e);
-            current = DEFAULTS;
+            return current;
         }
+        JsonObject json;
+        try {
+            json = object(text);
+        } catch (JsonParseException e) {
+            String kept = keepOrReset();
+            problem(true, file.toString(), "{} isn't valid, {}: {}", file, kept, e.getMessage());
+            return current;
+        }
+        current = settings(json, file.toString(), true);
+        inUseFromFile = true;
+        addMissingSettings(file, json, current);
         return current;
+    }
+
+    /**
+     * For a file that can't be read: keeps the settings in use if they came from it, or else uses
+     * the defaults. Says which, for the log.
+     */
+    private static String keepOrReset() {
+        if (inUseFromFile) {
+            return "keeping the settings already in use";
+        }
+        current = DEFAULTS;
+        return "using the default settings";
     }
 
     /** Every setting the file has, in the order it lists them. */
@@ -157,17 +202,7 @@ public final class ServerConfig {
      * owner's own values, and the file as it was is kept beside it. A file that doesn't read is left
      * alone for its owner to fix.
      */
-    private static void addMissingSettings(Path file, String text, Settings settings) {
-        JsonObject json;
-        try {
-            JsonElement parsed = JsonParser.parseString(text);
-            if (!parsed.isJsonObject()) {
-                return;
-            }
-            json = parsed.getAsJsonObject();
-        } catch (JsonParseException e) {
-            return;
-        }
+    private static void addMissingSettings(Path file, JsonObject json, Settings settings) {
         List<String> missing = KEYS.stream().filter(key -> !json.has(key)).toList();
         if (missing.isEmpty() || FileFormat.newer(json)) {
             return;
@@ -195,7 +230,7 @@ public final class ServerConfig {
     public static void save(Path file, Settings settings) throws IOException {
         if (Files.exists(file)) {
             try {
-                JsonElement existing = JsonParser.parseString(Files.readString(file));
+                JsonElement existing = JsonParser.parseString(TrailingCommas.strip(Files.readString(file)));
                 if (existing.isJsonObject()) {
                     FileFormat.check(existing.getAsJsonObject(), file);
                 }
@@ -222,24 +257,33 @@ public final class ServerConfig {
     }
 
     /**
-     * Reads the settings, tolerating comments. A mistake in one setting is logged and that setting
-     * keeps its default, so a typo doesn't throw away the rest of the file. With {@code report} each
-     * mistake is a warning in the game's log, once, for the server's own file; otherwise they only go
-     * to the debug log.
+     * Reads the settings, tolerating comments and trailing commas, as JSON5 does. A mistake in one
+     * setting is logged and that setting keeps its default, so a typo doesn't throw away the rest of
+     * the file. With {@code report} each mistake is a warning in the game's log, once, for the
+     * server's own file; otherwise they only go to the debug log.
      */
     public static Settings parse(String text, String source, boolean report) {
         JsonObject json;
         try {
-            JsonElement parsed = JsonParser.parseString(text);
-            if (!parsed.isJsonObject()) {
-                throw new JsonParseException("expected an object with settings in it");
-            }
-            json = parsed.getAsJsonObject();
+            json = object(text);
         } catch (JsonParseException e) {
             problem(report, source, "{} isn't valid, using the default settings: {}", source, e.getMessage());
             return DEFAULTS;
         }
+        return settings(json, source, report);
+    }
 
+    /** The file's text as JSON, or a JsonParseException if it isn't an object. */
+    private static JsonObject object(String text) {
+        JsonElement parsed = JsonParser.parseString(TrailingCommas.strip(text));
+        if (!parsed.isJsonObject()) {
+            throw new JsonParseException("expected an object with settings in it");
+        }
+        return parsed.getAsJsonObject();
+    }
+
+    /** Each setting in the file, or its default where it's missing or wrong. */
+    private static Settings settings(JsonObject json, String source, boolean report) {
         Set<ResourceLocation> structures = new LinkedHashSet<>();
         Set<String> mods = new LinkedHashSet<>();
         JsonElement hidden = json.get("hidden");

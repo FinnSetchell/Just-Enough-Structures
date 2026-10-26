@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.overrides;
 
 import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.TrailingCommas;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -102,7 +103,7 @@ final class PatchFile {
 
     private JsonObject read() throws IOException {
         Path file = path();
-        JsonObject json = Files.exists(file) ? JsonParser.parseString(Files.readString(file)).getAsJsonObject() : new JsonObject();
+        JsonObject json = Files.exists(file) ? JsonParser.parseString(TrailingCommas.strip(Files.readString(file))).getAsJsonObject() : new JsonObject();
         FileFormat.check(json, file);
         if (!json.has("patches") || !json.get("patches").isJsonArray()) {
             json.add("patches", new JsonArray());

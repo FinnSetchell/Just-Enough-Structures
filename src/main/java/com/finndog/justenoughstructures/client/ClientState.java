@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.FileFormat;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.TrailingCommas;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -112,7 +113,7 @@ public final class ClientState {
             return;
         }
         try {
-            JsonObject json = GSON.fromJson(Files.readString(file), JsonObject.class);
+            JsonObject json = GSON.fromJson(TrailingCommas.strip(Files.readString(file)), JsonObject.class);
             if (FileFormat.newer(json)) {
                 newerFiles.add(file);
             }
@@ -212,7 +213,7 @@ public final class ClientState {
             return;
         }
         try {
-            JsonObject json = GSON.fromJson(Files.readString(file), JsonObject.class);
+            JsonObject json = GSON.fromJson(TrailingCommas.strip(Files.readString(file)), JsonObject.class);
             if (FileFormat.newer(json)) {
                 newerFiles.add(file);
             }

@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.TrailingCommas;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -117,7 +118,7 @@ public final class PackToolsAccess {
             Path file = file();
             try {
                 if (Files.exists(file)) {
-                    JsonObject json = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+                    JsonObject json = JsonParser.parseString(TrailingCommas.strip(Files.readString(file))).getAsJsonObject();
                     if (FileFormat.newer(json)) {
                         // Saved by a newer version: not read, and not written over.
                         newer = true;

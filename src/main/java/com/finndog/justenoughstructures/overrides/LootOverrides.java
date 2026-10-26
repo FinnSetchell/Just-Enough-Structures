@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.SafeFiles;
+import com.finndog.justenoughstructures.TrailingCommas;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.google.common.hash.Hashing;
@@ -615,7 +616,7 @@ public final class LootOverrides {
         if (!Files.exists(file)) {
             return new JsonObject();
         }
-        JsonElement json = JsonParser.parseString(Files.readString(file));
+        JsonElement json = JsonParser.parseString(TrailingCommas.strip(Files.readString(file)));
         JsonObject meta = json.isJsonObject() ? json.getAsJsonObject() : new JsonObject();
         FileFormat.check(meta, file);
         return meta;

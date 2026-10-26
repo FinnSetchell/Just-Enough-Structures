@@ -171,7 +171,7 @@ public final class JesServer {
      */
     public static void starting(MinecraftServer server) {
         running = server;
-        ServerConfig.load();
+        ServerConfig.start();
         ContainerPatches.reloaded();
         SpawnerPatches.reloaded();
     }

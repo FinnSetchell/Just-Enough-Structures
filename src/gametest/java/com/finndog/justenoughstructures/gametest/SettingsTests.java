@@ -186,6 +186,82 @@ public final class SettingsTests {
         helper.succeed();
     }
 
+    /**
+     * Files people edit by hand take a comma after the last setting, the last item in a list or the
+     * last setting in a section, as JSON5 does. Such a comma threw the whole settings file away, which
+     * showed hidden structures again. Commas inside quotes are left as they are.
+     */
+    public static void handEditedFilesTakeTrailingCommas(GameTestHelper helper) {
+        ServerConfig.Settings settings = ServerConfig.parse("""
+                {
+                  // Comments can sit between the comma and the bracket, and quotes in them start nothing: "a,}" ,] it's
+                  "hidden": ["minecraft:igloo", 'somemod:*',],
+                  "locate_permission": 0,
+                  "pack_tools": {
+                    "players": ["Steve", /* ,] */ "Alex",],
+                    "permission_level": 3, // the last one
+                  },
+                  "teleport_permission": 3,
+                  /* nothing after this, } */
+                }
+                """, "test");
+        helper.assertTrue(settings.hides(Ids.parse("igloo")) && settings.hides(Ids.of("somemod", "tower")) && settings.hiddenStructures().size() == 1,
+                "hidden wasn't read from a file with trailing commas: " + settings);
+        helper.assertTrue(settings.locatePermission() == 0 && settings.teleportPermission() == 3, "the permission levels weren't read: " + settings);
+        helper.assertTrue(settings.packTools().equals(new ServerConfig.PackTools(List.of("Steve", "Alex"), 3)), "pack_tools wasn't read: " + settings);
+
+        Map<String, String> notesBefore = new LinkedHashMap<>(ClientState.notes);
+        boolean spinBefore = ClientState.spin;
+        try {
+            Path folder = Files.createTempDirectory("jes-commas");
+            Path notes = folder.resolve("notes.json");
+            Files.writeString(notes, "{\"format\": 1, \"notes\": {\"minecraft:igloo\": \"Commas, then brackets: ,} ,] \\\",}\", "
+                    + "'test:tower': 'Single quotes, too: \\',] ',},}");
+            ClientState.notes.clear();
+            ClientState.readNotes(notes);
+            helper.assertTrue(ClientState.notes.equals(Map.of("minecraft:igloo", "Commas, then brackets: ,} ,] \",}", "test:tower", "Single quotes, too: ',]")),
+                    "notes with trailing commas came back as " + ClientState.notes);
+            Path state = folder.resolve("state.json");
+            Files.writeString(state, "{\"format\": 1, \"spin\": " + !spinBefore + ",}");
+            ClientState.read(state);
+            helper.assertTrue(ClientState.spin == !spinBefore, "the browser's state file with a trailing comma wasn't read");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary file", e);
+        } finally {
+            ClientState.notes.clear();
+            ClientState.notes.putAll(notesBefore);
+            ClientState.spin = spinBefore;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A settings file that stops reading on a /reload, say from a typo, keeps the settings in use,
+     * so hidden structures stay hidden and Pack tools stays with the same people until it's fixed.
+     */
+    public static void brokenSettingsKeepThoseInUse(GameTestHelper helper) {
+        ServerConfig.Settings before = ServerConfig.get();
+        try {
+            Path file = Files.createTempDirectory("jes-config").resolve("server.json5");
+            Files.writeString(file, "{\"hidden\": [\"minecraft:igloo\"], \"pack_tools\": {\"players\": [\"Steve\"], \"permission_level\": -1}}");
+            ServerConfig.Settings good = ServerConfig.load(file);
+            helper.assertTrue(good.hides(Ids.parse("igloo")), "the settings file wasn't read: " + good);
+            Files.writeString(file, "{\"hidden\": [\"minecraft:igloo], \"pack_tools\": {\"players\": [\"Steve\"], \"permission_level\": -1}}");
+            ServerConfig.Settings reloaded = ServerConfig.load(file);
+            helper.assertTrue(reloaded.equals(good) && ServerConfig.get().equals(good),
+                    "a settings file with a missing quote replaced the settings in use with " + reloaded);
+            // When the server starts, nothing from the file is in use yet, so it's the defaults.
+            ServerConfig.Settings started = ServerConfig.start(file);
+            helper.assertTrue(started.equals(ServerConfig.DEFAULTS) && ServerConfig.get().equals(ServerConfig.DEFAULTS),
+                    "a server starting with a settings file that doesn't read got " + started + ", not the defaults");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary file", e);
+        } finally {
+            ServerConfig.set(before);
+        }
+        helper.succeed();
+    }
+
     /** A file from before newer settings existed gains them, keeps its owner's values, and the old one is kept. */
     public static void oldSettingsFilesGainNewSettings(GameTestHelper helper) {
         ServerConfig.Settings before = ServerConfig.get();
