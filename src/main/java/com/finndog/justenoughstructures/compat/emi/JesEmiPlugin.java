@@ -52,8 +52,12 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
     };
 
-    /** How long EMI's load waits for an index that's on its way. Reloading EMI takes longer. */
-    private static final long INDEX_WAIT_MS = 10_000;
+    /**
+     * How long EMI's load waits for an index that's on its way. Reloading EMI takes longer. EMI gives
+     * each plugin 10 seconds before it says on screen that loading is delayed, so this stays well
+     * short of that.
+     */
+    private static final long INDEX_WAIT_MS = 5_000;
     /**
      * How long the server can stay silent about an early index before EMI loads it anyway, as the
      * server may have stopped building the rest. While building it reports progress as structures
