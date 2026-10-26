@@ -203,7 +203,7 @@ final class ToolsLoot extends ToolsSection {
         int fx = x;
         for (Filter f : Filter.values()) {
             Filter which = f;
-            fx += ui.chip(g, filterLabel(f), fx, fy, filter == f, () -> {
+            fx += ui.tabChip(g, filterLabel(f), fx, fy, filter == f, () -> {
                 filter = which;
                 shownFor = null;
                 revealSelected = false;
@@ -254,7 +254,7 @@ final class ToolsLoot extends ToolsSection {
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
-        ui.spot(x, y, w, LIST_ROW - 1, () -> screen.pick(table));
+        ui.row(x, y, w, LIST_ROW - 1, () -> screen.pick(table), Component.literal(StructureNames.lootTable(table.toString())));
         Component mark = editedMark(status);
         String markText = mark == null ? "" : mark.getString();
         int markW = markText.isEmpty() ? 0 : Gui.fineWidth(font, markText) + 4;

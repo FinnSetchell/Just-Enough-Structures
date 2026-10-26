@@ -57,5 +57,8 @@ public final class GameTestMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".FaultyDrawsMixin")) {
             FaultyDraws.hooked = true;
         }
+        if (mixinClassName.endsWith(".UiClicksMixin")) {
+            UiClicks.hooked = true;
+        }
     }
 }

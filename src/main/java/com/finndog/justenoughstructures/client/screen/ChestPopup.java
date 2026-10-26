@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
@@ -447,7 +448,7 @@ final class ChestPopup {
             hoveredTip = tip;
         }
         if (enabled) {
-            links.put(action, left, top, ICON, ICON);
+            links.put(action, left, top, ICON, ICON, Narration.button(tip.get(0)));
         }
         return left;
     }
@@ -506,9 +507,10 @@ final class ChestPopup {
             g.fill(left + 1, top + 1, right - 1, top + TAB_HEIGHT - 1, 0x48FFFFFF);
         }
         Gui.icon(g, icon, left + 2, top + 1, Icons.SMALL, Icons.SMALL, on ? Gui.label() : 0xFF404040, false);
-        links.put(action, left, top, w, TAB_HEIGHT);
+        Component label = Component.translatable("screen.justenoughstructures." + key);
+        links.put(action, left, top, w, TAB_HEIGHT, Narration.tab(label, on));
         if (over) {
-            hoveredTip = List.of(Component.translatable("screen.justenoughstructures." + key));
+            hoveredTip = List.of(label);
         }
         if (over && !on) {
             hoveredAction = action;
@@ -539,5 +541,19 @@ final class ChestPopup {
     /** The tab or link at a point, or null. */
     Action actionAt(double mouseX, double mouseY) {
         return links.at(mouseX, mouseY);
+    }
+
+    /** What the narrator reads for the tab or link at a point, or null. */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return links.narrationAt(mouseX, mouseY);
+    }
+
+    /** Whether an action changes what the popup shows, as a tab that's open already doesn't. */
+    boolean changes(Action action) {
+        return switch (action) {
+            case ROLL -> view != View.ROLL;
+            case ODDS -> view != View.ODDS;
+            default -> true;
+        };
     }
 }

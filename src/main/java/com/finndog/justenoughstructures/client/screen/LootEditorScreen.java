@@ -34,6 +34,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -962,6 +963,27 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         return super.keyPressed(key, scan, modifiers);
     }
 
+    // What takes a click at a point takes the narration there too, in the same order. The screen's
+    // widgets narrate themselves.
+    @Override
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        NarrationSupplier bar = navBar.narrationAt(mouseX, mouseY);
+        if (bar != null) {
+            return bar;
+        }
+        if (picker != null) {
+            return pickerSearch != null && pickerSearch.isMouseOver(mouseX, mouseY) ? null : picker.narrationAt(mouseX, mouseY);
+        }
+        if (choice != null) {
+            return choice.narrationAt(mouseX, mouseY);
+        }
+        if (editingId != null && suggestions != null && suggestions.contains(mouseX, mouseY)) {
+            LootOptions.Option option = suggestions.at(mouseX, mouseY);
+            return option == null ? null : Narration.row(Component.literal(option.name()));
+        }
+        return getChildAt(mouseX, mouseY).isPresent() ? null : ui.narrationAt(mouseX, mouseY);
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (navBar.mouseClicked(mouseX, mouseY, button)) {
@@ -1545,7 +1567,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         } else if (ui.hovered(x, y, w, TREE_ROW)) {
             g.fill(x, y, x + w, y + TREE_ROW, Gui.rowHover());
         }
-        ui.spot(x, y, w, TREE_ROW, pick);
+        ui.row(x, y, w, TREE_ROW, pick, Component.literal(name));
         int textX = x + 3 + indent;
         if (!icon.isEmpty()) {
             g.renderItem(icon, textX, y + 1);
@@ -1824,13 +1846,24 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
         }
 
         void click(double mouseX, double mouseY) {
+            String option = optionAt(mouseX, mouseY);
+            if (option != null) {
+                pick.accept(option);
+            }
+        }
+
+        private String optionAt(double mouseX, double mouseY) {
             if (mouseX < x || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
-                return;
+                return null;
             }
             int index = (int) ((mouseY - y - 1 + scroll.offset()) / LINE);
-            if (index >= 0 && index < options.size()) {
-                pick.accept(options.get(index));
-            }
+            return index >= 0 && index < options.size() ? options.get(index) : null;
+        }
+
+        /** What the narrator reads for the option at a point, or null. */
+        NarrationSupplier narrationAt(double mouseX, double mouseY) {
+            String option = optionAt(mouseX, mouseY);
+            return option == null ? null : Narration.row(Component.literal(names.apply(option)));
         }
 
         void scroll(double delta) {
@@ -2108,11 +2141,26 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             return scroll.scrolls() ? new int[]{x + w - 5, gridTop + 1 + Math.round((gridH - 3) * along)} : null;
         }
 
+        private boolean onCancel(double mouseX, double mouseY) {
+            int cancelW = ui.buttonWidth(Component.translatable("gui.cancel"));
+            return mouseX >= x + w - 8 - cancelW && mouseX < x + w - 8 && mouseY >= y + 5 && mouseY < y + 19;
+        }
+
+        /** What the narrator reads for Cancel or the item at a point, or null. */
+        NarrationSupplier narrationAt(double mouseX, double mouseY) {
+            if (onCancel(mouseX, mouseY)) {
+                return Narration.button(Component.translatable("gui.cancel"));
+            }
+            return hovered == null ? null : Narration.row(StructureNames.item(hovered));
+        }
+
         void click(double mouseX, double mouseY) {
-            Component cancel = Component.translatable("gui.cancel");
-            int cancelW = ui.buttonWidth(cancel);
-            if (mouseX >= x + w - 8 - cancelW && mouseX < x + w - 8 && mouseY >= y + 5 && mouseY < y + 19
-                    || mouseX < x || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
+            // Cancel clicks like a button; a click outside closes it without a sound, as with the other popups.
+            boolean cancel = onCancel(mouseX, mouseY);
+            if (cancel || mouseX < x || mouseX >= x + w || mouseY < y || mouseY >= y + h) {
+                if (cancel) {
+                    Gui.clickSound();
+                }
                 closePicker();
                 return;
             }

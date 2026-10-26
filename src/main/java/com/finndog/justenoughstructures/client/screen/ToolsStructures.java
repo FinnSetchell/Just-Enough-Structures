@@ -330,7 +330,7 @@ final class ToolsStructures extends ToolsSection {
             boolean modHidden = settings.hiddenMods().contains(namespace);
             g.fill(x + 1, cy, x + 1 + rw, cy + HEADER - 1, Gui.BAND);
             Gui.drawClipped(g, font, mod.getKey(), x + 4, cy + 3, rw - 30, 0xFFFFFFFF, true);
-            ui.toggle(g, x + rw - 19, cy + 2, !modHidden, () -> save(ToolsRules.hideMod(settings, namespace, !modHidden)),
+            ui.toggle(g, x + rw - 19, cy + 2, !modHidden, Component.literal(mod.getKey()), () -> save(ToolsRules.hideMod(settings, namespace, !modHidden)),
                     Component.translatable(modHidden ? "screen.justenoughstructures.tools.show_mod" : "screen.justenoughstructures.tools.hide_mod"));
             cy += HEADER;
             mod.getValue().sort(Comparator.comparing(e -> StructureNames.structure(e.id())));
@@ -379,7 +379,7 @@ final class ToolsStructures extends ToolsSection {
         } else if (ui.hovered(x, y, w, LIST_ROW - 1)) {
             g.fill(x, y, x + w, y + LIST_ROW - 1, Gui.rowHover());
         }
-        ui.spot(x, y, w, LIST_ROW - 1, () -> screen.pick(e.id()));
+        ui.row(x, y, w, LIST_ROW - 1, () -> screen.pick(e.id()), Component.literal(StructureNames.structure(e.id())));
         Icon.structure(e.id()).draw(g, x + 2, y + 1);
         StructureInfo info = state.info(e.id());
         List<String> marks = new ArrayList<>();
@@ -401,7 +401,7 @@ final class ToolsStructures extends ToolsSection {
         int colour = isSelected ? 0xFFFFFFFF : hidden ? 0xFF8A8A8A : ToolsUi.TEXT;
         Gui.drawClipped(g, font, hidden ? "§o" + name : name, x + 21, y + 6, right - x - 22, colour, isSelected);
         boolean modHidden = settings.hiddenMods().contains(e.id().getNamespace());
-        ui.toggle(g, x + w - 19, y + 5, !hidden, modHidden ? null : () -> save(ToolsRules.hideStructure(settings, e.id(), !hidden)),
+        ui.toggle(g, x + w - 19, y + 5, !hidden, Component.literal(name), modHidden ? null : () -> save(ToolsRules.hideStructure(settings, e.id(), !hidden)),
                 Component.translatable(modHidden ? "screen.justenoughstructures.tools.hidden_by_mod"
                         : hidden ? "screen.justenoughstructures.tools.shown_off" : "screen.justenoughstructures.tools.shown_on"));
         g.fill(x, y + LIST_ROW - 1, x + w, y + LIST_ROW, Gui.ink(0xFFB8B8B8, ToolsUi.LINE_ON_DARK));

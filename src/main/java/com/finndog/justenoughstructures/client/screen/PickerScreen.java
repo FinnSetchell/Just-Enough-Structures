@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -217,16 +218,35 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
                 return true;
             }
         }
+        T row = rowAt(mouseX, mouseY);
+        if (row != null) {
+            picked = row;
+            problem = null;
+            updateUse();
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /** The choice on the row at a point, or null. */
+    private T rowAt(double mouseX, double mouseY) {
         if (mouseX >= left() && mouseX < right() && mouseY >= listTop() && mouseY < listBottom()) {
             int row = (int) ((mouseY - listTop() - 2 + scroll.offset()) / ROW);
             if (row >= 0 && row < shown.size()) {
-                picked = shown.get(row);
-                problem = null;
-                updateUse();
-                return true;
+                return shown.get(row);
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return null;
+    }
+
+    @Override
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        NarrationSupplier bar = navBar.narrationAt(mouseX, mouseY);
+        if (bar != null) {
+            return bar;
+        }
+        T row = rowAt(mouseX, mouseY);
+        return row == null ? null : Narration.row(Component.literal(name(row)));
     }
 
     @Override
@@ -341,7 +361,9 @@ abstract class PickerScreen<T> extends BackdropScreen implements Nav.Page {
             movePick(key == InputConstants.KEY_DOWN ? 1 : -1);
             return true;
         }
+        // Enter uses the pick, as the Use button does, so it clicks like the button.
         if ((key == InputConstants.KEY_RETURN || key == InputConstants.KEY_NUMPADENTER) && use != null && use.active) {
+            Gui.clickSound();
             apply(false);
             return true;
         }

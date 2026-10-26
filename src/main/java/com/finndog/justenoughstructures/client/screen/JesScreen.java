@@ -45,6 +45,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -1100,6 +1101,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     private void spawnerAction(SpawnerPopup open, SpawnerPopup.Action action) {
         if (action == SpawnerPopup.Action.TOOLS) {
+            Gui.clickSound();
             openSpawner(open.spawner);
         }
     }
@@ -1795,6 +1797,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     /** Handles the chest popup's tabs (one roll, or every item's chance) and its Pack tools links. */
     private void popupAction(ChestPopup open, ChestPopup.Action action) {
+        // A tab clicks when it opens, as a vanilla tab does, and a link whenever it's used.
+        if (open.changes(action)) {
+            Gui.clickSound();
+        }
         switch (action) {
             case ROLL, ODDS -> {
                 open.switchTo(action == ChestPopup.Action.ODDS ? ChestPopup.View.ODDS : ChestPopup.View.ROLL);
@@ -2970,6 +2976,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         for (Marker m : markerRects) {
             if (m.contains(mouseX, mouseY) && openMarker(m)) {
+                Gui.clickSound();
                 return true;
             }
         }
@@ -3010,6 +3017,57 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     // ------------------------------------------------------------------ input
 
+    // What takes a click at a point takes the narration there too, in the same order.
+    @Override
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        NarrationSupplier bar = navBar.narrationAt(mouseX, mouseY);
+        if (bar != null || notes != null) {
+            return bar;
+        }
+        if (foundIn != null) {
+            return foundIn.contains(mouseX, mouseY) ? foundIn.narrationAt(mouseX, mouseY) : null;
+        }
+        SidePopup side = side();
+        if (picking != Picking.NONE && popup == null && side == null && pickCancel != null && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
+                && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
+            return Narration.button(Component.translatable("gui.cancel"));
+        }
+        if (side != null || popup != null) {
+            NarrationSupplier link = spawnerPopup != null ? spawnerPopup.narrationAt(mouseX, mouseY) : popup != null ? popup.narrationAt(mouseX, mouseY) : null;
+            if (link != null) {
+                return link;
+            }
+            // Markers beside the popup only open something while it's about a thing in the preview;
+            // beside a loot table's own popup, a click there closes it.
+            boolean inside = side != null ? side.contains(mouseX, mouseY, font) : popup.contains(mouseX, mouseY, font);
+            boolean beside = side != null || popup.container != null;
+            return inside || !beside ? null : markerNarration(mouseX, mouseY);
+        }
+        NarrationSupplier marker = markerNarration(mouseX, mouseY);
+        // The screen's widgets come next, and narrate themselves.
+        if (marker != null || !sides || getChildAt(mouseX, mouseY).isPresent()) {
+            return marker;
+        }
+        NarrationSupplier row = list.narrationAt(mouseX, mouseY);
+        return row != null ? row : info.narrationAt(mouseX, mouseY);
+    }
+
+    /** What the narrator reads for the marker at a point, or null: what it stands for, and how many when it's several. */
+    private NarrationSupplier markerNarration(double mouseX, double mouseY) {
+        if (result == null || !result.succeeded() || view == null) {
+            return null;
+        }
+        for (Marker m : markerRects) {
+            if (onMarker(m, mouseX, mouseY)) {
+                Component name = m.container() == null && m.spawner() == null && m.mob() != null ? m.mob().getName()
+                        : markerIcon(result.snapshot(), m).getHoverName();
+                int count = m.spots().size();
+                return Narration.button(count > 1 ? Component.translatable("screen.justenoughstructures.name_times", name, count) : name);
+            }
+        }
+        return null;
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         // A click outside the search unfocuses it, as with any text box, so the next keys go to the
@@ -3047,6 +3105,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         SidePopup side = side();
         if (picking != Picking.NONE && popup == null && side == null && pickCancel != null && button == InputConstants.MOUSE_BUTTON_LEFT && mouseX >= pickCancel[0] && mouseX < pickCancel[0] + pickCancel[2]
                 && mouseY >= pickCancel[1] && mouseY < pickCancel[1] + pickCancel[3]) {
+            Gui.clickSound();
             cancelPicking();
             return true;
         }
@@ -3111,6 +3170,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             for (Marker m : markerRects) {
                 if (onMarker(m, mouseX, mouseY) && openMarker(m)) {
+                    Gui.clickSound();
                     return true;
                 }
             }

@@ -16,7 +16,8 @@
   "client": [
     "FaultyDrawsMixin",
     "FaultyFluidsMixin",
-    "LeaveTheMouseMixin"
+    "LeaveTheMouseMixin",
+    "UiClicksMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -21,6 +21,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -880,6 +881,8 @@ final class LootForm {
 
     /** The y of the row being drawn, read by the control lambdas through y(). */
     private int rowY;
+    /** The label of the row being drawn, or null, so the narrator can say which setting a control is. */
+    private String rowLabel;
 
     private int y() {
         return rowY;
@@ -902,7 +905,9 @@ final class LootForm {
     private int labelled(GuiGraphics g, int x, int y, int w, String label, Control control) {
         Gui.fineClipped(g, font, label, x + 4, y + (FIELD - Gui.fineLine(font)) / 2 + 1, labelW - 8, Gui.labelSoft());
         rowY = y;
+        rowLabel = label.isEmpty() ? null : label;
         control.draw(x + labelW, w - labelW - 4);
+        rowLabel = null;
         return y + FIELD + GAP;
     }
 
@@ -969,7 +974,7 @@ final class LootForm {
     private void check(GuiGraphics g, int x, int y, String path, boolean fallback) {
         JsonElement value = JsonPaths.get(draft(), path);
         boolean on = value == null ? fallback : JsonPaths.bool(draft(), path);
-        ui.check(g, text(on ? "yes" : "no"), x, y + 3, on, () -> set(path, new JsonPrimitive(!on)));
+        ui.check(g, text(on ? "yes" : "no"), named(text(on ? "yes" : "no")), x, y + 3, on, () -> set(path, new JsonPrimitive(!on)));
     }
 
     /** A box showing the current choice, which opens the list of options. */
@@ -982,7 +987,14 @@ final class LootForm {
         g.fill(x + 1, y + 1, x + w - 1, y + FIELD - 1, over ? 0xFF7A7A7A : 0xFF6D6D6D);
         Gui.drawClipped(g, font, names.apply(current), x + 4, y + 3, w - 16, 0xFFFFFFFF, true);
         Gui.blit(g, Icons.DROPDOWN, x + w - 10, y + 5, 0, 0, Icons.DROPDOWN_W, Icons.DROPDOWN_H, Icons.DROPDOWN_W, Icons.DROPDOWN_H);
-        ui.spot(x, y, w, FIELD, () -> host.choose(rect, options, names, current, pick));
+        Component value = Component.literal(names.apply(current));
+        ui.press(x, y, w, FIELD, () -> host.choose(rect, options, names, current, pick),
+                Narration.button(rowLabel == null ? value : CommonComponents.optionNameValue(Component.literal(rowLabel), value)));
+    }
+
+    /** What the narrator calls a control on the row being drawn: the row's label, or {@code fallback} on a row without one. */
+    private Component named(Component fallback) {
+        return rowLabel == null ? fallback : Component.literal(rowLabel);
     }
 
     /** A field just added to a list, to start typing in as soon as it's drawn. */
@@ -1232,10 +1244,11 @@ final class LootForm {
             colours.add(colour);
         }
         int listW = Math.min(90, w);
-        ui.spot(sx, y + 2, 10, 10, () -> host.choose(new int[]{x + w - listW, y, listW, FIELD}, colours,
+        Component colourName = text("text_colour", colour.isEmpty() ? text("not_set") : Component.literal(StructureNames.pretty(colour)));
+        ui.press(sx, y + 2, 10, 10, () -> host.choose(new int[]{x + w - listW, y, listW, FIELD}, colours,
                 id -> id.isEmpty() ? text("not_set").getString() : StructureNames.pretty(id), colour,
-                picked -> set(path, TextStyle.with(value, "color", picked.isEmpty() ? null : new JsonPrimitive(picked)))));
-        ui.tooltip(sx, y + 2, 10, 10, text("text_colour", colour.isEmpty() ? text("not_set") : Component.literal(StructureNames.pretty(colour))));
+                picked -> set(path, TextStyle.with(value, "color", picked.isEmpty() ? null : new JsonPrimitive(picked)))), Narration.button(colourName));
+        ui.tooltip(sx, y + 2, 10, 10, colourName);
         styleToggle(g, sx + 13, y, path, value, "bold", Icons.BOLD);
         styleToggle(g, sx + 24, y, path, value, "italic", Icons.ITALIC);
     }
@@ -1261,8 +1274,10 @@ final class LootForm {
                 g.fill(x + 1 + i, y + 11 - i, x + 2 + i, y + 12 - i, 0xFF6A1010);
             }
         }
-        ui.spot(x, y + 1, 9, 12, () -> set(path, TextStyle.with(value, key, now == null ? new JsonPrimitive(true) : now ? new JsonPrimitive(false) : null)));
-        ui.tooltip(x, y + 1, 9, 12, text("text_" + key + (now == null ? "_unset" : now ? "_yes" : "_no")));
+        Component state = text("text_" + key + (now == null ? "_unset" : now ? "_yes" : "_no"));
+        ui.press(x, y + 1, 9, 12, () -> set(path, TextStyle.with(value, key, now == null ? new JsonPrimitive(true) : now ? new JsonPrimitive(false) : null)),
+                Narration.button(state));
+        ui.tooltip(x, y + 1, 9, 12, state);
     }
 
     /**
@@ -1385,7 +1400,7 @@ final class LootForm {
             g.renderItem(stack, 0, 0);
             Gui.pop(g);
         }
-        ui.spot(x, y, FIELD + 2, FIELD, () -> host.pickItem(path));
+        ui.press(x, y, FIELD + 2, FIELD, () -> host.pickItem(path), Narration.button(text("pick_item")).withHint(stack.isEmpty() ? null : stack.getHoverName()));
         ui.tooltip(x, y, FIELD + 2, FIELD, text("pick_item"));
     }
 

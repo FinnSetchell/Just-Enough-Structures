@@ -192,7 +192,7 @@ abstract class ToolsSection {
         } else if (click != null && ui.hovered(x, y, w, h - 1)) {
             g.fill(x, y, x + w, y + h - 1, 0x50FFFFFF);
         }
-        ui.spot(x, y, w, h - 1, click);
+        ui.row(x, y, w, h - 1, click, Component.literal(name));
         int right = x + w - 2;
         if (below) {
             int bx = textX;

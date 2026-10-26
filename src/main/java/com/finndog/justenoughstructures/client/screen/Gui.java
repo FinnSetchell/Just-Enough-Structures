@@ -15,9 +15,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 //? if <26.1 {
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -435,6 +437,14 @@ public final class Gui {
         *///?} else {
         return widget.mouseClicked(mouseX, mouseY, button);
         //?}
+    }
+
+    /**
+     * Plays the click a vanilla button makes, for a control drawn here when it's used. A vanilla
+     * widget clicks by itself, so this is only for the ones drawn here.
+     */
+    public static void clickSound() {
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
     // ------------------------------------------------------------------ moving what's drawn

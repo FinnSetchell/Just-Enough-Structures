@@ -20,6 +20,7 @@ import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -457,6 +458,17 @@ public final class PackToolsScreen extends BackdropScreen implements Nav.Page {
             Gui.clippedTooltip(g, font, mouseX, mouseY);
         }
         Gui.pop(g);
+    }
+
+    // The nav bar, then the screen's widgets, like the sections' text boxes, which narrate themselves,
+    // then the controls drawn here: the order a click goes in.
+    @Override
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        NarrationSupplier bar = navBar.narrationAt(mouseX, mouseY);
+        if (bar != null || getChildAt(mouseX, mouseY).isPresent()) {
+            return bar;
+        }
+        return ui.narrationAt(mouseX, mouseY);
     }
 
     @Override

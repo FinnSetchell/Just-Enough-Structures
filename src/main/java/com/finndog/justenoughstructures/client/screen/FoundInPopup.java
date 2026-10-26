@@ -12,6 +12,7 @@ import java.util.Set;
 import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -196,6 +197,12 @@ final class FoundInPopup {
             }
         }
         return Optional.empty();
+    }
+
+    /** What the narrator reads for the row at a point: the structure and its chance. Null off the rows. */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return click(mouseX, mouseY).map(row -> Narration.row(Component.literal(StructureNames.structure(row.structure())))
+                .withHint(Component.literal(row.onlyPlaced() ? FoundIn.placedText() : FoundIn.percent(chance(row))))).orElse(null);
     }
 
     /** Where a row showing now is, or nothing if there's no such row yet. */

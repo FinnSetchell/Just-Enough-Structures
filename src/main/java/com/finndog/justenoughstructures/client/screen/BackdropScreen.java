@@ -1,8 +1,15 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.narration.NarrationSupplier;
+import net.minecraft.client.gui.narration.ScreenNarrationCollector;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+//? if >=26.3 {
+/*import net.minecraft.client.gui.narration.NarrationTrigger;
+*///?}
 //? if >=26.1 {
 /*import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
@@ -24,6 +31,45 @@ import org.lwjgl.glfw.GLFW;
 abstract class BackdropScreen extends Screen {
     protected BackdropScreen(Component title) {
         super(title);
+    }
+
+    /**
+     * What the narrator reads for a control this screen draws itself, at a point, or null. The
+     * screen's vanilla widgets narrate themselves.
+     */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return null;
+    }
+
+    /** The widget the keyboard was in when the screen was last narrated. */
+    private GuiEventListener narratedFocus;
+
+    // Reads the control under the mouse, as vanilla reads a widget under the mouse. A widget the
+    // keyboard has just moved to is read first, as vanilla does.
+    @Override
+    protected void updateNarratedWidget(NarrationElementOutput output) {
+        GuiEventListener focused = getFocused();
+        boolean newFocus = focused != null && focused != narratedFocus;
+        narratedFocus = focused;
+        double mouseX = minecraft.mouseHandler.xpos() * width / minecraft.getWindow().getScreenWidth();
+        double mouseY = minecraft.mouseHandler.ypos() * height / minecraft.getWindow().getScreenHeight();
+        NarrationSupplier hovered = newFocus ? null : narrationAt(mouseX, mouseY);
+        if (hovered == null) {
+            super.updateNarratedWidget(output);
+        } else {
+            hovered.updateNarration(output.nest());
+        }
+    }
+
+    /** What the narrator would read for the screen as it is now, from the start. Test hook for the scripted scenarios. */
+    public String narration() {
+        ScreenNarrationCollector collector = new ScreenNarrationCollector();
+        //? if >=26.3 {
+        /*collector.update(this::updateNarrationState, NarrationTrigger.MOUSE);
+        *///?} else {
+        collector.update(this::updateNarrationState);
+        //?}
+        return collector.collectNarrationText(true);
     }
 
     /** Darkens the world behind the screen. Draw it first. */

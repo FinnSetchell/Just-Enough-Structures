@@ -214,7 +214,7 @@ final class ToolsRules extends ToolsSection {
         int cy = under ? y + 14 : y;
         int textX = x + w - 2 - font.width(yes);
         g.drawString(font, yes, textX, cy + 5, ToolsUi.TEXT, false);
-        ui.toggle(g, textX - 21, cy + 4, on, flip);
+        ui.toggle(g, textX - 21, cy + 4, on, label, flip);
         if (!noteText.isEmpty()) {
             int noteX = Math.max(x + 2, textX - 26 - Gui.fineWidth(font, noteText));
             Gui.fineClipped(g, font, noteText, noteX, cy + 6, textX - 26 - noteX, ToolsUi.changed());

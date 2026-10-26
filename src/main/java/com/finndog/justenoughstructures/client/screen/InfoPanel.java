@@ -42,6 +42,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -142,7 +143,22 @@ final class InfoPanel {
     /** Where each row that tints the preview was last drawn, by its key. Test hook for the scripted scenarios. */
     private final Map<String, int[]> highlightRows = new HashMap<>();
 
-    private record Hotspot(int x, int y, int w, int h, Runnable action) {
+    /**
+     * A spot to click on the panel, and what the narrator reads for it. A link or button clicks when
+     * it's used; a row doesn't, as in vanilla's lists.
+     */
+    private record Hotspot(int x, int y, int w, int h, Runnable action, Narration narration, boolean clicks) {
+        static Hotspot row(int x, int y, int w, int h, Runnable action, Narration narration) {
+            return new Hotspot(x, y, w, h, action, narration, false);
+        }
+
+        static Hotspot button(int x, int y, int w, int h, Runnable action, Component label) {
+            return new Hotspot(x, y, w, h, action, Narration.button(label), true);
+        }
+
+        boolean contains(double mouseX, double mouseY) {
+            return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+        }
     }
 
     InfoPanel(Font font, Consumer<String> onSelectTable, BiConsumer<StructureSnapshot.Container, Boolean> onOpenContainer,
@@ -323,24 +339,52 @@ final class InfoPanel {
     }
 
     boolean click(double mouseX, double mouseY) {
-        if (mouseY >= tabsY && mouseY < tabsY + TAB_SIZE - 3 && mouseX >= tabsX && mouseX < tabsX + TAB_SIZE * Tab.values().length) {
+        if (overTabs(mouseX, mouseY)) {
             Tab clicked = Tab.values()[(int) ((mouseX - tabsX) / TAB_SIZE)];
+            // Like a vanilla tab, it clicks when it opens another.
             if (clicked != tab) {
+                Gui.clickSound();
                 beforeMove.run();
                 setTab(clicked);
             }
             return true;
         }
-        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
+        Hotspot h = hotspotAt(mouseX, mouseY);
+        if (h == null) {
             return false;
         }
+        if (h.clicks()) {
+            Gui.clickSound();
+        }
+        h.action().run();
+        return true;
+    }
+
+    private boolean overTabs(double mouseX, double mouseY) {
+        return mouseY >= tabsY && mouseY < tabsY + TAB_SIZE - 3 && mouseX >= tabsX && mouseX < tabsX + TAB_SIZE * Tab.values().length;
+    }
+
+    /** The spot to click at a point in the panel, or null. */
+    private Hotspot hotspotAt(double mouseX, double mouseY) {
+        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
+            return null;
+        }
         for (Hotspot h : hotspots) {
-            if (mouseX >= h.x() && mouseX < h.x() + h.w() && mouseY >= h.y() && mouseY < h.y() + h.h()) {
-                h.action().run();
-                return true;
+            if (h.contains(mouseX, mouseY)) {
+                return h;
             }
         }
-        return false;
+        return null;
+    }
+
+    /** What the narrator reads for the tab, link or row at a point, or null. */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        if (overTabs(mouseX, mouseY)) {
+            Tab over = Tab.values()[(int) ((mouseX - tabsX) / TAB_SIZE)];
+            return Narration.tab(over.label(), over == tab);
+        }
+        Hotspot h = hotspotAt(mouseX, mouseY);
+        return h == null ? null : h.narration();
     }
 
     boolean scroll(double mouseX, double mouseY, double delta) {
@@ -458,7 +502,8 @@ final class InfoPanel {
         }
         notesSpot = new int[]{x + PAD + (lines.isEmpty() ? 0 : Math.min(font.width(lines.get(0)), textWidth()) / 2), cy + font.lineHeight / 2};
         StructureCatalog.Entry noted = entry;
-        hotspots.add(new Hotspot(x + 2, cy - 2, width - 4, notesHeight + 2, () -> onEditNotes.accept(noted.id())));
+        hotspots.add(new Hotspot(x + 2, cy - 2, width - 4, notesHeight + 2, () -> onEditNotes.accept(noted.id()),
+                Narration.button(Component.translatable("screen.justenoughstructures.your_notes")).withHint(written), true));
         for (FormattedCharSequence line : lines) {
             g.drawString(font, line, x + PAD, cy, ink, false);
             cy += font.lineHeight + 1;
@@ -476,10 +521,10 @@ final class InfoPanel {
         int linkInk = over ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
         Gui.icon(g, ClientState.details ? Icons.FOLD_OPEN : Icons.FOLD_CLOSED, x + PAD - 1, cy - 1, Icons.SMALL, Icons.SMALL, linkInk, false);
         g.drawString(font, toggle, x + PAD + 9, cy, linkInk, false);
-        hotspots.add(new Hotspot(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> {
+        hotspots.add(Hotspot.button(x + 2, cy - 1, width - 4, font.lineHeight + 3, () -> {
             ClientState.details = !ClientState.details;
             ClientState.save();
-        }));
+        }, toggle));
         cy += font.lineHeight + 5;
         if (!ClientState.details) {
             return cy;
@@ -781,7 +826,8 @@ final class InfoPanel {
                     hoveredBlocks = new Hovered(key, s -> positionsOf(containers));
                 }
                 highlightRows.put("loot:" + table, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
-                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenContainer.accept(first, containers.size() > 1)));
+                hotspots.add(Hotspot.row(x, cy, contentRight - x, rowHeight, () -> onOpenContainer.accept(first, containers.size() > 1),
+                        Narration.row(Component.literal(name)).withHint(Component.literal(detail))));
                 cy += rowHeight + 1;
             }
         }
@@ -815,7 +861,8 @@ final class InfoPanel {
                     hoveredText = withEditedNote(lines, table);
                 }
                 highlightRows.put("other:" + table, new int[]{x + (contentRight - x) / 2, cy + otherHeight / 2});
-                hotspots.add(new Hotspot(x, cy, contentRight - x, otherHeight, () -> onOpenTable.accept(table)));
+                hotspots.add(Hotspot.row(x, cy, contentRight - x, otherHeight, () -> onOpenTable.accept(table),
+                        Narration.row(Component.literal(StructureNames.lootTable(table)))));
                 cy += otherHeight + 1;
             }
         }
@@ -876,7 +923,8 @@ final class InfoPanel {
                 hoveredBlocks = new Hovered(key, s -> spawners);
             }
             highlightRows.put(key, new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
-            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenTable.accept(table)));
+            hotspots.add(Hotspot.row(x, cy, contentRight - x, rowHeight, () -> onOpenTable.accept(table),
+                    Narration.row(Component.literal(name)).withHint(Component.literal(count))));
             cy += rowHeight + 1;
         }
         return cy;
@@ -980,7 +1028,8 @@ final class InfoPanel {
                 hoveredExtra = lines;
             }
             ItemStack example = total.example;
-            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example)));
+            hotspots.add(Hotspot.row(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example),
+                    Narration.row(example.getHoverName())));
             if (cy >= clipTop && cy + OddsList.ROW <= clipTop + clipHeight) {
                 oddsRows.put(example.getItem(), new int[]{x + PAD + 60, cy + OddsList.ROW / 2});
             }
@@ -1007,10 +1056,10 @@ final class InfoPanel {
         int linkHeight = Gui.fineLine(font) + 2;
         boolean overSort = inside(mouseX, mouseY, x + PAD, cy - 1, sortWidth, linkHeight, clipTop, clipHeight);
         Gui.fine(g, font, sortLabel.getString(), x + PAD, cy, overSort ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK));
-        hotspots.add(new Hotspot(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
+        hotspots.add(Hotspot.button(x + PAD, cy - 1, sortWidth, linkHeight, () -> {
             ClientState.rarestFirst = !ClientState.rarestFirst;
             ClientState.save();
-        }));
+        }, sortLabel));
         return cy + linkHeight + 2;
     }
 
@@ -1047,7 +1096,8 @@ final class InfoPanel {
             if (hovered && Gui.advanced()) {
                 hoveredText = List.of(Component.literal(StructureNames.lootTable(table)), Component.literal(table).withStyle(ChatFormatting.DARK_GRAY));
             }
-            hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table)));
+            hotspots.add(Hotspot.row(x, cy, contentRight - x, rowHeight, () -> onSelectTable.accept(table),
+                    Narration.row(Component.literal(StructureNames.lootTable(table)))));
             cy += rowHeight + 1;
         }
         return lootOdds(g, cy, mouseX, mouseY, clipTop, clipHeight, 1,
@@ -1108,7 +1158,8 @@ final class InfoPanel {
                 hoveredExtra = OddsList.tooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
             }
             ItemStack example = row.example();
-            hotspots.add(new Hotspot(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example)));
+            hotspots.add(Hotspot.row(x + 2, cy, contentRight - x - 2, OddsList.ROW, () -> onItemClicked.accept(example),
+                    Narration.row(example.getHoverName())));
             if (cy >= clipTop && cy + OddsList.ROW <= clipTop + clipHeight) {
                 oddsRows.put(example.getItem(), new int[]{x + PAD + 60, cy + OddsList.ROW / 2});
             }
@@ -1183,7 +1234,7 @@ final class InfoPanel {
         int buttonInk = over ? 0xFFFFFFA0 : 0xFFE0E0E0;
         Gui.icon(g, Icons.COPY_SMALL, bx + 5, cy + 3, Icons.SMALL, Icons.SMALL, buttonInk, true);
         g.drawString(font, label, bx + 5 + Icons.SMALL + 3, cy + 3, buttonInk, true);
-        hotspots.add(new Hotspot(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s))));
+        hotspots.add(Hotspot.button(bx, cy, w, 14, () -> notify(Exports.copyMaterialList(entry.id(), s)), label));
         cy += 17;
         if (notice != null && System.currentTimeMillis() < noticeUntil) {
             cy = Gui.fineWrapped(g, font, notice, x + PAD, cy, textWidth(), Gui.ink(0xFF2E5B1D, Gui.GOOD_ON_DARK)) + 2;
@@ -1237,7 +1288,8 @@ final class InfoPanel {
             }
             highlightRows.put("block:" + BuiltInRegistries.BLOCK.getKey(block), new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
             if (count < BLOCK_TOUR) {
-                hotspots.add(new Hotspot(x, cy, contentRight - x, rowHeight, () -> onOpenBlocks.accept(block)));
+                hotspots.add(Hotspot.row(x, cy, contentRight - x, rowHeight, () -> onOpenBlocks.accept(block),
+                        Narration.row(block.getName()).withHint(Component.literal(amount))));
             }
             cy += rowHeight;
         }
@@ -1359,7 +1411,8 @@ final class InfoPanel {
                         x + PAD, cy + 1, textWidth(), ToolsUi.changed()) + 2;
             }
             cy = ominous(g, cy, e.getKey(), over);
-            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + "spawners:" + mob + ominousKey(e.getKey()), e.getValue());
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + "spawners:" + mob + ominousKey(e.getKey()), e.getValue(),
+                    StructureNames.mob(e.getKey().mob()));
         }
         cy = pools(g, cy, byKind, SpawnerKind.Type.POOL, "spawner_pool", prefix, mouseX, mouseY, clipTop, clipHeight);
         cy = pools(g, cy, byKind, SpawnerKind.Type.MIX, "spawner_mix", prefix, mouseX, mouseY, clipTop, clipHeight);
@@ -1390,7 +1443,7 @@ final class InfoPanel {
                 cy = mobRow(g, cy, mob.getKey(), OddsList.percent((float) mob.getValue() / total), over, true);
             }
             cy = ominous(g, cy, pool.getKey(), over);
-            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + key + ":" + weights + ominousKey(pool.getKey()), pool.getValue());
+            spawnerRow(mouseX, mouseY, top, cy, clipTop, clipHeight, prefix + key + ":" + weights + ominousKey(pool.getKey()), pool.getValue(), line);
         }
         return cy;
     }
@@ -1449,7 +1502,8 @@ final class InfoPanel {
      * A row of spawners from {@code top} to {@code bottom}: shows them in the preview while it's
      * hovered, and opens them when clicked.
      */
-    private void spawnerRow(int mouseX, int mouseY, int top, int bottom, int clipTop, int clipHeight, String key, List<StructureSnapshot.Spawner> spawners) {
+    private void spawnerRow(int mouseX, int mouseY, int top, int bottom, int clipTop, int clipHeight, String key, List<StructureSnapshot.Spawner> spawners,
+                            Component name) {
         highlightRows.put(key, new int[]{x + (contentRight - x) / 2, bottom - 11});
         if (inside(mouseX, mouseY, x, top, contentRight - x, bottom - top, clipTop, clipHeight)) {
             LongSet positions = new LongOpenHashSet();
@@ -1457,7 +1511,7 @@ final class InfoPanel {
             hoveredBlocks = new Hovered(key, s -> positions);
         }
         StructureSnapshot.Spawner first = spawners.get(0);
-        hotspots.add(new Hotspot(x, top, contentRight - x, bottom - top, () -> onOpenSpawner.accept(first, spawners.size() > 1)));
+        hotspots.add(Hotspot.row(x, top, contentRight - x, bottom - top, () -> onOpenSpawner.accept(first, spawners.size() > 1), Narration.row(name)));
     }
 
     /**
@@ -1480,7 +1534,7 @@ final class InfoPanel {
             if (over) {
                 hoveredBlocks = new Hovered(key, s -> mobPositions(s, type));
             }
-            hotspots.add(new Hotspot(x, top, contentRight - x, cy - top, () -> onOpenMobs.accept(type)));
+            hotspots.add(Hotspot.row(x, top, contentRight - x, cy - top, () -> onOpenMobs.accept(type), Narration.row(StructureNames.mob(type))));
         }
         return cy + 4;
     }

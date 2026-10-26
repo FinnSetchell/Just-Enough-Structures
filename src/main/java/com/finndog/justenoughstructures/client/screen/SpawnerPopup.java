@@ -12,6 +12,7 @@ import java.util.Set;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -310,7 +311,7 @@ final class SpawnerPopup extends SidePopup {
             hoveredTip = enabled ? List.of(Component.translatable("screen.justenoughstructures.tools.open_spawner")) : pickOne();
         }
         if (enabled) {
-            links.put(Action.TOOLS, left, top, ICON, ICON);
+            links.put(Action.TOOLS, left, top, ICON, ICON, Narration.button(Component.translatable("screen.justenoughstructures.tools.open_spawner")));
         }
     }
 
@@ -321,6 +322,11 @@ final class SpawnerPopup extends SidePopup {
     /** The link at a point, or null. */
     Action actionAt(double mouseX, double mouseY) {
         return links.at(mouseX, mouseY);
+    }
+
+    /** What the narrator reads for the link at a point, or null. */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return links.narrationAt(mouseX, mouseY);
     }
 
     /** The middle of a link, or null if it isn't shown. Test hook for the scripted scenarios. */

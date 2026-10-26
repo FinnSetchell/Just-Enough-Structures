@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -11,7 +12,8 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Pack tools' controls, drawn as they're laid out each frame: buttons, links, switches, check boxes
  * and chips that can sit in rows of a scrolling list. Each one drawn leaves a spot to click, and the
- * last drawn wins, so a button on a row gets the click instead of the row under it.
+ * last drawn wins, so a button on a row gets the click instead of the row under it. A control clicks
+ * like a vanilla button when it's used, and says what the narrator reads for it.
  */
 final class ToolsUi {
     static final int BUTTON = 14;
@@ -60,7 +62,9 @@ final class ToolsUi {
     private int clipBottom = Integer.MAX_VALUE;
     private List<Component> tooltip;
 
-    private record Spot(int x, int y, int w, int h, int clipTop, int clipBottom, Runnable action, String label) {
+    /** A spot with no action is a control that can't be used now, kept so the narrator can still read it. */
+    private record Spot(int x, int y, int w, int h, int clipTop, int clipBottom, Runnable action, String label, NarrationSupplier narration,
+                        boolean clicks) {
         boolean contains(double mx, double my) {
             return mx >= x && mx < x + w && my >= y && my < y + h && my >= clipTop && my < clipBottom;
         }
@@ -95,23 +99,50 @@ final class ToolsUi {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h && mouseY >= clipTop && mouseY < clipBottom;
     }
 
-    /** A spot to click with nothing drawn, like a whole row. Draw what's on the row after it. */
+    /**
+     * A spot to click with nothing drawn, like a text field. Draw what's on it after it. It doesn't
+     * click, as a vanilla text box doesn't.
+     */
     void spot(int x, int y, int w, int h, Runnable action) {
-        spot(x, y, w, h, action, null);
+        add(x, y, w, h, action, null, null, false);
     }
 
-    /** The same with a label, for an icon button: the scripted scenarios find it by that label. */
-    void spot(int x, int y, int w, int h, Runnable action, String label) {
-        if (action != null) {
-            spots.add(new Spot(x, y, w, h, clipTop, clipBottom, action, label));
+    /**
+     * A whole row of a list, read out by its name. Picking a row doesn't click, as in vanilla's lists.
+     * Draw what's on the row after it.
+     */
+    void row(int x, int y, int w, int h, Runnable action, Component name) {
+        add(x, y, w, h, action, null, name == null ? null : Narration.row(name), false);
+    }
+
+    /** A spot with nothing drawn that works as a button, like a box that opens a list to choose from: it clicks. */
+    void press(int x, int y, int w, int h, Runnable action, Narration narration) {
+        add(x, y, w, h, action, null, narration, true);
+    }
+
+    /** {@code label}, if given, is what the scripted scenarios find it by. */
+    private void add(int x, int y, int w, int h, Runnable action, String label, NarrationSupplier narration, boolean clicks) {
+        if (action != null || narration != null) {
+            spots.add(new Spot(x, y, w, h, clipTop, clipBottom, action, label, narration, clicks));
         }
+    }
+
+    /** What the narrator reads for the control at a point, or null. */
+    NarrationSupplier narrationAt(double mx, double my) {
+        for (int i = spots.size() - 1; i >= 0; i--) {
+            Spot spot = spots.get(i);
+            if (spot.narration() != null && spot.contains(mx, my)) {
+                return spot.narration();
+            }
+        }
+        return null;
     }
 
     /** The middle of the last button or link drawn with this label, or null. Test hook for the scripted scenarios. */
     int[] centre(String label) {
         for (int i = spots.size() - 1; i >= 0; i--) {
             Spot spot = spots.get(i);
-            if (label.equals(spot.label())) {
+            if (spot.action() != null && label.equals(spot.label())) {
                 return new int[]{spot.x() + spot.w() / 2, spot.y() + spot.h() / 2};
             }
         }
@@ -169,7 +200,10 @@ final class ToolsUi {
         }
         for (int i = spots.size() - 1; i >= 0; i--) {
             Spot spot = spots.get(i);
-            if (spot.contains(mx, my)) {
+            if (spot.action() != null && spot.contains(mx, my)) {
+                if (spot.clicks()) {
+                    Gui.clickSound();
+                }
                 spot.action().run();
                 return true;
             }
@@ -194,9 +228,7 @@ final class ToolsUi {
         Gui.buttonBackground(g, x, y, w, h, state);
         String text = Gui.clip(font, label.getString(), w - 6);
         Gui.drawClipped(g, font, label.getString(), x + (w - font.width(text) + 1) / 2, y + (h - 8) / 2, w - 6, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
-        if (active) {
-            spot(x, y, w, h, action, label.getString());
-        }
+        add(x, y, w, h, active ? action : null, label.getString(), Narration.button(label, active).withHint(tip), true);
         tooltip(x, y, w, h, tip);
         return w;
     }
@@ -213,14 +245,15 @@ final class ToolsUi {
         int colour = active ? 0xFFFFFFFF : 0xFFA0A0A0;
         NavBar.chevron(g, x + 5, y + 3, colour, true);
         g.drawString(font, label, x + 14, y + 3, colour, true);
-        if (active) {
-            spot(x, y, w, BUTTON, action);
-        }
+        add(x, y, w, BUTTON, active ? action : null, label.getString(), Narration.button(label, active).withHint(tip), true);
         tooltip(x, y, w, BUTTON, tip);
         return w;
     }
 
-    /** A button highlighted while it's chosen, like the current section, with a small item before its label. */
+    /**
+     * A button highlighted while it's chosen, like the current section, with a small item before its
+     * label. It works like a tab, so it only clicks when it isn't chosen already.
+     */
     void choice(GuiGraphics g, ItemStack icon, Component label, String count, int x, int y, int w, int h, boolean chosen, Runnable action) {
         if (chosen) {
             g.fill(x, y, x + w, y + h, 0xFF000000);
@@ -242,7 +275,7 @@ final class ToolsUi {
         if (!count.isEmpty()) {
             Gui.fine(g, font, count, x + w - 4 - Gui.fineWidth(font, count), y + (h - Gui.fineLine(font)) / 2 + 1, 0xFFFFD27A);
         }
-        spot(x, y, w, h, action);
+        add(x, y, w, h, action, label.getString(), Narration.tab(label, chosen), !chosen);
     }
 
     /** Text that can be clicked, underlined under the mouse. Returns its width. */
@@ -259,7 +292,7 @@ final class ToolsUi {
         if (over) {
             g.fill(x, y + h, x + w, y + h + 1, linkHovered());
         }
-        spot(x, y - 1, w, h + 2, action, text);
+        add(x, y - 1, w, h + 2, action, text, Narration.button(label, action != null).withHint(tip), true);
         tooltip(x, y - 1, w, h + 2, tip);
         return w;
     }
@@ -284,12 +317,12 @@ final class ToolsUi {
         } else {
             Gui.icon(g, icon, x, y, Icons.SMALL, Icons.SMALL, ink, onButton);
         }
-        spot(x - 1, y - 2, 11, 12, action, label);
+        add(x - 1, y - 2, 11, 12, action, label, name == null ? null : Narration.button(name, action != null), true);
         tooltip(x - 1, y - 2, 11, 12, name);
     }
 
-    /** A sliding switch, 17 by 10, green when on. */
-    void toggle(GuiGraphics g, int x, int y, boolean on, Runnable action, Component... tip) {
+    /** A sliding switch, 17 by 10, green when on. {@code name} is what the narrator calls it. */
+    void toggle(GuiGraphics g, int x, int y, boolean on, Component name, Runnable action, Component... tip) {
         g.fill(x, y, x + 17, y + 10, 0xFF000000);
         g.fill(x + 1, y + 1, x + 16, y + 9, on ? 0xFF4F7A3A : 0xFF555555);
         // The knob uses the chest texture's panel tones, so resource packs restyle it.
@@ -303,16 +336,21 @@ final class ToolsUi {
             g.fill(x - 1, y - 1, x + 18, y, 0xFFFFFFFF);
             g.fill(x - 1, y + 10, x + 18, y + 11, 0xFFFFFFFF);
         }
-        spot(x - 1, y - 1, 19, 12, action);
+        add(x - 1, y - 1, 19, 12, action, null, Narration.check(name, on, action != null).withHint(tip), true);
         tooltip(x - 1, y - 1, 19, 12, tip);
     }
 
     /** A box ticked when on, and its label beside it, both clickable. Returns the width. */
     int check(GuiGraphics g, Component label, int x, int y, boolean on, Runnable action, Component... tip) {
+        return check(g, label, label, x, y, on, action, tip);
+    }
+
+    /** The same, read out as {@code name}, for a box whose label only says yes or no. */
+    int check(GuiGraphics g, Component label, Component name, int x, int y, boolean on, Runnable action, Component... tip) {
         int w = 12 + font.width(label);
         checkBox(g, x, y, on, hovered(x, y - 1, w, 11));
         g.drawString(font, label, x + 12, y + 1, TEXT, false);
-        spot(x, y - 1, w, 11, action, label.getString());
+        add(x, y - 1, w, 11, action, label.getString(), Narration.check(name, on, action != null).withHint(tip), true);
         tooltip(x, y - 1, w, 11, tip);
         return w;
     }
@@ -332,7 +370,7 @@ final class ToolsUi {
             g.drawString(font, line, x + 12, ly, TEXT, false);
             ly += font.lineHeight + 1;
         }
-        spot(x, y - 1, spotW, h + 1, action, label.getString());
+        add(x, y - 1, spotW, h + 1, action, label.getString(), Narration.check(label, on, action != null).withHint(tip), true);
         tooltip(x, y - 1, spotW, h + 1, tip);
         return h;
     }
@@ -361,9 +399,7 @@ final class ToolsUi {
         boolean over = hovered(x, y, ICON_BUTTON, BUTTON);
         Gui.buttonBackground(g, x, y, ICON_BUTTON, BUTTON, !active ? 0 : over ? 2 : 1);
         Gui.icon(g, icon, x + 3, y + (BUTTON - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, active ? 0xFFFFFFFF : 0xFFA0A0A0, true);
-        if (active) {
-            spot(x, y, ICON_BUTTON, BUTTON, action, label.getString());
-        }
+        add(x, y, ICON_BUTTON, BUTTON, active ? action : null, label.getString(), Narration.button(label, active).withHint(tip), true);
         if (tip == null) {
             tooltip(x, y, ICON_BUTTON, BUTTON, label);
         } else {
@@ -386,21 +422,37 @@ final class ToolsUi {
         int ink = Gui.ink(0xFF303030, 0xFFE0E0E0);
         Gui.fine(g, font, label, x + 3, y + 2, ink);
         Gui.icon(g, Icons.REMOVE, x + w - Icons.SMALL - 2, y + (h - Icons.SMALL) / 2, Icons.SMALL, Icons.SMALL, over ? bad() : ink, false);
-        spot(x, y, w, h, action);
+        add(x, y, w, h, action, null, Narration.button(Component.literal(label), action != null).withHint(tip), true);
         tooltip(x, y, w, h, tip);
         return w;
     }
 
     /** A small tag, lit up when on. Returns its width. */
     int chip(GuiGraphics g, String label, int x, int y, boolean on, Runnable action, Component... tip) {
+        int w = drawChip(g, label, x, y, on);
+        int h = chipHeight();
+        add(x, y, w, h, action, null, Narration.button(Component.literal(label), action != null).withHint(tip), true);
+        tooltip(x, y, w, h, tip);
+        return w;
+    }
+
+    /**
+     * A chip that's one of a row of choices, like a filter, lit up while it's chosen. It works like a
+     * tab, so it only clicks when it isn't chosen already. Returns its width.
+     */
+    int tabChip(GuiGraphics g, String label, int x, int y, boolean chosen, Runnable action) {
+        int w = drawChip(g, label, x, y, chosen);
+        add(x, y, w, chipHeight(), action, label, Narration.tab(Component.literal(label), chosen), !chosen);
+        return w;
+    }
+
+    private int drawChip(GuiGraphics g, String label, int x, int y, boolean on) {
         int w = Gui.fineWidth(font, label) + 6;
-        int h = Gui.fineLine(font) + 4;
+        int h = chipHeight();
         boolean over = hovered(x, y, w, h);
         Gui.outlined(g, x, y, w, h, on ? 0xFF2B3060 : Gui.ink(0xFF777777, 0x80000000),
                 on ? SELECTED : over ? Gui.ink(0xFFC0C0C0, 0x48FFFFFF) : Gui.ink(0xFFA8A8A8, 0x28FFFFFF));
         Gui.fine(g, font, label, x + 3, y + 2, on ? 0xFFFFFFFF : Gui.ink(0xFF303030, 0xFFE0E0E0));
-        spot(x, y, w, h, action);
-        tooltip(x, y, w, h, tip);
         return w;
     }
 

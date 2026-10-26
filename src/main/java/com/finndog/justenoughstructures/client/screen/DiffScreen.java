@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -203,6 +204,11 @@ final class DiffScreen extends BackdropScreen implements Nav.Page {
             return true;
         }
         return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return navBar.narrationAt(mouseX, mouseY);
     }
 
     @Override

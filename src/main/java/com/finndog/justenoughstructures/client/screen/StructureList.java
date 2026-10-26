@@ -18,6 +18,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -390,6 +391,7 @@ final class StructureList {
                 boolean scrolls = contentHeight > height;
                 int rowRight = x + width - (scrolls ? 8 : 0);
                 if (overStar(mouseX, mouseY, rowRight, y - scroll.top() + row.top())) {
+                    Gui.clickSound();
                     ClientState.toggleFavourite(row.entry().id());
                     rebuild();
                     return Optional.of(new Pick(null, ItemStack.EMPTY));
@@ -401,6 +403,7 @@ final class StructureList {
                 return Optional.of(new Pick(null, new ItemStack(row.item())));
             }
             if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
+                Gui.clickSound();
                 if (!COLLAPSED.remove(row.header())) {
                     COLLAPSED.add(row.header());
                 }
@@ -409,6 +412,38 @@ final class StructureList {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * What the narrator reads for the row at a point, or null: a structure by its name, its star, a
+     * loot item by its name, or a mod's header, which folds it away.
+     */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
+            return null;
+        }
+        double local = mouseY - y - 1 + scroll.offset();
+        for (Row row : rows) {
+            if (local < row.top() || local >= row.top() + row.height()) {
+                continue;
+            }
+            if (row.entry() != null) {
+                int rowRight = x + width - (contentHeight > height ? 8 : 0);
+                if (overStar(mouseX, mouseY, rowRight, y - scroll.top() + row.top())) {
+                    return Narration.button(Component.translatable(ClientState.isFavourite(row.entry().id())
+                            ? "screen.justenoughstructures.favourite_remove" : "screen.justenoughstructures.favourite_add"));
+                }
+                return Narration.row(Component.literal(row.name()));
+            }
+            if (row.item() != null) {
+                return Narration.row(Component.literal(row.name())).withHint(Component.translatable("screen.justenoughstructures.found_in", row.count()));
+            }
+            if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
+                return Narration.button(Component.literal(row.name())).withHint(Component.literal(String.valueOf(row.count())));
+            }
+            return null;
+        }
+        return null;
     }
 
     /** Whether a point is on the star at the end of a structure's row, a little bigger than the star itself. */

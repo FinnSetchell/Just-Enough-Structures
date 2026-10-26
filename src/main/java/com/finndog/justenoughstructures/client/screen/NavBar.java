@@ -8,6 +8,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -111,6 +112,14 @@ final class NavBar {
             return true;
         }
         return Gui.click(back, mouseX, mouseY, button) || Gui.click(forward, mouseX, mouseY, button);
+    }
+
+    /**
+     * The Back or Forward button under the mouse, to be narrated as vanilla narrates a button, or null.
+     * The screen draws them itself, so vanilla doesn't know they're there.
+     */
+    NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        return back.isMouseOver(mouseX, mouseY) ? back : forward.isMouseOver(mouseX, mouseY) ? forward : null;
     }
 
     /** Backspace goes back and Shift+Backspace forward, unless a text box has the keyboard. */
