@@ -995,7 +995,7 @@ final class InfoPanel {
                 total.none *= Math.pow(1 - p, n);
                 total.amount += n * (double) row.total() / table.rolls();
                 total.from.add(Component.literal("  ").append(Component.translatable("screen.justenoughstructures.tip_from_table",
-                        StructureNames.lootTable(e.getKey()), String.format("%.1f%%", p * 100), counted(kinds))).withStyle(ChatFormatting.DARK_AQUA));
+                        StructureNames.lootTable(e.getKey()), String.format(Locale.ROOT, "%.1f%%", p * 100), counted(kinds))).withStyle(ChatFormatting.DARK_AQUA));
                 row.variants().forEach((variant, level) -> total.variants.merge(variant, level, Math::max));
             }
         }
@@ -1005,7 +1005,7 @@ final class InfoPanel {
         for (Total total : rows) {
             amounts.put(total, total.amount >= 0.95
                     ? Component.translatable("screen.justenoughstructures.in_all", Math.max(1, Math.round(total.amount))).getString()
-                    : Component.translatable("screen.justenoughstructures.on_average", String.format("%.1f", total.amount)).getString());
+                    : Component.translatable("screen.justenoughstructures.on_average", String.format(Locale.ROOT, "%.1f", total.amount)).getString());
         }
         int detailRoom = OddsList.detailRoom(font, amounts.values());
         for (Total total : rows) {
@@ -1017,10 +1017,10 @@ final class InfoPanel {
             }
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
-                lines.add(Component.translatable("screen.justenoughstructures.tip_at_least_one", String.format("%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("screen.justenoughstructures.tip_at_least_one", String.format(Locale.ROOT, "%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
                 lines.add((total.amount >= 0.95
                         ? Component.translatable("screen.justenoughstructures.tip_in_all", Math.max(1, Math.round(total.amount)))
-                        : Component.translatable("screen.justenoughstructures.tip_on_average", String.format("%.1f", total.amount))).withStyle(ChatFormatting.GRAY));
+                        : Component.translatable("screen.justenoughstructures.tip_on_average", String.format(Locale.ROOT, "%.1f", total.amount))).withStyle(ChatFormatting.GRAY));
                 lines.add(Component.translatable("screen.justenoughstructures.tip_from").withStyle(ChatFormatting.GRAY));
                 lines.addAll(total.from);
                 lines.addAll(OddsList.variantLines(total.variants));
@@ -1167,10 +1167,10 @@ final class InfoPanel {
         }
         if (odds.emptyRolls() > 0) {
             cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.empty_rolls",
-                    String.format("%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
+                    String.format(Locale.ROOT, "%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         if (Gui.advanced()) {
-            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format("%,d", odds.rolls())),
+            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format(Locale.ROOT, "%,d", odds.rolls())),
                     x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         return cy;
@@ -1182,7 +1182,7 @@ final class InfoPanel {
         int rest = count % 64;
         if (full == 0) {
             // Under a stack: just the count, not "0 stacks and 9".
-            return Component.literal(String.format("%,d", count));
+            return Component.literal(String.format(Locale.ROOT, "%,d", count));
         }
         if (rest == 0) {
             return full == 1 ? Component.translatable("screen.justenoughstructures.stack_one")
@@ -1222,7 +1222,7 @@ final class InfoPanel {
         }
         StructureSnapshot s = result.snapshot();
         List<Map.Entry<Block, Integer>> sorted = Exports.blockCounts(s);
-        cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format("%,d", s.blockCount())),
+        cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.block_types", sorted.size(), String.format(Locale.ROOT, "%,d", s.blockCount())),
                 x + PAD, cy, textWidth(), Gui.label()) + 3;
 
         Component label = Component.translatable("screen.justenoughstructures.blocks_copy");
@@ -1261,7 +1261,7 @@ final class InfoPanel {
             boolean tour = count < BLOCK_TOUR;
             int room = contentRight - 2 - textX - (tour ? 12 : 0);
             Gui.fitted(g, font, block.getName().getString(), textX, cy + 1, room, Gui.label());
-            String number = String.format("%,d", count);
+            String number = String.format(Locale.ROOT, "%,d", count);
             String amount = count >= 64 ? Component.translatable("screen.justenoughstructures.block_amount", number, stacks(count)).getString() : number;
             // Just the number when the stacks don't fit beside it: the tooltip has them.
             if (Gui.fineWidth(font, amount) > room) {

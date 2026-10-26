@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
@@ -68,7 +69,7 @@ public final class OddsList {
     }
 
     static String percent(float chance) {
-        return chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format("%.1f%%", chance * 100);
+        return chance >= 0.1f ? Math.round(chance * 100) + "%" : String.format(Locale.ROOT, "%.1f%%", chance * 100);
     }
 
     /** How many come in a container: "2-9 (avg 5)", or "3 at a time" when it's always the same. */
@@ -124,7 +125,7 @@ public final class OddsList {
     /** The tooltip for an item in one table: its chance in each container, in all of them, and what it can come with. */
     public static List<Component> tooltip(LootOdds.Row row, float chance, int containers, String containerName) {
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable("screen.justenoughstructures.tip_chance", containerName, String.format("%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
+        lines.add(Component.translatable("screen.justenoughstructures.tip_chance", containerName, String.format(Locale.ROOT, "%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
         if (containers > 1) {
             double atLeastOne = 1 - Math.pow(1 - chance, containers);
             lines.add(Component.translatable("screen.justenoughstructures.tip_total", FoundIn.wholePercent(atLeastOne), containers)

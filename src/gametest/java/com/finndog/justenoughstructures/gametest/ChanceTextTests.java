@@ -69,8 +69,44 @@ public final class ChanceTextTests {
         String most = FoundIn.wholePercent(0.256);
         JustEnoughStructures.LOGGER.info("In the test of rare loot: at least one in two chests reads {}, 0.4% reads {}, 25.6% reads {}", twoChests, few, most);
         helper.assertTrue(twoChests.equals("0.1%") && few.equals("0.4%"), "at least one in two chests reads " + twoChests + " and 0.4% reads " + few);
-        helper.assertTrue(most.equals(String.format("%.0f%%", 25.6)), "25.6% reads " + most);
+        helper.assertTrue(most.equals("26%"), "25.6% reads " + most);
         helper.succeed();
+    }
+
+    /**
+     * Chances read the same whatever language the computer is set to, as the rest of the game's
+     * numbers do. On a German one some read "12,5%" beside others reading "0.5%", and on one that
+     * writes its own digits, those digits.
+     */
+    public static void chancesIgnoreTheComputersLanguage(GameTestHelper helper) {
+        Locale before = Locale.getDefault();
+        Locale beforeFormat = Locale.getDefault(Locale.Category.FORMAT);
+        Locale beforeDisplay = Locale.getDefault(Locale.Category.DISPLAY);
+        try {
+            for (Locale locale : List.of(Locale.GERMANY, Locale.forLanguageTag("ar-EG"))) {
+                Locale.setDefault(locale);
+                LootOdds.Row row = new LootOdds.Row(new ItemStack(Items.DIAMOND), 125, 125, 1, 1, new TreeMap<>());
+                List<Component> lines = OddsList.tooltip(row, 0.125f, 3, "chest");
+                String inOne = argument(lines, "screen.justenoughstructures.tip_chance", 1);
+                String inAll = argument(lines, "screen.justenoughstructures.tip_total", 0);
+                String seen = FoundIn.percent(0.0123) + " " + FoundIn.wholePercent(0.256) + " " + inOne + " " + inAll;
+                JustEnoughStructures.LOGGER.info("In the test of chances in other languages: with the computer set to {}, chances read {}", locale, seen);
+                helper.assertTrue(seen.equals("1.2% 26% 12.5% 33%"), "with the computer set to " + locale + ", chances read " + seen
+                        + ", not 1.2% 26% 12.5% 33%");
+            }
+        } finally {
+            Locale.setDefault(before);
+            Locale.setDefault(Locale.Category.FORMAT, beforeFormat);
+            Locale.setDefault(Locale.Category.DISPLAY, beforeDisplay);
+        }
+        helper.succeed();
+    }
+
+    /** What a tooltip line with that key was given in that place, as text. */
+    private static String argument(List<Component> lines, String key, int index) {
+        return lines.stream().map(Component::getContents)
+                .filter(c -> c instanceof TranslatableContents t && t.getKey().equals(key))
+                .map(c -> String.valueOf(((TranslatableContents) c).getArgs()[index])).findFirst().orElse("(no " + key + " line)");
     }
 
     /**

@@ -7,6 +7,7 @@ import com.finndog.justenoughstructures.capture.TrialSpawners;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.ChatFormatting;
@@ -110,7 +111,7 @@ final class SpawnerPopup extends SidePopup {
     }
 
     private static String seconds(int ticks) {
-        return ticks % 20 == 0 ? String.valueOf(ticks / 20) : String.format("%.1f", ticks / 20f);
+        return ticks % 20 == 0 ? String.valueOf(ticks / 20) : String.format(Locale.ROOT, "%.1f", ticks / 20f);
     }
 
     /** What it makes, in a line: the mob, the one this spawner got from its list, or a mix. */

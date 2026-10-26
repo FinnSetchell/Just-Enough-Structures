@@ -17,6 +17,7 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 //? if forge && >=1.21 {
 /*import java.lang.reflect.Field;
@@ -166,11 +167,11 @@ public final class ExplorersCompassLink implements CompassLink {
         return switch (compass.getState(stack)) {
             case SEARCHING -> Component.translatable("screen.justenoughstructures.compass_searching");
             //? if >=26.1 {
-            /*case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format("%,d",
+            /*case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format(Locale.ROOT, "%,d",
                     StructureUtils.getHorizontalDistanceToLocation(player, stack.getOrDefault(ExplorersCompass.FOUND_X, 0),
                             stack.getOrDefault(ExplorersCompass.FOUND_Z, 0))));
             *///?} else {
-            case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format("%,d",
+            case FOUND -> Component.translatable("screen.justenoughstructures.compass_found", String.format(Locale.ROOT, "%,d",
                     StructureUtils.getHorizontalDistanceToLocation(player, compass.getFoundStructureX(stack), compass.getFoundStructureZ(stack))));
             //?}
             case NOT_FOUND -> Component.translatable("screen.justenoughstructures.compass_not_found");

@@ -161,7 +161,7 @@ public final class FoundIn {
      * gives it where that would read 0%.
      */
     public static String wholePercent(double chance) {
-        return chance < 0.005 ? percent(chance) : String.format("%.0f%%", chance * 100);
+        return chance < 0.005 ? percent(chance) : String.format(Locale.ROOT, "%.0f%%", chance * 100);
     }
 
     /** True if any loot in the structure can give an item whose name or id contains {@code text}, or the structure places one. */

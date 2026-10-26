@@ -241,6 +241,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void chancesIgnoreTheComputersLanguage(GameTestHelper helper) {
+        ChanceTextTests.chancesIgnoreTheComputersLanguage(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void langFileHasEachKeyOnce(GameTestHelper helper) {
         LangFileTests.langFileHasEachKeyOnce(helper);
     }
