@@ -43,6 +43,7 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
  * Rolls loot tables with the game's loot code, so functions and conditions added by any mod run as
  * they do in a real chest. The rolls have no origin, player or entity, though, so anything that reads
  * one comes out differently (see chestParams). An exploration map is the exception (see blankMap).
+ * Rolls for players and the loot index are made in the same level (see level).
  */
 public final class LootRolls {
     /** Set while this thread rolls a table for JES. */
@@ -82,6 +83,16 @@ public final class LootRolls {
         } finally {
             ROLLING.set(before);
         }
+    }
+
+    /**
+     * The level loot is rolled in for players and for the loot index: the overworld, whichever
+     * dimension the player asking is in. Loot can read the level, like a weather check, which never
+     * passes in the Nether. Odds are kept for everyone once rolled, so rolling them where the player
+     * asking is would let the first to ask decide everyone's, and leave out what the index lists.
+     */
+    public static ServerLevel level(MinecraftServer server) {
+        return server.overworld();
     }
 
     public static boolean exists(ServerLevel level, ResourceLocation tableId) {

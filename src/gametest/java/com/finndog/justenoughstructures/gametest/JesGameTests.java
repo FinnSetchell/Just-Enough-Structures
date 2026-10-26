@@ -520,6 +520,13 @@ public final class JesGameTests {
         OverrideTests.editsApplyOnReload(helper);
     }
 
+    // A batch of its own: it reloads the server's datapacks twice, makes the overworld rain and swaps
+    // the server's sender.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "roll_level", timeoutTicks = 1200)
+    public void lootIsRolledInTheOverworld(GameTestHelper helper) {
+        RollLevelTests.lootIsRolledInTheOverworld(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void impossibleLocateIsQuick(GameTestHelper helper) {
         ServiceTests.impossibleLocateIsQuick(helper);

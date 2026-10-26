@@ -83,7 +83,8 @@ public final class LootIndexStore {
             "worldgen/processor_list", "loot_modifiers");
     /**
      * How many times each loot table is rolled for the index. The odds players see are rolled more
-     * times from the same seed, so whatever these rolls find has a chance there too.
+     * times from the same seed in the same level, so whatever these rolls find has a chance there too,
+     * unless the table reads something that changed in between, like the weather.
      */
     private static final int ROLLS = 500;
     /** The most of the server's time one table's rolls take. A table some mod makes slow to roll gets fewer. */
@@ -409,8 +410,8 @@ public final class LootIndexStore {
                 boolean finished;
                 try {
                     if (roller == null) {
-                        // From the seed the odds are rolled with.
-                        roller = new LootRolls.Roller(server.overworld(), table, ROLLS, table.hashCode());
+                        // From the seed and in the level the odds are rolled with.
+                        roller = new LootRolls.Roller(LootRolls.level(server), table, ROLLS, table.hashCode());
                     }
                     finished = roller.rollFor(Math.min(left, TABLE_NANOS - tableNanos));
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {

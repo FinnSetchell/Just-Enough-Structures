@@ -345,7 +345,7 @@ public final class JesServer {
             reply.accept(new DraftOdds(problem, null));
             return;
         }
-        LootRolls.Roller roller = new LootRolls.Roller(Players.level(player), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode());
+        LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(Players.server(player)), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode());
         rollInSlices(Players.server(player), roller, ODDS_BUDGET_NANOS, odds -> reply.accept(new DraftOdds(null, odds)));
     }
 
@@ -355,7 +355,7 @@ public final class JesServer {
         if (!canEdit(player) || LootOverrides.check(roll.draft().id(), roll.draft().json()) != null) {
             return java.util.Collections.nCopies(size, ItemStack.EMPTY);
         }
-        return LootRolls.fill(Players.level(player), roll.draft().id(), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
+        return LootRolls.fill(LootRolls.level(Players.server(player)), roll.draft().id(), LootOverrides.parse(roll.draft().json()), roll.seed(), size);
     }
 
     public static Component saveTable(ServerPlayer player, ResourceLocation id, String json) {
@@ -857,7 +857,7 @@ public final class JesServer {
 
     /** Answers with a roll of {@code loot}, which is handed in so that a test's needn't be a loaded table. */
     public static void answerLoot(ServerPlayer player, int requestId, ResourceLocation table, LootTable loot, long seed, int size) {
-        List<ItemStack> items = LootRolls.fill(Players.level(player), table, loot, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
+        List<ItemStack> items = LootRolls.fill(LootRolls.level(Players.server(player)), table, loot, seed, Math.max(1, Math.min(size, MAX_CONTAINER_SLOTS)));
         FriendlyByteBuf buf = Blobs.buffer(player.level().registryAccess());
         buf.writeVarInt(requestId);
         Codecs.writeItems(buf, items);
@@ -878,7 +878,9 @@ public final class JesServer {
             reply.accept(new LootOdds(table, ODDS_ROLLS, ODDS_ROLLS, List.of()));
             return;
         }
-        // Rolled with a fixed seed, so the answer never changes until a reload: compute it once.
+        // Rolled with a fixed seed in the same level whoever asks, as the loot index is, so it's worked
+        // out once and kept until a reload, even for a table that reads something that can change, like
+        // the weather.
         LootOdds known = ODDS_CACHE.get(table);
         if (known != null) {
             reply.accept(known);
@@ -891,7 +893,7 @@ public final class JesServer {
         }
         List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
         ROLLING.put(table, these);
-        LootRolls.Roller roller = new LootRolls.Roller(Players.level(player), table, ODDS_ROLLS, table.hashCode());
+        LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, ODDS_ROLLS, table.hashCode());
         rollInSlices(server, roller, ODDS_BUDGET_NANOS, odds -> {
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
             if (ROLLING.get(table) == these) {
@@ -1108,7 +1110,7 @@ public final class JesServer {
         int dz = at.getZ() - from.getZ();
         double angle = Math.toDegrees(Math.atan2(dx, -dz));
         String direction = DIRECTIONS[Math.floorMod((int) Math.round(angle / 45.0), 8)];
-        String distance = String.format("%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz));
+        String distance = String.format(Locale.ROOT, "%,d", (int) Math.sqrt((double) dx * dx + (double) dz * dz));
         Component way = Component.translatable("screen.justenoughstructures.direction." + direction);
         return new Located(at, elsewhere == null ? Component.translatable("screen.justenoughstructures.locate_found", distance, way, at.getX(), at.getZ())
                 : Component.translatable("screen.justenoughstructures.locate_found_in", elsewhere, distance, way, at.getX(), at.getZ()));
