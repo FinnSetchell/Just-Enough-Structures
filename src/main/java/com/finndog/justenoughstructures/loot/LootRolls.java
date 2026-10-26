@@ -249,9 +249,10 @@ public final class LootRolls {
         }
     }
 
-    // Deliberately no origin. With one, exploration_map searches the real world for the nearest
-    // structure on every roll, which is the slow treasure map lookup, thousands of times over for the
-    // odds. Without one, ExplorationMapFunctionMixin gives blankMap instead.
+    // Deliberately no origin. These rolls aren't for a chest anywhere, so any origin would be a made-up
+    // place, and loot code that reads the position, like location checks and other mods' loot
+    // modifiers, would run against the real world around it. Exploration maps don't need one either
+    // way: ExplorationMapFunctionMixin gives blankMap in every JES roll.
     private static LootParams chestParams(ServerLevel level) {
         return new LootParams.Builder(level).create(LootContextParamSets.EMPTY);
     }
