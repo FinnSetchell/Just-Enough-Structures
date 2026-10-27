@@ -63,8 +63,9 @@ import net.minecraft.server.packs.resources.ResourceManager;
  *
  * <p>Loot modifiers on Forge and NeoForge, and Fabric's event that changes what a table drops, only
  * show what they add when a table is rolled. So before the finished index goes out, each table is
- * rolled a few hundred times on the server thread, and what that adds is saved with the scan under a
- * hash of the table. Only a table that changed, or one no structure used before, is rolled again.
+ * rolled a few hundred times on the server thread, in the time its ticks leave over, and what that
+ * adds is saved with the scan under a hash of the table. Only a table that changed, or one no
+ * structure used before, is rolled again.
  *
  * <p>It all runs on a separate thread and never holds up the server starting or players joining.
  * A dedicated server builds at once; singleplayer waits until someone asks. While a rebuild runs,
@@ -89,8 +90,6 @@ public final class LootIndexStore {
     private static final int ROLLS = 500;
     /** The most of the server's time one table's rolls take. A table some mod makes slow to roll gets fewer. */
     private static final long TABLE_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
-    /** How long the rolls run in one go on the server thread, before the next tick gets its turn. */
-    private static final long SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     // The index captures every structure, so it runs on a separate thread and never holds up previews.
     private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
@@ -329,7 +328,7 @@ public final class LootIndexStore {
             return;
         }
         building = true;
-        new TableRolls(server, unrolled.keySet(), () -> generation != GENERATION.get() || !server.isRunning(), seen -> {
+        SpareTime.add(server, new TableRolls(server, unrolled.keySet(), () -> generation != GENERATION.get() || !server.isRunning(), seen -> {
             Map<ResourceLocation, StructureScan.Rolled> rolled = new TreeMap<>();
             Map<ResourceLocation, Set<ResourceLocation>> added = new TreeMap<>();
             seen.forEach((table, items) -> {
@@ -346,7 +345,7 @@ public final class LootIndexStore {
             if (key != null) {
                 inBackground(server, generation, () -> write(dir, key, withRolls));
             }
-        }).run();
+        }));
     }
 
     /** Makes these the scan and the index, and sends the index. Server thread only. */
@@ -358,12 +357,12 @@ public final class LootIndexStore {
     }
 
     /**
-     * Rolls loot tables on the server thread, a few milliseconds at a time in its spare time, then
-     * hands {@code done} the items each one gave. Loot modifiers and other mods' loot code run in the
-     * rolls as they do when a chest is filled, and some of them touch the world, so the rolls can't
+     * Rolls loot tables on the server thread in the time its ticks leave over ({@link SpareTime}),
+     * then hands {@code done} the items each one gave. Loot modifiers and other mods' loot code run in
+     * the rolls as they do when a chest is filled, and some of them touch the world, so the rolls can't
      * run on the index's thread. Stops once {@code stale} is true, without calling {@code done}.
      */
-    private static final class TableRolls implements Runnable {
+    private static final class TableRolls implements SpareTime.Job {
         private final MinecraftServer server;
         private final Iterator<ResourceLocation> tables;
         private final int count;
@@ -387,20 +386,20 @@ public final class LootIndexStore {
         }
 
         @Override
-        public void run() {
+        public boolean work(long nanos) {
             if (stale.getAsBoolean()) {
-                return;
+                return true;
             }
             long sliceStarted = System.nanoTime();
             long left;
-            while ((left = SLICE_NANOS - (System.nanoTime() - sliceStarted)) > 0) {
+            while ((left = nanos - (System.nanoTime() - sliceStarted)) > 0) {
                 if (table == null) {
                     if (!tables.hasNext()) {
                         rollingNanos += System.nanoTime() - sliceStarted;
                         JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms",
                                 count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L);
                         done.accept(seen);
-                        return;
+                        return true;
                     }
                     table = tables.next();
                     roller = null;
@@ -433,7 +432,7 @@ public final class LootIndexStore {
                 }
             }
             rollingNanos += System.nanoTime() - sliceStarted;
-            JesServer.later(server, this);
+            return false;
         }
     }
 

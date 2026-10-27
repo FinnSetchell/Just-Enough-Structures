@@ -532,6 +532,18 @@ public final class JesGameTests {
         RollLevelTests.lootIsRolledInTheOverworld(helper);
     }
 
+    // A batch of its own: its ticks take most of a tick's length, and the work it gives the server never ends.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "spare_time", timeoutTicks = 1200)
+    public void workThatNeverEndsLeavesTheServerItsTicks(GameTestHelper helper) {
+        SpareTimeTests.workThatNeverEndsLeavesTheServerItsTicks(helper);
+    }
+
+    // A batch of its own: its ticks take longer than a tick's length.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "spare_time_busy", timeoutTicks = 200)
+    public void workStillFinishesOnABusyServer(GameTestHelper helper) {
+        SpareTimeTests.workStillFinishesOnABusyServer(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void impossibleLocateIsQuick(GameTestHelper helper) {
         ServiceTests.impossibleLocateIsQuick(helper);

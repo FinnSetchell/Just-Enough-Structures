@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompass
 import com.finndog.justenoughstructures.server.JesCommands;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
+import com.finndog.justenoughstructures.server.SpareTime;
 import java.util.stream.Collectors;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
@@ -31,6 +32,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforgespi.language.IModInfo;
 
 @Mod(JustEnoughStructures.MOD_ID)
@@ -72,6 +74,8 @@ public final class JustEnoughStructuresNeoForge {
         NeoForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
         NeoForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> JesServer.stop());
+        NeoForge.EVENT_BUS.addListener((ServerTickEvent.Pre event) -> SpareTime.tickStarted(event.getServer()));
+        NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post event) -> SpareTime.tickEnded(event.getServer()));
         // Sent to all players at once only after /reload, partway through applying the new data, so
         // JES reloads on the next tick, once all of it is in place.
         NeoForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {

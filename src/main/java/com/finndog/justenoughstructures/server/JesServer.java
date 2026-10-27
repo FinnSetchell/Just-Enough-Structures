@@ -39,7 +39,6 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -73,8 +72,6 @@ import net.minecraft.world.level.storage.loot.LootTable;
 public final class JesServer {
     private static final int MAX_CONTAINER_SLOTS = 54;
     private static final int ODDS_ROLLS = 2000;
-    /** How long odds roll in one go on the server thread, before the next tick gets its turn. */
-    private static final long ODDS_SLICE_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
     /** How long one table's odds roll in all. A table some mod makes slow to roll gets fewer rolls. */
     private static final long ODDS_BUDGET_NANOS = TimeUnit.SECONDS.toNanos(3);
     private static final int CACHED_CAPTURES = 32;
@@ -233,6 +230,7 @@ public final class JesServer {
         Uploads.clear();
         RequestLimits.clear();
         LootIndexStore.stop();
+        SpareTime.clear();
         SavedPreviews.forget();
         BROWSING.clear();
         LATEST_PREVIEW.clear();
@@ -906,38 +904,36 @@ public final class JesServer {
     }
 
     /**
-     * Rolls for a moment now and the rest in the server's spare time between ticks, so a table
-     * that's slow to roll can't hold the server up. With {@code budget} used up, or a roll that
-     * throws, it stops at the odds so far.
+     * Rolls in the time the server's ticks leave over ({@link SpareTime}), ahead of the loot index's
+     * rolls as a player is waiting, so a table that's slow to roll can't hold the server up. With
+     * {@code budget} of rolling used up, or a roll that throws, it stops at the odds so far.
      */
     private static void rollInSlices(MinecraftServer server, LootRolls.Roller roller, long budget, Consumer<LootOdds> done) {
-        long started = System.nanoTime();
-        boolean finished;
-        try {
-            finished = roller.rollFor(Math.min(ODDS_SLICE_NANOS, budget));
-        } catch (RuntimeException | LinkageError | StackOverflowError e) {
-            JesLog.debug("Rolling {} failed after {} rolls", roller.odds().tableId(), roller.odds().rolls(), e);
-            finished = true;
-        }
-        long left = budget - (System.nanoTime() - started);
-        if (finished || left <= 0) {
-            LootOdds odds = roller.odds();
-            if (!finished) {
-                JesLog.debug("{} is slow to roll, so its odds are from {} rolls", odds.tableId(), odds.rolls());
-            }
-            done.accept(odds);
-        } else {
-            later(server, () -> rollInSlices(server, roller, left, done));
-        }
-    }
+        SpareTime.addWaitedFor(server, new SpareTime.Job() {
+            private long left = budget;
 
-    /** Runs {@code task} on the server thread in its spare time, or a few ticks on at the latest. */
-    static void later(MinecraftServer server, Runnable task) {
-        //? if >=26.1 {
-        /*server.schedule(new TickTask(server.getTickCount(), task));
-        *///?} else {
-        server.tell(new TickTask(server.getTickCount(), task));
-        //?}
+            @Override
+            public boolean work(long nanos) {
+                long started = System.nanoTime();
+                boolean finished;
+                try {
+                    finished = roller.rollFor(Math.min(nanos, left));
+                } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                    JesLog.debug("Rolling {} failed after {} rolls", roller.odds().tableId(), roller.odds().rolls(), e);
+                    finished = true;
+                }
+                left -= System.nanoTime() - started;
+                if (!finished && left > 0) {
+                    return false;
+                }
+                LootOdds odds = roller.odds();
+                if (!finished) {
+                    JesLog.debug("{} is slow to roll, so its odds are from {} rolls", odds.tableId(), odds.rolls());
+                }
+                done.accept(odds);
+                return true;
+            }
+        });
     }
 
     private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};

@@ -8,6 +8,7 @@ import com.finndog.justenoughstructures.compat.explorerscompass.ExplorersCompass
 import com.finndog.justenoughstructures.server.JesCommands;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.PackToolsAccess;
+import com.finndog.justenoughstructures.server.SpareTime;
 import java.util.stream.Collectors;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
@@ -17,6 +18,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -64,6 +66,8 @@ public final class JustEnoughStructuresForge {
         ServerStartingEvent.BUS.addListener(event -> JesServer.starting(event.getServer()));
         ServerStartedEvent.BUS.addListener(event -> JesServer.reload(event.getServer()));
         ServerStoppingEvent.BUS.addListener(event -> JesServer.stop());
+        TickEvent.ServerTickEvent.Pre.BUS.addListener(event -> SpareTime.tickStarted(event.server()));
+        TickEvent.ServerTickEvent.Post.BUS.addListener(event -> SpareTime.tickEnded(event.server()));
         // Sent to all players at once only after /reload, partway through applying the new data, so
         // JES reloads on the next tick, once all of it is in place.
         OnDatapackSyncEvent.BUS.addListener(event -> {
@@ -92,6 +96,13 @@ public final class JustEnoughStructuresForge {
         MinecraftForge.EVENT_BUS.addListener((ServerStartingEvent event) -> JesServer.starting(event.getServer()));
         MinecraftForge.EVENT_BUS.addListener((ServerStartedEvent event) -> JesServer.reload(event.getServer()));
         MinecraftForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> JesServer.stop());
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.START) {
+                SpareTime.tickStarted(event.getServer());
+            } else {
+                SpareTime.tickEnded(event.getServer());
+            }
+        });
         // Sent to all players at once only after /reload, partway through applying the new data, so
         // JES reloads on the next tick, once all of it is in place.
         MinecraftForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
