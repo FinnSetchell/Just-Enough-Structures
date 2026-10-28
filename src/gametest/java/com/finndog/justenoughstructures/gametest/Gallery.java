@@ -70,6 +70,13 @@ public final class Gallery {
             "minecraft:mansion");
     private static final Set<String> OPEN_SPAWNER = Set.of("minecraft:fortress", "minecraft:stronghold");
     private static final int TIMEOUT_TICKS = 20 * 90;
+    /**
+     * How long the browser's list stands without a structure before it's recorded as never listed.
+     * The list comes in one piece and is only replaced when Pack tools hide, show or change a
+     * structure, so one it lacks doesn't turn up later. The few seconds are for a list replaced all
+     * the same. {@link #TIMEOUT_TICKS} stays the limit for a list that never comes.
+     */
+    private static final int UNLISTED_TICKS = 20 * 5;
 
     /** A big pack's /reload can take minutes. */
     private static final int RELOAD_TICKS = 20 * 300;
@@ -82,6 +89,11 @@ public final class Gallery {
 
     private Step step = Step.START;
     private int stepTicks;
+    /** The browser's list as last seen, and how long it has stood without the structure asked for. */
+    private Object listSeen;
+    private int unlistedTicks;
+    /** The browser's own list, which {@link JesScreen#select} looks through: null until it has arrived. Looked up when first wanted. */
+    private Field screenList;
     /** How long another screen has kept the browser from opening once in the world, for {@link #closeJoinScreen}. */
     private int blockedTicks;
     private int index;
@@ -273,7 +285,7 @@ public final class Gallery {
                     finish(mc);
                 } else if (screen.select(structures.get(index))) {
                     go(Step.WAIT_IDLE);
-                } else if (stepTicks > TIMEOUT_TICKS) {
+                } else if (missingFromList() || stepTicks > TIMEOUT_TICKS) {
                     record(structures.get(index), null, "never listed");
                     next();
                 }
@@ -404,6 +416,30 @@ public final class Gallery {
     private void go(Step next) {
         step = next;
         stepTicks = 0;
+        unlistedTicks = 0;
+    }
+
+    /**
+     * Whether the browser's list has stood {@link #UNLISTED_TICKS} without the structure asked for,
+     * counted from when it arrived or was last replaced. False while it hasn't arrived.
+     */
+    private boolean missingFromList() {
+        Object list;
+        try {
+            if (screenList == null) {
+                screenList = JesScreen.class.getDeclaredField("catalog");
+                screenList.setAccessible(true);
+            }
+            list = screenList.get(screen);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Can't read the browser's list", e);
+        }
+        if (list == null || list != listSeen) {
+            listSeen = list;
+            unlistedTicks = 0;
+            return false;
+        }
+        return ++unlistedTicks > UNLISTED_TICKS;
     }
 
     private void keepScreen(Minecraft mc) {
