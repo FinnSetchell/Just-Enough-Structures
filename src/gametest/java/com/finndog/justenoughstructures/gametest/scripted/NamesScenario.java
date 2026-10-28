@@ -73,11 +73,12 @@ final class NamesScenario {
                 .then(run(() -> reload[0] = mc.reloadResourcePacks()))
                 .then(until(() -> reload[0].isDone(), 1200))
                 .then(run(() -> check(NAME.equals(I18n.get(key)), "the resource pack gives " + I18n.get(key))))
-                // Taken away again, the mod's own name is back.
+                // Taken away again, the mod's own name is back. Until the reload the game's translations
+                // still give the name, so what's waited for is the server's list coming back without it.
                 .then(run(() -> ClientRequests.saveName(IGLOO, StructureNames.language(), "")))
                 .then(until(() -> {
                     ClientRequests.catalog();
-                    return !NAME.equals(StructureNames.structure(IGLOO));
+                    return StructureNames.namesFromServer() && StructureNames.given(IGLOO).isEmpty();
                 }, 400))
                 .then(run(() -> reload[0] = mc.reloadResourcePacks()))
                 .then(until(() -> reload[0].isDone(), 1200))
