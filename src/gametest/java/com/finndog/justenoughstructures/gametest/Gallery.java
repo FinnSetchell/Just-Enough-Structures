@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
@@ -81,7 +83,7 @@ public final class Gallery {
     /** A big pack's /reload can take minutes. */
     private static final int RELOAD_TICKS = 20 * 300;
 
-    private enum Step { START, WAIT_WORLD, WAIT_RELOAD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, DONE }
+    private enum Step { START, WAIT_WORLD, WAIT_RELOAD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, WAIT_ROLLS, DONE }
 
     /** One more screenshot of a structure: what to open first, how long to let it settle, and what to close after. */
     private record Shot(String suffix, Runnable open, int settle, Runnable close) {
@@ -137,6 +139,16 @@ public final class Gallery {
     private final int settleTicks;
     private int inWorldTicks;
     private ResourceManager resourcesBefore;
+    /**
+     * Whether to stay in the world after the last structure until the loot index's roll step has
+     * finished, for at most {@link #untilRolledMinutes}, so a run sees the whole of it.
+     */
+    private final boolean untilRolled;
+    private final int untilRolledMinutes;
+    private long rollsWaitStarted;
+    /** The server thread's answer to whether the roll step has finished, and whether a question is still out. */
+    private volatile boolean rolled;
+    private volatile boolean asking;
 
     private Gallery(Path out) {
         String list = System.getProperty("jes.autoshot.structures", "");
@@ -152,6 +164,8 @@ public final class Gallery {
         reload = Boolean.getBoolean("jes.autoshot.reload");
         joins = Boolean.getBoolean("jes.autoshot.join");
         settleTicks = Integer.getInteger("jes.autoshot.wait", 0) * 20;
+        untilRolled = Boolean.getBoolean("jes.autoshot.untilRolled");
+        untilRolledMinutes = Integer.getInteger("jes.autoshot.untilRolledMinutes", 20);
         this.out = out;
         spread();
     }
@@ -282,7 +296,7 @@ public final class Gallery {
                     return;
                 }
                 if (index >= structures.size()) {
-                    finish(mc);
+                    afterLast(mc);
                 } else if (screen.select(structures.get(index))) {
                     go(Step.WAIT_IDLE);
                 } else if (missingFromList() || stepTicks > TIMEOUT_TICKS) {
@@ -336,8 +350,48 @@ public final class Gallery {
                     nextShot();
                 }
             }
+            case WAIT_ROLLS -> {
+                keepScreen(mc);
+                waitForRolls(mc);
+            }
             case DONE -> {
             }
+        }
+    }
+
+    /** After the last structure: quits, or with {@link #untilRolled} first waits for the roll step. */
+    private void afterLast(Minecraft mc) {
+        if (!untilRolled) {
+            finish(mc);
+            return;
+        }
+        JustEnoughStructures.LOGGER.info("Gallery: the last structure is done, waiting up to {} minutes for the roll step", untilRolledMinutes);
+        rollsWaitStarted = System.nanoTime();
+        go(Step.WAIT_ROLLS);
+    }
+
+    /**
+     * Quits once the loot index's roll step has finished, or after {@link #untilRolledMinutes}. The
+     * index's state belongs to the server thread, so it's asked there, once a second. The index is only
+     * finished once its tables have been rolled, the same moment the roll step logs "Rolled".
+     */
+    private void waitForRolls(Minecraft mc) {
+        MinecraftServer server = mc.getSingleplayerServer();
+        if (server == null) {
+            JustEnoughStructures.LOGGER.info("Gallery: there's no server in this game to watch the roll step on, quitting");
+            finish(mc);
+        } else if (rolled) {
+            JustEnoughStructures.LOGGER.info("Gallery: the roll step finished, quitting");
+            finish(mc);
+        } else if (System.nanoTime() - rollsWaitStarted >= TimeUnit.MINUTES.toNanos(untilRolledMinutes)) {
+            JustEnoughStructures.LOGGER.info("Gallery: the roll step hadn't finished after {} minutes, quitting", untilRolledMinutes);
+            finish(mc);
+        } else if (!asking && stepTicks % 20 == 1) {
+            asking = true;
+            server.execute(() -> {
+                rolled = LootIndexStore.ready();
+                asking = false;
+            });
         }
     }
 
