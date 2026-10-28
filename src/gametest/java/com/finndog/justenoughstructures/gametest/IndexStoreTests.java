@@ -11,6 +11,7 @@ import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
+import com.finndog.justenoughstructures.server.SpareTime;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,6 +37,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
 
@@ -118,13 +120,13 @@ public final class IndexStoreTests {
         JesServer.onRequestIndex(player);
         // Everything sent by the time both indexes were there, then what asking once more brought.
         List<List<Sent>> seen = new ArrayList<>();
+        Pace pace = new Pace(server);
         helper.succeedWhen(() -> {
             if (seen.isEmpty()) {
                 List<Sent> all = List.copyOf(sent);
                 long sentIndexes = all.stream().filter(s -> s.index() != null).count();
                 if (sentIndexes < 2) {
-                    // The idle test server ticks very fast, so wait a little between looks.
-                    pause(50);
+                    pace.keep();
                 }
                 helper.assertTrue(sentIndexes >= 2, "the player has been sent " + sentIndexes + " indexes so far");
                 // Asking now gets the finished index, and nothing more about progress.
@@ -207,12 +209,12 @@ public final class IndexStoreTests {
         JesServer.onRequestIndex(player);
         // What asking the next server brought.
         List<List<Sent>> seen = new ArrayList<>();
+        Pace pace = new Pace(server);
         helper.succeedWhen(() -> {
             if (seen.isEmpty()) {
                 boolean finished = sent.stream().anyMatch(s -> Boolean.FALSE.equals(s.early()));
                 if (!finished) {
-                    // The idle test server ticks very fast, so wait a little between looks.
-                    pause(50);
+                    pace.keep();
                 }
                 helper.assertTrue(finished, "the last world's index isn't finished yet");
                 // What the server stopping and the next one starting do with the index (JesServer's
@@ -234,7 +236,7 @@ public final class IndexStoreTests {
             // Its own index is there before the test ends, so no build goes on into the tests after it.
             boolean ready = LootIndexStore.ready();
             if (!ready) {
-                pause(50);
+                pace.keep();
             }
             helper.assertTrue(ready, "the next server's index isn't ready yet");
         });
@@ -298,11 +300,11 @@ public final class IndexStoreTests {
         List<List<Sent>> askedAfter = new ArrayList<>();
         int[] looks = {-1};
         AtomicBoolean reported = new AtomicBoolean();
+        Pace pace = new Pace(server);
         helper.succeedWhen(() -> {
             if (askedAfter.size() < 2) {
                 if (!failed.get()) {
-                    // The idle test server ticks very fast, so wait a little between looks.
-                    pause(50);
+                    pace.keep();
                 }
                 helper.assertTrue(failed.get(), "the build hasn't been made to fail yet in round " + round.get());
                 if (looks[0] < 0) {
@@ -392,12 +394,12 @@ public final class IndexStoreTests {
         // The finished index the build sent, the saved one read back, and the one sent after the next start.
         Map<String, LootIndex> seen = new LinkedHashMap<>();
         boolean[] logged = new boolean[1];
+        Pace pace = new Pace(server);
         helper.succeedWhen(() -> {
             if (seen.isEmpty()) {
                 LootIndex built = sent.stream().filter(s -> Boolean.FALSE.equals(s.early())).map(Sent::index).findFirst().orElse(null);
                 if (built == null) {
-                    // The idle test server ticks very fast, so wait a little between looks.
-                    pause(50);
+                    pace.keep();
                 }
                 helper.assertTrue(built != null, "the index isn't finished yet");
                 seen.put("built", built);
@@ -408,7 +410,7 @@ public final class IndexStoreTests {
             if (seen.size() == 1) {
                 boolean ready = LootIndexStore.ready();
                 if (!ready) {
-                    pause(50);
+                    pace.keep();
                 }
                 helper.assertTrue(ready, "the saved index hasn't been read back yet");
                 StructureScan scan = LootIndexStore.read(saved, fingerprint);
@@ -509,6 +511,53 @@ public final class IndexStoreTests {
     /** What a player was sent, as "an index" or how far the build had got, and "failed" when it had. */
     private static List<String> described(List<Sent> sent) {
         return sent.stream().map(s -> s.index() != null ? "an index" : s.done() + "/" + s.total() + (s.failed() ? " failed" : "")).toList();
+    }
+
+    /**
+     * Keeps a waiting test's looks at least a tick's length apart, as the game paces a real server. The
+     * test server never waits between ticks, so with nothing to do it would get through a test's time
+     * limit, counted in ticks, in moments while the index's thread works. The wait goes between ticks,
+     * where a real server waits. In the tick it would count as the tick's own time, and the index's
+     * rolls, which only get what a tick leaves over ({@link SpareTime}), would be left almost nothing.
+     */
+    private static final class Pace {
+        private final MinecraftServer server;
+        // Server thread only: when the last wait ended, and whether the next one is queued.
+        private long last = System.nanoTime();
+        private boolean queued;
+
+        Pace(MinecraftServer server) {
+            this.server = server;
+        }
+
+        /** At a look that found nothing yet: once this tick is over, waits until a tick's length after the last wait ended. */
+        void keep() {
+            if (queued) {
+                return;
+            }
+            queued = true;
+            betweenTicks(server, () -> {
+                long left = last + SpareTime.tickNanos(server) - System.nanoTime();
+                if (left > 0) {
+                    try {
+                        TimeUnit.NANOSECONDS.sleep(left);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                last = System.nanoTime();
+                queued = false;
+            });
+        }
+    }
+
+    /** Runs {@code task} on the server thread once this tick is over, before the next one starts. */
+    private static void betweenTicks(MinecraftServer server, Runnable task) {
+        //? if >=26.1 {
+        /*server.schedule(new TickTask(server.getTickCount(), task));
+        *///?} else {
+        server.tell(new TickTask(server.getTickCount(), task));
+        //?}
     }
 
     private static void pause(long millis) {
