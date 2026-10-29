@@ -160,6 +160,12 @@ public final class Gallery {
      * wants that over first.
      */
     private final int settleTicks;
+    /**
+     * The fewest ticks a structure is drawn for before its shot, whatever else is ready, from
+     * {@code jes.autoshot.settleTicks}. The crash hunt sets 10, as drawing each structure for that long
+     * is part of what it tests.
+     */
+    private final int leastSettleTicks;
     private int inWorldTicks;
     private ResourceManager resourcesBefore;
     /**
@@ -187,6 +193,7 @@ public final class Gallery {
         reload = Boolean.getBoolean("jes.autoshot.reload");
         joins = Boolean.getBoolean("jes.autoshot.join");
         settleTicks = Integer.getInteger("jes.autoshot.wait", 0) * 20;
+        leastSettleTicks = Integer.getInteger("jes.autoshot.settleTicks", 0);
         untilRolled = Boolean.getBoolean("jes.autoshot.untilRolled");
         untilRolledMinutes = Integer.getInteger("jes.autoshot.untilRolledMinutes", 20);
         this.out = out;
@@ -417,7 +424,7 @@ public final class Gallery {
             }
             case SETTLE -> {
                 keepScreen(mc);
-                if (settled(() -> true)) {
+                if (settled(() -> true, leastSettleTicks)) {
                     ResourceLocation id = structures.get(index);
                     shoot(mc, name(id));
                     CaptureResult result = screen.result();
@@ -448,7 +455,7 @@ public final class Gallery {
             }
             case SHOTS -> {
                 keepScreen(mc);
-                if (settled(shot.ready())) {
+                if (settled(shot.ready(), 0)) {
                     shoot(mc, name(structures.get(index)) + "_" + shot.suffix());
                     shot.close().run();
                     nextShot();
@@ -559,9 +566,10 @@ public final class Gallery {
      * Whether a shot can be taken: the preview is idle, the camera held still from one frame the
      * browser drew to the next with {@code ready} true, and it has drawn one more since. Counted in
      * frames, not ticks, as some games draw one only every few ticks (26.1.2 Forge, every 2 to 10).
-     * The camera only moves as a frame is drawn, gliding to a close-up for half a second.
+     * The camera only moves as a frame is drawn, gliding to a close-up for half a second. Not before
+     * {@code leastTicks} ticks into the wait either.
      */
-    private boolean settled(BooleanSupplier ready) {
+    private boolean settled(BooleanSupplier ready, int leastTicks) {
         long drawn = lastFrame();
         if (drawn != frameSeen) {
             StructureViewport.Camera now = viewport().camera();
@@ -571,7 +579,7 @@ public final class Gallery {
             stillFrames = still ? stillFrames + 1 : 0;
             framedTicks++;
         }
-        if (stillFrames < 2) {
+        if (stillFrames < 2 || stepTicks < leastTicks) {
             return false;
         }
         JesLog.debug("Gallery: {} {} after {} ticks, {} of them with a new frame", structures.get(index),
