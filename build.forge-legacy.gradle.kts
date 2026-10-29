@@ -47,6 +47,11 @@ repositories {
         name = "Modrinth"
         content { includeGroup("maven.modrinth") }
     }
+    // FTB Quests and the FTB libraries it needs, which are only on FTB's own maven.
+    maven("https://maven.ftb.dev/releases") {
+        name = "FTB"
+        content { includeGroup("dev.ftb.mods") }
+    }
 }
 
 // The same structure mods as the Fabric dev runtime, in their Forge builds, so the browser can be
@@ -107,6 +112,8 @@ legacyForge {
             systemProperty("jes.perf", hasProperty("perf").toString())
             // The mod's own debug log, in build/gametest/logs.
             systemProperty("justenoughstructures.debug", "true")
+            // FTB Quests is in every run here, so its tests aren't skipped.
+            systemProperty("jes.gametest.ftbquests", "true")
             // The test mod's own mixins, only on this run, where the test mod is loaded.
             programArguments.addAll("--mixin.config", "${modId}_gametest.mixins.json")
         }
@@ -151,6 +158,16 @@ dependencies {
     modCompileOnly("maven.modrinth:emi:${prop("deps.emi")}")
     modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
     modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+    // And FTB Quests, whose Find Structure tasks open the browser, with the FTB Library its quest screen
+    // is made of. Their own jars only: their POMs bring in recipe viewers.
+    modCompileOnly("dev.ftb.mods:ftb-quests-forge:${prop("deps.ftbquests")}") { isTransitive = false }
+    modCompileOnly("dev.ftb.mods:ftb-library-forge:${prop("deps.ftblibrary")}") { isTransitive = false }
+    // In every run, dev mods or not, so the game tests of the link run against the real mod, on CI too.
+    // FTB Quests needs FTB Teams and Architectury.
+    modRuntimeOnly("dev.ftb.mods:ftb-quests-forge:${prop("deps.ftbquests")}") { isTransitive = false }
+    modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${prop("deps.ftblibrary")}") { isTransitive = false }
+    modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${prop("deps.ftbteams")}") { isTransitive = false }
+    modRuntimeOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modRuntimeOnly("maven.modrinth:$it") }

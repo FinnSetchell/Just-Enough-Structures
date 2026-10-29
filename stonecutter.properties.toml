@@ -30,6 +30,13 @@ deps.rei = "nYcMSS03"
 deps.architectury = "WbL7MStR"
 # Explorer's Compass, compiled against for the optional compass link. A Modrinth version id.
 deps.explorers_compass = "qD2j03H6"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. It needs Architectury
+# too, the file above.
+deps.ftbquests = "2001.4.22"
+deps.ftblibrary = "2001.2.13"
+deps.ftbteams = "2001.3.2"
+# Team Reborn Energy, which FTB Quests keeps inside its jar, where a dev runtime doesn't look.
+deps.ftb_energy = "3.0.0"
 # The JEI the dev runtime runs, a Modrinth version id, and the config library its later builds need.
 deps.jei_runtime = "YRfUnbXb"
 deps.jei_config = ""
@@ -53,6 +60,11 @@ deps.emi = "Axuu9I9R"
 deps.rei = "IoS2AjPk"
 deps.architectury = "1MKTLiiG"
 deps.explorers_compass = "7ZdJbCOx"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. It needs Architectury
+# too, the file above.
+deps.ftbquests = "2001.4.22"
+deps.ftblibrary = "2001.2.13"
+deps.ftbteams = "2001.3.2"
 
 # ------------------------------------------------------------------ 1.21.1 (Java 21)
 ["1.21.1"]
@@ -76,6 +88,13 @@ deps.emi = "on5GT1qh"
 deps.rei = "aWzTESNC"
 deps.architectury = "Pzc2FP5K"
 deps.explorers_compass = "qSRKiE4D"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. It needs Architectury
+# too, the file above.
+deps.ftbquests = "2101.1.37"
+deps.ftblibrary = "2101.1.39"
+deps.ftbteams = "2101.1.11"
+# Team Reborn Energy, which FTB Quests keeps inside its jar, where a dev runtime doesn't look.
+deps.ftb_energy = "4.1.0"
 
 # Forge 52 is the 1.21.1 line, the only one this jar loads on. Built against an early 52 build, so
 # the jar doesn't need a newer one.
@@ -93,6 +112,8 @@ deps.jei = "19.57.0.451"
 deps.emi = ""
 deps.rei = ""
 deps.explorers_compass = "kZHy6sq5"
+# FTB Quests has no Forge build for 1.21.1.
+deps.ftbquests = ""
 
 # NeoForge only runs on the Minecraft version it was built for. The floor is its line for 1.21.1
 # rather than a build, as launcher instances often sit a few builds behind.
@@ -109,6 +130,11 @@ deps.emi = "5sIPA1To"
 deps.rei = "b8gfS9Je"
 deps.architectury = "1IiqEQGl"
 deps.explorers_compass = "hIJ2Ev1Q"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. It needs Architectury
+# too, the file above.
+deps.ftbquests = "2101.1.37"
+deps.ftblibrary = "2101.1.39"
+deps.ftbteams = "2101.1.11"
 
 # ------------------------------------------------------------------ 26.1.2 (Java 25, unobfuscated)
 ["26.1.2"]
@@ -132,6 +158,16 @@ deps.emi = ""
 deps.rei = "EAlqUmgQ"
 deps.architectury = "Y7kRthh0"
 deps.explorers_compass = "FN4lCamU"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. From 26.1 it needs no
+# Architectury.
+deps.ftbquests = "26.1.2.9"
+deps.ftblibrary = "26.1.2.10"
+deps.ftbteams = "26.1.2.4"
+# Team Reborn Energy, which FTB Quests keeps inside its jar, where a dev runtime doesn't look.
+deps.ftb_energy = "5.0.0"
+# The JSON5 library FTB Library 26.1 keeps inside its jar. Quest files are JSON5 from 26.1, and the game
+# tests read one.
+deps.ftb_json5 = "3.0.0"
 
 # NeoForge only runs on the Minecraft version it was built for. The floor is the line's base, as
 # launcher instances often sit a few builds behind and a -beta build sorts below a plain one.
@@ -148,9 +184,17 @@ deps.emi = ""
 deps.rei = "isd1MxO2"
 deps.architectury = "9PW5lWrQ"
 deps.explorers_compass = "OuPMcvp4"
+# FTB Quests, and the FTB Library and FTB Teams it needs, from FTB's own maven. From 26.1 it needs no
+# Architectury.
+deps.ftbquests = "26.1.2.9"
+deps.ftblibrary = "26.1.2.10"
+deps.ftbteams = "26.1.2.4"
+# The JSON5 library FTB Library 26.1 keeps inside its jar. Quest files are JSON5 from 26.1, and the game
+# tests read one.
+deps.ftb_json5 = "3.0.0"
 
 # Forge 64 is the 26.1.2 line. From here Forge ships MixinExtras itself, and none of JEI, EMI, REI,
-# Cloth Config and Explorer's Compass has a Forge build for 26.1.
+# Cloth Config, Explorer's Compass and FTB Quests has a Forge build for 26.1.
 [forge."26.1.2"]
 mod.mc_build = "26.1.2"
 mod.mc_compat = "[26.1.2,26.1.3)"
@@ -164,6 +208,7 @@ deps.jei = ""
 deps.emi = ""
 deps.rei = ""
 deps.explorers_compass = ""
+deps.ftbquests = ""
 
 # ------------------------------------------------------------------ 26.2 (Java 25, unobfuscated)
 ["26.2"]
@@ -186,6 +231,8 @@ deps.emi = ""
 deps.rei = "4o0NSIMj"
 deps.architectury = "w3CUWoxd"
 deps.explorers_compass = "z6auypou"
+# FTB Quests has no build for 26.2.
+deps.ftbquests = ""
 
 [neoforge."26.2"]
 mod.mc_build = "26.2"
@@ -200,9 +247,11 @@ deps.emi = ""
 deps.rei = "BoY0Dky0"
 deps.architectury = "huNlZW4Q"
 deps.explorers_compass = "r9Okm6YW"
+# FTB Quests has no build for 26.2.
+deps.ftbquests = ""
 
-# Forge 65 is the 26.2 line. None of JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge
-# build for 26.2.
+# Forge 65 is the 26.2 line. None of JEI, EMI, REI, Cloth Config, Explorer's Compass and FTB
+# Quests has a Forge build for 26.2.
 [forge."26.2"]
 mod.mc_build = "26.2"
 mod.mc_compat = "[26.2,26.3)"
@@ -215,6 +264,7 @@ deps.jei = ""
 deps.emi = ""
 deps.rei = ""
 deps.explorers_compass = ""
+deps.ftbquests = ""
 
 # ------------------------------------------------------------------ 26.3 (Java 25, unobfuscated)
 ["26.3"]
@@ -237,6 +287,8 @@ deps.emi = ""
 deps.rei = "ePn2dRJ1"
 deps.architectury = "gAI51C1M"
 deps.explorers_compass = "69AbLioc"
+# FTB Quests has no build for 26.3.
+deps.ftbquests = ""
 
 # NeoForge's 26.3 builds are still betas.
 [neoforge."26.3"]
@@ -252,9 +304,11 @@ deps.emi = ""
 deps.rei = "ksJMlXAk"
 deps.architectury = "uEV9xTeI"
 deps.explorers_compass = "MhLYpmvJ"
+# FTB Quests has no build for 26.3.
+deps.ftbquests = ""
 
-# Forge 66 is the 26.3 line. None of JEI, EMI, REI, Cloth Config and Explorer's Compass has a Forge
-# build for 26.3.
+# Forge 66 is the 26.3 line. None of JEI, EMI, REI, Cloth Config, Explorer's Compass and FTB
+# Quests has a Forge build for 26.3.
 [forge."26.3"]
 mod.mc_build = "26.3"
 mod.mc_compat = "[26.3,26.4)"
@@ -267,3 +321,4 @@ deps.jei = ""
 deps.emi = ""
 deps.rei = ""
 deps.explorers_compass = ""
+deps.ftbquests = ""

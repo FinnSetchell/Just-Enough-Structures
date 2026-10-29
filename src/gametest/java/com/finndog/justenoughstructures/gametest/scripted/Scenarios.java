@@ -93,6 +93,9 @@ public final class Scenarios {
             case "index_filling" -> IndexFillingScenario.build(mc);
             case "placed" -> PlacedScenario.build(mc);
             case "ui_clicks" -> UiClicksScenario.build(mc);
+            //? if ftbquests {
+            case "ftb_quests" -> FtbQuestsScenario.build(mc);
+            //?}
             case "suite" -> suite(mc, System.getProperty("jes.autoshot.suite", "pack_tour,pack_tools"));
             default -> {
                 Function<Minecraft, Director> extra = EXTRA.get(mode);

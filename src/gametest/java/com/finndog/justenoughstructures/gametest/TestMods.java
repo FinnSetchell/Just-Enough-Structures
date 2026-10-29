@@ -2,7 +2,8 @@ package com.finndog.justenoughstructures.gametest;
 
 /**
  * The other mods a game test run was given on purpose, so a test of JES's hooks into one can tell a
- * run without it from a run where it failed to load. -Pc2me gives the run the real C2ME.
+ * run without it from a run where it failed to load. -Pc2me gives the run the real C2ME. FTB Quests is
+ * in the runs of the builds it has a build for, except 26.1 NeoForge without -Pftbquests.
  */
 public final class TestMods {
     /** The random C2ME gives each world in place of the game's own. */
@@ -14,5 +15,10 @@ public final class TestMods {
     /** Whether the run was given C2ME. */
     public static boolean c2me() {
         return Boolean.getBoolean("jes.gametest.c2me");
+    }
+
+    /** Whether the run was given FTB Quests. */
+    public static boolean ftbQuests() {
+        return Boolean.getBoolean("jes.gametest.ftbquests");
     }
 }

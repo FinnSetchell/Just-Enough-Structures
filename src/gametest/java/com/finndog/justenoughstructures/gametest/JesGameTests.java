@@ -347,6 +347,26 @@ public final class JesGameTests {
         CompassTests.compassOnlySearchesWhereItCould(helper);
     }
 
+    //? if ftbquests {
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void findStructureTasksNameWhatTheyAskFor(GameTestHelper helper) {
+        if (TestMods.ftbQuests()) {
+            FtbQuestsTests.findStructureTasksNameWhatTheyAskFor(helper);
+        } else {
+            helper.succeed();
+        }
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void taskButtonMakesTheCallsTheLinkWraps(GameTestHelper helper) {
+        if (TestMods.ftbQuests()) {
+            FtbQuestsTests.taskButtonMakesTheCallsTheLinkWraps(helper);
+        } else {
+            helper.succeed();
+        }
+    }
+    //?}
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void editsSaveAndReadBack(GameTestHelper helper) {
         OverrideTests.editsSaveAndReadBack(helper);

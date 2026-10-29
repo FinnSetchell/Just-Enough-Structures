@@ -35,6 +35,7 @@ sourceSets.main {
 // out: NeoForge runs the same tests and screenshot scripts through its own classes.
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.exclude("**/fabric/**", "**/forge/**")
+    java.exclude(withoutIntegrations)
     resources.exclude("fabric.mod.json")
     // From 26.1 the tests' environments are registered along with the tests, as NeoForge offers no
     // way to look up the ones in data.
@@ -57,6 +58,11 @@ repositories {
     maven("https://api.modrinth.com/maven") {
         name = "Modrinth"
         content { includeGroup("maven.modrinth") }
+    }
+    // FTB Quests and the FTB libraries it needs, which are only on FTB's own maven.
+    maven("https://maven.ftb.dev/releases") {
+        name = "FTB"
+        content { includeGroup("dev.ftb.mods") }
     }
 }
 
@@ -131,6 +137,10 @@ val devMods = mapOf(
     ),
 )
 val useDevMods = System.getenv("CI") == null && findProperty("dev_mods")?.toString() != "false"
+// FTB Quests in every run, so the game tests of the link run against the real mod, on CI too. From 26.1
+// only with -Pftbquests: FTB Library sends its own packets to each player who joins, NeoForge 26.1
+// refuses them for the game tests' stand-in players, and every test that makes one fails.
+val ftbQuestsInRuns = has("ftbquests") && (mcBuild.startsWith("1.") || hasProperty("ftbquests"))
 // The real C2ME in the game test run, with -Pc2me (GameTestMods.kt).
 val gameTestMods = GameTestMods(project)
 // Which recipe viewer the dev runtime has: -Pviewer=jei (the default), emi or rei.
@@ -170,6 +180,8 @@ neoForge {
             systemProperty("justenoughstructures.debug", "true")
             // Tells the tests whether to expect C2ME, so they fail if it didn't load.
             systemProperty("jes.gametest.c2me", gameTestMods.c2me.toString())
+            // Likewise FTB Quests, whose tests are skipped in runs without it.
+            systemProperty("jes.gametest.ftbquests", ftbQuestsInRuns.toString())
         }
         // Screenshots the browser in a throwaway world, then quits. Its flags are listed in DevRuns.kt.
         register("autoshot") {
@@ -202,6 +214,20 @@ dependencies {
     if (has("rei")) {
         compileOnly("maven.modrinth:rei:${prop("deps.rei")}")
         compileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+    }
+    // And FTB Quests, whose Find Structure tasks open the browser, with the FTB Library its quest screen
+    // is made of. Their own jars only: their POMs bring in recipe viewers.
+    if (has("ftbquests")) {
+        compileOnly("dev.ftb.mods:ftb-quests-neoforge:${prop("deps.ftbquests")}") { isTransitive = false }
+        compileOnly("dev.ftb.mods:ftb-library-neoforge:${prop("deps.ftblibrary")}") { isTransitive = false }
+        if (has("ftb_json5")) compileOnly("de.marhali:json5-java:${prop("deps.ftb_json5")}")
+    }
+    // FTB Quests needs FTB Teams, and Architectury up to 1.21.
+    if (ftbQuestsInRuns) {
+        runtimeOnly("dev.ftb.mods:ftb-quests-neoforge:${prop("deps.ftbquests")}") { isTransitive = false }
+        runtimeOnly("dev.ftb.mods:ftb-library-neoforge:${prop("deps.ftblibrary")}") { isTransitive = false }
+        runtimeOnly("dev.ftb.mods:ftb-teams-neoforge:${prop("deps.ftbteams")}") { isTransitive = false }
+        if (mcBuild.startsWith("1.")) runtimeOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
     }
 
     if (useDevMods) {

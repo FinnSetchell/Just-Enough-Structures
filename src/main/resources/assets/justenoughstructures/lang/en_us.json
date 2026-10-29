@@ -935,6 +935,9 @@
   "screen.justenoughstructures.compass_preview": "Preview",
   "screen.justenoughstructures.compass_preview_hint": "See it in Just Enough Structures",
 
+  "_comment.ftb_quests": "FTB Quests: a Find Structure task's tooltip",
+  "screen.justenoughstructures.ftb_quests_open": "Click to see it in Just Enough Structures",
+
   "_comment.keybindings": "Keybindings",
   "key.justenoughstructures.open": "Open structure browser",
   "key.categories.justenoughstructures": "Just Enough Structures",

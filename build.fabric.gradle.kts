@@ -30,6 +30,7 @@ sourceSets.main {
 // Game tests build as a second mod that never ships. It sees the main classes through main's output.
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.exclude("**/forge/**", "**/neoforge/**")
+    java.exclude(withoutIntegrations)
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
     runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
 }
@@ -44,6 +45,11 @@ repositories {
     maven("https://api.modrinth.com/maven") {
         name = "Modrinth"
         content { includeGroup("maven.modrinth") }
+    }
+    // FTB Quests and the FTB libraries it needs, which are only on FTB's own maven.
+    maven("https://maven.ftb.dev/releases") {
+        name = "FTB"
+        content { includeGroup("dev.ftb.mods") }
     }
 }
 
@@ -181,6 +187,21 @@ dependencies {
         modCompileOnly("maven.modrinth:rei:${prop("deps.rei")}")
         modCompileOnly("maven.modrinth:architectury-api:${prop("deps.architectury")}")
     }
+    // And FTB Quests, whose Find Structure tasks open the browser, with the FTB Library its quest screen
+    // is made of. Their own jars only: their POMs bring in recipe viewers.
+    if (has("ftbquests")) {
+        modCompileOnly("dev.ftb.mods:ftb-quests-fabric:${prop("deps.ftbquests")}") { isTransitive = false }
+        modCompileOnly("dev.ftb.mods:ftb-library-fabric:${prop("deps.ftblibrary")}") { isTransitive = false }
+        // In every run, dev mods or not, so the game tests of the link run against the real mod, on CI
+        // too. FTB Quests needs FTB Teams, Architectury up to 1.21, and the Team Reborn Energy it carries
+        // inside its jar.
+        modLocalRuntime("dev.ftb.mods:ftb-quests-fabric:${prop("deps.ftbquests")}") { isTransitive = false }
+        modLocalRuntime("dev.ftb.mods:ftb-library-fabric:${prop("deps.ftblibrary")}") { isTransitive = false }
+        modLocalRuntime("dev.ftb.mods:ftb-teams-fabric:${prop("deps.ftbteams")}") { isTransitive = false }
+        if (mcBuild.startsWith("1.")) modLocalRuntime("maven.modrinth:architectury-api:${prop("deps.architectury")}")
+        modLocalRuntime("teamreborn:energy:${prop("deps.ftb_energy")}") { isTransitive = false }
+        if (has("ftb_json5")) compileOnly("de.marhali:json5-java:${prop("deps.ftb_json5")}")
+    }
 
     if (useDevMods) {
         devMods[mcBuild].orEmpty().forEach { modLocalRuntime("maven.modrinth:$it") }
@@ -242,6 +263,8 @@ loom {
             vmArg("-Djustenoughstructures.debug=true")
             // Tells the tests whether to expect C2ME, so they fail if it didn't load.
             vmArg("-Djes.gametest.c2me=${gameTestMods.c2me}")
+            // Likewise FTB Quests, whose tests are skipped in runs without it.
+            vmArg("-Djes.gametest.ftbquests=${has("ftbquests")}")
             // A real instance loads mods sorted by id; the dev game shuffles them. The order decides
             // whether C2ME's hook or JES's runs first, so with C2ME the run uses the real order unless
             // -Pc2me=shuffled.
@@ -351,7 +374,7 @@ tasks {
             if (!has("modmenu") || !has("cloth_config")) put("modmenu", "modmenu")
         }
         val unsuggested = dropped.values + listOfNotNull("explorerscompass".takeIf { !has("explorers_compass") },
-            "cloth-config".takeIf { !has("cloth_config") })
+            "cloth-config".takeIf { !has("cloth_config") }, "ftbquests".takeIf { !has("ftbquests") })
         inputs.property("dropped", dropped.keys.joinToString() + "|" + unsuggested.joinToString())
         doLast {
             if (dropped.isEmpty() && unsuggested.isEmpty()) return@doLast

@@ -18,7 +18,7 @@ stonecutter parameters {
     // stonecutter.properties.toml.
     constants {
         match(loader, "fabric", "forge", "neoforge")
-        for (mod in listOf("jei", "emi", "rei", "cloth_config", "explorers_compass", "modmenu")) {
+        for (mod in listOf("jei", "emi", "rei", "cloth_config", "explorers_compass", "modmenu", "ftbquests")) {
             put(mod, !properties.getOrNull<String>("deps.$mod").isNullOrEmpty())
         }
     }

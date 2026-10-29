@@ -22,8 +22,8 @@ public final class JesMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.endsWith(".C2meRandomMixin")) {
-            return JesMixinPlugin.class.getClassLoader().getResource(targetClassName.replace('.', '/') + ".class") != null;
+        if (mixinClassName.endsWith(".C2meRandomMixin") || mixinClassName.endsWith(".FtbQuestsTaskButtonMixin")) {
+            return installed(targetClassName);
         }
         return true;
     }
@@ -34,7 +34,19 @@ public final class JesMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public List<String> getMixins() {
-        return null;
+        // The FTB Quests link's, only on the builds that have it, as every mixin the config lists must
+        // exist, and only with FTB Quests installed: Mixin warns about a missing target before asking
+        // shouldApplyMixin about a mixin handed over here.
+        //? if ftbquests {
+        return installed("dev.ftb.mods.ftbquests.client.gui.quests.TaskButton") ? List.of("FtbQuestsTaskButtonMixin") : null;
+        //?} else {
+        /*return null;
+        *///?}
+    }
+
+    /** Whether another mod's class is there, found without loading it. */
+    private static boolean installed(String className) {
+        return JesMixinPlugin.class.getClassLoader().getResource(className.replace('.', '/') + ".class") != null;
     }
 
     @Override

@@ -89,6 +89,7 @@ Anyone can run it, and it opens for the player who ran it. A quest, guide book o
 
 - JEI, EMI or REI: an item's recipes get a Found in structures page
 - Explorer's Compass: its structure list gets a Preview button, and while you hold the compass the browser gets a button that opens it on the structure you're looking at
+- FTB Quests: clicking a Find Structure task opens its structure in the browser
 - Mod Menu with Cloth Config: a settings screen for the browser and for the worlds you host
 
 ## Pack tools

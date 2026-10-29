@@ -45,6 +45,7 @@ sourceSets.main {
 // stays out: Forge runs the same tests and screenshot scripts through Forge-only classes.
 val gametest: SourceSet = sourceSets.create("gametest") {
     java.exclude("**/fabric/**", "**/neoforge/**")
+    java.exclude(withoutIntegrations)
     resources.exclude("fabric.mod.json")
     resources.srcDir(rootProject.file("src/forge/gametest-resources"))
     compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
