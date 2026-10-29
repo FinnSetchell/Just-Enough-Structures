@@ -35,7 +35,7 @@ Both are redone when your mods or datapacks change. The first loot scan runs in 
   </tr>
   <tr valign="top">
     <td>Press <b>K</b> to browse every structure in your game, from vanilla, mods and datapacks</td>
-    <td>Search by name, by mod with <code>@</code>, or by item with <code>$</code> to find the structures whose loot can give it</td>
+    <td>Search by name, by mod with <code>@</code>, by structure tag with <code>#</code>, or by item with <code>$</code> to find the structures whose loot can give it</td>
     <td>Turn, zoom and move the preview, and cut it down layer by layer to see inside. Drag to turn, right-drag to move, scroll to zoom</td>
   </tr>
   <tr>
@@ -89,7 +89,7 @@ Anyone can run it, and it opens for the player who ran it. A quest, guide book o
 
 - JEI, EMI or REI: an item's recipes get a Found in structures page
 - Explorer's Compass: its structure list gets a Preview button, and while you hold the compass the browser gets a button that opens it on the structure you're looking at
-- FTB Quests: clicking a Find Structure task opens its structure in the browser
+- FTB Quests: clicking a Find Structure task opens its structure in the browser, or for a structure tag, the structures in it
 - Mod Menu with Cloth Config: a settings screen for the browser and for the worlds you host
 
 ## Pack tools

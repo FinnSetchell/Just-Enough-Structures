@@ -201,6 +201,15 @@ public final class Codecs {
                 b -> readMap(b, FriendlyByteBuf::readUtf, c -> c.readUtf(StructureNameFiles.MAX_NAME)));
     }
 
+    /** Each structure tag with the listed structures in it, for searching by tag. */
+    public static void writeTags(FriendlyByteBuf buf, Map<ResourceLocation, List<ResourceLocation>> tags) {
+        writeMap(buf, tags, FriendlyByteBuf::writeResourceLocation, (b, members) -> writeList(b, members, FriendlyByteBuf::writeResourceLocation));
+    }
+
+    public static Map<ResourceLocation, List<ResourceLocation>> readTags(FriendlyByteBuf buf) {
+        return readMap(buf, FriendlyByteBuf::readResourceLocation, b -> readList(b, FriendlyByteBuf::readResourceLocation));
+    }
+
     // ------------------------------------------------------------------ Pack tools
 
     public static void writeSettings(FriendlyByteBuf buf, ServerConfig.Settings s) {

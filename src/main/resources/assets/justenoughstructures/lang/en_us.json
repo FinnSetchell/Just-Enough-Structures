@@ -7,7 +7,7 @@
   "screen.justenoughstructures.search": "Search structures",
   "screen.justenoughstructures.search_hint": "Search, @mod or $item",
   "screen.justenoughstructures.search_hint_short": "Search...",
-  "screen.justenoughstructures.search_help": "@mod: one mod's structures\n$item: structures whose loot can give it",
+  "screen.justenoughstructures.search_help": "@mod: one mod's structures\n$item: structures whose loot can give it\n#tag: the structures in a structure tag",
   "screen.justenoughstructures.no_matches": "Nothing matches that search.",
   "screen.justenoughstructures.favourites": "Favourites",
   "screen.justenoughstructures.favourite_add": "Add to favourites",
@@ -937,6 +937,7 @@
 
   "_comment.ftb_quests": "FTB Quests: a Find Structure task's tooltip",
   "screen.justenoughstructures.ftb_quests_open": "Click to see it in Just Enough Structures",
+  "screen.justenoughstructures.ftb_quests_open_tag": "Click to see them in Just Enough Structures",
 
   "_comment.keybindings": "Keybindings",
   "key.justenoughstructures.open": "Open structure browser",

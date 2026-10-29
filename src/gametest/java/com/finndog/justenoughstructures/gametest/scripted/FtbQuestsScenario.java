@@ -44,8 +44,9 @@ import dev.ftb.mods.ftblibrary.ui.Widget;
  * of three tasks: a structure the browser lists, a tag, and a structure no mod adds. Then, in the quest
  * book, points at each task and clicks it with the mouse as a player would, and checks what its tooltip
  * says and what opened. The listed structure opens the browser on it, over the quest book, and Esc goes
- * back. The others leave the quest book as it is. Removes the chapter again at the end. Needs FTB
- * Quests, which the dev runtime has on the builds it exists for.
+ * back. The tag opens it searching for the tag, on one of its structures. The structure no mod adds
+ * leaves the quest book as it is. Removes the chapter again at the end. Needs FTB Quests, which the dev
+ * runtime has on the builds it exists for (on 26.1 NeoForge with -Pftbquests).
  */
 final class FtbQuestsScenario {
     private static final String CHAPTER = "jes_scenario";
@@ -57,6 +58,7 @@ final class FtbQuestsScenario {
     private static final long UNKNOWN_TASK = 0x4A45530000000005L;
     private static final ResourceLocation PYRAMID = Ids.parse("desert_pyramid");
     private static final String HINT = "screen.justenoughstructures.ftb_quests_open";
+    private static final String TAG_HINT = "screen.justenoughstructures.ftb_quests_open_tag";
 
     private FtbQuestsScenario() {
     }
@@ -73,13 +75,13 @@ final class FtbQuestsScenario {
                 .then(openQuest(mc))
                 .then(moveTo(() -> centre(button(mc, LISTED_TASK)), 10))
                 .then(pause(10))
-                .then(check(() -> hinted(mc, LISTED_TASK), "the desert pyramid's task has no hint in its tooltip"))
+                .then(check(() -> hinted(mc, LISTED_TASK, HINT), "the desert pyramid's task has no hint in its tooltip"))
                 .then(shoot("q01_listed_task_tooltip"))
                 .then(click())
                 .then(until(() -> browser(mc) != null, 100))
                 .then(check(() -> browser(mc) != null, "clicking the desert pyramid's task didn't open the browser"))
                 .then(until(() -> browser(mc).idle(), 400))
-                .then(check(() -> PYRAMID.equals(browser(mc).selectedId()), "the browser opened on " + "something other than the desert pyramid"))
+                .then(check(() -> PYRAMID.equals(browser(mc).selectedId()), "the browser opened on something other than the desert pyramid"))
                 .then(shoot("q02_browser_on_the_pyramid"))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> questScreen(mc) != null, 40))
@@ -88,18 +90,26 @@ final class FtbQuestsScenario {
                 .then(openQuest(mc))
                 .then(moveTo(() -> centre(button(mc, UNKNOWN_TASK)), 10))
                 .then(pause(10))
-                .then(check(() -> !hinted(mc, UNKNOWN_TASK), "a task for a structure no mod adds says it opens the browser"))
+                .then(check(() -> !hinted(mc, UNKNOWN_TASK, HINT), "a task for a structure no mod adds says it opens the browser"))
                 .then(click())
                 .then(pause(30))
                 .then(check(() -> questScreen(mc) != null, "clicking a task for a structure no mod adds left the quest book"))
-                // A tag: not shown in the browser yet, so the same.
+                .then(shoot("q03_still_in_the_quest_book"))
+                // A tag: the browser opens searching for it, on one of its structures.
                 .then(moveTo(() -> centre(button(mc, TAG_TASK)), 10))
                 .then(pause(10))
-                .then(check(() -> !hinted(mc, TAG_TASK), "a task for a tag says it opens the browser"))
+                .then(check(() -> hinted(mc, TAG_TASK, TAG_HINT), "the village tag's task has no hint in its tooltip"))
                 .then(click())
-                .then(pause(30))
-                .then(check(() -> questScreen(mc) != null, "clicking a task for a tag left the quest book"))
-                .then(shoot("q03_still_in_the_quest_book"))
+                .then(until(() -> browser(mc) != null, 100))
+                .then(check(() -> browser(mc) != null, "clicking the village tag's task didn't open the browser"))
+                .then(until(() -> browser(mc).idle(), 400))
+                .then(check(() -> "#minecraft:village".equals(browser(mc).searchText()), "the browser opened without searching for the village tag"))
+                .then(check(() -> browser(mc).selectedId() != null && browser(mc).selectedId().getPath().startsWith("village_"),
+                        "the browser opened on something other than a village"))
+                .then(shoot("q04_browser_on_the_village_tag"))
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(until(() -> questScreen(mc) != null, 40))
+                .then(check(() -> questScreen(mc) != null, "Esc in the browser didn't go back to the quest book"))
                 .then(run(() -> chapter(mc, false)));
         return d;
     }
@@ -239,15 +249,15 @@ final class FtbQuestsScenario {
         return widget == null ? new int[]{0, 0} : new int[]{widget.getX() + widget.width / 2, widget.getY() + widget.height / 2};
     }
 
-    /** Whether the tooltip of task {@code id}'s button has the line saying a click opens the browser. */
-    private static boolean hinted(Minecraft mc, long id) {
+    /** Whether the tooltip of task {@code id}'s button has the line {@code key}, saying a click opens the browser. */
+    private static boolean hinted(Minecraft mc, long id, String key) {
         TaskButton button = button(mc, id);
         if (button == null) {
             throw new IllegalStateException("the quest book isn't showing task " + hex(id));
         }
         TooltipList tooltip = new TooltipList();
         button.addMouseOverText(tooltip);
-        String hint = Component.translatable(HINT).getString();
+        String hint = Component.translatable(key).getString();
         return tooltip.getLines().stream().anyMatch(line -> line.getString().equals(hint));
     }
 }

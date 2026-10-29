@@ -27,6 +27,7 @@ import com.mojang.datafixers.util.Pair;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -268,6 +270,8 @@ public final class JesServer {
                 Codecs.writeCatalog(buf, entries);
                 // Names go after the list, so older clients that don't read names stop before them.
                 Codecs.writeNames(buf, StructureNameFiles.all());
+                // Then the tags, likewise after the names.
+                Codecs.writeTags(buf, structureTags(server, entries));
             }));
             catalogFingerprint = fingerprint;
         }
@@ -620,6 +624,24 @@ public final class JesServer {
                 .filter(entry -> !ServerConfig.hides(entry.id()))
                 .map(entry -> showLoot ? entry : entry.withInfo(entry.info().hidingLoot()))
                 .toList();
+    }
+
+    /** Each structure tag with the listed structures in it, for searching by tag. Tags with none of them are left out. */
+    public static Map<ResourceLocation, List<ResourceLocation>> structureTags(MinecraftServer server, List<StructureCatalog.Entry> entries) {
+        Set<ResourceLocation> listed = new HashSet<>();
+        entries.forEach(entry -> listed.add(entry.id()));
+        var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Map<ResourceLocation, List<ResourceLocation>> tags = new TreeMap<>();
+        Regs.tagIds(structures).forEach(tag -> {
+            List<ResourceLocation> members = new ArrayList<>();
+            for (Holder<Structure> structure : structures.getTagOrEmpty(tag)) {
+                structure.unwrapKey().map(key -> Ids.of(key)).filter(listed::contains).ifPresent(members::add);
+            }
+            if (!members.isEmpty()) {
+                tags.put(tag.location(), members);
+            }
+        });
+        return tags;
     }
 
     /** Whether players are kept from seeing where this structure's loot is, by its datapack file or the server settings. */

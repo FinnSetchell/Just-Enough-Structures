@@ -652,6 +652,21 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void structureTagsComeAfterTheNames(GameTestHelper helper) {
+        TagSearchTests.structureTagsComeAfterTheNames(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void tagsHoldOnlyListedStructures(GameTestHelper helper) {
+        TagSearchTests.tagsHoldOnlyListedStructures(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void tagSearchFindsTheTagsStructures(GameTestHelper helper) {
+        TagSearchTests.tagSearchFindsTheTagsStructures(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void serverSettingsReadTheirFile(GameTestHelper helper) {
         SettingsTests.serverSettingsReadTheirFile(helper);
     }

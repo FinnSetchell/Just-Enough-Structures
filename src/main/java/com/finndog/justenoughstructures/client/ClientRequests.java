@@ -49,6 +49,8 @@ public final class ClientRequests {
     private static ClientSender sender;
     private static int nextRequestId = 1;
     private static CompletableFuture<List<StructureCatalog.Entry>> catalog;
+    /** Each structure tag with the listed structures in it, from the last list. Null when the server sent none. */
+    private static Map<ResourceLocation, List<ResourceLocation>> structureTags;
     private static final Map<Integer, CompletableFuture<Codecs.CaptureReply>> CAPTURES = new HashMap<>();
     /** Requests whose replies go into the kept-previews cache, replacing any older copy. */
     private static final Map<Integer, Keeping> KEEPING = new HashMap<>();
@@ -109,6 +111,7 @@ public final class ClientRequests {
     /** Forgets everything tied to the current connection. */
     public static void reset() {
         catalog = null;
+        structureTags = null;
         StructureNames.useGiven(null);
         cancelAll(CAPTURES);
         KEEPING.clear();
@@ -521,6 +524,11 @@ public final class ClientRequests {
         }
     }
 
+    /** Each structure tag with the listed structures in it, from the last list. Null when the server sent none, as servers did before tag searches. */
+    public static Map<ResourceLocation, List<ResourceLocation>> structureTags() {
+        return structureTags;
+    }
+
     public static CompletableFuture<List<StructureCatalog.Entry>> catalog() {
         if (catalog == null || catalog.isCompletedExceptionally() || catalog.isCancelled()) {
             catalog = new CompletableFuture<>();
@@ -670,8 +678,10 @@ public final class ClientRequests {
             // Names saved in Pack tools follow the list. Older servers don't send them.
             Map<String, Map<String, String>> names = buf.isReadable() ? Codecs.readNames(buf) : null;
             StructureNames.useGiven(names);
-            JesLog.debug("The structure list came with {} structures, and names given in {} languages", entries.size(),
-                    names == null ? "no" : names.size());
+            // Then the structure tags, for searching by tag. Older servers send none.
+            structureTags = buf.isReadable() ? Codecs.readTags(buf) : null;
+            JesLog.debug("The structure list came with {} structures, names given in {} languages and {} tags", entries.size(),
+                    names == null ? "no" : names.size(), structureTags == null ? "no" : structureTags.size());
             Thumbnails.onCatalog(fingerprint, entries);
             // A world hosted in this game saves first views on its integrated server, so the client only keeps them for other servers.
             KeptPreviews.use(fingerprint, !Minecraft.getInstance().hasSingleplayerServer());

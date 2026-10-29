@@ -93,6 +93,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private static ResourceLocation lastSelected;
     /** A loot table to pick in the Loot tab of the structure the next browser starts on, or null. */
     private static String startTable;
+    /** A search the next browser starts with, on the first structure it finds, or null. */
+    private static String startSearch;
+    /** Whether this browser starts on the first structure its search finds, rather than the last one selected. */
+    private boolean startOnFirstFound;
 
     private final Screen parent;
     private final StructureList list = new StructureList();
@@ -311,6 +315,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         centreW = sides ? infoX - PAD - centreX : width - PAD * 2;
 
         String query = search == null ? "" : search.getValue();
+        if (search == null && startSearch != null) {
+            query = startSearch;
+            startSearch = null;
+            startOnFirstFound = true;
+            list.setQuery(query);
+        }
         // At the bottom of the list, as JEI has it: a black box, the text drawn without a border.
         searchY = height - PAD - 6 - 20;
         search = new EditBox(font, listX + 10, searchY + 6, Math.max(10, listW - 24), 12, Component.translatable("screen.justenoughstructures.search"));
@@ -596,6 +606,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         list.setEntries(entries);
         StructureCatalog.Entry start = entries.stream().filter(e -> e.id().equals(lastSelected)).findFirst()
                 .orElse(entries.isEmpty() ? null : entries.get(0));
+        if (startOnFirstFound) {
+            startOnFirstFound = false;
+            start = list.firstShown().orElse(start);
+        }
         String table = start != null && start.id().equals(lastSelected) ? startTable : null;
         startTable = null;
         if (start != null) {
@@ -1963,12 +1977,20 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     public static void startOn(ResourceLocation id) {
         lastSelected = id;
         startTable = null;
+        startSearch = null;
+    }
+
+    /** Makes the next opened browser start with {@code search} typed in, on the first structure it finds. Used by the FTB Quests link for a tag. */
+    public static void startSearching(String search) {
+        startSearch = search;
+        startTable = null;
     }
 
     /** Makes the next opened browser start on this structure, with {@code table} picked in its Loot tab. */
     public static void startOn(ResourceLocation id, ResourceLocation table) {
         lastSelected = id;
         startTable = table.toString();
+        startSearch = null;
     }
 
     /** The loot table picked in the Loot tab, or about to be once the structure arrives, or null. */
@@ -2014,6 +2036,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** The current structure, or null. */
     public ResourceLocation selectedId() {
         return selected == null ? null : selected.id();
+    }
+
+    /** What's typed in the search box. */
+    public String searchText() {
+        return search.getValue();
     }
 
     /** Where the details panel last drew a row that tints the preview, such as "block:minecraft:chest". */

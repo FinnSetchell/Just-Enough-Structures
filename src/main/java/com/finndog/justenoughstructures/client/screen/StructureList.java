@@ -1,12 +1,14 @@
 package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
+import com.finndog.justenoughstructures.catalog.TagSearch;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -179,8 +181,14 @@ final class StructureList {
         Map<String, List<StructureCatalog.Entry>> byMod = new TreeMap<>(Comparator
                 .comparing((String ns) -> !ns.equals("minecraft"))
                 .thenComparing(ns -> StructureNames.mod(ns).toLowerCase(Locale.ROOT)));
+        Map<String, Set<ResourceLocation>> tagged = new HashMap<>();
+        for (String token : tokens) {
+            if (token.startsWith("#")) {
+                tagged.put(token, inTags(token.substring(1)));
+            }
+        }
         for (StructureCatalog.Entry entry : all) {
-            if (matches(entry, tokens)) {
+            if (matches(entry, tokens, tagged)) {
                 byMod.computeIfAbsent(entry.id().getNamespace(), k -> new ArrayList<>()).add(entry);
             }
         }
@@ -189,7 +197,7 @@ final class StructureList {
         int top = 0;
 
         // A plain search also looks through loot, so "diamond" finds where diamonds come from.
-        if (!lower.isEmpty() && !lower.startsWith("@") && !lower.startsWith("$") && FoundIn.ready()) {
+        if (!lower.isEmpty() && !lower.startsWith("@") && !lower.startsWith("$") && !lower.startsWith("#") && FoundIn.ready()) {
             List<Item> items = FoundIn.itemsMatching(lower, 3);
             if (!items.isEmpty()) {
                 out.add(new Row(LOOT_HEADER, items.size(), null, null, null, top, HEADER));
@@ -237,7 +245,13 @@ final class StructureList {
         clampScroll();
     }
 
-    private static boolean matches(StructureCatalog.Entry entry, String[] tokens) {
+    /** The structures a #tag search finds. None when the server didn't send its tags. */
+    private static Set<ResourceLocation> inTags(String text) {
+        Map<ResourceLocation, List<ResourceLocation>> tags = ClientRequests.structureTags();
+        return tags == null ? Set.of() : TagSearch.structuresIn(tags, text);
+    }
+
+    private static boolean matches(StructureCatalog.Entry entry, String[] tokens, Map<String, Set<ResourceLocation>> tagged) {
         String name = StructureNames.structure(entry.id()).toLowerCase(Locale.ROOT);
         String id = entry.id().toString();
         String namespace = entry.id().getNamespace();
@@ -248,6 +262,10 @@ final class StructureList {
             if (token.startsWith("$")) {
                 String item = token.substring(1);
                 if (!item.isEmpty() && !FoundIn.structureHasItem(entry.id(), item)) {
+                    return false;
+                }
+            } else if (token.startsWith("#")) {
+                if (token.length() > 1 && !tagged.get(token).contains(entry.id())) {
                     return false;
                 }
             } else if (token.startsWith("@")) {
