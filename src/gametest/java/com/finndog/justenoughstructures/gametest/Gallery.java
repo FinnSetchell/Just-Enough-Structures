@@ -91,8 +91,11 @@ public final class Gallery {
 
     private enum Step { START, WAIT_WORLD, WAIT_RELOAD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, WAIT_ROLLS, DONE }
 
-    /** One more screenshot of a structure: what to open first, what else it waits for, and what to close after. */
-    private record Shot(String suffix, Runnable open, BooleanSupplier ready, Runnable close) {
+    /**
+     * One more screenshot of a structure: what to open first, what else it waits for, and what to close
+     * after. {@code oldSettle} is the fixed wait it had before, kept as a least wait with {@link #keepOldSettles}.
+     */
+    private record Shot(String suffix, Runnable open, BooleanSupplier ready, int oldSettle, Runnable close) {
     }
 
     private Step step = Step.START;
@@ -161,11 +164,12 @@ public final class Gallery {
      */
     private final int settleTicks;
     /**
-     * The fewest ticks a structure is drawn for before its shot, whatever else is ready, from
-     * {@code jes.autoshot.settleTicks}. The crash hunt sets 10, as drawing each structure for that long
+     * Whether every shot also waits at least as long as it did before shots waited for the picture: 10
+     * ticks for a structure, 30 for a chest, the Loot tab or a spawner, 40 for a mob. From
+     * {@code jes.autoshot.keepOldSettles}. The crash hunt sets it, as drawing each structure for that long
      * is part of what it tests.
      */
-    private final int leastSettleTicks;
+    private final boolean keepOldSettles;
     private int inWorldTicks;
     private ResourceManager resourcesBefore;
     /**
@@ -193,7 +197,7 @@ public final class Gallery {
         reload = Boolean.getBoolean("jes.autoshot.reload");
         joins = Boolean.getBoolean("jes.autoshot.join");
         settleTicks = Integer.getInteger("jes.autoshot.wait", 0) * 20;
-        leastSettleTicks = Integer.getInteger("jes.autoshot.settleTicks", 0);
+        keepOldSettles = Boolean.getBoolean("jes.autoshot.keepOldSettles");
         untilRolled = Boolean.getBoolean("jes.autoshot.untilRolled");
         untilRolledMinutes = Integer.getInteger("jes.autoshot.untilRolledMinutes", 20);
         this.out = out;
@@ -424,7 +428,7 @@ public final class Gallery {
             }
             case SETTLE -> {
                 keepScreen(mc);
-                if (settled(() -> true, leastSettleTicks)) {
+                if (settled(() -> true, keepOldSettles ? 10 : 0)) {
                     ResourceLocation id = structures.get(index);
                     shoot(mc, name(id));
                     CaptureResult result = screen.result();
@@ -455,7 +459,7 @@ public final class Gallery {
             }
             case SHOTS -> {
                 keepScreen(mc);
-                if (settled(shot.ready(), 0)) {
+                if (settled(shot.ready(), keepOldSettles ? shot.oldSettle() : 0)) {
                     shoot(mc, name(structures.get(index)) + "_" + shot.suffix());
                     shot.close().run();
                     nextShot();
@@ -544,20 +548,20 @@ public final class Gallery {
     private void planShots(ResourceLocation id, StructureSnapshot snapshot) {
         if (OPEN_CHEST.contains(id.toString()) || closeupAt.contains(index)) {
             snapshot.containers().stream().filter(c -> c.lootTable() != null).findFirst().ifPresent(chest -> {
-                shots.add(new Shot("chest", () -> screen.openContainer(chest), this::rollIn, () -> screen.closeContainer()));
-                shots.add(new Shot("loot", () -> screen.showLootTab(), () -> oddsIn(snapshot), () -> screen.showInfoTab()));
+                shots.add(new Shot("chest", () -> screen.openContainer(chest), this::rollIn, 30, () -> screen.closeContainer()));
+                shots.add(new Shot("loot", () -> screen.showLootTab(), () -> oddsIn(snapshot), 30, () -> screen.showInfoTab()));
             });
         }
         if (OPEN_MOB.contains(id.toString())) {
             List<Entity> mobs = screen.placedMobs();
             if (!mobs.isEmpty()) {
-                shots.add(new Shot("mob", () -> screen.openMobPopup(mobs.get(0)), () -> true, () -> screen.closeContainer()));
+                shots.add(new Shot("mob", () -> screen.openMobPopup(mobs.get(0)), () -> true, 40, () -> screen.closeContainer()));
             }
         }
         if (OPEN_SPAWNER.contains(id.toString())) {
             List<StructureSnapshot.Spawner> spawners = snapshot.spawners();
             if (!spawners.isEmpty()) {
-                shots.add(new Shot("spawner", () -> screen.openSpawnerPopup(spawners.get(0)), () -> true, () -> screen.closeContainer()));
+                shots.add(new Shot("spawner", () -> screen.openSpawnerPopup(spawners.get(0)), () -> true, 30, () -> screen.closeContainer()));
             }
         }
     }
