@@ -123,8 +123,38 @@ final class FtbQuestsScenario {
                     }
                 }),
                 until(() -> button(mc, LISTED_TASK) != null, 100),
-                check(() -> button(mc, LISTED_TASK) != null, "the quest book didn't show the test quest's tasks"),
+                shoot("q00_quest_book"),
+                run(() -> {
+                    if (button(mc, LISTED_TASK) == null) {
+                        throw new IllegalStateException("the quest book didn't show the test quest's tasks: " + shown(mc));
+                    }
+                }),
                 pause(10));
+    }
+
+    /** What's on screen instead of the test quest's tasks, for a failure to say. */
+    private static String shown(Minecraft mc) {
+        QuestScreen quests = questScreen(mc);
+        if (quests == null) {
+            return "the screen open is " + (mc.screen == null ? "none" : mc.screen.getClass().getName());
+        }
+        Quest viewed = quests.viewQuestPanel.getViewedQuest();
+        StringBuilder widgets = new StringBuilder();
+        describe(quests.viewQuestPanel, widgets);
+        return "the quest book is open, viewing " + (viewed == null ? "no quest" : hex(viewed.id)) + ", with " + widgets;
+    }
+
+    private static void describe(Panel panel, StringBuilder out) {
+        out.append(panel.getClass().getSimpleName()).append('[');
+        for (Widget widget : panel.getWidgets()) {
+            if (widget instanceof Panel inner) {
+                describe(inner, out);
+            } else {
+                out.append(widget.getClass().getSimpleName());
+            }
+            out.append(' ');
+        }
+        out.append(']');
     }
 
     /** A step that fails the scenario unless {@code holds}. */
