@@ -338,7 +338,6 @@ public final class Gallery {
                 keepScreen(mc);
                 reelFrame(mc);
                 if (stepTicks >= reelTicks) {
-                    ClientState.spin = true;
                     nextShot();
                 }
             }
@@ -463,6 +462,9 @@ public final class Gallery {
 
     private void openBrowser(Minecraft mc) {
         screen = new JesScreen();
+        // The preview holds still, so a shot's angle doesn't depend on how long it was up. Set after
+        // the browser has read its saved settings, which would turn it back on.
+        ClientState.spin = false;
         mc.setScreen(screen);
         go(Step.WAIT_CATALOG);
     }
