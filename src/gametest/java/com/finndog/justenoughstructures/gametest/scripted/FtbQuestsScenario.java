@@ -68,9 +68,14 @@ final class FtbQuestsScenario {
             throw new UnsupportedOperationException("needs FTB Quests");
         }
         Director d = new Director(mc);
-        d.then(run(() -> chapter(mc, true)))
-                .then(until(() -> quest() != null, 200))
+        // The quests the client had before the reload. A world can already have the test chapter, left by
+        // a run that stopped part way, and its quest from before the reload isn't one the book can show.
+        Object[] before = new Object[1];
+        d.then(run(() -> before[0] = file()))
+                .then(run(() -> chapter(mc, true)))
+                .then(until(() -> file() != before[0] && quest() != null, 200))
                 .then(check(() -> quest() != null, "FTB Quests didn't load the test chapter"))
+                .then(pause(20))
                 // A listed structure: the tooltip says a click opens it, and it does.
                 .then(openQuest(mc))
                 .then(moveTo(() -> centre(button(mc, LISTED_TASK)), 10))
@@ -114,14 +119,20 @@ final class FtbQuestsScenario {
         return d;
     }
 
-    /** Opens the quest book on the test quest, unless it's showing already. */
+    /**
+     * Opens the quest book on the test quest, unless it's showing already. Once more if the first try
+     * shows nothing, as the quests can still be arriving from the reload.
+     */
     private static Director.Action openQuest(Minecraft mc) {
+        Runnable open = () -> {
+            if (button(mc, LISTED_TASK) == null) {
+                ClientQuestFile.openGui(quest(), true);
+            }
+        };
         return Director.chain(
-                run(() -> {
-                    if (button(mc, LISTED_TASK) == null) {
-                        ClientQuestFile.openGui(quest(), true);
-                    }
-                }),
+                run(open),
+                until(() -> button(mc, LISTED_TASK) != null, 60),
+                run(open),
                 until(() -> button(mc, LISTED_TASK) != null, 100),
                 shoot("q00_quest_book"),
                 run(() -> {
@@ -239,13 +250,18 @@ final class FtbQuestsScenario {
         return String.format("%016X", id);
     }
 
+    /** The quests the client has, or null before any have come. */
+    private static ClientQuestFile file() {
+        //? if >=26.1 {
+        /*return ClientQuestFile.exists() ? ClientQuestFile.getInstance() : null;
+        *///?} else {
+        return ClientQuestFile.exists() ? ClientQuestFile.INSTANCE : null;
+        //?}
+    }
+
     /** The test quest as the client has it, or null before it has come. */
     private static Quest quest() {
-        //? if >=26.1 {
-        /*ClientQuestFile file = ClientQuestFile.exists() ? ClientQuestFile.getInstance() : null;
-        *///?} else {
-        ClientQuestFile file = ClientQuestFile.exists() ? ClientQuestFile.INSTANCE : null;
-        //?}
+        ClientQuestFile file = file();
         return file == null ? null : file.getQuest(QUEST_ID);
     }
 
