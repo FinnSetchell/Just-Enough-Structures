@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
@@ -85,12 +87,22 @@ public final class Gallery {
 
     private enum Step { START, WAIT_WORLD, WAIT_RELOAD, WAIT_CATALOG, WAIT_IDLE, SETTLE, REEL, SHOTS, WAIT_ROLLS, DONE }
 
-    /** One more screenshot of a structure: what to open first, how long to let it settle, and what to close after. */
-    private record Shot(String suffix, Runnable open, int settle, Runnable close) {
+    /** One more screenshot of a structure: what to open first, what else it waits for, and what to close after. */
+    private record Shot(String suffix, Runnable open, BooleanSupplier ready, Runnable close) {
     }
 
     private Step step = Step.START;
     private int stepTicks;
+    /** For a shot's wait: the browser's last frame seen, the camera then, and how many frames in a row it has held still. */
+    private long frameSeen;
+    private StructureViewport.Camera cameraSeen;
+    private int stillFrames;
+    /** How many of the wait's ticks found a new frame, for the debug log. */
+    private int framedTicks;
+    /** The browser's fields a shot's wait reads, looked up when first wanted. */
+    private Field lastFrameField;
+    private Field popupField;
+    private Field rollField;
     /** The browser's list as last seen, and how long it has stood without the structure asked for. */
     private Object listSeen;
     private int unlistedTicks;
@@ -315,7 +327,7 @@ public final class Gallery {
             }
             case SETTLE -> {
                 keepScreen(mc);
-                if (stepTicks >= 10) {
+                if (settled(() -> true)) {
                     ResourceLocation id = structures.get(index);
                     shoot(mc, name(id));
                     CaptureResult result = screen.result();
@@ -332,6 +344,9 @@ public final class Gallery {
                         }
                     }
                     nextShot();
+                } else if (stepTicks > TIMEOUT_TICKS) {
+                    record(structures.get(index), null, "timed out");
+                    next();
                 }
             }
             case REEL -> {
@@ -343,10 +358,16 @@ public final class Gallery {
             }
             case SHOTS -> {
                 keepScreen(mc);
-                if (stepTicks >= shot.settle()) {
+                if (settled(shot.ready())) {
                     shoot(mc, name(structures.get(index)) + "_" + shot.suffix());
                     shot.close().run();
                     nextShot();
+                } else if (stepTicks > TIMEOUT_TICKS) {
+                    // Its other close-ups are left out too: whatever held this one up would hold them.
+                    record(structures.get(index), null, "timed out");
+                    shot.close().run();
+                    shots.clear();
+                    next();
                 }
             }
             case WAIT_ROLLS -> {
@@ -426,23 +447,95 @@ public final class Gallery {
     private void planShots(ResourceLocation id, StructureSnapshot snapshot) {
         if (OPEN_CHEST.contains(id.toString()) || closeupAt.contains(index)) {
             snapshot.containers().stream().filter(c -> c.lootTable() != null).findFirst().ifPresent(chest -> {
-                shots.add(new Shot("chest", () -> screen.openContainer(chest), 30, () -> screen.closeContainer()));
-                shots.add(new Shot("loot", () -> screen.showLootTab(), 30, () -> screen.showInfoTab()));
+                shots.add(new Shot("chest", () -> screen.openContainer(chest), this::rollIn, () -> screen.closeContainer()));
+                shots.add(new Shot("loot", () -> screen.showLootTab(), () -> oddsIn(snapshot), () -> screen.showInfoTab()));
             });
         }
         if (OPEN_MOB.contains(id.toString())) {
             List<Entity> mobs = screen.placedMobs();
             if (!mobs.isEmpty()) {
-                // Long enough for the camera to fly over to it.
-                shots.add(new Shot("mob", () -> screen.openMobPopup(mobs.get(0)), 40, () -> screen.closeContainer()));
+                shots.add(new Shot("mob", () -> screen.openMobPopup(mobs.get(0)), () -> true, () -> screen.closeContainer()));
             }
         }
         if (OPEN_SPAWNER.contains(id.toString())) {
             List<StructureSnapshot.Spawner> spawners = snapshot.spawners();
             if (!spawners.isEmpty()) {
-                shots.add(new Shot("spawner", () -> screen.openSpawnerPopup(spawners.get(0)), 30, () -> screen.closeContainer()));
+                shots.add(new Shot("spawner", () -> screen.openSpawnerPopup(spawners.get(0)), () -> true, () -> screen.closeContainer()));
             }
         }
+    }
+
+    /**
+     * Whether a shot can be taken: the preview is idle, the camera held still from one frame the
+     * browser drew to the next with {@code ready} true, and it has drawn one more since. Counted in
+     * frames, not ticks, as some games draw one only every few ticks (26.1.2 Forge, every 2 to 10).
+     * The camera only moves as a frame is drawn, gliding to a close-up for half a second.
+     */
+    private boolean settled(BooleanSupplier ready) {
+        long drawn = lastFrame();
+        if (drawn != frameSeen) {
+            StructureViewport.Camera now = viewport().camera();
+            boolean still = now.equals(cameraSeen) && screen.idle() && ready.getAsBoolean();
+            frameSeen = drawn;
+            cameraSeen = now;
+            stillFrames = still ? stillFrames + 1 : 0;
+            framedTicks++;
+        }
+        if (stillFrames < 2) {
+            return false;
+        }
+        JesLog.debug("Gallery: {} {} after {} ticks, {} of them with a new frame", structures.get(index),
+                step == Step.SHOTS ? shot.suffix() : "shot", stepTicks, framedTicks);
+        return true;
+    }
+
+    /** When the browser last drew a frame, as it stamps each one. */
+    private long lastFrame() {
+        try {
+            if (lastFrameField == null) {
+                lastFrameField = JesScreen.class.getDeclaredField("lastFrame");
+                lastFrameField.setAccessible(true);
+            }
+            return lastFrameField.getLong(screen);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Can't tell when the browser drew", e);
+        }
+    }
+
+    /** Whether the chest popup's roll has come back from the server; until then it says "Rolling...". */
+    private boolean rollIn() {
+        try {
+            if (popupField == null) {
+                popupField = JesScreen.class.getDeclaredField("popup");
+                popupField.setAccessible(true);
+            }
+            Object popup = popupField.get(screen);
+            if (popup == null) {
+                return false;
+            }
+            if (rollField == null) {
+                rollField = popup.getClass().getDeclaredField("items");
+                rollField.setAccessible(true);
+            }
+            return rollField.get(popup) != null;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Can't read the chest popup", e);
+        }
+    }
+
+    /**
+     * Whether every loot table in the structure has its odds, which the Loot tab says "Rolling..." until.
+     * It goes through them as the tab does, in the same order, and stops at the same one, so it only
+     * asks for odds the tab has asked for.
+     */
+    private static boolean oddsIn(StructureSnapshot snapshot) {
+        for (String table : snapshot.containers().stream().map(StructureSnapshot.Container::lootTable).filter(t -> t != null).distinct().toList()) {
+            ResourceLocation id = ResourceLocation.tryParse(table);
+            if (id != null && !ClientRequests.odds(id).isDone()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void nextShot() {
@@ -473,6 +566,13 @@ public final class Gallery {
         step = next;
         stepTicks = 0;
         unlistedTicks = 0;
+        if (next == Step.SETTLE || next == Step.SHOTS) {
+            // The camera only moves as a frame is drawn, so this is the camera of the last one.
+            frameSeen = lastFrame();
+            cameraSeen = viewport().camera();
+            stillFrames = 0;
+            framedTicks = 0;
+        }
     }
 
     /**
