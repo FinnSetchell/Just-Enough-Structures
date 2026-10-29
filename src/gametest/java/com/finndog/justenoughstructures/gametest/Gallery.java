@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.registries.Registries;
@@ -52,8 +54,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.ResourceManager;
 //? if >=26.1 {
 /*import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.client.gui.components.toasts.ToastManager;
 *///?} else {
 import net.minecraft.world.level.GameRules;
+import net.minecraft.client.gui.components.toasts.ToastComponent;
 //?}
 
 /**
@@ -143,6 +147,13 @@ public final class Gallery {
     private final boolean reload;
     /** Whether the run joins the server the game was started with, by --quickPlayMultiplayer, instead of making a world. */
     private final boolean joins;
+    /** In a join: the notices showing or waiting this tick (-1 if they can't be counted), and how long none has, with no screen in front. */
+    private int notices;
+    private int quietTicks;
+    private boolean hidUnverified;
+    /** The toast manager's lists of notices showing and waiting, found by type when first wanted; empty if they can't be read. */
+    private List<Field> noticeLists;
+    private boolean noticesUncounted;
     /**
      * How long to stand in the world before the browser is first opened, in ticks. A big pack goes on
      * loading for minutes after the world is joined, and a run that measures what the browser costs
@@ -235,6 +246,75 @@ public final class Gallery {
     }
 
     /**
+     * In a join: hides vanilla's notice that chat messages can't be verified, which a server without
+     * secure chat shows for about 11 s, and returns how many notices are showing or waiting, or -1 if
+     * they can't be counted.
+     */
+    private int joinNotices(Minecraft mc) {
+        //? if >=26.2 {
+        /*ToastManager toasts = mc.gui.toastManager();
+        *///?} else if >=26.1 {
+        /*ToastManager toasts = mc.getToastManager();
+        *///?} else {
+        ToastComponent toasts = mc.getToasts();
+        //?}
+        //? if >=1.21 {
+        /*SystemToast unverified = toasts.getToast(SystemToast.class, SystemToast.SystemToastId.UNSECURE_SERVER_WARNING);
+        *///?} else {
+        SystemToast unverified = toasts.getToast(SystemToast.class, SystemToast.SystemToastIds.UNSECURE_SERVER_WARNING);
+        //?}
+        if (unverified != null) {
+            //? if >=1.21 {
+            /*unverified.forceHide();
+            *///?} else {
+            // 1.20.1 can't hide one notice, only clear them all.
+            toasts.clear();
+            //?}
+            if (!hidUnverified) {
+                hidUnverified = true;
+                JustEnoughStructures.LOGGER.info("Gallery: hid the notice that chat messages can't be verified");
+            }
+        }
+        return countNotices(toasts);
+    }
+
+    /**
+     * The notices showing and waiting: the toast manager's List and Deque, found by type, as their
+     * names differ between versions and are obfuscated in some. -1 if they can't be read.
+     */
+    private int countNotices(Object toasts) {
+        try {
+            if (noticeLists == null) {
+                List<Field> found = new ArrayList<>();
+                for (Class<?> c = toasts.getClass(); c != Object.class; c = c.getSuperclass()) {
+                    for (Field f : c.getDeclaredFields()) {
+                        if (f.getType() == List.class || f.getType() == Deque.class) {
+                            f.setAccessible(true);
+                            found.add(f);
+                        }
+                    }
+                }
+                noticeLists = found;
+            }
+            if (!noticeLists.isEmpty()) {
+                int count = 0;
+                for (Field f : noticeLists) {
+                    count += ((Collection<?>) f.get(toasts)).size();
+                }
+                return count;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            JesLog.debug("Gallery: the notices couldn't be read", e);
+        }
+        if (!noticesUncounted) {
+            noticesUncounted = true;
+            JustEnoughStructures.LOGGER.info("Gallery: can't count the notices in this game, so a join waits 15 s for them");
+        }
+        noticeLists = List.of();
+        return -1;
+    }
+
+    /**
      * Closes a screen a pack opens on joining, like a welcome page or a quest book, once it has kept a
      * run waiting ten seconds in the world, as nothing is going to click it. Takes and returns how
      * long it has been open.
@@ -259,6 +339,9 @@ public final class Gallery {
 
     public void tick(Minecraft mc) {
         stepTicks++;
+        if (joins && mc.level != null) {
+            notices = joinNotices(mc);
+        }
         switch (step) {
             case START -> {
                 if (hide && stepTicks == 1) {
@@ -276,11 +359,18 @@ public final class Gallery {
             case WAIT_WORLD -> {
                 blockedTicks = closeJoinScreen(mc, blockedTicks);
                 inWorldTicks = mc.player != null && mc.level != null ? inWorldTicks + 1 : 0;
-                // On a server, long enough after joining for the notices that pop up then to go, as they'd cover the shots.
+                // On a server, the notices that pop up on joining would cover the shots: half a second with
+                // none and no screen in front, or 15 s after joining at most.
+                quietTicks = inWorldTicks > 0 && mc.screen == null && notices == 0 ? quietTicks + 1 : 0;
+                boolean quiet = quietTicks >= 10;
                 if (mc.player != null && mc.level != null && mc.screen == null && stepTicks > 40 && inWorldTicks > settleTicks
-                        && (!joins || inWorldTicks > 300)) {
+                        && (!joins || quiet || inWorldTicks > 300)) {
                     if (settleTicks > 0) {
                         JustEnoughStructures.LOGGER.info("Autoshot stood in the world for {} s before opening the browser", inWorldTicks / 20);
+                    }
+                    if (joins) {
+                        JustEnoughStructures.LOGGER.info("Gallery: opening the browser {} ticks after joining, {}", inWorldTicks,
+                                quiet ? "with no notice showing" : "the longest a join waits");
                     }
                     //? if >=26.1 {
                     /*stopTheSun(mc);
