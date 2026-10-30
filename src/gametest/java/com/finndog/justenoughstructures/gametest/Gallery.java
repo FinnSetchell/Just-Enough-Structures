@@ -568,8 +568,10 @@ public final class Gallery {
 
     /**
      * Whether a shot can be taken: the preview is idle, the camera held still from one frame the
-     * browser drew to the next with {@code ready} true, and it has drawn one more since. Counted in
-     * frames, not ticks, as some games draw one only every few ticks (26.1.2 Forge, every 2 to 10).
+     * browser drew to the next with {@code ready} true, and it has drawn two more since, as a panel
+     * lays itself out again a frame or two after what it shows changes (the Loot tab makes room for
+     * its scroll bar once the odds are in). Counted in frames, not ticks, as some games draw one only
+     * every few ticks (26.1.2 Forge, every 2 to 10).
      * The camera only moves as a frame is drawn, gliding to a close-up for half a second. Not before
      * {@code leastTicks} ticks into the wait either.
      */
@@ -583,7 +585,7 @@ public final class Gallery {
             stillFrames = still ? stillFrames + 1 : 0;
             framedTicks++;
         }
-        if (stillFrames < 2 || stepTicks < leastTicks) {
+        if (stillFrames < 3 || stepTicks < leastTicks) {
             return false;
         }
         JesLog.debug("Gallery: {} {} after {} ticks, {} of them with a new frame", structures.get(index),
