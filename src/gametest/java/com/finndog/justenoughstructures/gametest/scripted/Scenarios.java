@@ -110,8 +110,9 @@ public final class Scenarios {
     /**
      * Several scenarios one after another in one game, so a big modpack only has to start once. Each
      * starts with nothing open, and one that fails is logged and left for the next. Before the first,
-     * 2 s for the world to settle, as the hand and the light still are; before the rest half a second,
-     * as nothing on screen is left changing once a check's screen has closed.
+     * 2 s for the world to settle, as the hand and the light still are. Before the rest at least half
+     * a second, and until a resource reload the last check made has finished and its loading screen
+     * has gone, 2 s at most.
      */
     private static Director suite(Minecraft mc, String modes) {
         Director d = new Director(mc);
@@ -120,7 +121,7 @@ public final class Scenarios {
         for (String mode : modes.split(",")) {
             String name = mode.trim();
             d.then(Director.run(() -> mc.setScreen(null)))
-                    .then(Director.pause(gap))
+                    .then(Director.settle(gap, 40))
                     .then(Director.play(name, () -> build(name, mc)));
             gap = 10;
         }

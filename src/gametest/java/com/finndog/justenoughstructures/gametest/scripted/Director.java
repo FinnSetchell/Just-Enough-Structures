@@ -492,6 +492,25 @@ public final class Director {
     }
 
     /**
+     * Waits for the game to settle: at least {@code least} frames, and until no loading overlay is up
+     * and 3 frames have been drawn since it went; {@code most} frames at most. A resource reload's
+     * overlay stays up to 2 s after the reload is done, and while it's up no click or turn of the
+     * wheel reaches the screen.
+     */
+    public static Action settle(int least, int most) {
+        int[] clearSince = {-1};
+        return (d, frame) -> {
+            if (d.mc.getOverlay() != null) {
+                clearSince[0] = -1;
+            } else if (clearSince[0] < 0) {
+                clearSince[0] = d.renders;
+            }
+            boolean drawn = clearSince[0] >= 0 && d.renders - clearSince[0] >= 3;
+            return frame + 1 >= most || (frame + 1 >= least && drawn);
+        };
+    }
+
+    /**
      * How many times longer than the scripts ask to wait for something before going on, for big
      * modpacks, where a reload or a busy server can take far longer than in the dev game.
      */
