@@ -10,6 +10,7 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.render.StructureViewport;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.gametest.scripted.Director;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -157,6 +158,7 @@ public final class Gallery {
     /** The toast manager's lists of notices showing and waiting, found by type when first wanted; empty if they can't be read. */
     private List<Field> noticeLists;
     private boolean noticesUncounted;
+    private boolean saidParked;
     /**
      * How long to stand in the world before the browser is first opened, in ticks. A big pack goes on
      * loading for minutes after the world is joined, and a run that measures what the browser costs
@@ -326,6 +328,23 @@ public final class Gallery {
     }
 
     /**
+     * Keeps the game's mouse in the bottom left corner, left of the structure list and below every
+     * panel, where nothing answers it: no block in the preview is outlined, no row or button lit and
+     * no tooltip shown. Otherwise it's wherever the real cursor last was over the game's window, often
+     * the middle, and what's under it shows in the shots. Done every tick, as only the real cursor
+     * moves it otherwise.
+     */
+    private void parkMouse(Minecraft mc) {
+        int x = 1;
+        int y = mc.getWindow().getGuiScaledHeight() - 2;
+        Director.placeMouse(mc, x, y);
+        if (!saidParked) {
+            saidParked = true;
+            JustEnoughStructures.LOGGER.info("Gallery: the game's mouse is kept at {},{}, where nothing answers it", x, y);
+        }
+    }
+
+    /**
      * Closes a screen a pack opens on joining, like a welcome page or a quest book, once it has kept a
      * run waiting ten seconds in the world, as nothing is going to click it. Takes and returns how
      * long it has been open.
@@ -352,6 +371,9 @@ public final class Gallery {
         stepTicks++;
         if (joins && mc.level != null) {
             notices = joinNotices(mc);
+        }
+        if (screen != null) {
+            parkMouse(mc);
         }
         switch (step) {
             case START -> {

@@ -313,10 +313,29 @@ public final class Director {
     }
 
     private long window() {
+        return handle(mc);
+    }
+
+    /** The game window's handle, which the game's input callbacks are given. */
+    private static long handle(Minecraft mc) {
         //? if >=26.1 {
         /*return mc.getWindow().handle();
         *///?} else {
         return mc.getWindow().getWindow();
+        //?}
+    }
+
+    /**
+     * Puts the game's mouse on a point of the screen, in GUI pixels, as the real cursor moving there
+     * would. For a run with no script, like the gallery, which keeps the mouse where nothing answers it.
+     */
+    public static void placeMouse(Minecraft mc, double x, double y) {
+        double sx = (double) mc.getWindow().getScreenWidth() / mc.getWindow().getGuiScaledWidth();
+        double sy = (double) mc.getWindow().getScreenHeight() / mc.getWindow().getGuiScaledHeight();
+        //? if >=26.3 {
+        /*call("onMove", mc.mouseHandler, handle(mc), x * sx, y * sy, 0.0, 0.0);
+        *///?} else {
+        call("onMove", mc.mouseHandler, handle(mc), x * sx, y * sy);
         //?}
     }
 
