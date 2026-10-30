@@ -37,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
-import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.registries.Registries;
@@ -151,10 +150,13 @@ public final class Gallery {
     private final boolean reload;
     /** Whether the run joins the server the game was started with, by --quickPlayMultiplayer, instead of making a world. */
     private final boolean joins;
-    /** In a join: the notices showing or waiting this tick (-1 if they can't be counted), and how long none has, with no screen in front. */
+    /**
+     * The notices that showed this tick before they were cleared (-1 if they can't be counted), how
+     * many have been cleared in all, and in a join how long none has shown with no screen in front.
+     */
     private int notices;
+    private int clearedNotices;
     private int quietTicks;
-    private boolean hidUnverified;
     /** The toast manager's lists of notices showing and waiting, found by type when first wanted; empty if they can't be read. */
     private List<Field> noticeLists;
     private boolean noticesUncounted;
@@ -259,11 +261,12 @@ public final class Gallery {
     }
 
     /**
-     * In a join: hides vanilla's notice that chat messages can't be verified, which a server without
-     * secure chat shows for about 11 s, and returns how many notices are showing or waiting, or -1 if
-     * they can't be counted.
+     * Clears the game's notices (toasts) as they show, as they'd cover the shots: vanilla's
+     * advancements, recipes and the notice on joining a server whose chat can't be verified, and any a
+     * mod shows the same way. Called every tick once in the world, so one is gone before it's drawn.
+     * Returns how many there were, or -1 if they can't be counted (then it clears every tick).
      */
-    private int joinNotices(Minecraft mc) {
+    private int clearNotices(Minecraft mc) {
         //? if >=26.2 {
         /*ToastManager toasts = mc.gui.toastManager();
         *///?} else if >=26.1 {
@@ -271,24 +274,15 @@ public final class Gallery {
         *///?} else {
         ToastComponent toasts = mc.getToasts();
         //?}
-        //? if >=1.21 {
-        /*SystemToast unverified = toasts.getToast(SystemToast.class, SystemToast.SystemToastId.UNSECURE_SERVER_WARNING);
-        *///?} else {
-        SystemToast unverified = toasts.getToast(SystemToast.class, SystemToast.SystemToastIds.UNSECURE_SERVER_WARNING);
-        //?}
-        if (unverified != null) {
-            //? if >=1.21 {
-            /*unverified.forceHide();
-            *///?} else {
-            // 1.20.1 can't hide one notice, only clear them all.
+        int count = countNotices(toasts);
+        if (count != 0) {
             toasts.clear();
-            //?}
-            if (!hidUnverified) {
-                hidUnverified = true;
-                JustEnoughStructures.LOGGER.info("Gallery: hid the notice that chat messages can't be verified");
+            if (count > 0) {
+                clearedNotices += count;
+                JesLog.debug("Gallery: cleared {} notices, {} in all", count, clearedNotices);
             }
         }
-        return countNotices(toasts);
+        return count;
     }
 
     /**
@@ -321,7 +315,7 @@ public final class Gallery {
         }
         if (!noticesUncounted) {
             noticesUncounted = true;
-            JustEnoughStructures.LOGGER.info("Gallery: can't count the notices in this game, so a join waits 15 s for them");
+            JustEnoughStructures.LOGGER.info("Gallery: can't count the notices in this game, so they're cleared every tick and a join waits 15 s for them");
         }
         noticeLists = List.of();
         return -1;
@@ -369,8 +363,8 @@ public final class Gallery {
 
     public void tick(Minecraft mc) {
         stepTicks++;
-        if (joins && mc.level != null) {
-            notices = joinNotices(mc);
+        if (mc.level != null) {
+            notices = clearNotices(mc);
         }
         if (screen != null) {
             parkMouse(mc);
