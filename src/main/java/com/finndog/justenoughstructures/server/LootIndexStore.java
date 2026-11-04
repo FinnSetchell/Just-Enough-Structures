@@ -117,6 +117,8 @@ public final class LootIndexStore {
     private static volatile Set<ResourceLocation> chestItems;
     // For the debug log: what each source file hashed to last time, to say which ones changed.
     private static volatile Map<String, HashCode> lastFiles = Map.of();
+    // For tests: the tables the last check of a saved index found to roll again. Null until one is checked.
+    private static volatile Set<ResourceLocation> lastToRoll;
     // For tests: called with the number of structures done, each time one finishes.
     private static volatile IntConsumer progressWatcher = d -> {
     };
@@ -130,6 +132,14 @@ public final class LootIndexStore {
      */
     public static String knownFingerprint() {
         return checking ? null : fingerprint;
+    }
+
+    /**
+     * The loot tables the last check of a saved index found to roll again, or null if no saved index has
+     * been checked since the server started. Test hook for the scripted scenarios.
+     */
+    public static Set<ResourceLocation> lastToRoll() {
+        return lastToRoll;
     }
 
     /** Whether the index is built and up to date, so nothing's generating structures for it. Server thread only. */
@@ -192,6 +202,7 @@ public final class LootIndexStore {
                 JesServer.fingerprintKnown(server, current);
                 if (ready != null) {
                     JesLog.debug("The loot index is up to date in {} ms, with {} loot tables to roll", millis, toRoll.size());
+                    lastToRoll = Set.copyOf(toRoll.keySet());
                     rollThenPublish(server, generation, ready, readyIndex, toRoll, current, dir);
                     return;
                 }
@@ -221,6 +232,7 @@ public final class LootIndexStore {
     /** When the server stops: drops everything and stops any work in progress. */
     public static void stop() {
         GENERATION.incrementAndGet();
+        lastToRoll = null;
         scan = null;
         index = null;
         payload = null;

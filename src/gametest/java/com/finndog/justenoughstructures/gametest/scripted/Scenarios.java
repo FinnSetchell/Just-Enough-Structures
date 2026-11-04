@@ -89,6 +89,7 @@ public final class Scenarios {
             case "pack_tour" -> PackTourScenario.build(mc);
             case "emi_once" -> EmiScenario.once(mc);
             case "emi_late" -> EmiScenario.late(mc);
+            case "rolls_kept" -> RollsKeptScenario.build(mc);
             case "emi_same" -> EmiScenario.same(mc);
             case "emi_early" -> EmiScenario.early(mc);
             case "emi_quiet" -> EmiScenario.quiet(mc);
