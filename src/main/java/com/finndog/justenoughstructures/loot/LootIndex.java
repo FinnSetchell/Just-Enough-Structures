@@ -523,7 +523,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     /** Every loot table the server has loaded. */
-    private static List<ResourceLocation> tableIds(MinecraftServer server) {
+    public static List<ResourceLocation> tableIds(MinecraftServer server) {
         //? if >=26.1 {
         /*return server.reloadableRegistries().lookup().lookupOrThrow(Registries.LOOT_TABLE).listElementIds().map(Ids::of).toList();
         *///?} else if >=1.21 {

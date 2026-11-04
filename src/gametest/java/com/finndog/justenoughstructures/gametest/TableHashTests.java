@@ -11,8 +11,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -85,6 +89,53 @@ public final class TableHashTests {
         helper.assertTrue(LootIndex.unrolled(stale, hashes).containsKey(TABLE), "a roll kept under neither hash isn't rolled again");
         JustEnoughStructures.LOGGER.info("In the test of rolls kept under the old hash: {} moved to {}", old, now);
         helper.succeed();
+    }
+
+    /**
+     * Every loot table the server has loaded hashes the same after a /reload that changes nothing, so
+     * the index's check after it rolls nothing again. Tables whose hash from before 1.2.0 changed are
+     * logged too, to show what the keys-in-order hash covers.
+     */
+    public static void tableHashesSurviveAReload(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Map<ResourceLocation, String[]> before = allHashes(server);
+        CompletableFuture<Void> reload = TestSupport.reload(server);
+        List<String> changed = new ArrayList<>();
+        boolean[] checked = new boolean[1];
+        helper.succeedWhen(() -> {
+            helper.assertTrue(reload.isDone(), "still reloading");
+            if (!checked[0]) {
+                checked[0] = true;
+                Map<ResourceLocation, String[]> after = allHashes(server);
+                List<ResourceLocation> oldChanged = new ArrayList<>();
+                before.forEach((table, hashes) -> {
+                    String[] now = after.get(table);
+                    if (now == null) {
+                        changed.add(table + " (gone)");
+                    } else {
+                        if (!hashes[0].equals(now[0])) {
+                            changed.add(table.toString());
+                        }
+                        if (!hashes[1].equals(now[1])) {
+                            oldChanged.add(table);
+                        }
+                    }
+                });
+                JustEnoughStructures.LOGGER.info("In the test of hashes over a /reload: {} tables, {} hash differently now, {} would have with the hash from before 1.2.0 {}",
+                        before.size(), changed.size(), oldChanged.size(), oldChanged.size() <= 20 ? oldChanged : "");
+            }
+            helper.assertTrue(changed.isEmpty(), changed.size() + " loot tables hash differently after a /reload: "
+                    + (changed.size() <= 20 ? changed : changed.subList(0, 20) + " and more"));
+        });
+    }
+
+    /** Each loaded table's hash now and its hash from before 1.2.0. */
+    private static Map<ResourceLocation, String[]> allHashes(MinecraftServer server) {
+        Map<ResourceLocation, String[]> out = new TreeMap<>();
+        for (ResourceLocation table : LootIndex.tableIds(server)) {
+            out.put(table, new String[]{LootIndex.tableHash(server, table), LootIndex.oldTableHash(server, table)});
+        }
+        return out;
     }
 
     /** The scan as written to disk and read back, as the index saves it. */

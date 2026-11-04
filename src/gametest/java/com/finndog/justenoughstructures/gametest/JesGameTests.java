@@ -270,6 +270,12 @@ public final class JesGameTests {
         TableHashTests.rollsKeptUnderTheOldHashAreKept(helper);
     }
 
+    // Reloads the server's datapacks, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "table_hash_reload", timeoutTicks = 1200)
+    public void tableHashesSurviveAReload(GameTestHelper helper) {
+        TableHashTests.tableHashesSurviveAReload(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
