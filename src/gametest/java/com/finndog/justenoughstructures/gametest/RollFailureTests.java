@@ -52,7 +52,7 @@ public final class RollFailureTests {
             AtomicReference<LootOdds> got = new AtomicReference<>();
             first.put(name, got);
             again.put(name, new AtomicReference<>());
-            JesServer.odds(server, id("sometimes", name), ThrowingLoot.sometimes(EVERY, failure), got::set);
+            JesServer.odds(server, id("sometimes", name), ThrowingLoot.sometimes(id("sometimes", name), EVERY, failure), got::set);
         });
         helper.succeedWhen(() -> first.forEach((name, got) -> {
             String table = "a table that throws " + name + " on every " + EVERY + "th roll";
@@ -60,7 +60,7 @@ public final class RollFailureTests {
             helper.assertTrue(odds != null, "the odds of " + table + " haven't arrived");
             if (again.get(name).get() == null) {
                 // Asked again, the kept odds come back without rolling: a table that rolls differently shows which.
-                JesServer.odds(server, id("sometimes", name), ThrowingLoot.sometimes(2, LootGuardTests.failures().get(name)), again.get(name)::set);
+                JesServer.odds(server, id("sometimes", name), ThrowingLoot.sometimes(id("sometimes", name), 2, LootGuardTests.failures().get(name)), again.get(name)::set);
             }
             String kept = again.get(name).get() == odds ? ", and asking again gave the same odds, kept from then"
                     : ", and asking again gave " + describe(again.get(name).get());
@@ -85,7 +85,7 @@ public final class RollFailureTests {
         LootGuardTests.failures().forEach((name, failure) -> {
             AtomicReference<LootOdds> odds = new AtomicReference<>();
             got.put(name, odds);
-            JesServer.odds(server, id("always", name), ThrowingLoot.table(failure), odds::set);
+            JesServer.odds(server, id("always", name), ThrowingLoot.table(id("always", name), failure), odds::set);
         });
         helper.succeedWhen(() -> got.forEach((name, arrived) -> {
             String table = "a table that throws " + name + " on every roll";
@@ -108,7 +108,7 @@ public final class RollFailureTests {
             LootOdds odds = null;
             Throwable got = null;
             try {
-                odds = LootRolls.odds(helper.getLevel(), id("index", name), ThrowingLoot.sometimes(EVERY, failure), INDEX_ROLLS, 1L);
+                odds = LootRolls.odds(helper.getLevel(), id("index", name), ThrowingLoot.sometimes(id("index", name), EVERY, failure), INDEX_ROLLS, 1L);
             } catch (Throwable t) {
                 got = t;
             }

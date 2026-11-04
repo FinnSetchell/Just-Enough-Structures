@@ -43,7 +43,7 @@ public final class LootGuardTests {
             List<ItemStack> items = null;
             Throwable got = null;
             try {
-                items = LootRolls.fill(helper.getLevel(), BROKEN, ThrowingLoot.table(failure), 1L, 27);
+                items = LootRolls.fill(helper.getLevel(), BROKEN, ThrowingLoot.table(BROKEN, failure), 1L, 27);
             } catch (Throwable t) {
                 got = t;
             }
@@ -65,7 +65,7 @@ public final class LootGuardTests {
                 Throwable[] got = new Throwable[1];
                 List<byte[]> messages = MessageTests.sent(player, JesNetwork.LOOT, () -> {
                     try {
-                        JesServer.answerLoot(player, 7, BROKEN, ThrowingLoot.table(failure), 1L, 27);
+                        JesServer.answerLoot(player, 7, BROKEN, ThrowingLoot.table(BROKEN, failure), 1L, 27);
                     } catch (Throwable t) {
                         got[0] = t;
                     }
