@@ -261,6 +261,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void tableHashIgnoresKeyOrder(GameTestHelper helper) {
+        TableHashTests.tableHashIgnoresKeyOrder(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void rollsKeptUnderTheOldHashAreKept(GameTestHelper helper) {
+        TableHashTests.rollsKeptUnderTheOldHashAreKept(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
     }

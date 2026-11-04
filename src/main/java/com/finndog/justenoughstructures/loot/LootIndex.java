@@ -186,6 +186,11 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      * while the table is still as it was rolled.
      */
     public static LootIndex of(MinecraftServer server, StructureScan scan) {
+        return of(server, scan, scan.rolled().isEmpty() ? Map.of() : hashes(server, scan));
+    }
+
+    /** As {@link #of(MinecraftServer, StructureScan)}, with each used table's hash already worked out ({@link #hashes}). */
+    public static LootIndex of(MinecraftServer server, StructureScan scan, Map<ResourceLocation, String> hashes) {
         return JesLog.quietly(() -> {
             Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
             for (Set<ResourceLocation> structureTables : scan.tables().values()) {
@@ -195,7 +200,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
             scan.rolled().forEach((table, rolled) -> {
                 Set<ResourceLocation> read = items.get(table);
-                if (read != null && rolled.hash().equals(tableHash(server, table))) {
+                if (read != null && rolled.hash().equals(hashes.get(table))) {
                     read.addAll(rolled.items());
                 }
             });
@@ -208,17 +213,56 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      * its hash for keeping the rolls under.
      */
     public static Map<ResourceLocation, String> unrolled(MinecraftServer server, StructureScan scan) {
+        return unrolled(scan, hashes(server, scan));
+    }
+
+    /** As {@link #unrolled(MinecraftServer, StructureScan)}, with each used table's hash already worked out ({@link #hashes}). */
+    public static Map<ResourceLocation, String> unrolled(StructureScan scan, Map<ResourceLocation, String> hashes) {
+        Map<ResourceLocation, String> out = new TreeMap<>();
+        for (ResourceLocation table : scan.usedTables()) {
+            String hash = hashes.get(table);
+            StructureScan.Rolled kept = scan.rolled().get(table);
+            if (kept == null || !kept.hash().equals(hash)) {
+                out.put(table, hash);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Each table the scan's structures use, with its hash as it's loaded now ({@link #tableHash}).
+     * Writing a table out is the slow part of a hash, so a check of the saved index does it once per
+     * table here and hands the result to {@link #of} and {@link #unrolled}.
+     */
+    public static Map<ResourceLocation, String> hashes(MinecraftServer server, StructureScan scan) {
         return JesLog.quietly(() -> {
             Map<ResourceLocation, String> out = new TreeMap<>();
             for (ResourceLocation table : scan.usedTables()) {
-                String hash = tableHash(server, table);
-                StructureScan.Rolled kept = scan.rolled().get(table);
-                if (kept == null || !kept.hash().equals(hash)) {
-                    out.put(table, hash);
-                }
+                out.put(table, tableHash(server, table));
             }
             return out;
         });
+    }
+
+    /**
+     * The scan with each kept roll that was saved under its table's hash as JES 1.1.0 and earlier
+     * made it ({@link #oldTableHash}) moved to the table's hash now, so a player who updates keeps the
+     * rolls instead of rolling every table again. A roll kept under neither is left as it is, and
+     * rolled again. The same scan if nothing moved.
+     */
+    public static StructureScan rehashed(MinecraftServer server, StructureScan scan, Map<ResourceLocation, String> hashes) {
+        Map<ResourceLocation, StructureScan.Rolled> moved = new TreeMap<>();
+        JesLog.quietly(() -> scan.rolled().forEach((table, kept) -> {
+            String now = hashes.get(table);
+            if (now != null && !kept.hash().equals(now) && kept.hash().equals(oldTableHash(server, table))) {
+                moved.put(table, new StructureScan.Rolled(now, kept.items()));
+            }
+        }));
+        if (moved.isEmpty()) {
+            return scan;
+        }
+        JesLog.debug("Kept the rolls of {} loot tables saved under the hash from before tables were hashed with their keys in order", moved.size());
+        return scan.withRolled(moved);
     }
 
     /** The index with these items added to what each of its tables can give. */
@@ -512,14 +556,62 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     /**
      * A hash of the loaded table, which its rolls are kept under, so they're made again once it
      * changes. The same for every table that can't be read.
+     *
+     * <p>The game writes some of a table's maps out in an order that changes from one start to the
+     * next, like set_enchantments' enchantments (keyed by object identity on 1.20.1, and copied with
+     * Map.copyOf, whose order is salted at each start, on 1.21), so the hash is of the table with
+     * every object's keys in order ({@link #hashOf}). Known limit: copy_state keeps its block
+     * properties in a set, written out as an array in the set's order, which can also change between
+     * starts. It needs a block state, so chest loot, which the index rolls, doesn't use it.
      */
     public static String tableHash(MinecraftServer server, ResourceLocation tableId) {
+        try {
+            JsonElement json = json(server, tableId);
+            return json == null ? "" : hashOf(json);
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    /**
+     * The hash rolls were kept under in JES 1.1.0 and earlier: of the table as the game writes it
+     * out, keys in the game's order. Only for keeping rolls saved under it, by {@link #rehashed}.
+     */
+    public static String oldTableHash(MinecraftServer server, ResourceLocation tableId) {
         try {
             JsonElement json = json(server, tableId);
             return json == null ? "" : Hashing.murmur3_128().hashString(json.toString(), StandardCharsets.UTF_8).toString();
         } catch (RuntimeException e) {
             return "";
         }
+    }
+
+    /**
+     * A hash of a loot table written out as JSON, the same whatever order its objects' keys are in.
+     * Arrays keep their order, which means something in a loot table: alternatives and sequences
+     * pick in order, and functions run in order.
+     */
+    public static String hashOf(JsonElement json) {
+        return Hashing.murmur3_128().hashString(keysInOrder(json).toString(), StandardCharsets.UTF_8).toString();
+    }
+
+    /** {@code json} with every object's keys in order, at every depth. */
+    private static JsonElement keysInOrder(JsonElement json) {
+        if (json instanceof JsonObject object) {
+            TreeMap<String, JsonElement> keys = new TreeMap<>();
+            for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+                keys.put(entry.getKey(), entry.getValue());
+            }
+            JsonObject out = new JsonObject();
+            keys.forEach((key, value) -> out.add(key, keysInOrder(value)));
+            return out;
+        }
+        if (json instanceof JsonArray array) {
+            JsonArray out = new JsonArray();
+            array.forEach(element -> out.add(keysInOrder(element)));
+            return out;
+        }
+        return json;
     }
 
     /** The loaded table written out as JSON, or null if there's no such table. */

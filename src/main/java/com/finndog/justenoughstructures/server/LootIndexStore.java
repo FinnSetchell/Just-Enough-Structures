@@ -174,8 +174,13 @@ public final class LootIndexStore {
                     if (updated == null) {
                         return;
                     }
-                    updatedIndex = LootIndex.of(server, updated);
-                    unrolled = LootIndex.unrolled(server, updated);
+                    // Each table is written out once for its hash. Rolls kept under the hash of JES 1.1.0
+                    // and earlier are moved to the hash now and saved below, so updating doesn't roll every
+                    // table again.
+                    Map<ResourceLocation, String> hashes = LootIndex.hashes(server, updated);
+                    updated = LootIndex.rehashed(server, updated, hashes);
+                    updatedIndex = LootIndex.of(server, updated, hashes);
+                    unrolled = LootIndex.unrolled(updated, hashes);
                     if (updated != base && current != null) {
                         write(dir, current, updated);
                     }
