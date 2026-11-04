@@ -16,6 +16,7 @@
   "client": [
     "FaultyDrawsMixin",
     "FaultyFluidsMixin",
+    "LateTickMixin",
     "LeaveTheMouseMixin",
     "UiClicksMixin"
   ],

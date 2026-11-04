@@ -8,6 +8,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.compat.emi.JesEmiPlugin;
+import com.finndog.justenoughstructures.gametest.LateTick;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import net.minecraft.server.MinecraftServer;
@@ -36,6 +37,36 @@ final class EmiScenario {
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
                 .then(run(() -> {
                     JustEnoughStructures.LOGGER.info("EMI loaded {} times", JesEmiPlugin.loads());
+                    if (JesEmiPlugin.loads() != 1) {
+                        throw new IllegalStateException("EMI loaded " + JesEmiPlugin.loads() + " times");
+                    }
+                }));
+        return d;
+        //?} else {
+        /*throw new UnsupportedOperationException("needs EMI");
+        *///?}
+    }
+
+    /**
+     * As {@link #once}, with JES's client tick held back until EMI's first load has finished
+     * (LateTick), as on a client kept busy by another mod: EMI still loads once, as the index is
+     * asked for when the server is joined. Needs a loot index saved from an earlier game.
+     */
+    static Director late(Minecraft mc) {
+        //? if emi {
+        if (!JustEnoughStructures.modVersions().containsKey("emi")) {
+            throw new UnsupportedOperationException("needs EMI");
+        }
+        Director d = new Director(mc);
+        d.then(until(JesEmiPlugin::ready, 20 * 60 * 30))
+                // Give a second load time to start, if one is coming.
+                .then(pause(200))
+                .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
+                .then(run(() -> {
+                    JustEnoughStructures.LOGGER.info("EMI loaded {} times with JES's client tick held back", JesEmiPlugin.loads());
+                    if (!LateTick.heldUntilLoaded()) {
+                        throw new IllegalStateException("JES's client tick was never held back until EMI had loaded, so this shows nothing");
+                    }
                     if (JesEmiPlugin.loads() != 1) {
                         throw new IllegalStateException("EMI loaded " + JesEmiPlugin.loads() + " times");
                     }
