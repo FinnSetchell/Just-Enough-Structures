@@ -455,6 +455,20 @@ public final class ClientRequests {
     }
 
     public static void tick() {
+        askIfWanted();
+        if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
+            pollIndex();
+        }
+    }
+
+    /**
+     * Asks for the loot index, and the structure list with it, if a recipe viewer wants it and the
+     * server runs JES. The loaders call this as the server is joined, and on Fabric before 1.20.2 when
+     * the server's channels arrive, so the ask goes out before the recipes and tags that start EMI's
+     * load are handled and EMI's load waits for the index. On a busy client the next tick can come
+     * after EMI has passed JES, so each tick only catches what these missed. Client thread only.
+     */
+    public static void askIfWanted() {
         if (!viewersLookedFor) {
             viewersLookedFor = true;
             indexWanted |= loadsWithTheIndex();
@@ -463,9 +477,6 @@ public final class ClientRequests {
             index();
             // Also fetch the structure list, which saved thumbnails are checked against, so rows can show pictures.
             catalog();
-        }
-        if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
-            pollIndex();
         }
     }
 

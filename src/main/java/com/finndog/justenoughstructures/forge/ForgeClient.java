@@ -80,6 +80,8 @@ final class ForgeClient {
         RegisterKeyMappingsEvent.BUS.addListener(event -> event.register(JesClient.OPEN));
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> JesClient.tick(Minecraft.getInstance()));
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> ClientRequests.reset());
+        // The loot index is asked for as the server is joined, before the recipes and tags that start EMI's load are handled.
+        ClientPlayerNetworkEvent.LoggingIn.BUS.addListener(event -> ClientRequests.askIfWanted());
         *///?} else {
         modBus.addListener((RegisterKeyMappingsEvent event) -> event.register(JesClient.OPEN));
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
@@ -88,6 +90,8 @@ final class ForgeClient {
             }
         });
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
+        // The loot index is asked for as the server is joined, before the recipes and tags that start EMI's load are handled.
+        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> ClientRequests.askIfWanted());
         //?}
 
         //? if explorers_compass {

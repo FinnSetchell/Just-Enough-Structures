@@ -4,6 +4,9 @@ import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import java.util.Collection;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+//? if <1.21 {
+import net.fabricmc.fabric.api.client.networking.v1.C2SPlayChannelEvents;
+//?}
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -51,5 +54,12 @@ final class FabricClientNetworking {
         //?}
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
+        // The loot index is asked for as the server is joined, before the recipes and tags that start
+        // EMI's load are handled. Both events come on the client thread.
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ClientRequests.askIfWanted());
+        //? if <1.21 {
+        // Before 1.20.2 the server's channels arrive after joining.
+        C2SPlayChannelEvents.REGISTER.register((handler, sender, client, channels) -> ClientRequests.askIfWanted());
+        //?}
     }
 }
