@@ -47,6 +47,11 @@ public final class OddsList {
         return Math.max(0, rows * (ROW + 1) - 1);
     }
 
+    /** What shows for odds with no items: that the table never gives anything, or that none of its rolls worked. */
+    public static Component noItems(LootOdds odds) {
+        return Component.translatable(odds.unrollable() ? "screen.justenoughstructures.cant_roll" : "screen.justenoughstructures.always_empty");
+    }
+
     /** A table's rows, most likely first, or rarest first. */
     static List<LootOdds.Row> sorted(LootOdds odds, boolean rarestFirst) {
         List<LootOdds.Row> rows = new ArrayList<>(odds.rows());

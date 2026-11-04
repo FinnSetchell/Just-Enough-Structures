@@ -493,6 +493,9 @@ public final class Codecs {
             buf.writeVarInt(row.max());
             writeMap(buf, row.variants(), FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeVarInt);
         }
+        // Last, after everything older versions read. Odds come last in every message they're in, so
+        // older versions still read the rest and never get to this.
+        buf.writeVarInt(odds.failedRolls());
     }
 
     public static LootOdds readOdds(FriendlyByteBuf buf) {
@@ -505,7 +508,9 @@ public final class Codecs {
             rows.add(new LootOdds.Row(readItem(buf), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                     new TreeMap<>(readMap(buf, b -> b.readUtf(), b -> b.readVarInt()))));
         }
-        return new LootOdds(table, rolls, empty, rows);
+        // An older server doesn't send it: its odds stop at a roll that throws, counted as one that gave nothing.
+        int failed = buf.isReadable() ? buf.readVarInt() : 0;
+        return new LootOdds(table, rolls, empty, rows, failed);
     }
 
     // ------------------------------------------------------------------ loot index

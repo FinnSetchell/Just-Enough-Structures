@@ -164,6 +164,7 @@ public final class LootRolls {
         private final Map<Item, LootOdds.Row> rows = new HashMap<>();
         private int done;
         private int empty;
+        private int failed;
 
         public Roller(ServerLevel level, ResourceLocation tableId, int rolls, long seed) {
             this(level, tableId, table(level.getServer(), tableId), rolls, seed);
@@ -197,7 +198,7 @@ public final class LootRolls {
             List<LootOdds.Row> sorted = new ArrayList<>(rows.values());
             sorted.sort((a, b) -> b.hits() != a.hits() ? Integer.compare(b.hits(), a.hits())
                     : a.example().getItem().getDescriptionId().compareTo(b.example().getItem().getDescriptionId()));
-            return new LootOdds(tableId, done, empty, sorted);
+            return new LootOdds(tableId, done - failed, empty, sorted, failed);
         }
 
         /** The next roll's seed. The game takes 0 as no seed and rolls from the world's random, so it's never 0. */
@@ -209,55 +210,66 @@ public final class LootRolls {
             return next;
         }
 
+        /**
+         * One roll, which counts only once all of it has been read. A roll that throws, as other mods'
+         * loot can now and then, or every time when it reads something these rolls leave out (see
+         * chestParams), is left out of the odds and the rolls go on. It says nothing about what the
+         * table gives, so counting it as a roll that gave nothing would make the table look emptier
+         * than it is, and stopping there would leave the odds to the few rolls before it.
+         */
         private void rollOnce() {
             done++;
-            List<ItemStack> rolled;
-            try {
-                rolled = asRoll(() -> table.getRandomItems(params, nextSeed()));
-            } catch (RuntimeException | LinkageError e) {
-                // Still one of the rolls, as one that gave nothing, so the odds so far add up.
-                empty++;
-                throw e;
-            }
+            long seed = nextSeed();
             Map<Item, Integer> counts = new HashMap<>();
             Map<Item, ItemStack> examples = new HashMap<>();
-            for (ItemStack stack : rolled) {
-                if (stack.isEmpty()) {
-                    continue;
+            Map<Item, Map<String, Integer>> variants = new HashMap<>();
+            try {
+                List<ItemStack> rolled = asRoll(() -> table.getRandomItems(params, seed));
+                for (ItemStack stack : rolled) {
+                    if (stack.isEmpty()) {
+                        continue;
+                    }
+                    counts.merge(stack.getItem(), stack.getCount(), Integer::sum);
+                    examples.computeIfAbsent(stack.getItem(), item -> stack.copyWithCount(1));
+                    readVariants(stack, variants.computeIfAbsent(stack.getItem(), item -> new HashMap<>()));
                 }
-                counts.merge(stack.getItem(), stack.getCount(), Integer::sum);
-                examples.putIfAbsent(stack.getItem(), stack);
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                // Into the game's log once per table, with what was thrown, so a player's log names the
+                // mod at fault. Out of memory, and anything else of that kind, isn't caught.
+                if (failed++ == 0) {
+                    JesLog.warnOnce("loot-roll:" + tableId, "Rolls of the loot table {} fail, so its chances are from the rolls that work", tableId, e);
+                }
+                return;
             }
             if (counts.isEmpty()) {
                 empty++;
             }
-            for (Map.Entry<Item, Integer> e : counts.entrySet()) {
-                rows.computeIfAbsent(e.getKey(), item -> new LootOdds.Row(examples.get(item).copyWithCount(1)))
-                        .record(e.getValue());
-            }
-            for (ItemStack stack : rolled) {
-                LootOdds.Row row = rows.get(stack.getItem());
-                if (row == null) {
-                    continue;
-                }
-                //? if >=1.21 {
-                /*for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
-                    e.getKey().unwrapKey().ifPresent(key -> row.variant("enchantment:" + Ids.of(key), e.getIntValue()));
-                }
-                PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
-                if (potion != null) {
-                    potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> row.variant("potion:" + Ids.of(key), 0));
-                }
-                *///?} else {
-                EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
-                        row.variant("enchantment:" + BuiltInRegistries.ENCHANTMENT.getKey(enchantment), enchantmentLevel));
-                Potion potion = PotionUtils.getPotion(stack);
-                if (potion != Potions.EMPTY) {
-                    row.variant("potion:" + BuiltInRegistries.POTION.getKey(potion), 0);
-                }
-                //?}
-            }
+            counts.forEach((item, count) -> {
+                LootOdds.Row row = rows.computeIfAbsent(item, i -> new LootOdds.Row(examples.get(i)));
+                row.record(count);
+                variants.get(item).forEach(row::variant);
+            });
         }
+    }
+
+    /** Puts the enchantments and potion a rolled stack came with in {@code into}, each at the highest level seen. */
+    private static void readVariants(ItemStack stack, Map<String, Integer> into) {
+        //? if >=1.21 {
+        /*for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+            e.getKey().unwrapKey().ifPresent(key -> into.merge("enchantment:" + Ids.of(key), e.getIntValue(), Math::max));
+        }
+        PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
+        if (potion != null) {
+            potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> into.merge("potion:" + Ids.of(key), 0, Math::max));
+        }
+        *///?} else {
+        EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
+                into.merge("enchantment:" + BuiltInRegistries.ENCHANTMENT.getKey(enchantment), enchantmentLevel, Math::max));
+        Potion potion = PotionUtils.getPotion(stack);
+        if (potion != Potions.EMPTY) {
+            into.merge("potion:" + BuiltInRegistries.POTION.getKey(potion), 0, Math::max);
+        }
+        //?}
     }
 
     // Deliberately no origin. These rolls aren't for a chest anywhere, so any origin would be a made-up

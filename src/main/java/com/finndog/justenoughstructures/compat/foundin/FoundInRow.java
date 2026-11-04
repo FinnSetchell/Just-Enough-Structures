@@ -124,6 +124,8 @@ public final class FoundInRow {
         double chance = recipe.isTable() ? -1 : FoundIn.chance(recipe.item().getItem(), recipe.tables());
         if (chance >= 0) {
             lines.add(Component.translatable("viewer.justenoughstructures.chance", FoundIn.percent(chance)).withStyle(ChatFormatting.GRAY));
+        } else if (chance == FoundIn.UNKNOWN) {
+            lines.add(Component.translatable("viewer.justenoughstructures.unknown_chance").withStyle(ChatFormatting.GRAY));
         }
         if (recipe.placed() && !recipe.isTable()) {
             String placed = recipe.onlyPlaced() ? "screen.justenoughstructures.placed_tip" : "screen.justenoughstructures.placed_too";

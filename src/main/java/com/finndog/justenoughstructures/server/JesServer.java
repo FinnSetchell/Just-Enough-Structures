@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
@@ -349,7 +350,7 @@ public final class JesServer {
             return;
         }
         LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(Players.server(player)), id, LootOverrides.parse(json), ODDS_ROLLS, id.hashCode());
-        rollInSlices(Players.server(player), roller, ODDS_BUDGET_NANOS, odds -> reply.accept(new DraftOdds(null, odds)));
+        rollInSlices(Players.server(player), roller, ODDS_BUDGET_NANOS, (odds, keep) -> reply.accept(new DraftOdds(null, odds)));
     }
 
     /** One roll of an edit that isn't saved yet, or nothing if it can't be rolled. */
@@ -923,11 +924,13 @@ public final class JesServer {
         List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
         ROLLING.put(table, these);
         LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, loot, ODDS_ROLLS, table.hashCode());
-        rollInSlices(server, roller, ODDS_BUDGET_NANOS, odds -> {
+        rollInSlices(server, roller, ODDS_BUDGET_NANOS, (odds, keep) -> {
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
             if (ROLLING.get(table) == these) {
                 ROLLING.remove(table);
-                ODDS_CACHE.put(table, odds);
+                if (keep) {
+                    ODDS_CACHE.put(table, odds);
+                }
             }
             these.forEach(waiter -> waiter.accept(odds));
         });
@@ -936,9 +939,11 @@ public final class JesServer {
     /**
      * Rolls in the time the server's ticks leave over ({@link SpareTime}), ahead of the loot index's
      * rolls as a player is waiting, so a table that's slow to roll can't hold the server up. With
-     * {@code budget} of rolling used up, or a roll that throws, it stops at the odds so far.
+     * {@code budget} of rolling used up it stops at the odds so far. The roller leaves out a roll that
+     * throws and goes on, so anything thrown here is JES's own fault: the odds so far are still the
+     * answer, but {@code done} is told they're not to be kept, as they stop short.
      */
-    private static void rollInSlices(MinecraftServer server, LootRolls.Roller roller, long budget, Consumer<LootOdds> done) {
+    private static void rollInSlices(MinecraftServer server, LootRolls.Roller roller, long budget, BiConsumer<LootOdds, Boolean> done) {
         SpareTime.addWaitedFor(server, new SpareTime.Job() {
             private long left = budget;
 
@@ -946,11 +951,14 @@ public final class JesServer {
             public boolean work(long nanos) {
                 long started = System.nanoTime();
                 boolean finished;
+                boolean broke = false;
                 try {
                     finished = roller.rollFor(Math.min(nanos, left));
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                    JesLog.debug("Rolling {} failed after {} rolls", roller.odds().tableId(), roller.odds().rolls(), e);
+                    JesLog.warnOnce("odds-roll:" + roller.odds().tableId(), "Rolling the loot table {} broke off after {} rolls, so its odds aren't kept",
+                            roller.odds().tableId(), roller.odds().rolls(), e);
                     finished = true;
+                    broke = true;
                 }
                 left -= System.nanoTime() - started;
                 if (!finished && left > 0) {
@@ -960,7 +968,7 @@ public final class JesServer {
                 if (!finished) {
                     JesLog.debug("{} is slow to roll, so its odds are from {} rolls", odds.tableId(), odds.rolls());
                 }
-                done.accept(odds);
+                done.accept(odds, !broke);
                 return true;
             }
         });

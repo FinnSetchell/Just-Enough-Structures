@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -120,15 +121,31 @@ public final class FoundIn {
         return Component.translatable("screen.justenoughstructures.placed").getString();
     }
 
+    /** What {@link #chance} gives once the odds of all the tables are in and none of them could be rolled. */
+    public static final double UNKNOWN = -2;
+
     /**
      * The best chance, per container, of any of these loot tables giving the item, or -1 until the
-     * odds of at least one are known. Asks the server for any odds it doesn't have yet.
+     * odds of at least one are known. A table none of whose rolls worked tells nothing, so with only
+     * those it's {@link #UNKNOWN}. Asks the server for any odds it doesn't have yet.
      */
     public static double chance(Item item, Set<ResourceLocation> tables) {
+        return chance(item, tables, table -> ClientRequests.odds(table).getNow(null));
+    }
+
+    /** The same, with each table's odds from {@code known}, which gives null for those still to come. */
+    public static double chance(Item item, Set<ResourceLocation> tables, Function<ResourceLocation, LootOdds> known) {
         double best = -1;
+        boolean waiting = false;
+        boolean unrolled = false;
         for (ResourceLocation table : tables) {
-            LootOdds odds = ClientRequests.odds(table).getNow(null);
+            LootOdds odds = known.apply(table);
             if (odds == null) {
+                waiting = true;
+                continue;
+            }
+            if (odds.rolls() == 0) {
+                unrolled = true;
                 continue;
             }
             best = Math.max(best, 0);
@@ -138,7 +155,7 @@ public final class FoundIn {
                 }
             }
         }
-        return best;
+        return best < 0 && unrolled && !waiting ? UNKNOWN : best;
     }
 
     /**
@@ -147,6 +164,9 @@ public final class FoundIn {
      * read {@code <0.1%}.
      */
     public static String percent(double chance) {
+        if (chance == UNKNOWN) {
+            return Component.translatable("screen.justenoughstructures.unknown_chance").getString();
+        }
         if (chance < 0) {
             return "...";
         }

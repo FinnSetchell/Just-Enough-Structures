@@ -6,8 +6,23 @@ import java.util.TreeMap;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-/** How often each item came out of a loot table over a number of rolls. */
-public record LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows) {
+/**
+ * How often each item came out of a loot table over a number of rolls. Chances are out of
+ * {@code rolls}, the rolls that worked. The {@code failedRolls} threw, as other mods' loot can, and
+ * are left out, as they say nothing about what the table gives. A table none of whose rolls worked
+ * has no rolls and no rows.
+ */
+public record LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows, int failedRolls) {
+
+    /** Odds from rolls that all worked. */
+    public LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows) {
+        this(tableId, rolls, emptyRolls, rows, 0);
+    }
+
+    /** Whether the table was rolled and none of its rolls worked, so nothing is known of what it gives. */
+    public boolean unrollable() {
+        return rolls == 0 && failedRolls > 0;
+    }
 
     public static final class Row {
         private final ItemStack example;

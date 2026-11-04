@@ -199,6 +199,21 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void rollsKeepEnchantments(GameTestHelper helper) {
+        RollFailureTests.rollsKeepEnchantments(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void failedRollsTravel(GameTestHelper helper) {
+        RollFailureTests.failedRollsTravel(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void foundInSaysWhenNoRollWorks(GameTestHelper helper) {
+        RollFailureTests.foundInSaysWhenNoRollWorks(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void treasureMapRollsAreQuick(GameTestHelper helper) {
         ServiceTests.treasureMapRollsAreQuick(helper);
     }

@@ -353,7 +353,7 @@ final class ToolsLoot extends ToolsSection {
             Gui.fine(g, font, Component.translatable("screen.justenoughstructures.rolling").getString(), x + 2, oy + 2, Gui.labelSoft());
             oy += 14;
         } else if (odds.rows().isEmpty()) {
-            Gui.fine(g, font, Component.translatable("screen.justenoughstructures.always_empty").getString(), x + 2, oy + 2, Gui.labelSoft());
+            Gui.fine(g, font, OddsList.noItems(odds).getString(), x + 2, oy + 2, Gui.labelSoft());
             oy += 14;
         } else {
             List<LootOdds.Row> rows = OddsList.sorted(odds, false);

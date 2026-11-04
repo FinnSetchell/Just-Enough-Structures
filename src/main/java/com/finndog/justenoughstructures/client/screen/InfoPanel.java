@@ -1144,7 +1144,7 @@ final class InfoPanel {
             return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.rolling"), x + PAD, cy, textWidth(), Gui.labelSoft());
         }
         if (odds.rows().isEmpty()) {
-            return Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + PAD, cy, textWidth(), Gui.labelSoft());
+            return Gui.fineWrapped(g, font, OddsList.noItems(odds), x + PAD, cy, textWidth(), Gui.labelSoft());
         }
         List<LootOdds.Row> rows = OddsList.sorted(odds, ClientState.rarestFirst);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
@@ -1168,6 +1168,11 @@ final class InfoPanel {
         if (odds.emptyRolls() > 0) {
             cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.empty_rolls",
                     String.format(Locale.ROOT, "%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
+        }
+        if (odds.failedRolls() > 0) {
+            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.failed_rolls",
+                    String.format(Locale.ROOT, "%.1f%%", 100f * odds.failedRolls() / (odds.rolls() + odds.failedRolls()))),
+                    x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         if (Gui.advanced()) {
             cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format(Locale.ROOT, "%,d", odds.rolls())),

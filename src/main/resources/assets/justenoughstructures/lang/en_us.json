@@ -139,6 +139,9 @@
   "screen.justenoughstructures.sort_rare": "Rarest first",
   "screen.justenoughstructures.rolling": "Rolling...",
   "screen.justenoughstructures.always_empty": "Never gives anything",
+  "screen.justenoughstructures.cant_roll": "Couldn't roll this loot table",
+  "screen.justenoughstructures.failed_rolls": "%s of the rolls failed, so these chances are from the rest",
+  "screen.justenoughstructures.unknown_chance": "?",
   "screen.justenoughstructures.empty_rolls": "Empty %s of the time",
   "screen.justenoughstructures.odds_note": "From %s rolls",
   "screen.justenoughstructures.rare_chance": "<0.1%",
@@ -915,6 +918,7 @@
   "_comment.recipe_viewers": "Recipe viewer pages for JEI, EMI and REI",
   "viewer.justenoughstructures.found_in": "Found in structures",
   "viewer.justenoughstructures.chance": "%s chance in each container",
+  "viewer.justenoughstructures.unknown_chance": "Its loot couldn't be rolled, so the chance isn't known",
   "viewer.justenoughstructures.open": "Click to open it in the structure browser",
   "viewer.justenoughstructures.indexing_count": "Looking through every structure's loot... %s of %s",
 

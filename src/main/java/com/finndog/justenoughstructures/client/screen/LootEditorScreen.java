@@ -1771,7 +1771,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             y += OddsList.ROW;
         }
         if (rows.isEmpty()) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), x + 2, y + 2, w - 4, Gui.labelSoft());
+            Gui.fineWrapped(g, font, OddsList.noItems(preview), x + 2, y + 2, w - 4, Gui.labelSoft());
             y += 20;
         }
         if (previewing) {

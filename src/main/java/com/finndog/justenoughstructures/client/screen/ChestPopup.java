@@ -404,7 +404,7 @@ final class ChestPopup {
             return ItemStack.EMPTY;
         }
         if (odds.rows().isEmpty()) {
-            Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.always_empty"), left + 4, top + 4, right - left - 8, Gui.labelSoft());
+            Gui.fineWrapped(g, font, OddsList.noItems(odds), left + 4, top + 4, right - left - 8, Gui.labelSoft());
             return ItemStack.EMPTY;
         }
         ItemStack hovered = ItemStack.EMPTY;

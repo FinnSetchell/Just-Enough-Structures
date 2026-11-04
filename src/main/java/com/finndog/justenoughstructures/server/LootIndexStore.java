@@ -407,6 +407,7 @@ public final class LootIndexStore {
                 }
                 long before = System.nanoTime();
                 boolean finished;
+                boolean broke = false;
                 try {
                     if (roller == null) {
                         // From the seed and in the level the odds are rolled with.
@@ -414,20 +415,23 @@ public final class LootIndexStore {
                     }
                     finished = roller.rollFor(Math.min(left, TABLE_NANOS - tableNanos));
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
-                    JesLog.debug("Rolling {} for the loot index failed", table, e);
+                    // The roller leaves out a roll that throws and goes on, so this is JES's own code failing.
+                    // What it found so far stops short, so it isn't kept, and the table is rolled again next time.
+                    JesLog.warnOnce("index-roll:" + table, "Rolling the loot table {} for the loot index broke off, so it's rolled again next time", table, e);
                     finished = true;
+                    broke = true;
                 }
                 tableNanos += System.nanoTime() - before;
                 if (finished || tableNanos >= TABLE_NANOS) {
-                    Set<ResourceLocation> items = new TreeSet<>();
-                    if (roller != null) {
+                    if (!broke) {
+                        Set<ResourceLocation> items = new TreeSet<>();
                         LootOdds odds = roller.odds();
                         rolls += odds.rolls();
                         for (LootOdds.Row row : odds.rows()) {
                             items.add(BuiltInRegistries.ITEM.getKey(row.example().getItem()));
                         }
+                        seen.put(table, items);
                     }
-                    seen.put(table, items);
                     table = null;
                 }
             }
