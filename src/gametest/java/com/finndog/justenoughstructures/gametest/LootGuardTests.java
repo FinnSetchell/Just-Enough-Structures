@@ -29,7 +29,7 @@ public final class LootGuardTests {
     }
 
     /** What another mod's loot has been seen to throw: an exception, a class that isn't there, and a stack that ran out. */
-    private static Map<String, Supplier<Throwable>> failures() {
+    static Map<String, Supplier<Throwable>> failures() {
         Map<String, Supplier<Throwable>> failures = new LinkedHashMap<>();
         failures.put("an exception", () -> new IllegalStateException("a test's loot function"));
         failures.put("a missing class", () -> new NoClassDefFoundError("a/test/LootFunction"));

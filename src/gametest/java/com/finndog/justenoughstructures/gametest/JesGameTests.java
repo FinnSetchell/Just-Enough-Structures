@@ -183,6 +183,21 @@ public final class JesGameTests {
         LootGuardTests.chestRollThatThrowsIsAnswered(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void oddsSkipRollsThatThrow(GameTestHelper helper) {
+        RollFailureTests.oddsSkipRollsThatThrow(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 1200)
+    public void oddsSayWhenNoRollWorks(GameTestHelper helper) {
+        RollFailureTests.oddsSayWhenNoRollWorks(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void rollsGoOnPastOneThatThrows(GameTestHelper helper) {
+        RollFailureTests.rollsGoOnPastOneThatThrows(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void treasureMapRollsAreQuick(GameTestHelper helper) {
         ServiceTests.treasureMapRollsAreQuick(helper);

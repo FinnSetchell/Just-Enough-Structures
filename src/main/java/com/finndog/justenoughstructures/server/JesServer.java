@@ -899,6 +899,14 @@ public final class JesServer {
             reply.accept(new LootOdds(table, ODDS_ROLLS, ODDS_ROLLS, List.of()));
             return;
         }
+        odds(server, table, LootRolls.table(server, table), reply);
+    }
+
+    /**
+     * Hands {@code reply} the odds of a table that exists, rolled once and kept until a reload.
+     * {@code loot} is handed in so that a test's needn't be a loaded table. Server thread only.
+     */
+    public static void odds(MinecraftServer server, ResourceLocation table, LootTable loot, Consumer<LootOdds> reply) {
         // Rolled with a fixed seed in the same level whoever asks, as the loot index is, so it's worked
         // out once and kept until a reload, even for a table that reads something that can change, like
         // the weather.
@@ -914,7 +922,7 @@ public final class JesServer {
         }
         List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
         ROLLING.put(table, these);
-        LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, ODDS_ROLLS, table.hashCode());
+        LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, loot, ODDS_ROLLS, table.hashCode());
         rollInSlices(server, roller, ODDS_BUDGET_NANOS, odds -> {
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
             if (ROLLING.get(table) == these) {

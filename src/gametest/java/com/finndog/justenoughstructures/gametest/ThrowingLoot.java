@@ -23,10 +23,22 @@ final class ThrowingLoot {
 
     /** A table whose every roll throws what {@code failure} gives. */
     static LootTable table(Supplier<Throwable> failure) {
+        return sometimes(1, failure);
+    }
+
+    /**
+     * A table of one stone a roll, except that every {@code every}th roll throws what {@code failure}
+     * gives, as loot does that fails now and then.
+     */
+    static LootTable sometimes(int every, Supplier<Throwable> failure) {
+        int[] calls = new int[1];
         LootItemFunction function = (LootItemFunction) Proxy.newProxyInstance(LootItemFunction.class.getClassLoader(),
                 new Class<?>[]{LootItemFunction.class}, (proxy, method, args) -> {
                     switch (method.getName()) {
                         case "apply":
+                            if (++calls[0] % every != 0) {
+                                return args[0];
+                            }
                             thrown++;
                             throw failure.get();
                         case "hashCode":
