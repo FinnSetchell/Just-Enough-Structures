@@ -2011,6 +2011,24 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return list.rowCentre(id);
     }
 
+    /**
+     * Every row of the structure list drawn last frame, as left, top, right and bottom, by a structure's
+     * id or "header:" and a mod's namespace. Test hook for the scripted scenarios.
+     */
+    public Map<String, int[]> listRowsDrawn() {
+        return list.drawnRows();
+    }
+
+    /** What the last click on the structure list landed on, in the same names, or null. Test hook for the scripted scenarios. */
+    public String listClicked() {
+        return list.lastClicked();
+    }
+
+    /** The structure list's top and bottom on screen. Test hook for the scripted scenarios. */
+    public int[] listBounds() {
+        return list.bounds();
+    }
+
     /** A point part of the way down the structure list's scroll bar, or the details' with {@code details}, or null without one. */
     public int[] scrollBar(boolean details, float along) {
         return details ? info.barPoint(along) : list.barPoint(along);

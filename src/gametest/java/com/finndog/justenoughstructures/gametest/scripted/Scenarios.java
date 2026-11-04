@@ -62,6 +62,7 @@ public final class Scenarios {
             case "names_contested" -> NamesContestedScenario.build(mc);
             case "block_tour" -> BlockTourScenario.build(mc);
             case "list_keys" -> ListKeysScenario.build(mc);
+            case "list_clicks" -> ListClicksScenario.build(mc);
             case "search_focus" -> SearchFocusScenario.build(mc);
             case "inspect_zoom" -> InspectZoomScenario.build(mc);
             case "json_scroll" -> JsonScrollScenario.build(mc);

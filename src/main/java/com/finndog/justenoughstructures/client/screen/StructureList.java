@@ -66,6 +66,9 @@ final class StructureList {
      * from the copy they're at rather than always the first.
      */
     private int keyRow = -1;
+    /** Where each row was last drawn, by {@link #key}, and what the last click landed on. Test hooks for the scripted scenarios. */
+    private final Map<String, int[]> drawn = new HashMap<>();
+    private String clicked;
 
     void setEntries(List<StructureCatalog.Entry> entries) {
         this.all = entries;
@@ -283,6 +286,7 @@ final class StructureList {
     void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         hovered = null;
         starHovered = false;
+        drawn.clear();
         if (rows.isEmpty()) {
             if (all.isEmpty()) {
                 // Nothing from the server yet, or nothing at all: the browser beside it says why.
@@ -308,6 +312,7 @@ final class StructureList {
             if (top + row.height() < y || top > y + height) {
                 continue;
             }
+            drawn.putIfAbsent(key(row), new int[]{x, top, rowRight, top + row.height()});
             boolean over = mouseX >= x && mouseX < rowRight && mouseY >= top && mouseY < top + row.height()
                     && mouseY >= y && mouseY < y + height;
             if (over) {
@@ -397,6 +402,7 @@ final class StructureList {
     }
 
     Optional<Pick> click(double mouseX, double mouseY) {
+        clicked = null;
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return Optional.empty();
         }
@@ -405,6 +411,7 @@ final class StructureList {
             if (local < row.top() || local >= row.top() + row.height()) {
                 continue;
             }
+            clicked = key(row);
             if (row.entry() != null) {
                 boolean scrolls = contentHeight > height;
                 int rowRight = x + width - (scrolls ? 8 : 0);
@@ -530,5 +537,28 @@ final class StructureList {
 
     double scrolled() {
         return scroll.offset();
+    }
+
+    /** A row's name in the test hooks: a structure's id, "item:" and an item's id, or "header:" and a mod's namespace. */
+    private static String key(Row row) {
+        if (row.entry() != null) {
+            return row.entry().id().toString();
+        }
+        return row.item() != null ? "item:" + row.name() : "header:" + row.header();
+    }
+
+    /** Every row drawn last frame, by key, as left, top, right and bottom on screen. Test hook for the scripted scenarios. */
+    Map<String, int[]> drawnRows() {
+        return Map.copyOf(drawn);
+    }
+
+    /** What the last click on the list landed on, by key, or null. Test hook for the scripted scenarios. */
+    String lastClicked() {
+        return clicked;
+    }
+
+    /** The top and bottom of the list on screen. Test hook for the scripted scenarios. */
+    int[] bounds() {
+        return new int[]{y, y + height};
     }
 }
