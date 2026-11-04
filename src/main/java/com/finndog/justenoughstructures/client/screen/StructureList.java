@@ -304,20 +304,16 @@ final class StructureList {
             return;
         }
         boolean scrolls = contentHeight > height;
-        int rowRight = x + width - (scrolls ? 8 : 0);
+        int rowRight = rowRight();
+        hovered = rowAt(mouseX, mouseY);
         Gui.scissor(g, x, y, x + width, y + height);
-        int offset = y - scroll.top();
         for (Row row : rows) {
-            int top = offset + row.top();
+            int top = screenTop(row);
             if (top + row.height() < y || top > y + height) {
                 continue;
             }
             drawn.putIfAbsent(key(row), new int[]{x, top, rowRight, top + row.height()});
-            boolean over = mouseX >= x && mouseX < rowRight && mouseY >= top && mouseY < top + row.height()
-                    && mouseY >= y && mouseY < y + height;
-            if (over) {
-                hovered = row;
-            }
+            boolean over = row == hovered;
             if (row.header() != null) {
                 boolean loot = row.header().equals(LOOT_HEADER);
                 String label = loot ? Component.translatable("screen.justenoughstructures.loot_matches").getString() : row.name();
@@ -402,39 +398,31 @@ final class StructureList {
     }
 
     Optional<Pick> click(double mouseX, double mouseY) {
-        clicked = null;
-        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
+        Row row = rowAt(mouseX, mouseY);
+        clicked = row == null ? null : key(row);
+        if (row == null) {
             return Optional.empty();
         }
-        double local = mouseY - y - 1 + scroll.offset();
-        for (Row row : rows) {
-            if (local < row.top() || local >= row.top() + row.height()) {
-                continue;
-            }
-            clicked = key(row);
-            if (row.entry() != null) {
-                boolean scrolls = contentHeight > height;
-                int rowRight = x + width - (scrolls ? 8 : 0);
-                if (overStar(mouseX, mouseY, rowRight, y - scroll.top() + row.top())) {
-                    Gui.clickSound();
-                    ClientState.toggleFavourite(row.entry().id());
-                    rebuild();
-                    return Optional.of(new Pick(null, ItemStack.EMPTY));
-                }
-                keyRow = rows.indexOf(row);
-                return Optional.of(new Pick(row.entry(), ItemStack.EMPTY));
-            }
-            if (row.item() != null) {
-                return Optional.of(new Pick(null, new ItemStack(row.item())));
-            }
-            if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
+        if (row.entry() != null) {
+            if (overStar(mouseX, mouseY, rowRight(), screenTop(row))) {
                 Gui.clickSound();
-                if (!COLLAPSED.remove(row.header())) {
-                    COLLAPSED.add(row.header());
-                }
+                ClientState.toggleFavourite(row.entry().id());
                 rebuild();
                 return Optional.of(new Pick(null, ItemStack.EMPTY));
             }
+            keyRow = rows.indexOf(row);
+            return Optional.of(new Pick(row.entry(), ItemStack.EMPTY));
+        }
+        if (row.item() != null) {
+            return Optional.of(new Pick(null, new ItemStack(row.item())));
+        }
+        if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
+            Gui.clickSound();
+            if (!COLLAPSED.remove(row.header())) {
+                COLLAPSED.add(row.header());
+            }
+            rebuild();
+            return Optional.of(new Pick(null, ItemStack.EMPTY));
         }
         return Optional.empty();
     }
@@ -444,29 +432,49 @@ final class StructureList {
      * loot item by its name, or a mod's header, which folds it away.
      */
     NarrationSupplier narrationAt(double mouseX, double mouseY) {
-        if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
+        Row row = rowAt(mouseX, mouseY);
+        if (row == null) {
             return null;
         }
-        double local = mouseY - y - 1 + scroll.offset();
-        for (Row row : rows) {
-            if (local < row.top() || local >= row.top() + row.height()) {
-                continue;
+        if (row.entry() != null) {
+            if (overStar(mouseX, mouseY, rowRight(), screenTop(row))) {
+                return Narration.button(Component.translatable(ClientState.isFavourite(row.entry().id())
+                        ? "screen.justenoughstructures.favourite_remove" : "screen.justenoughstructures.favourite_add"));
             }
-            if (row.entry() != null) {
-                int rowRight = x + width - (contentHeight > height ? 8 : 0);
-                if (overStar(mouseX, mouseY, rowRight, y - scroll.top() + row.top())) {
-                    return Narration.button(Component.translatable(ClientState.isFavourite(row.entry().id())
-                            ? "screen.justenoughstructures.favourite_remove" : "screen.justenoughstructures.favourite_add"));
-                }
-                return Narration.row(Component.literal(row.name()));
-            }
-            if (row.item() != null) {
-                return Narration.row(Component.literal(row.name())).withHint(Component.translatable("screen.justenoughstructures.found_in", row.count()));
-            }
-            if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
-                return Narration.button(Component.literal(row.name())).withHint(Component.literal(String.valueOf(row.count())));
-            }
+            return Narration.row(Component.literal(row.name()));
+        }
+        if (row.item() != null) {
+            return Narration.row(Component.literal(row.name())).withHint(Component.translatable("screen.justenoughstructures.found_in", row.count()));
+        }
+        if (row.header() != null && !row.header().equals(LOOT_HEADER) && query.isBlank()) {
+            return Narration.button(Component.literal(row.name())).withHint(Component.literal(String.valueOf(row.count())));
+        }
+        return null;
+    }
+
+    /**
+     * Where a row's top is on screen, in the whole pixels it's drawn at. Drawing, the mouse and the
+     * test hooks all go through here, so a click always lands on the row drawn under it.
+     */
+    private int screenTop(Row row) {
+        return y - scroll.top() + row.top();
+    }
+
+    /** The right end of the rows: short of the scroll bar when the list has one. */
+    private int rowRight() {
+        return x + width - (contentHeight > height ? 8 : 0);
+    }
+
+    /** The row drawn under a point, or null: the one lit under the mouse, and the one a click picks. */
+    private Row rowAt(double mouseX, double mouseY) {
+        if (mouseX < x || mouseX >= rowRight() || mouseY < y || mouseY >= y + height) {
             return null;
+        }
+        for (Row row : rows) {
+            int top = screenTop(row);
+            if (mouseY >= top && mouseY < top + row.height()) {
+                return row;
+            }
         }
         return null;
     }
@@ -487,8 +495,7 @@ final class StructureList {
 
     /** Where the star on a structure's row is, scrolling it into view first. */
     Optional<int[]> starCentre(ResourceLocation id) {
-        boolean scrolls = contentHeight > height;
-        return rowCentre(id).map(centre -> new int[]{x + width - (scrolls ? 8 : 0) - 6, centre[1]});
+        return rowCentre(id).map(centre -> new int[]{rowRight() - 6, centre[1]});
     }
 
     /** Centre of a structure's row on screen, scrolling it into view first. */
@@ -499,7 +506,7 @@ final class StructureList {
                     scroll.to(row.top() - height / 2.0);
                     clampScroll();
                 }
-                return Optional.of(new int[]{x + 60, y + 1 - scroll.top() + row.top() + ROW / 2});
+                return Optional.of(new int[]{x + 60, screenTop(row) + ROW / 2});
             }
         }
         return Optional.empty();
