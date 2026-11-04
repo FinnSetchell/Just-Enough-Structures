@@ -5,6 +5,7 @@ package com.finndog.justenoughstructures.compat.rei;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ShownIndex;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
@@ -32,8 +33,10 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Adds a "Found in structures" category to REI, so looking up how to get an item also lists the
  * structures whose loot can give it. The rows are made when REI asks for them, from the last loot
- * index received, so they appear as soon as the server sends it, without REI reloading. Before the
- * first index, an item chest loot can give has a waiting row, if the server has said which.
+ * index received, so they appear as soon as the server sends it, without REI reloading. They're made
+ * again only for an index that differs from the one they came from, as the server sends its index
+ * again after each check that it's still valid. Before the first index, an item chest loot can give
+ * has a waiting row, if the server has said which.
  *
  * <p>The player's chest loot setting can hide other mods' chest loot tabs, or JES's own. REI asks
  * each time it shows recipes, so a change shows without a reload.
@@ -44,6 +47,8 @@ public class JesReiPlugin implements REIClientPlugin {
 
     private static volatile List<FoundInDisplay> all = List.of();
     private static volatile Map<Item, List<FoundInDisplay>> byItem = Map.of();
+    // The index the rows came from, or none before the first.
+    private static final ShownIndex INDEX = new ShownIndex();
     private static boolean listening;
 
     @Override
@@ -124,6 +129,9 @@ public class JesReiPlugin implements REIClientPlugin {
     }
 
     private static void arrived(LootIndex index) {
+        if (!INDEX.isNew(index)) {
+            return;
+        }
         List<FoundInDisplay> displays = FoundInRecipe.fromIndex(index, StructureNames::structure).stream().map(FoundInDisplay::new).toList();
         Map<Item, List<FoundInDisplay>> grouped = new HashMap<>();
         for (FoundInDisplay display : displays) {
@@ -132,5 +140,6 @@ public class JesReiPlugin implements REIClientPlugin {
         grouped.replaceAll((item, list) -> List.copyOf(list));
         byItem = grouped;
         all = displays;
+        INDEX.showing(index);
     }
 }

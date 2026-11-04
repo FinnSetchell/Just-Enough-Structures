@@ -919,6 +919,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void viewerTakesOnlyANewIndex(GameTestHelper helper) {
+        IndexArrivalTests.viewerTakesOnlyANewIndex(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void earlyMarkComesAfterTheIndex(GameTestHelper helper) {
         IndexStoreTests.earlyMarkComesAfterTheIndex(helper);
     }

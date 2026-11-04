@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.emi;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ShownIndex;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootPages;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
@@ -66,12 +67,11 @@ public final class JesEmiPlugin implements EmiPlugin {
      */
     public static final long QUIET_MS = 5 * 60_000;
 
-    // The index EMI last loaded with, and whether it's loading now, which it does on a separate thread.
-    private static volatile LootIndex loaded;
+    // The index EMI last loaded with, and the one it was last asked to reload for, until that load
+    // starts. Asking again before then would make EMI restart the load.
+    private static final ShownIndex INDEX = new ShownIndex();
+    // Whether EMI is loading now, which it does on a separate thread.
     private static volatile boolean loading;
-    // The index EMI was last asked to reload for, until that load starts. Asking again before then
-    // would make EMI restart the load.
-    private static volatile LootIndex asked;
     private static boolean listening;
     // Whether a recheck of an early index is scheduled. Client thread only, like listening.
     private static boolean lookDue;
@@ -84,7 +84,7 @@ public final class JesEmiPlugin implements EmiPlugin {
     public void register(EmiRegistry registry) {
         loads++;
         loading = true;
-        asked = null;
+        INDEX.coming(null);
         try {
             registry.addCategory(FOUND_IN);
             // EMI drops these once every plugin has added its recipes, so other mods' tabs go
@@ -93,13 +93,13 @@ public final class JesEmiPlugin implements EmiPlugin {
                 registry.removeRecipes(JesEmiPlugin::otherChestLoot);
             }
             if (!ChestLootTabs.showsOwn()) {
-                loaded = null;
+                INDEX.showing(null);
                 waitingRows = 0;
                 tableRows = 0;
                 return;
             }
             LootIndex index = ClientRequests.awaitIndex(INDEX_WAIT_MS);
-            loaded = index;
+            INDEX.showing(index);
             // Waiting rows only come with a load: reloading EMI for them would take longer than many
             // indexes take to arrive.
             List<FoundInRecipe> recipes = index != null ? FoundInRecipe.fromIndex(index, StructureNames::structure)
@@ -184,7 +184,7 @@ public final class JesEmiPlugin implements EmiPlugin {
         // An index that arrives while EMI loads is left for the check after the load. The server resends
         // its index each time it has checked it, and one equal to what EMI has, or is about to load,
         // isn't worth a reload.
-        if (loading || index.equals(loaded) || index.equals(asked)) {
+        if (loading || !INDEX.isNew(index)) {
             return;
         }
         // Nor is an early one, since the finished one follows. If the server goes quiet for QUIET_MS,
@@ -215,7 +215,7 @@ public final class JesEmiPlugin implements EmiPlugin {
 
     /** Whether EMI has loaded with the structures in it. Test hook for the scripted scenarios. */
     public static boolean ready() {
-        return loaded != null && EmiReloadManager.isLoaded();
+        return INDEX.shown() != null && EmiReloadManager.isLoaded();
     }
 
     /** How many waiting rows EMI last loaded with. Test hook for the scripted scenarios. */
@@ -267,7 +267,7 @@ public final class JesEmiPlugin implements EmiPlugin {
     // EMI's API can't add recipes once it's loaded, so this calls EMI's internal reload. If a later
     // EMI changes that, the page stays empty.
     private static void reload(LootIndex index) {
-        asked = index;
+        INDEX.coming(index);
         JesLog.debug("EMI is loaded again, for a loot index with {} structures", index.tablesByStructure().size());
         try {
             EmiReloadManager.reload();

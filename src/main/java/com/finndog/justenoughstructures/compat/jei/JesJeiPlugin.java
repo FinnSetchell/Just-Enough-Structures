@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.jei;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ShownIndex;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
@@ -29,7 +30,10 @@ import mezz.jei.api.recipe.RecipeType;
  * Adds a "Found in structures" category to JEI, so looking up how to get an item also lists the
  * structures whose loot can give it. The recipes come from the loot index, which the server builds
  * after the world is joined, so they're added when it arrives rather than when JEI starts. Until
- * then each item chest loot can give has a waiting row, if the server has said which.
+ * then each item chest loot can give has a waiting row, if the server has said which. JEI can't
+ * remove a recipe once it has one, only hide it, so the rows are replaced only for an index that
+ * differs from the one they came from: the server sends its index again after each check that it's
+ * still valid.
  *
  * <p>The player's chest loot setting can hide other mods' chest loot tabs, or JES's own, which JEI
  * does at once, so a change shows without a reload.
@@ -45,8 +49,8 @@ public final class JesJeiPlugin implements IModPlugin {
 
     private static IJeiRuntime runtime;
     private static List<FoundInRecipe> shown = List.of();
-    // Whether what's shown came from an index, rather than being waiting rows.
-    private static boolean fromIndex;
+    // The index what's shown came from, or none while it's waiting rows.
+    private static final ShownIndex INDEX = new ShownIndex();
     private static boolean listening;
     // Other mods' tabs this plugin hid, so only those are shown again, and whether it hid its own.
     private static final Set<String> hiddenOthers = new HashSet<>();
@@ -66,7 +70,7 @@ public final class JesJeiPlugin implements IModPlugin {
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         runtime = jeiRuntime;
         shown = List.of();
-        fromIndex = false;
+        INDEX.showing(null);
         hiddenOthers.clear();
         hiddenOwn = false;
         if (!listening) {
@@ -95,7 +99,7 @@ public final class JesJeiPlugin implements IModPlugin {
     public void onRuntimeUnavailable() {
         runtime = null;
         shown = List.of();
-        fromIndex = false;
+        INDEX.showing(null);
         hiddenOthers.clear();
         hiddenOwn = false;
     }
@@ -140,7 +144,7 @@ public final class JesJeiPlugin implements IModPlugin {
 
     /** Whether JEI shows rows from a loot index. Test hook for the scripted scenarios. */
     public static boolean ready() {
-        return runtime != null && fromIndex;
+        return runtime != null && INDEX.shown() != null;
     }
 
     /**
@@ -162,16 +166,17 @@ public final class JesJeiPlugin implements IModPlugin {
                 .anyMatch(category -> category.getRecipeType().getUid().equals(FOUND_IN.getUid()));
     }
 
+    /** Shows an index's rows, unless they're the ones shown: JEI would keep the old ones, hidden, beside them. */
     private static void show(LootIndex index) {
-        if (runtime != null) {
+        if (runtime != null && INDEX.isNew(index)) {
             replace(FoundInRecipe.fromIndex(index, StructureNames::structure));
-            fromIndex = true;
+            INDEX.showing(index);
         }
     }
 
     /** Waiting rows for the items chest loot can give, while there's no index. They go when it comes. */
     private static void showWaiting() {
-        if (runtime != null && !fromIndex && ClientRequests.latestIndex() == null) {
+        if (runtime != null && INDEX.shown() == null && ClientRequests.latestIndex() == null) {
             replace(FoundInRecipe.waitingFor(ClientRequests.chestItems()));
         }
     }

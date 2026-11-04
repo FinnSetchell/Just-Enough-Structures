@@ -1,14 +1,18 @@
 package com.finndog.justenoughstructures.gametest;
 
+import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.IndexArrival;
+import com.finndog.justenoughstructures.client.ShownIndex;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * How EMI's load waits for a loot index on its way, and for the finished index once an early one has
  * arrived. The index arrives on the game thread and EMI loads on another, so these tests hand it over
- * from a separate thread.
+ * from a separate thread. And which indexes a recipe viewer takes.
  */
 public final class IndexArrivalTests {
     /** Well under the waits asked for below, and well over the time a busy machine needs to notice an arrival. */
@@ -119,6 +123,47 @@ public final class IndexArrivalTests {
         arrival.forget();
         helper.assertTrue(arrival.finishedWait(QUIET) == 0, "the finished index was waited for after leaving the server");
         helper.succeed();
+    }
+
+    /**
+     * A recipe viewer takes an index only when it differs from the one it shows and the one on its
+     * way. They're compared by what they hold, as the server's copy of an unchanged index arrives as
+     * a new one each time.
+     */
+    public static void viewerTakesOnlyANewIndex(GameTestHelper helper) {
+        LootIndex index = index("diamond", Set.of());
+        ShownIndex shown = new ShownIndex();
+        helper.assertTrue(!shown.isNew(null), "no index at all was one to take");
+        helper.assertTrue(shown.isNew(index) && shown.shown() == null, "a viewer showing no index wouldn't take one");
+
+        shown.showing(index);
+        LootIndex again = index("diamond", Set.of());
+        helper.assertTrue(again != index && again.equals(index), "the copy of the index isn't a separate, equal one, so this shows nothing");
+        helper.assertTrue(!shown.isNew(again) && shown.shown() == index, "the same index, sent again, was taken again");
+        helper.assertTrue(shown.isNew(index("emerald", Set.of())), "an index whose loot table gives something else wasn't taken");
+        helper.assertTrue(shown.isNew(index("diamond", Set.of(Ids.parse("minecraft:tnt")))), "an index where the structure places something else wasn't taken");
+        helper.assertTrue(shown.isNew(new LootIndex(Map.of(), Map.of())), "an index with no structures left wasn't taken");
+
+        // One on its way, as when EMI is asked to reload for it: neither it nor the one shown is taken until that load starts.
+        LootIndex changed = index("emerald", Set.of());
+        shown.coming(changed);
+        helper.assertTrue(!shown.isNew(index("emerald", Set.of())) && !shown.isNew(again), "an index on its way, or the one shown, was taken again");
+        helper.assertTrue(shown.isNew(index("gold_ingot", Set.of())), "a third index wasn't taken while another was on its way");
+        shown.coming(null);
+        shown.showing(changed);
+        helper.assertTrue(shown.isNew(again) && !shown.isNew(index("emerald", Set.of())), "after the load, the old index wasn't taken or the loaded one was");
+
+        // A viewer that has restarted shows no index, so even the same one is to be taken.
+        shown.showing(null);
+        helper.assertTrue(shown.isNew(index("emerald", Set.of())), "a viewer that had restarted wouldn't take the index it had before");
+        helper.succeed();
+    }
+
+    /** An index of one structure with one loot table, which gives {@code item}, and places {@code placed}. Built anew each time, as an arrival is. */
+    private static LootIndex index(String item, Set<ResourceLocation> placed) {
+        return new LootIndex(Map.of(Ids.parse("minecraft:desert_pyramid"), Set.of(Ids.parse("minecraft:chests/desert_pyramid"))),
+                Map.of(Ids.parse("minecraft:chests/desert_pyramid"), Set.of(Ids.parse("minecraft:" + item))),
+                placed.isEmpty() ? Map.of() : Map.of(Ids.parse("minecraft:desert_pyramid"), placed));
     }
 
     private static void pause(long millis) {
