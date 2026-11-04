@@ -138,6 +138,24 @@ public final class JesJeiPlugin implements IModPlugin {
         }
     }
 
+    /** Whether JEI shows rows from a loot index. Test hook for the scripted scenarios. */
+    public static boolean ready() {
+        return runtime != null && fromIndex;
+    }
+
+    /**
+     * How many structures' rows JEI has, leaving out waiting rows: those it shows, or with
+     * {@code hidden} also those it hides. JEI can't remove a recipe once it has one, so rows this
+     * plugin replaces stay there, hidden. 0 without JEI running. Test hook for the scripted scenarios.
+     */
+    public static long structureRows(boolean hidden) {
+        if (runtime == null) {
+            return 0;
+        }
+        var lookup = runtime.getRecipeManager().createRecipeLookup(FOUND_IN);
+        return (hidden ? lookup.includeHidden() : lookup).get().filter(row -> !row.isWaiting()).count();
+    }
+
     /** Whether JEI shows the Found in structures tab; false without JEI running. Test hook for the scripted scenarios. */
     public static boolean foundInShown() {
         return runtime != null && runtime.getRecipeManager().createRecipeCategoryLookup().get()

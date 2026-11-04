@@ -92,6 +92,8 @@ public final class Scenarios {
             case "emi_same" -> EmiScenario.same(mc);
             case "emi_early" -> EmiScenario.early(mc);
             case "emi_quiet" -> EmiScenario.quiet(mc);
+            case "jei_same" -> JeiIndexScenario.same(mc);
+            case "jei_reload" -> JeiIndexScenario.reload(mc);
             case "index_filling" -> IndexFillingScenario.build(mc);
             case "placed" -> PlacedScenario.build(mc);
             case "ui_clicks" -> UiClicksScenario.build(mc);
