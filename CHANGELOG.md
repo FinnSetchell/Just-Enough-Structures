@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] - Unreleased
+
+### Added
+- FTB Quests: clicking a Find Structure task opens that structure in Just Enough Structures, and the task's tooltip says so
+- Search by structure tag with #, like #minecraft:village. A Find Structure task for a tag opens the browser on that search
+
+### Fixed
+- EMI no longer reloads a few seconds after joining a world
+- Clicking the top edge of a row in the structure list no longer picks the row above or folds the mod's heading
+- A mod's loot table that fails now and then no longer shows chances from only a few rolls, or "Never gives anything"
+- JEI no longer pauses and uses more memory each time JES's loot list is sent again, for example after /reload
+- The loot list is ready a few seconds sooner after joining a world, as some mods' chests are no longer rolled again every time
+
 ## [1.1.0] - Unreleased
 
 ### Added
