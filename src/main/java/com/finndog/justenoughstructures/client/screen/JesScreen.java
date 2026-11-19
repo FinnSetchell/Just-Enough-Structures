@@ -14,6 +14,7 @@ import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
+import com.finndog.justenoughstructures.client.ConfigScreens;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.render.Highlight;
 import com.finndog.justenoughstructures.client.render.SnapshotView;
@@ -112,6 +113,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private IconButton locateButton;
     private IconButton compassButton;
     private Boolean compassPointing;
+    private IconButton configButton;
+    /** The structure the settings button was last set up for, and the mod whose settings it opens, or null for none. */
+    private StructureCatalog.Entry configFor;
+    private String configMod;
     private LayerSlider slider;
     private Button chestReroll;
     private Button chestPrev;
@@ -401,6 +406,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }));
         compassPointing = null;
         updateCompassButton();
+        // The settings of the mod behind the structure, left of the others.
+        configButton = addRenderableWidget(new IconButton(overlayRight - 86, viewY + 2, Icons.SETTINGS, Component.empty(), b -> openConfig()));
+        configFor = null;
+        updateConfigButton();
 
         int bx = viewX;
         int rerollW = roomy ? rerollWide : 20;
@@ -517,6 +526,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         updateLocateButton();
         updateMarkersButton();
         updateCompassButton();
+        updateConfigButton();
         // The search looks through loot too, so it's run again whenever the loot index changes.
         if (FoundIn.changes() != seenIndex) {
             seenIndex = FoundIn.changes();
@@ -1804,6 +1814,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         locate(true);
     }
 
+    /** The mod whose settings the settings button opens, or null while it isn't showing. */
+    public String configShown() {
+        return configButton != null && configButton.visible ? configMod : null;
+    }
+
     /** Ctrl-clicking the compass button, which a scripted click can't do either. */
     public void pointCompassNow() {
         pointCompass();
@@ -2103,6 +2118,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             case "maximise" -> maximiseButton;
             case "locate" -> locateButton;
             case "compass" -> compassButton;
+            case "config" -> configButton;
             case "reroll_loot" -> chestReroll;
             case "next" -> chestNext;
             case "done" -> chestClose;
@@ -2557,7 +2573,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** Where the buttons over the preview's top right corner start, counting only those showing. */
     private int overlayLeft() {
         int left = maximiseButton.getX();
-        for (Button b : new Button[]{locateButton, compassButton}) {
+        for (Button b : new Button[]{locateButton, compassButton, configButton}) {
             if (b != null && b.visible) {
                 left = Math.min(left, b.getX());
             }
@@ -3462,6 +3478,50 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             }
             compassButton.setLabel(label);
         }
+    }
+
+    /**
+     * Only in single player, where a mod's settings are this world's, and only when the mod behind
+     * the structure has a settings screen. Which mod that is is worked out once per structure.
+     */
+    private void updateConfigButton() {
+        if (selected != configFor) {
+            configFor = selected;
+            configMod = selected == null || !minecraft.hasSingleplayerServer() ? null : ConfigScreens.modFor(selected);
+            if (configMod != null) {
+                configButton.setLabel(Component.translatable("screen.justenoughstructures.config", JustEnoughStructures.modName(configMod))
+                        .append("\n").append(Component.translatable("screen.justenoughstructures.config_hint").withStyle(ChatFormatting.GRAY)));
+            }
+        }
+        IconButton left = compassButton != null && compassButton.visible ? compassButton : locateButton.visible ? locateButton : maximiseButton;
+        configButton.setX(left.getX() - 22);
+        // Not in a preview too narrow to hold it.
+        configButton.visible = configMod != null && configButton.getX() >= viewX + 2;
+    }
+
+    /** Opens the settings screen of the mod behind the structure. Closing it comes back here. */
+    private void openConfig() {
+        String mod = configMod;
+        if (mod == null) {
+            return;
+        }
+        try {
+            Screen screen = ConfigScreens.get().open(mod, this);
+            if (screen != null) {
+                picking = Picking.NONE;
+                minecraft.setScreen(screen);
+                return;
+            }
+        } catch (Throwable t) {
+            JesLog.warnOnce("config_screen_" + mod, "Couldn't open the settings screen of {}", mod, t);
+            // A screen that broke as it opened is replaced by this one again.
+            if (minecraft.screen != this) {
+                minecraft.setScreen(this);
+            }
+        }
+        locateText = Component.translatable("screen.justenoughstructures.config_failed", JustEnoughStructures.modName(mod));
+        locateFound = false;
+        locateUntil = Util.getMillis() + LOCATE_FAILURE_MILLIS;
     }
 
     /** Ctrl-click: the compass starts searching straight away, and the browser gets out of the way. */

@@ -12,4 +12,5 @@ fun integrationsToLeaveOut(has: (String) -> Boolean): List<String> = buildList {
     // The link's mixins and tests are named FtbQuests* wherever they are.
     if (!has("ftbquests")) addAll(listOf("**/compat/ftbquests/**", "**/FtbQuests*.java"))
     if (!has("modmenu") || !has("cloth_config")) add("**/fabric/JesModMenu.java")
+    if (!has("modmenu")) add("**/fabric/FabricConfigScreens.java")
 }

@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.neoforge;
 
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ConfigScreens;
 import com.finndog.justenoughstructures.client.JesClient;
 //? if cloth_config {
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -97,6 +99,20 @@ final class NeoForgeClient {
             NeoForgeExplorersCompass.register();
         }
         //?}
+        // Other mods' settings screens, the ones the Mods list's Config button opens.
+        ConfigScreens.set(new ConfigScreens() {
+            @Override
+            public boolean has(String modId) {
+                return ModList.get().getModContainerById(modId).flatMap(mod -> IConfigScreenFactory.getForMod(mod.getModInfo())).isPresent();
+            }
+
+            @Override
+            public Screen open(String modId, Screen parent) {
+                ModContainer mod = ModList.get().getModContainerById(modId).orElse(null);
+                return mod == null ? null
+                        : IConfigScreenFactory.getForMod(mod.getModInfo()).map(factory -> factory.createScreen(mod, parent)).orElse(null);
+            }
+        });
         //? if cloth_config {
         // NeoForge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
         if (ModList.get().isLoaded("cloth_config")) {

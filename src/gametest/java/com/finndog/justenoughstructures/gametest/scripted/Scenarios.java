@@ -50,6 +50,7 @@ public final class Scenarios {
             case "spin" -> spin(mc);
             case "teleport" -> teleport(mc);
             case "compass" -> CompassScenario.build(mc);
+            case "config" -> ConfigScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
             case "details" -> DetailsScenario.build(mc);

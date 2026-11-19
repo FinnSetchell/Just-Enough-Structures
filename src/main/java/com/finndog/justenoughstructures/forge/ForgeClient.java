@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.forge;
 
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ConfigScreens;
 import com.finndog.justenoughstructures.client.JesClient;
 //? if cloth_config {
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
@@ -9,7 +10,10 @@ import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
 import com.finndog.justenoughstructures.network.Blobs;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.Connection;
@@ -99,6 +103,18 @@ final class ForgeClient {
             ForgeExplorersCompass.register();
         }
         //?}
+        // Other mods' settings screens, the ones the Mods list's Config button opens.
+        ConfigScreens.set(new ConfigScreens() {
+            @Override
+            public boolean has(String modId) {
+                return screenFactory(modId).isPresent();
+            }
+
+            @Override
+            public Screen open(String modId, Screen parent) {
+                return screenFactory(modId).map(factory -> factory.apply(Minecraft.getInstance(), parent)).orElse(null);
+            }
+        });
         //? if cloth_config {
         // Forge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
         if (ModList.get().isLoaded("cloth_config")) {
@@ -106,6 +122,10 @@ final class ForgeClient {
                     () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, parent) -> JesConfigScreen.create(parent)));
         }
         //?}
+    }
+
+    private static Optional<BiFunction<Minecraft, Screen, Screen>> screenFactory(String modId) {
+        return ModList.get().getModContainerById(modId).flatMap(container -> ConfigScreenHandler.getScreenFactoryFor(container.getModInfo()));
     }
 
     private static Connection connection() {

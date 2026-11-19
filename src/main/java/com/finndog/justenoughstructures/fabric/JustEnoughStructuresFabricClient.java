@@ -17,5 +17,10 @@ public final class JustEnoughStructuresFabricClient implements ClientModInitiali
             FabricExplorersCompass.register();
         }
         //?}
+        //? if modmenu {
+        if (FabricLoader.getInstance().isModLoaded("modmenu")) {
+            FabricConfigScreens.register();
+        }
+        //?}
     }
 }
