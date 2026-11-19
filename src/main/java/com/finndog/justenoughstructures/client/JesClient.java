@@ -50,8 +50,9 @@ public final class JesClient {
         // Keeps asking for the loot index while it's being built, even with the browser shut,
         // since the recipe viewer plugins wait on it too.
         ClientRequests.tick();
+        // Set to Command only, the key does nothing: the browser opens with /jes open alone.
         while (OPEN.consumeClick()) {
-            if (minecraft.player != null && minecraft.screen == null) {
+            if (minecraft.player != null && minecraft.screen == null && !ClientState.isCommandOnly()) {
                 minecraft.setScreen(new JesScreen());
             }
         }

@@ -469,6 +469,10 @@ public final class ClientRequests {
      * after EMI has passed JES, so each tick only catches what these missed. Client thread only.
      */
     public static void askIfWanted() {
+        // Set to Command only, nothing is asked for until the browser opens, which asks for itself.
+        if (ClientState.isCommandOnly()) {
+            return;
+        }
         if (!viewersLookedFor) {
             viewersLookedFor = true;
             indexWanted |= loadsWithTheIndex();

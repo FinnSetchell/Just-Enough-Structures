@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.compat.ftbquests;
 
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import dev.ftb.mods.ftblibrary.util.TooltipList;
 import dev.ftb.mods.ftbquests.quest.task.Task;
@@ -32,6 +33,10 @@ public final class FtbQuestsLink {
 
     /** Handles a left click on {@code task}'s button. False leaves the click to FTB Quests. */
     public static boolean click(Task task, Button button) {
+        // Set to Command only, tasks behave as they do without JES.
+        if (ClientState.isCommandOnly()) {
+            return false;
+        }
         TaskTarget target = TaskTarget.of(task);
         if (target == null || !ClientRequests.serverSupported()) {
             return false;
@@ -62,7 +67,7 @@ public final class FtbQuestsLink {
     /** Adds a line to {@code task}'s tooltip when a click on it would open the browser. */
     public static void hint(Task task, TooltipList tooltip) {
         TaskTarget target = TaskTarget.of(task);
-        if (target == null || !ClientRequests.serverSupported()) {
+        if (target == null || !ClientRequests.serverSupported() || ClientState.isCommandOnly()) {
             return;
         }
         // Asks for the structure list the first time, so the line shows once it has come.

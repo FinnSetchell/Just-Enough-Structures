@@ -668,6 +668,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void commandOnlySurvivesARestart(GameTestHelper helper) {
+        ChestLootTabsTests.commandOnlySurvivesARestart(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void commandOnlyLeavesTheViewersAlone(GameTestHelper helper) {
+        ChestLootTabsTests.commandOnlyLeavesTheViewersAlone(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void chestLootPagesListEachTablesStructures(GameTestHelper helper) {
         ChestLootPagesTests.chestLootPagesListEachTablesStructures(helper);
     }

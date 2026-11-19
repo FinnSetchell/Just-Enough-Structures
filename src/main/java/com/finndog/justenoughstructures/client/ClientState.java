@@ -40,6 +40,12 @@ public final class ClientState {
     public static boolean rarestFirst;
     /** Hides Pack tools for players who can use it but don't want to see it: no button, no popup icons, no marks on edited tables. */
     public static boolean hidePackTools;
+    /**
+     * Command only: JES adds nothing to the game until /jes open. No K key, no recipe viewer tabs, no
+     * links in other mods' screens and no loot index asked for on joining. Pack tools changes still
+     * apply. Set through {@code ChestLootTabs.setCommandOnly}, so the viewers update at once.
+     */
+    public static volatile boolean commandOnly;
     /** Which chest loot tabs the recipe viewers show when another mod has one too. Set through {@code ChestLootTabs.choose}. */
     public static volatile ChestLoot chestLoot = ChestLoot.BOTH;
     /** Structure ids the player starred, shown at the top of the list in every world that has them. */
@@ -103,6 +109,12 @@ public final class ClientState {
         }
     }
 
+    /** Whether the player set JES to Command only. Reads the saved state first. Safe from any thread. */
+    public static boolean isCommandOnly() {
+        load();
+        return commandOnly;
+    }
+
     public static void save() {
         write(file());
     }
@@ -125,6 +137,7 @@ public final class ClientState {
             details = flag(json, "details", details);
             rarestFirst = flag(json, "rarest_first", rarestFirst);
             hidePackTools = flag(json, "hide_pack_tools", hidePackTools);
+            commandOnly = flag(json, "command_only", commandOnly);
             if (json != null && json.has("chest_loot_in_viewers") && json.get("chest_loot_in_viewers").isJsonPrimitive()) {
                 ChestLoot saved = ChestLoot.of(json.get("chest_loot_in_viewers").getAsString());
                 chestLoot = saved != null ? saved : chestLoot;
@@ -155,6 +168,7 @@ public final class ClientState {
         json.addProperty("details", details);
         json.addProperty("rarest_first", rarestFirst);
         json.addProperty("hide_pack_tools", hidePackTools);
+        json.addProperty("command_only", commandOnly);
         json.addProperty("chest_loot_in_viewers", chestLoot.key());
         JsonArray starred = new JsonArray();
         favourites.forEach(starred::add);

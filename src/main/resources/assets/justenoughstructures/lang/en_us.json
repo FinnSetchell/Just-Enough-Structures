@@ -858,6 +858,8 @@
   "config.justenoughstructures.hide_pack_tools.tooltip": "Also hides Pack tools' icons and marks in the browser",
   "config.justenoughstructures.chest_loot": "Chest loot in recipe viewers",
   "config.justenoughstructures.chest_loot.tooltip": "For when another mod, like EMI Loot, has its own chest loot tab too",
+  "config.justenoughstructures.command_only": "Command only",
+  "config.justenoughstructures.command_only.tooltip": "Adds nothing to the game until /jes open: no key, no recipe viewer tab and no buttons in other mods' screens. Pack tools changes still apply",
   "config.justenoughstructures.chest_loot.both": "Both",
   "config.justenoughstructures.chest_loot.just_enough_structures": "Just Enough Structures",
   "config.justenoughstructures.chest_loot.other_mods": "Other mods",

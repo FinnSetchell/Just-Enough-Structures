@@ -34,14 +34,23 @@ public final class ChestLootTabs {
         return ClientState.chestLoot;
     }
 
+    /**
+     * What the viewers show: what the player chose, or with JES set to Command only, other mods' tabs
+     * alone and none of them hidden, as if JES weren't there.
+     */
+    private static ChestLoot shown() {
+        ClientState.load();
+        return ClientState.commandOnly ? ChestLoot.OTHER_MODS : ClientState.chestLoot;
+    }
+
     /** Whether JES's own Found in structures rows are shown. */
     public static boolean showsOwn() {
-        return chosen() != ChestLoot.OTHER_MODS;
+        return shown() != ChestLoot.OTHER_MODS;
     }
 
     /** Whether any other mod's chest loot tab is hidden. */
     public static boolean hidesOthers() {
-        return chosen() == ChestLoot.JUST_ENOUGH_STRUCTURES;
+        return shown() == ChestLoot.JUST_ENOUGH_STRUCTURES;
     }
 
     /** Whether the viewer tab or category with this id, written {@code namespace:path}, is hidden. */
@@ -54,13 +63,39 @@ public final class ChestLootTabs {
         LISTENERS.add(listener);
     }
 
-    /** Sets what the player chose. If it changed, each viewer is told, to show it at once where it can. */
+    /**
+     * Sets what the player chose. If that changes what the viewers show, each is told, to show it at
+     * once where it can. With Command only on it changes nothing they show until that goes off.
+     */
     public static void choose(ChestLoot value) {
         ClientState.load();
         if (value == null || value == ClientState.chestLoot) {
             return;
         }
+        ChestLoot before = shown();
         ClientState.chestLoot = value;
+        if (shown() != before) {
+            tell();
+        }
+    }
+
+    /**
+     * Turns Command only on or off. The viewers are told when what they show changes, so JES's tabs
+     * go or come back at once where they can.
+     */
+    public static void setCommandOnly(boolean on) {
+        ClientState.load();
+        if (on == ClientState.commandOnly) {
+            return;
+        }
+        ChestLoot before = shown();
+        ClientState.commandOnly = on;
+        if (shown() != before) {
+            tell();
+        }
+    }
+
+    private static void tell() {
         for (Runnable listener : LISTENERS) {
             try {
                 listener.run();

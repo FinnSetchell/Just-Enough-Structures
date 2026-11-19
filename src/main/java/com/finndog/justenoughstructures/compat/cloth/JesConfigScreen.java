@@ -61,6 +61,9 @@ public final class JesConfigScreen {
                 .setEnumNameProvider(value -> chestLootName((ChestLoot) value))
                 .setTooltip(Component.translatable("config.justenoughstructures.chest_loot.tooltip"))
                 .setSaveConsumer(ChestLootTabs::choose).build());
+        browser.addEntry(entries.startBooleanToggle(text("command_only"), ClientState.commandOnly).setDefaultValue(false)
+                .setTooltip(text("command_only.tooltip"))
+                .setSaveConsumer(ChestLootTabs::setCommandOnly).build());
 
         ConfigCategory serverSettings = builder.getOrCreateCategory(text("server"));
         serverSettings.addEntry(entries.startTextDescription(text("server.about")).build());

@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.jei;
 import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.ShownIndex;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
@@ -81,7 +82,8 @@ public final class JesJeiPlugin implements IModPlugin {
             ChestLootTabs.onChange(JesJeiPlugin::showChosenTabs);
         }
         showChosenTabs();
-        if (!ClientRequests.serverSupported()) {
+        // Set to Command only, the tab is hidden and the index waits until the browser asks for it.
+        if (!ClientRequests.serverSupported() || ClientState.isCommandOnly()) {
             return;
         }
         // Asks the server for the index if nobody has yet; it arrives through the listener. The

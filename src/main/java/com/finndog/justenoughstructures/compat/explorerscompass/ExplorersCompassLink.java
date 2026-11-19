@@ -14,6 +14,7 @@ import com.chaosthedude.explorerscompass.util.StructureUtils;
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.ClientRequests;
+import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import java.util.List;
@@ -194,12 +195,15 @@ public final class ExplorersCompassLink implements CompassLink {
         if (!(screen instanceof ExplorersCompassScreen compass) || !ClientRequests.serverSupported()) {
             return;
         }
-        Button preview = new TransparentButton(10, screen.height - 55, 110, 20,
-                Component.translatable("screen.justenoughstructures.compass_preview"), b -> preview(compass));
-        preview.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.compass_preview_hint")));
-        preview.active = false;
-        addWidget.accept(preview);
-        previewButtons.put(screen, preview);
+        // Set to Command only, the compass gets no Preview button, though the browser can still hand it a structure.
+        if (!ClientState.isCommandOnly()) {
+            Button preview = new TransparentButton(10, screen.height - 55, 110, 20,
+                    Component.translatable("screen.justenoughstructures.compass_preview"), b -> preview(compass));
+            preview.setTooltip(Tooltip.create(Component.translatable("screen.justenoughstructures.compass_preview_hint")));
+            preview.active = false;
+            addWidget.accept(preview);
+            previewButtons.put(screen, preview);
+        }
         Pick back = returning.remove(screen);
         if (back != null) {
             pick(compass, back);

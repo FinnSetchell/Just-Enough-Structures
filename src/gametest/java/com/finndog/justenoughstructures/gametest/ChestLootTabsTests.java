@@ -128,4 +128,80 @@ public final class ChestLootTabsTests {
         }
         helper.succeed();
     }
+
+    /** Command only is saved in state.json and comes back after a restart; a file saved before it existed leaves it off. */
+    public static void commandOnlySurvivesARestart(GameTestHelper helper) {
+        ClientState.load();
+        boolean before = ClientState.commandOnly;
+        try {
+            Path file = Files.createTempDirectory("jes-state").resolve("state.json");
+            for (boolean value : new boolean[]{true, false}) {
+                ClientState.commandOnly = value;
+                ClientState.write(file);
+                JsonObject json = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+                helper.assertTrue(json.has("command_only") && json.get("command_only").getAsBoolean() == value,
+                        "state.json has " + json.get("command_only") + " for " + value);
+                ClientState.commandOnly = !value;
+                ClientState.read(file);
+                helper.assertTrue(ClientState.commandOnly == value, value + " came back as " + ClientState.commandOnly);
+            }
+            Files.writeString(file, "{\"format\": 1, \"spin\": false}");
+            ClientState.commandOnly = false;
+            ClientState.read(file);
+            helper.assertTrue(!ClientState.commandOnly, "a file without the setting turned Command only on");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't use a temporary file", e);
+        } finally {
+            ClientState.commandOnly = before;
+        }
+        helper.succeed();
+    }
+
+    /**
+     * With Command only on, the viewers show other mods' chest loot tabs alone and none hidden, the
+     * player's own choice is kept for when it goes off, and the viewers are told only when what they
+     * show changes.
+     */
+    public static void commandOnlyLeavesTheViewersAlone(GameTestHelper helper) {
+        ClientState.load();
+        ChestLoot beforeLoot = ClientState.chestLoot;
+        boolean beforeOnly = ClientState.commandOnly;
+        AtomicBoolean listening = new AtomicBoolean(true);
+        AtomicInteger told = new AtomicInteger();
+        // The list of listeners lasts as long as the game, so this does nothing once the test is over.
+        ChestLootTabs.onChange(() -> {
+            if (listening.get()) {
+                told.incrementAndGet();
+            }
+        });
+        try {
+            ClientState.commandOnly = false;
+            ClientState.chestLoot = ChestLoot.JUST_ENOUGH_STRUCTURES;
+            ChestLootTabs.setCommandOnly(true);
+            helper.assertTrue(ClientState.commandOnly && ClientState.isCommandOnly(), "setting Command only didn't turn it on");
+            helper.assertTrue(!ChestLootTabs.showsOwn() && !ChestLootTabs.hidesOthers(), "Command only still shows JES's rows or hides other mods' tabs");
+            for (String id : ChestLootTabs.OTHER_TABS) {
+                helper.assertTrue(!ChestLootTabs.hides(id), "Command only hides " + id);
+            }
+            helper.assertTrue(ChestLootTabs.chosen() == ChestLoot.JUST_ENOUGH_STRUCTURES, "Command only changed the player's choice to " + ChestLootTabs.chosen());
+            helper.assertTrue(told.get() == 1, "turning Command only on told the viewers " + told.get() + " times");
+            ChestLootTabs.setCommandOnly(true);
+            helper.assertTrue(told.get() == 1, "turning on what was already on told the viewers");
+            // While on, a new choice shows nothing new, so the viewers aren't told.
+            ChestLootTabs.choose(ChestLoot.BOTH);
+            helper.assertTrue(told.get() == 1 && ChestLootTabs.chosen() == ChestLoot.BOTH, "a choice made while on told the viewers or wasn't kept");
+            ChestLootTabs.setCommandOnly(false);
+            helper.assertTrue(ChestLootTabs.showsOwn() && !ChestLootTabs.hidesOthers() && told.get() == 2, "turning it off didn't bring back Both, or told the viewers " + told.get() + " times");
+            // With Other mods chosen the viewers show the same either way.
+            ChestLootTabs.choose(ChestLoot.OTHER_MODS);
+            int afterChoice = told.get();
+            ChestLootTabs.setCommandOnly(true);
+            helper.assertTrue(told.get() == afterChoice, "Command only told the viewers when they show the same");
+        } finally {
+            listening.set(false);
+            ClientState.chestLoot = beforeLoot;
+            ClientState.commandOnly = beforeOnly;
+        }
+        helper.succeed();
+    }
 }

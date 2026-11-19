@@ -51,6 +51,7 @@ public final class Scenarios {
             case "teleport" -> teleport(mc);
             case "compass" -> CompassScenario.build(mc);
             case "config" -> ConfigScenario.build(mc);
+            case "command_only" -> CommandOnlyScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
             case "details" -> DetailsScenario.build(mc);
@@ -101,6 +102,9 @@ public final class Scenarios {
             case "ui_clicks" -> UiClicksScenario.build(mc);
             //? if ftbquests {
             case "ftb_quests" -> FtbQuestsScenario.build(mc);
+            //?}
+            //? if cloth_config {
+            case "settings_screen" -> SettingsScreenScenario.build(mc);
             //?}
             case "suite" -> suite(mc, System.getProperty("jes.autoshot.suite", "pack_tour,pack_tools"));
             default -> {
