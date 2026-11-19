@@ -11,6 +11,7 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.ftb.mods.ftblibrary.util.TooltipList;
 import dev.ftb.mods.ftbquests.client.ClientQuestFile;
@@ -45,8 +46,10 @@ import dev.ftb.mods.ftblibrary.ui.Widget;
  * book, points at each task and clicks it with the mouse as a player would, and checks what its tooltip
  * says and what opened. The listed structure opens the browser on it, over the quest book, and Esc goes
  * back. The tag opens it searching for the tag, on one of its structures. The structure no mod adds
- * leaves the quest book as it is. Removes the chapter again at the end. Needs FTB Quests, which the dev
- * runtime has on the builds it exists for (on 26.1 NeoForge with -Pftbquests).
+ * leaves the quest book as it is. Then, with Command only on, the listed structure's task has no hint
+ * and a click on it leaves the quest book as it is, as without JES; Command only goes off again after.
+ * Removes the chapter again at the end. Needs FTB Quests, which the dev runtime has on the builds it
+ * exists for (on 26.1 NeoForge with -Pftbquests).
  */
 final class FtbQuestsScenario {
     private static final String CHAPTER = "jes_scenario";
@@ -115,6 +118,19 @@ final class FtbQuestsScenario {
                 .then(pressKey(InputConstants.KEY_ESCAPE))
                 .then(until(() -> questScreen(mc) != null, 40))
                 .then(check(() -> questScreen(mc) != null, "Esc in the browser didn't go back to the quest book"))
+                // Command only: the listed structure's task has no hint, and a click on it doesn't open the browser.
+                .then(run(() -> ChestLootTabs.setCommandOnly(true)))
+                .then(openQuest(mc))
+                .then(moveTo(() -> centre(button(mc, LISTED_TASK)), 10))
+                .then(pause(10))
+                .then(check(() -> !hinted(mc, LISTED_TASK, HINT), "the desert pyramid's task says it opens the browser with Command only on"))
+                .then(shoot("q05_command_only_tooltip"))
+                .then(click())
+                .then(pause(40))
+                .then(check(() -> browser(mc) == null, "clicking the desert pyramid's task opened the browser with Command only on"))
+                .then(check(() -> questScreen(mc) != null, "clicking the desert pyramid's task left the quest book with Command only on"))
+                .then(shoot("q06_command_only_still_in_the_quest_book"))
+                .then(run(() -> ChestLootTabs.setCommandOnly(false)))
                 .then(run(() -> chapter(mc, false)));
         return d;
     }

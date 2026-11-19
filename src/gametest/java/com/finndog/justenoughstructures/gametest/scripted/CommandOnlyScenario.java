@@ -13,6 +13,8 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.compat.foundin.ChestLootTabs;
 import java.util.UUID;
@@ -25,7 +27,8 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * Command only: with it on, the browser's key does nothing, /jes open still opens the browser on
  * the structure asked for, and Pack tools still opens from it. With it off again, the key opens the
- * browser as before. The setting is put back as it was at the end.
+ * browser as before. The setting is put back as it was at the end. Run with Command only already on
+ * in the game's saved state, it also checks the join: no loot index was asked for on joining.
  */
 final class CommandOnlyScenario {
     private static final ResourceLocation IGLOO = Ids.parse("igloo");
@@ -35,7 +38,15 @@ final class CommandOnlyScenario {
 
     static Director build(Minecraft mc) {
         boolean before = ClientState.isCommandOnly();
+        // Read before anything here can ask for the index. Logged either way, so a run with the
+        // setting off shows the hook does see the ask.
+        boolean askedOnJoining = ClientRequests.indexAsked();
+        JustEnoughStructures.LOGGER.info("Command only check starting: Command only was {} on joining, the loot index {} asked for",
+                before ? "on" : "off", askedOnJoining ? "was" : "wasn't");
         Director d = new Director(mc);
+        if (before) {
+            d.then(check(() -> !askedOnJoining, "the loot index was asked for on joining with Command only on"));
+        }
         d.then(run(() -> ChestLootTabs.setCommandOnly(true)))
                 .then(pressBrowserKey())
                 .then(pause(40))

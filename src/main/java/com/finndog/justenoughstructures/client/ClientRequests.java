@@ -74,6 +74,8 @@ public final class ClientRequests {
     // The server's index build failed, so nothing more comes until it reloads.
     private static boolean indexFailed;
     private static long lastIndexPoll;
+    // Whether the server has been asked for the index on this connection. Read by the scripted scenarios.
+    private static boolean indexAsked;
     // What the server's chest loot can give, sent with the index's progress. Read from recipe viewers' threads too.
     private static volatile Set<ResourceLocation> chestItems = Set.of();
     private static final List<Runnable> CHEST_ITEMS_LISTENERS = new ArrayList<>();
@@ -133,6 +135,7 @@ public final class ClientRequests {
         indexDone = 0;
         indexTotal = 0;
         indexFailed = false;
+        indexAsked = false;
         chestItems = Set.of();
         FoundIn.clear();
         locatePermission = 2;
@@ -507,6 +510,7 @@ public final class ClientRequests {
 
     private static void pollIndex() {
         lastIndexPoll = System.currentTimeMillis();
+        indexAsked = true;
         send(JesNetwork.REQUEST_INDEX, buf -> {
         });
     }
@@ -530,6 +534,14 @@ public final class ClientRequests {
         if (itemsChanged) {
             CHEST_ITEMS_LISTENERS.forEach(Runnable::run);
         }
+    }
+
+    /**
+     * Whether the client has asked the server for the loot index since joining it, by anything: a
+     * recipe viewer, the browser or Pack tools. Test hook for the scripted scenarios.
+     */
+    public static boolean indexAsked() {
+        return indexAsked;
     }
 
     /** Fetches the structure list again when it's next wanted. Test hook for the scripted scenarios. */
