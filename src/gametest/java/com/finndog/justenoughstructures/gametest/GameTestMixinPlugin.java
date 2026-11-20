@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
  * Adds the test mod's mixins that only some loaders and versions have, so the one mixin config
  * serves them all.
  */
-public final class GameTestMixinPlugin implements IMixinConfigPlugin {
+public class GameTestMixinPlugin implements IMixinConfigPlugin {
     @Override
     public void onLoad(String mixinPackage) {
     }

@@ -247,9 +247,10 @@ dependencies {
 // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
 tasks.register<Jar>("gametestJar") {
     from(gametest.output)
-    // A real game only gets the mixin it needs: the others are for the game tests.
+    // A real game only gets the mixins it uses: the others are for the game tests.
     filesMatching("${modId}_gametest.mixins.json") {
-        filter { line -> realGameMixinLine(line) }
+        val config = RealGameMixins()
+        filter { line -> config.line(line) }
     }
     archiveClassifier = "gametest"
     destinationDirectory = layout.buildDirectory.dir("testlibs")

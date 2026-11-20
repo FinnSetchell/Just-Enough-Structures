@@ -11,7 +11,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /** Lets {@link ThrowingNames} fail a mob when the browser asks it for its name. */
 @Mixin(Entity.class)
 abstract class ThrowingNamesMixin {
+    // A real Forge 1.20.1 game knows the method by its SRG name, and the test jar has no refmap to say so.
+    //? if forge && <1.21 {
+    /*@Inject(method = {"getName", "m_7755_"}, at = @At("HEAD"))
+    *///?} else {
     @Inject(method = "getName", at = @At("HEAD"))
+    //?}
     private void jesTest$name(CallbackInfoReturnable<Component> cir) {
         ThrowingNames.name((Entity) (Object) this);
     }

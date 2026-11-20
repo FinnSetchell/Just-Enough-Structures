@@ -27,6 +27,12 @@ abstract class UiClicksMixin {
     private void jesTest$play(SoundInstance sound, CallbackInfoReturnable<SoundEngine.PlayResult> cir) {
         UiClicks.played(sound.getIdentifier().getPath());
     }
+    *///?} else if forge && <1.21 {
+    /*// A real Forge 1.20.1 game knows the method by its SRG name, and the test jar has no refmap to say so.
+    @Inject(method = {"play", "m_120367_"}, at = @At("HEAD"))
+    private void jesTest$play(SoundInstance sound, CallbackInfo ci) {
+        UiClicks.played(sound.getLocation().getPath());
+    }
     *///?} else {
     @Inject(method = "play", at = @At("HEAD"))
     private void jesTest$play(SoundInstance sound, CallbackInfo ci) {

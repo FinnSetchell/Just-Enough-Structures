@@ -320,7 +320,7 @@ loom {
 
 // Test mod jar for a real Fabric game, so the gallery and scripted runs can use a release build. Never
 // shipped, and kept out of build/libs, where publishing picks up jars. On obfuscated versions it's
-// remapped like the mod and keeps only the mixin a real game needs.
+// remapped like the mod and keeps only the mixins a real game uses.
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
         from(gametest.output)
@@ -331,7 +331,8 @@ if (loomx.isUnobfuscated) {
     val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
         from(gametest.output)
         filesMatching("justenoughstructures_gametest.mixins.json") {
-            filter { line -> realGameMixinLine(line) }
+            val config = RealGameMixins()
+            filter { line -> config.line(line) }
         }
         archiveClassifier = "gametest-dev"
         destinationDirectory = layout.buildDirectory.dir("devlibs")

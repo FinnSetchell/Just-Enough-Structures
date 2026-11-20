@@ -26,6 +26,15 @@ abstract class FaultyDrawsMixin {
     private void jesTest$extract(Entity entity, float partialTick, CallbackInfoReturnable<EntityRenderState> cir) {
         FaultyDraws.draw(entity);
     }
+    *///?} else if forge && <1.21 {
+    /*// A real Forge 1.20.1 game knows the method by its SRG name, and the test jar has no refmap to say so.
+    @Inject(method = {"render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            "m_114384_(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V"},
+            at = @At("HEAD"))
+    private void jesTest$render(Entity entity, double x, double y, double z, float yaw, float partialTick, PoseStack pose,
+                                MultiBufferSource buffers, int light, CallbackInfo ci) {
+        FaultyDraws.draw(entity);
+    }
     *///?} else {
     @Inject(method = "render(Lnet/minecraft/world/entity/Entity;DDDFFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("HEAD"))
     private void jesTest$render(Entity entity, double x, double y, double z, float yaw, float partialTick, PoseStack pose,

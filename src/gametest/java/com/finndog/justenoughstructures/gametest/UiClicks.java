@@ -7,7 +7,7 @@ package com.finndog.justenoughstructures.gametest;
 public final class UiClicks {
     /** The sound's path, as vanilla buttons play it. */
     private static final String CLICK = "ui.button.click";
-    /** Whether the hook was applied. The test jar for a real game leaves it out, except on Fabric where the game isn't obfuscated. */
+    /** Whether the hook was applied: in the game tests, and in a real game through the test jar. */
     public static volatile boolean hooked;
     private static volatile int count;
 

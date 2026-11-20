@@ -186,9 +186,10 @@ dependencies {
 // script can run against a release build in a launcher instance. Never shipped.
 val gametestJar = tasks.register<Jar>("gametestJar") {
     from(gametest.output)
-    // A real game reads a jar's mixin configs from its manifest, and only gets the mixin it needs.
+    // A real game reads a jar's mixin configs from its manifest, and only gets the mixins it uses.
     filesMatching("${modId}_gametest.mixins.json") {
-        filter { line -> realGameMixinLine(line) }
+        val config = RealGameMixins()
+        filter { line -> config.line(line) }
     }
     manifest {
         attributes("MixinConfigs" to "${modId}_gametest.mixins.json")
