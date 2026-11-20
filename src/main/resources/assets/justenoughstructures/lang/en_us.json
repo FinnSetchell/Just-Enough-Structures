@@ -155,8 +155,6 @@
   "screen.justenoughstructures.rare_chance": "<0.1%",
   "screen.justenoughstructures.count_exact": "%s at a time",
   "screen.justenoughstructures.count_range": "%s-%s (avg %s)",
-  "screen.justenoughstructures.with_kinds": "%s · %s kinds",
-  "screen.justenoughstructures.with_enchantments": "%s · %s enchantments",
   "screen.justenoughstructures.container": "container",
   "screen.justenoughstructures.tip_chance": "%2$s chance in each %1$s",
   "screen.justenoughstructures.tip_total": "%s chance of at least one in all %s",

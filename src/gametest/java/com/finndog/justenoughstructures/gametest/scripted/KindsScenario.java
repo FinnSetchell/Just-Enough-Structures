@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.function.ToLongFunction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 //? if emi {
@@ -98,6 +99,7 @@ final class KindsScenario {
                 .then(pause(20))
                 .then(moveTo(() -> onIcon(browser(mc).popupOddsRow(Items.POTION).orElse(new int[]{0, 0})), 10))
                 .then(frames("k06_supply_potion"))
+                .then(popupScrollTo(mc, Items.TIPPED_ARROW))
                 .then(moveTo(() -> onIcon(browser(mc).popupOddsRow(Items.TIPPED_ARROW).orElse(new int[]{0, 0})), 10))
                 .then(frames("k07_supply_tipped_arrow"))
                 .then(pressKey(InputConstants.KEY_ESCAPE))
@@ -158,6 +160,19 @@ final class KindsScenario {
      */
     private static int[] onIcon(int[] row) {
         return row[0] == 0 && row[1] == 0 ? row : new int[]{row[0] - 52, row[1]};
+    }
+
+    /** Scrolls the open popup's chances a little at a time, under the mouse, until the item's row is on screen. */
+    private static Director.Action popupScrollTo(Minecraft mc, Item item) {
+        return (d, frame) -> {
+            if (browser(mc).popupOddsRow(item).isPresent()) {
+                return true;
+            }
+            if (frame % 4 == 1) {
+                d.scroll(-1);
+            }
+            return frame > 400;
+        };
     }
 
     /** {@code FRAMES} shots of what's on screen, {@code FRAME_MILLIS} apart, named {@code <name>_<n>}. */

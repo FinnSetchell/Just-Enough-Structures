@@ -126,19 +126,15 @@ public final class OddsList {
     }
 
     /**
-     * How many come in a container: "2-9 (avg 5)", or "3 at a time" when it's always the same, and how
-     * many kinds when the row stands for several.
+     * How many come in a container: "2-9 (avg 5)", or "3 at a time" when it's always the same. Not how
+     * many kinds a row stands for: every row's bar starts after the widest of these, and in a chest's
+     * narrow list that would leave no room for bars; the picture and the tooltip show the kinds.
      */
     static String counts(LootOdds.Row row) {
         float average = (float) row.total() / row.hits();
-        String counts = row.min() == row.max()
+        return row.min() == row.max()
                 ? Component.translatable("screen.justenoughstructures.count_exact", row.min()).getString()
                 : Component.translatable("screen.justenoughstructures.count_range", row.min(), row.max(), Math.round(average)).getString();
-        if (row.kinds().size() < 2) {
-            return counts;
-        }
-        String key = enchantedGear(row.example(), row.kinds().keySet()) ? "screen.justenoughstructures.with_enchantments" : "screen.justenoughstructures.with_kinds";
-        return Component.translatable(key, counts, row.kinds().size()).getString();
     }
 
     /**
