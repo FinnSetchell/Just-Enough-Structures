@@ -57,6 +57,12 @@ final class StructureDisables {
         return null;
     }
 
+    /** Whether Moog's Structure Lib's Replace Vanilla setting puts another structure in this one's place. */
+    static boolean replacedByMsl(ResourceLocation id) {
+        Availability msl = moogs(id);
+        return msl != null && msl.reason() == Availability.Reason.REPLACED;
+    }
+
     private static Availability moogs(ResourceLocation id) {
         try {
             Class<?> config = Class.forName("com.finndog.moogs_structures.config.MslConfig");

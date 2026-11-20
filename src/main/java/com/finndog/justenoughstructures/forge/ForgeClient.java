@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.forge;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ConfigScreens;
@@ -8,6 +9,7 @@ import com.finndog.justenoughstructures.client.JesClient;
 import com.finndog.justenoughstructures.compat.cloth.JesConfigScreen;
 //?}
 import com.finndog.justenoughstructures.network.Blobs;
+import java.nio.file.Files;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +31,7 @@ import net.minecraftforge.eventbus.api.IEventBus;
 //?}
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.forgespi.language.IModFileInfo;
 //? if >=1.21 {
 /*import net.minecraftforge.network.NetworkContext;
 *///?} else {
@@ -114,6 +117,11 @@ final class ForgeClient {
             public Screen open(String modId, Screen parent) {
                 return screenFactory(modId).map(factory -> factory.apply(Minecraft.getInstance(), parent)).orElse(null);
             }
+
+            @Override
+            public String modWithFile(String path) {
+                return modWithFileIn(path);
+            }
         });
         //? if cloth_config {
         // Forge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
@@ -126,6 +134,20 @@ final class ForgeClient {
 
     private static Optional<BiFunction<Minecraft, Screen, Screen>> screenFactory(String modId) {
         return ModList.get().getModContainerById(modId).flatMap(container -> ConfigScreenHandler.getScreenFactoryFor(container.getModInfo()));
+    }
+
+    /** The first mod of the mod file that holds a file, looking through every mod file in the loader's order. */
+    private static String modWithFileIn(String path) {
+        for (IModFileInfo file : ModList.get().getModFiles()) {
+            try {
+                if (!file.getMods().isEmpty() && Files.exists(file.getFile().findResource(path))) {
+                    return file.getMods().get(0).getModId();
+                }
+            } catch (Throwable t) {
+                JesLog.debug("Couldn't look for {} in one of the mod files", path, t);
+            }
+        }
+        return null;
     }
 
     private static Connection connection() {

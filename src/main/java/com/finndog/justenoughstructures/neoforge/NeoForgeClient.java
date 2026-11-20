@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.neoforge;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.client.ClientPackets;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ConfigScreens;
@@ -27,6 +28,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforgespi.language.IModFileInfo;
 //? if >=26.1 {
 /*import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 *///?} else {
@@ -112,12 +114,35 @@ final class NeoForgeClient {
                 return mod == null ? null
                         : IConfigScreenFactory.getForMod(mod.getModInfo()).map(factory -> factory.createScreen(mod, parent)).orElse(null);
             }
+
+            @Override
+            public String modWithFile(String path) {
+                for (IModFileInfo file : ModList.get().getModFiles()) {
+                    try {
+                        if (!file.getMods().isEmpty() && holds(file, path)) {
+                            return file.getMods().get(0).getModId();
+                        }
+                    } catch (Throwable t) {
+                        JesLog.debug("Couldn't look for {} in one of the mod files", path, t);
+                    }
+                }
+                return null;
+            }
         });
         //? if cloth_config {
         // NeoForge's Mods list gets a Config button for the settings screen, which Cloth Config draws.
         if (ModList.get().isLoaded("cloth_config")) {
             container.registerExtensionPoint(IConfigScreenFactory.class, (IConfigScreenFactory) (mod, parent) -> JesConfigScreen.create(parent));
         }
+        //?}
+    }
+
+    /** Whether a mod file holds a file. From 26.1 a mod file's contents are read through FML's own JarContents. */
+    private static boolean holds(IModFileInfo file, String path) {
+        //? if >=26.1 {
+        /*return file.getFile().getContents().containsFile(path);
+        *///?} else {
+        return java.nio.file.Files.exists(file.getFile().findResource(path));
         //?}
     }
 }

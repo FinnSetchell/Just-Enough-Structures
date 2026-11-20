@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.client.screen;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Nbt;
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.capture.CaptureResult;
@@ -13,6 +14,7 @@ import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.ClientState;
 import com.finndog.justenoughstructures.client.CompassLink;
+import com.finndog.justenoughstructures.client.ConfigScreens;
 import com.finndog.justenoughstructures.client.Exports;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.render.Highlight;
@@ -118,6 +120,14 @@ final class InfoPanel {
     };
     /** Where the player's notes, or the line asking for some, were last drawn. Test hook for the scripted scenarios. */
     private int[] notesSpot;
+    /** Opens a mod's settings screen, given the mod's id. */
+    private Consumer<String> onOpenSettings = mod -> {
+    };
+    /** Where the Settings link after "Turned off" or "Replaced by" was last drawn. Test hook for the scripted scenarios. */
+    private int[] settingsLinkSpot;
+    /** The structure the Settings link was last worked out for, and the mod it opens, or null for none. */
+    private ResourceLocation settingsAskedFor;
+    private String settingsFor;
 
     private Tab tab = Tab.OVERVIEW;
     private int x, y, width, height;
@@ -251,6 +261,20 @@ final class InfoPanel {
         return notesSpot;
     }
 
+    /** Sets what happens when the Settings link of a structure a mod turned off or replaced is clicked. It gets that mod's id. */
+    void onOpenSettings(Consumer<String> action) {
+        onOpenSettings = action;
+    }
+
+    int[] settingsLinkSpot() {
+        return settingsLinkSpot;
+    }
+
+    /** The mod the Settings link opens, or null while it isn't showing. */
+    String settingsLinkMod() {
+        return settingsLinkSpot == null ? null : settingsFor;
+    }
+
     void setTab(Tab tab) {
         this.tab = tab;
         scroll.reset();
@@ -306,6 +330,7 @@ final class InfoPanel {
         hoveredBlocks = null;
         highlightRows.clear();
         notesSpot = null;
+        settingsLinkSpot = null;
 
         // JEI's category tabs: icons only, the selected one joined to the panel below.
         for (Tab t : Tab.values()) {
@@ -435,6 +460,7 @@ final class InfoPanel {
         List<Holder<Biome>> biomes = biomes(def);
         if (!entry.availability().generates()) {
             cy = field(g, cy, "unavailable", unavailable(entry.availability()).getString());
+            cy = settingsLink(g, cy, mouseX, mouseY, clipTop, clipHeight);
         }
 
         // Where the world's generators place it, or in a world that places nothing, like a superflat
@@ -671,6 +697,56 @@ final class InfoPanel {
     private static String biomeName(Holder<Biome> biome) {
         return biome.unwrapKey().map(key -> Component.translatableWithFallback("biome." + Ids.of(key).getNamespace() + "." + Ids.of(key).getPath(),
                 StructureNames.pretty(Ids.of(key).getPath())).getString()).orElse("?");
+    }
+
+    /**
+     * Under "Turned off" or "Replaced by", a link to the settings of the mod that did it, for a
+     * structure on show in single player when that mod has a settings screen. Returns the y below it.
+     */
+    private int settingsLink(GuiGraphics g, int cy, int mouseX, int mouseY, int clipTop, int clipHeight) {
+        String mod = settingsMod(entry);
+        if (mod == null) {
+            return cy;
+        }
+        // Tucked under the line it's about, rather than after the whole gap that ends that field.
+        cy -= 2;
+        Component label = Component.translatable("screen.justenoughstructures.unavailable.settings");
+        int linkX = x + PAD - 1;
+        int linkWidth = Icons.SMALL + 2 + font.width(label);
+        int linkHeight = font.lineHeight + 3;
+        boolean over = inside(mouseX, mouseY, linkX, cy - 1, linkWidth, linkHeight, clipTop, clipHeight);
+        int ink = over ? Gui.ink(0xFF1F3F8F, Gui.LINK_HOVER_ON_DARK) : Gui.ink(0xFF3A55A0, Gui.LINK_ON_DARK);
+        Gui.icon(g, Icons.SETTINGS, linkX, cy - 1, Icons.SMALL, Icons.SMALL, ink, false);
+        g.drawString(font, label, linkX + Icons.SMALL + 2, cy, ink, false);
+        Component name = Component.translatable("screen.justenoughstructures.config", JustEnoughStructures.modName(mod));
+        if (over) {
+            hoveredText = List.of(name, Component.translatable("screen.justenoughstructures.config_hint").withStyle(ChatFormatting.GRAY));
+        }
+        settingsLinkSpot = new int[]{linkX + linkWidth / 2, cy + font.lineHeight / 2};
+        hotspots.add(new Hotspot(linkX, cy - 1, linkWidth, linkHeight, () -> onOpenSettings.accept(mod), Narration.button(name), true));
+        return cy + linkHeight + 4;
+    }
+
+    /**
+     * The mod whose settings the Settings link opens: the one that turned the structure off or put
+     * its own in its place, in single player, where a mod's settings are this world's, and only when
+     * it has a settings screen. Otherwise null. A replacement Moog's Structure Lib's Replace Vanilla
+     * setting makes is changed in that mod's settings, not the replacing mod's. Worked out once per
+     * structure.
+     */
+    private String settingsMod(StructureCatalog.Entry entry) {
+        Availability availability = entry.availability();
+        boolean byMod = availability.reason() == Availability.Reason.TURNED_OFF || availability.reason() == Availability.Reason.REPLACED;
+        if (!byMod || availability.by() == null || !Minecraft.getInstance().hasSingleplayerServer()) {
+            return null;
+        }
+        if (!entry.id().equals(settingsAskedFor)) {
+            settingsAskedFor = entry.id();
+            String mod = availability.reason() == Availability.Reason.REPLACED && StructureCatalog.replacedByMsl(entry.id())
+                    ? "moogs_structures" : availability.by();
+            settingsFor = ConfigScreens.canOpen(mod) ? mod : null;
+        }
+        return settingsFor;
     }
 
     /** Why a structure won't turn up in new worlds, in a sentence. */

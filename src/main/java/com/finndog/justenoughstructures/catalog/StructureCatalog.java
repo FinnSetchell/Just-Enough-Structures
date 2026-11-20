@@ -112,6 +112,15 @@ public final class StructureCatalog {
                 : new Availability(Availability.Reason.NEVER, null, null);
     }
 
+    /**
+     * Whether Moog's Structure Lib's Replace Vanilla setting is what puts another structure in this
+     * one's place, so its settings are where that's changed. Read from this game, so only meaningful
+     * in single player or on the server.
+     */
+    public static boolean replacedByMsl(ResourceLocation id) {
+        return StructureDisables.replacedByMsl(id);
+    }
+
     /** How often a set's placement tries at all: 1 unless it says otherwise. */
     private static float frequency(JsonObject placement) {
         try {

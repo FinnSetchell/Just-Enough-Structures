@@ -1,14 +1,15 @@
 package com.finndog.justenoughstructures.fabric;
 
+import com.finndog.justenoughstructures.JesLog;
 import com.finndog.justenoughstructures.client.ConfigScreens;
 import com.terraformersmc.modmenu.ModMenu;
+import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.client.gui.screens.Screen;
 //? if <1.21 {
-import com.finndog.justenoughstructures.JesLog;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 import java.util.HashSet;
 import java.util.Set;
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 //?}
 
@@ -34,6 +35,21 @@ final class FabricConfigScreens implements ConfigScreens {
     @Override
     public Screen open(String modId, Screen parent) {
         return ModMenu.getConfigScreen(modId, parent);
+    }
+
+    /** Looks through every mod's own files, nested jars included, in the loader's order. */
+    @Override
+    public String modWithFile(String path) {
+        for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
+            try {
+                if (mod.findPath(path).isPresent()) {
+                    return mod.getMetadata().getId();
+                }
+            } catch (Throwable t) {
+                JesLog.debug("Couldn't look for {} in {}", path, mod.getMetadata().getId(), t);
+            }
+        }
+        return null;
     }
 
     //? if <1.21 {

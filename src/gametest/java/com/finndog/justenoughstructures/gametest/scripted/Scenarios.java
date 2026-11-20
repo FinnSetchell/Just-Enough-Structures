@@ -51,6 +51,9 @@ public final class Scenarios {
             case "teleport" -> teleport(mc);
             case "compass" -> CompassScenario.build(mc);
             case "config" -> ConfigScenario.build(mc);
+            case "config_link" -> ConfigScenario.link(mc);
+            case "config_owner" -> ConfigScenario.owner(mc);
+            case "config_msl" -> ConfigScenario.msl(mc);
             case "command_only" -> CommandOnlyScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);

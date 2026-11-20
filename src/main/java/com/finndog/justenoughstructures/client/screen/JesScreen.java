@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.capture.TrialSpawners;
+import com.finndog.justenoughstructures.catalog.Availability;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.client.FoundIn;
@@ -81,6 +82,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private static final int PAD = 6;
     /** Where the panels start, below the Back and Forward bar. */
     private static final int TOP = NavBar.TOP;
+    /** The settings button on the mod's row, and the gap after it, which the row's band gives up while it shows. */
+    private static final int CONFIG_ROOM = ArrowButton.SIZE + 2;
     /** How far the details panel sits down to make room for its tabs, as JEI's recipe panel does. */
     private static final int TABS = 21;
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
@@ -129,7 +132,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private IconButton locateButton;
     private IconButton compassButton;
     private Boolean compassPointing;
-    private IconButton configButton;
+    /** On the mod's row, just inside its right arrow: the settings of the mod that row names. */
+    private ArrowButton configButton;
     /** The structure the settings button was last set up for, and the mod whose settings it opens, or null for none. */
     private StructureCatalog.Entry configFor;
     private String configMod;
@@ -321,6 +325,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             info.onOpenBlocks(this::openBlocks);
             info.onMove(Nav::remember);
             info.onEditNotes(this::openNotes);
+            info.onOpenSettings(this::openSettings);
         }
         // Side panels need room; below that, or when maximised, the preview takes the whole width.
         sides = !ClientState.maximised && width >= 330;
@@ -369,6 +374,12 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 Component.translatable("screen.justenoughstructures.previous_structure"), b -> step(-1, false)));
         addRenderableWidget(new ArrowButton(centreX + centreW - 19, TOP + 19, false,
                 Component.translatable("screen.justenoughstructures.next_structure"), b -> step(1, false)));
+        // The settings of the mod the top row names, just inside its right arrow. The row's band gives
+        // up the room while it shows.
+        configButton = addRenderableWidget(new ArrowButton(centreX + centreW - 19 - CONFIG_ROOM, TOP + 4, Icons.SETTINGS,
+                Component.empty(), b -> openSettings(configMod)));
+        configFor = null;
+        updateConfigButton();
 
         viewX = centreX + 6;
         viewY = TOP + 35;
@@ -422,10 +433,6 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }));
         compassPointing = null;
         updateCompassButton();
-        // The settings of the mod behind the structure, left of the others.
-        configButton = addRenderableWidget(new IconButton(overlayRight - 86, viewY + 2, Icons.SETTINGS, Component.empty(), b -> openConfig()));
-        configFor = null;
-        updateConfigButton();
 
         int bx = viewX;
         int rerollW = roomy ? rerollWide : 20;
@@ -2024,9 +2031,24 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         locate(true);
     }
 
-    /** The mod whose settings the settings button opens, or null while it isn't showing. */
+    /** The mod whose settings the settings button on the mod's row opens, or null while it isn't showing. Test hook for the scripted scenarios. */
     public String configShown() {
         return configButton != null && configButton.visible ? configMod : null;
+    }
+
+    /** Whether the structure on show generates in new worlds, and if not why and which mod, or null with none on show. Test hook for the scripted scenarios. */
+    public Availability selectedAvailability() {
+        return selected == null ? null : selected.availability();
+    }
+
+    /** The Info tab's Settings link, after "Replaced by" or "Turned off by", if it's showing. Test hook for the scripted scenarios. */
+    public int[] settingsLink() {
+        return info.settingsLinkSpot();
+    }
+
+    /** The mod the Info tab's Settings link opens, or null while it isn't showing. Test hook for the scripted scenarios. */
+    public String settingsLinkMod() {
+        return info.settingsLinkMod();
     }
 
     /** Ctrl-clicking the compass button, which a scripted click can't do either. */
@@ -2753,8 +2775,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         int bandW = centreW - 38;
         String top = selected == null ? title.getString() : StructureNames.mod(selected.id().getNamespace());
         String bottom = selected == null ? "" : StructureNames.structure(selected.id());
-        Gui.band(g, font, top, bandX, TOP + 4, bandW, 13);
+        Gui.band(g, font, top, bandX, TOP + 4, bandW - configRoom(), 13);
         Gui.band(g, font, bottom, bandX, TOP + 19, bandW, 13);
+    }
+
+    /** What the settings button takes from the end of the mod's row while it shows. */
+    private int configRoom() {
+        return configButton != null && configButton.visible ? CONFIG_ROOM : 0;
     }
 
     /** The full name when a title row had to cut it short, for its tooltip. */
@@ -2764,7 +2791,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         String name = StructureNames.structure(selected.id());
         String mod = StructureNames.mod(selected.id().getNamespace());
-        if (mouseY >= TOP + 4 && mouseY < TOP + 17 && font.width(mod) > centreW - 42) {
+        int room = configRoom();
+        if (mouseY >= TOP + 4 && mouseY < TOP + 17 && mouseX < centreX + centreW - 19 - room && font.width(mod) > centreW - 42 - room) {
             return List.of(Component.literal(mod));
         }
         if (mouseY >= TOP + 19 && mouseY < TOP + 32 && font.width(name) > centreW - 42) {
@@ -2797,7 +2825,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** Where the buttons over the preview's top right corner start, counting only those showing. */
     private int overlayLeft() {
         int left = maximiseButton.getX();
-        for (Button b : new Button[]{locateButton, compassButton, configButton}) {
+        for (Button b : new Button[]{locateButton, compassButton}) {
             if (b != null && b.visible) {
                 left = Math.min(left, b.getX());
             }
@@ -3762,8 +3790,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     }
 
     /**
-     * Only in single player, where a mod's settings are this world's, and only when the mod behind
-     * the structure has a settings screen. Which mod that is is worked out once per structure.
+     * Only in single player, where a mod's settings are this world's, and only when the mod the row
+     * names has a settings screen. Which mod that is is worked out once per structure.
      */
     private void updateConfigButton() {
         if (selected != configFor) {
@@ -3774,20 +3802,20 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                         .append("\n").append(Component.translatable("screen.justenoughstructures.config_hint").withStyle(ChatFormatting.GRAY)));
             }
         }
-        IconButton left = compassButton != null && compassButton.visible ? compassButton : locateButton.visible ? locateButton : maximiseButton;
-        configButton.setX(left.getX() - 22);
-        // Not in a preview too narrow to hold it.
-        configButton.visible = configMod != null && configButton.getX() >= viewX + 2;
+        configButton.visible = configMod != null;
     }
 
-    /** Opens the settings screen of the mod behind the structure. Closing it comes back here. */
-    private void openConfig() {
-        String mod = configMod;
-        if (mod == null) {
+    /**
+     * Opens a mod's settings screen, from the mod's row or the Info tab. Closing it comes back here.
+     * One that can't be opened says so over the preview.
+     */
+    private void openSettings(String mod) {
+        ConfigScreens screens = ConfigScreens.get();
+        if (mod == null || screens == null) {
             return;
         }
         try {
-            Screen screen = ConfigScreens.get().open(mod, this);
+            Screen screen = screens.open(mod, this);
             if (screen != null) {
                 picking = Picking.NONE;
                 minecraft.setScreen(screen);

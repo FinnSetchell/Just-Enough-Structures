@@ -42,7 +42,7 @@ final class Icons {
     static final ResourceLocation STEP_RIGHT = icon("step_right");
     static final ResourceLocation ONE_ROLL = icon("one_roll");
     static final ResourceLocation CHANCES = icon("chances");
-    /** A gear, for the settings of the mod behind a structure. */
+    /** 9 pixels, three sliders, for the settings of the mod a header row names. */
     static final ResourceLocation SETTINGS = icon("settings");
 
     // The list, the details panel and Back and Forward. A chevron at the end of a row says it opens something.
