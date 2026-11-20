@@ -228,6 +228,7 @@ public final class JesServer {
 
     /** When the server stops: drops what belonged to that world, and stops the loot index and the captures under way. */
     public static void stop() {
+        OddsStore.stop(running);
         running = null;
         guardChecked = false;
         invalidate();
@@ -904,6 +905,11 @@ public final class JesServer {
         odds(server, table, LootRolls.table(server, table), reply);
     }
 
+    /** Forgets the odds kept in memory, as a restart would. For tests. */
+    public static void forgetOdds() {
+        ODDS_CACHE.clear();
+    }
+
     /**
      * Keeps odds the loot index's rolls already worked out, so a player asking for them isn't kept
      * waiting while the table is rolled again. Kept until a reload, like the odds rolled for players.
@@ -922,6 +928,14 @@ public final class JesServer {
         // out once and kept until a reload, even for a table that reads something that can change, like
         // the weather.
         LootOdds known = ODDS_CACHE.get(table);
+        // Only the loaded table can be worked out or kept: a test's own table isn't in the game.
+        boolean loaded = loot == LootRolls.table(server, table);
+        if (known == null && loaded) {
+            known = OddsStore.forPlayers(server, table);
+            if (known != null) {
+                ODDS_CACHE.put(table, known);
+            }
+        }
         if (known != null) {
             reply.accept(known);
             return;
@@ -934,8 +948,6 @@ public final class JesServer {
         List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
         ROLLING.put(table, these);
         LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, loot, ODDS_ROLLS, table.hashCode());
-        // Only the loaded table can be worked out: a test's own table isn't in the game.
-        boolean loaded = loot == LootRolls.table(server, table);
         rollInSlices(server, roller, ODDS_BUDGET_NANOS, (rolled, keep) -> {
             LootOdds odds = loaded ? LootMath.withWorkedOutChances(server, rolled) : rolled;
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
@@ -943,6 +955,9 @@ public final class JesServer {
                 ROLLING.remove(table);
                 if (keep) {
                     ODDS_CACHE.put(table, odds);
+                    if (loaded) {
+                        OddsStore.keep(server, odds, true);
+                    }
                 }
             }
             these.forEach(waiter -> waiter.accept(odds));

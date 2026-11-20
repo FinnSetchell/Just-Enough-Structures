@@ -169,6 +169,7 @@ public final class LootIndexStore {
             if (generation != GENERATION.get()) {
                 return;
             }
+            OddsStore.refresh(server);
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             StructureScan updated = null;
             LootIndex updatedIndex = null;
@@ -364,6 +365,7 @@ public final class LootIndexStore {
                 }
             });
             JesLog.debug("Rolling found items that reading doesn't show in {} loot tables {}", added.size(), added);
+            OddsStore.save(server);
             StructureScan withRolls = scanned.withRolled(rolled);
             finish(server, withRolls, read.withItems(added));
             if (key != null) {
@@ -397,6 +399,7 @@ public final class LootIndexStore {
         private final LootHooks.Found hooks;
         private final long started = System.nanoTime();
         private int stoppedEarly;
+        private int reused;
         private ResourceLocation table;
         private LootRolls.Roller roller;
         /** Whether {@link #roller} is the table's first {@link #FIRST_ROLLS}. */
@@ -427,9 +430,9 @@ public final class LootIndexStore {
                     if (!tables.hasNext()) {
                         rollingNanos += System.nanoTime() - sliceStarted;
                         JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms; "
-                                        + "{} stopped after their first {} rolls fit what they give, {} named by other mods' loot code{}",
+                                        + "{} stopped after their first {} rolls fit what they give, {} named by other mods' loot code{}; {} kept from an earlier start",
                                 count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L, stoppedEarly, FIRST_ROLLS,
-                                hooks.tables().size(), hooks.anyTable() ? ", which may change any table" : "");
+                                hooks.tables().size(), hooks.anyTable() ? ", which may change any table" : "", reused);
                         done.accept(seen);
                         return true;
                     }
@@ -442,6 +445,17 @@ public final class LootIndexStore {
                 boolean broke = false;
                 try {
                     if (roller == null) {
+                        LootOdds kept = OddsStore.any(server, table);
+                        if (kept != null) {
+                            // Rolled before, as it is now, on an earlier start: those rolls are used again.
+                            reused++;
+                            seen.put(table, itemsOf(kept));
+                            if (OddsStore.forPlayers(server, table) != null) {
+                                JesServer.keepOdds(kept);
+                            }
+                            table = null;
+                            continue;
+                        }
                         // From the seed and in the level the odds are rolled with. A table other mods' code
                         // changes as it's rolled is rolled in full from the start.
                         first = !hooks.touches(table);
@@ -468,20 +482,18 @@ public final class LootIndexStore {
                 }
                 if (finished || tableNanos >= TABLE_NANOS) {
                     if (!broke) {
-                        Set<ResourceLocation> items = new TreeSet<>();
                         LootOdds odds = roller.odds();
                         // Where the rolls fit what the table gives, its chances are worked out from it, and
                         // players get those without the table being rolled again for them. Not where an item
                         // can come with enchantments or a potion: the odds roll more times, which lists more of those.
                         LootMath.Checked checked = LootMath.check(server, odds);
-                        if (checked.fits() && !checked.variants()) {
+                        boolean forPlayers = checked.fits() && !checked.variants();
+                        if (forPlayers) {
                             JesServer.keepOdds(checked.odds());
                         }
+                        OddsStore.keep(server, forPlayers ? checked.odds() : odds, forPlayers);
                         rolls += odds.rolls();
-                        for (LootOdds.Row row : odds.rows()) {
-                            items.add(BuiltInRegistries.ITEM.getKey(row.example().getItem()));
-                        }
-                        seen.put(table, items);
+                        seen.put(table, itemsOf(odds));
                     }
                     table = null;
                 }
@@ -489,6 +501,15 @@ public final class LootIndexStore {
             rollingNanos += System.nanoTime() - sliceStarted;
             return false;
         }
+    }
+
+    /** The items a table's odds list. */
+    private static Set<ResourceLocation> itemsOf(LootOdds odds) {
+        Set<ResourceLocation> items = new TreeSet<>();
+        for (LootOdds.Row row : odds.rows()) {
+            items.add(BuiltInRegistries.ITEM.getKey(row.example().getItem()));
+        }
+        return items;
     }
 
     /**
