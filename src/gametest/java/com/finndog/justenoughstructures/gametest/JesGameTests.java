@@ -287,6 +287,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void lootHooksFoundInModsLists(GameTestHelper helper) {
+        LootMathTests.lootHooksFoundInModsLists(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
     }

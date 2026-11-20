@@ -91,6 +91,12 @@ public final class LootIndexStore {
     private static final int ROLLS = 500;
     /** The most of the server's time one table's rolls take. A table some mod makes slow to roll gets fewer. */
     private static final long TABLE_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+    /**
+     * How many times each table is rolled first. A table whose first rolls fit what it gives worked out
+     * ({@link LootMath#check}) has nothing changing it as it's rolled, so it's rolled no further: what it
+     * can give is read from it, and its chances are worked out. The rest are rolled {@link #ROLLS} times.
+     */
+    private static final int FIRST_ROLLS = 32;
 
     // The index captures every structure, so it runs on a separate thread and never holds up previews.
     private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
@@ -387,9 +393,14 @@ public final class LootIndexStore {
         private final BooleanSupplier stale;
         private final Consumer<Map<ResourceLocation, Set<ResourceLocation>>> done;
         private final Map<ResourceLocation, Set<ResourceLocation>> seen = new TreeMap<>();
+        /** The tables other mods' code changes as they're rolled, which are rolled in full. */
+        private final LootHooks.Found hooks;
         private final long started = System.nanoTime();
+        private int stoppedEarly;
         private ResourceLocation table;
         private LootRolls.Roller roller;
+        /** Whether {@link #roller} is the table's first {@link #FIRST_ROLLS}. */
+        private boolean first;
         private long tableNanos;
         private long rollingNanos;
         private int rolls;
@@ -401,6 +412,7 @@ public final class LootIndexStore {
             this.count = tables.size();
             this.stale = stale;
             this.done = done;
+            this.hooks = LootHooks.find();
         }
 
         @Override
@@ -414,8 +426,10 @@ public final class LootIndexStore {
                 if (table == null) {
                     if (!tables.hasNext()) {
                         rollingNanos += System.nanoTime() - sliceStarted;
-                        JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms",
-                                count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L);
+                        JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms; "
+                                        + "{} stopped after their first {} rolls fit what they give, {} named by other mods' loot code{}",
+                                count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L, stoppedEarly, FIRST_ROLLS,
+                                hooks.tables().size(), hooks.anyTable() ? ", which may change any table" : "");
                         done.accept(seen);
                         return true;
                     }
@@ -428,8 +442,10 @@ public final class LootIndexStore {
                 boolean broke = false;
                 try {
                     if (roller == null) {
-                        // From the seed and in the level the odds are rolled with.
-                        roller = new LootRolls.Roller(LootRolls.level(server), table, ROLLS, table.hashCode());
+                        // From the seed and in the level the odds are rolled with. A table other mods' code
+                        // changes as it's rolled is rolled in full from the start.
+                        first = !hooks.touches(table);
+                        roller = new LootRolls.Roller(LootRolls.level(server), table, first ? FIRST_ROLLS : ROLLS, table.hashCode());
                     }
                     finished = roller.rollFor(Math.min(left, TABLE_NANOS - tableNanos));
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -440,6 +456,16 @@ public final class LootIndexStore {
                     broke = true;
                 }
                 tableNanos += System.nanoTime() - before;
+                if (first && finished && !broke) {
+                    if (!LootMath.check(server, roller.odds()).fits()) {
+                        // Something may change the table as it's rolled: rolled in full, from the same
+                        // seed, so the first rolls are among them.
+                        roller = new LootRolls.Roller(LootRolls.level(server), table, ROLLS, table.hashCode());
+                        first = false;
+                        continue;
+                    }
+                    stoppedEarly++;
+                }
                 if (finished || tableNanos >= TABLE_NANOS) {
                     if (!broke) {
                         Set<ResourceLocation> items = new TreeSet<>();

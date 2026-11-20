@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.server.LootHooks;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -103,6 +104,27 @@ public final class LootMathTests {
         LootOdds changed = new LootOdds(pyramid, rolled.rolls(), rolled.emptyRolls(), plusOne, 0);
         helper.assertFalse(LootMath.withWorkedOutChances(server, changed).workedOut(),
                 "odds with an item the table can't give were worked out anyway");
+        helper.succeed();
+    }
+
+    /**
+     * With no mod in the game that changes loot as it's rolled, nothing is named on Fabric, where Porting
+     * Lib's and Loot Integrations' lists are read. From 26.1 the test mod listens to Fabric's drops event,
+     * which can change any table. On Forge and NeoForge, whose own loot modifiers aren't read, any table
+     * may be changed, so every table is rolled in full as before.
+     */
+    public static void lootHooksFoundInModsLists(GameTestHelper helper) {
+        LootHooks.Found found = LootHooks.find();
+        //? if fabric {
+        helper.assertTrue(found.tables().isEmpty(), "with no loot-changing mod, these tables were said to be changed: " + found.tables());
+        //?}
+        //? if fabric && >=26.1 {
+        /*helper.assertTrue(found.anyTable(), "the test mod listens to Fabric's drops event, yet no table was said to be changed as it's rolled");
+        *///?} else if fabric {
+        helper.assertFalse(found.anyTable(), "with no loot-changing mod, any table was said to be changed as it's rolled");
+        //?} else {
+        /*helper.assertTrue(found.anyTable(), "Forge's and NeoForge's own loot modifiers aren't read, so any table may be changed");
+        *///?}
         helper.succeed();
     }
 }
