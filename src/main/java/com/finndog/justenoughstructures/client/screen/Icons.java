@@ -35,6 +35,8 @@ final class Icons {
     // The browser's toolbar and popups. A die for a new layout.
     static final ResourceLocation DIE = icon("die");
     static final ResourceLocation HOUSE = icon("house");
+    /** A feather, for flying through the structure. */
+    static final ResourceLocation FLY = icon("fly");
     static final ResourceLocation LAYERS = icon("layers");
     static final ResourceLocation STEP_LEFT = icon("step_left");
     static final ResourceLocation STEP_RIGHT = icon("step_right");

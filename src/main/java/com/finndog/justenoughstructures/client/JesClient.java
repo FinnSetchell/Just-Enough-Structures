@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.client;
 
+import com.finndog.justenoughstructures.client.screen.FlyInput;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -50,6 +51,10 @@ public final class JesClient {
         // Keeps asking for the loot index while it's being built, even with the browser shut,
         // since the recipe viewer plugins wait on it too.
         ClientRequests.tick();
+        // The browser gives the mouse back itself when it stops flying, but not if another mod swaps
+        // the screen without closing it. FlyInput, not JesScreen: this runs from start-up, and loading
+        // the browser then would make its items before the game's registries are ready.
+        FlyInput.backstop(minecraft);
         // Set to Command only, the key does nothing: the browser opens with /jes open alone.
         while (OPEN.consumeClick()) {
             if (minecraft.player != null && minecraft.screen == null && !ClientState.isCommandOnly()) {

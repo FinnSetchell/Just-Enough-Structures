@@ -125,6 +125,13 @@ public final class StructureViewport implements AutoCloseable {
     private long glideStarted;
     private long glidedAt;
     private float homeDistance;
+    /**
+     * Flying through the structure. The camera is still an orbit one, its focus kept a fixed way in
+     * front of the eye: the same view as a first-person camera, and markers keep a sensible size.
+     */
+    private boolean flying;
+    /** How far in front of the eye the focus is kept while flying, in blocks. */
+    private static final float FLY_LOOK = 8f;
 
     private int x, y, width, height;
     private int groundY = -1;
@@ -279,14 +286,18 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    /** Moves the camera smoothly to {@code to} over a fraction of a second. */
+    /** Moves the camera smoothly to {@code to} over a fraction of a second. Not while flying. */
     public void glideTo(Camera to) {
+        if (flying) {
+            return;
+        }
         glide = to;
         glideStarted = glidedAt = System.nanoTime();
     }
 
-    /** Restores a position from {@link #camera()}, and skips fitting the structure to the view. */
+    /** Restores a position from {@link #camera()}, and skips fitting the structure to the view. Stops flying. */
     public void setCamera(Camera camera) {
+        flying = false;
         glide = null;
         yaw = camera.yaw();
         pitch = camera.pitch();
@@ -295,7 +306,9 @@ public final class StructureViewport implements AutoCloseable {
         needsFit = false;
     }
 
+    /** Back to the default view of the whole structure. Stops flying. */
     public void resetCamera() {
+        flying = false;
         glide = null;
         yaw = 225f;
         pitch = 30f;
@@ -312,9 +325,9 @@ public final class StructureViewport implements AutoCloseable {
 
     private boolean needsFit;
 
-    /** Zooms to fit again at the current angle, for when the preview changes size. */
+    /** Zooms to fit again at the current angle, for when the preview changes size. Not while flying, as it would move the eye. */
     public void refit() {
-        if (view != null) {
+        if (view != null && !flying) {
             needsFit = true;
         }
     }
@@ -378,17 +391,27 @@ public final class StructureViewport implements AutoCloseable {
         return all;
     }
 
+    /** Turns the camera around its focus for a drag, or while flying, around the eye. */
     public void rotate(double dx, double dy) {
+        if (flying) {
+            look((float) dx * 0.6f, (float) dy * 0.6f);
+            return;
+        }
         glide = null;
         yaw += (float) dx * 0.6f;
         pitch = Math.max(-89f, Math.min(89f, pitch + (float) dy * 0.6f));
     }
 
     public void spin(float degrees) {
-        yaw += degrees;
+        if (!flying) {
+            yaw += degrees;
+        }
     }
 
     public void pan(double dx, double dy) {
+        if (flying) {
+            return;
+        }
         glide = null;
         float scale = distance * (float) Math.tan(Math.toRadians(FOV / 2f)) * 2f / Math.max(1, height);
         Matrix4f inverse = new Matrix4f(viewMatrix).invert();
@@ -398,6 +421,9 @@ public final class StructureViewport implements AutoCloseable {
     }
 
     public void zoom(double amount) {
+        if (flying) {
+            return;
+        }
         float factor = (float) Math.pow(0.88, amount);
         if (glide != null) {
             // During a glide, zooming changes the glide's target distance, so it still ends centred on its target.
@@ -414,6 +440,127 @@ public final class StructureViewport implements AutoCloseable {
     /** The camera's distance from its focus, or the glide's target distance during a glide. */
     public float targetDistance() {
         return glide != null ? glide.distance() : distance;
+    }
+
+    public boolean flying() {
+        return flying;
+    }
+
+    /**
+     * Starts flying from where the camera is, looking the same way, so the picture doesn't change.
+     * Does nothing before the preview has been drawn.
+     */
+    public void startFlying() {
+        if (view == null || flying || width <= 0 || height <= 0) {
+            return;
+        }
+        if (needsFit) {
+            needsFit = false;
+            fitToView();
+        }
+        glide = null;
+        Vector3f from = eyeNow();
+        flying = true;
+        refocus(from, FLY_LOOK);
+    }
+
+    /**
+     * Stops flying with the picture as it is. Turning the camera after that goes around a point
+     * {@code ahead} blocks in front of the eye, what's at the crosshair, as near or far as the zoom
+     * allows. A negative {@code ahead} keeps the point it has.
+     */
+    public void stopFlying(float ahead) {
+        if (!flying) {
+            return;
+        }
+        flying = false;
+        if (ahead > 0) {
+            refocus(eyeNow(), Math.max(2f, Math.min(homeDistance * 4f, ahead)));
+        }
+    }
+
+    /** Turns the camera on the spot while flying, by degrees. Right and down are positive, as with the mouse. */
+    public void look(float yawBy, float pitchBy) {
+        if (!flying) {
+            return;
+        }
+        Vector3f from = eyeNow();
+        yaw += yawBy;
+        pitch = Math.max(-89f, Math.min(89f, pitch + pitchBy));
+        refocus(from, distance);
+    }
+
+    /** Turns the camera on the spot while flying, to look at a point. */
+    public void face(double px, double py, double pz) {
+        if (!flying) {
+            return;
+        }
+        Vector3f from = eyeNow();
+        float dx = (float) px - from.x();
+        float dy = (float) py - from.y();
+        float dz = (float) pz - from.z();
+        float level = (float) Math.sqrt(dx * dx + dz * dz);
+        if (level < 1e-4f && Math.abs(dy) < 1e-4f) {
+            return;
+        }
+        yaw = (float) Math.toDegrees(Math.atan2(dx, -dz));
+        pitch = Math.max(-89f, Math.min(89f, (float) Math.toDegrees(Math.atan2(-dy, level))));
+        refocus(from, distance);
+    }
+
+    /**
+     * Moves the camera while flying, by blocks: forward and to the right level with the ground, the
+     * way the camera faces, and straight up. It stays within a margin around the structure, though a
+     * camera already further out can still come back.
+     */
+    public void move(float forward, float right, float up) {
+        if (!flying || view == null) {
+            return;
+        }
+        float sin = (float) Math.sin(Math.toRadians(yaw));
+        float cos = (float) Math.cos(Math.toRadians(yaw));
+        Vector3f from = eyeNow();
+        float sx = view.size().getX(), sy = view.size().getY(), sz = view.size().getZ();
+        float margin = Math.max(8f, Math.max(sx, Math.max(sy, sz)) / 2f);
+        float toX = within(from.x() + sin * forward + cos * right, from.x(), -margin, sx + margin);
+        float toY = within(from.y() + up, from.y(), -margin, sy + margin);
+        float toZ = within(from.z() - cos * forward + sin * right, from.z(), -margin, sz + margin);
+        focus.add(toX - from.x(), toY - from.y(), toZ - from.z());
+        updateMatrices();
+    }
+
+    /** {@code to} kept between {@code low} and {@code high}, widened to take in {@code from}. */
+    private static float within(float to, float from, float low, float high) {
+        return Math.max(Math.min(low, from), Math.min(Math.max(high, from), to));
+    }
+
+    /** Where the camera is looking: a unit vector, from yaw and pitch. */
+    private Vector3f forward() {
+        double y = Math.toRadians(yaw);
+        double p = Math.toRadians(pitch);
+        return new Vector3f((float) (Math.sin(y) * Math.cos(p)), (float) -Math.sin(p), (float) (-Math.cos(y) * Math.cos(p)));
+    }
+
+    /** The eye as the camera is now, which the eye field is only once the matrices are worked out again. */
+    private Vector3f eyeNow() {
+        return forward().mul(-distance).add(focus);
+    }
+
+    /** Puts the focus {@code ahead} blocks in front of {@code from}, which leaves the eye there and the view the same. */
+    private void refocus(Vector3f from, float ahead) {
+        distance = ahead;
+        focus.set(forward().mul(ahead).add(from));
+        updateMatrices();
+    }
+
+    /** Where the camera is, in the structure's own block positions. Test hook for the scripted scenarios. */
+    public Vector3f eye() {
+        return eyeNow();
+    }
+
+    /** A copy of the view matrix as last worked out. Test hook for the scripted scenarios. */
+    public Matrix4f viewMatrix() {
+        return new Matrix4f(viewMatrix);
     }
 
     /**

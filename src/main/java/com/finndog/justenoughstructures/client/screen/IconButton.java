@@ -25,7 +25,12 @@ final class IconButton extends JesButton {
 
     /** One of the browser's own 16x16 icons, white with its shadow. */
     IconButton(int x, int y, ResourceLocation icon, Component label, OnPress onPress) {
-        this(x, y, (g, ix, iy) -> Gui.icon(g, icon, ix, iy, Icons.LARGE), null, label, onPress);
+        this(x, y, icon, null, label, onPress);
+    }
+
+    /** The same as a toggle, drawn pressed in while {@code on} says so. */
+    IconButton(int x, int y, ResourceLocation icon, Supplier<Boolean> on, Component label, OnPress onPress) {
+        this(x, y, (g, ix, iy) -> Gui.icon(g, icon, ix, iy, Icons.LARGE), on, label, onPress);
     }
 
     /** A plain 16x16 texture as it is, for items that would animate, like a recovery compass with nowhere to point. */

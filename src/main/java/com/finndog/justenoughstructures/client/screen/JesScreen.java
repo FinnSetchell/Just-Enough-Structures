@@ -41,7 +41,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -69,6 +71,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
+import org.joml.Vector3f;
 //? if >=26.1 {
 /*import net.minecraft.nbt.NbtOps;
 *///?}
@@ -109,6 +112,19 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private Button rerollButton;
     private IconButton markersButton;
     private IconButton groundButton;
+    private IconButton flyButton;
+    /** Whether the fly button's label was last set for flying. */
+    private boolean flyLabelFor;
+    /** Fly speed in steps of double from the usual, -2 (a quarter) to 3 (eight times), kept for the session. */
+    private static int flySpeedStep;
+    /** The wheel turned towards the next speed step, for wheels that turn in small amounts. */
+    private double flyScroll;
+    /** Until when the fly speed shows over the preview after it changes. */
+    private long flySpeedUntil;
+    /** Mouse buttons pressed while flying, one bit each: their releases are fly mode's too. */
+    private int flyPresses;
+    /** Set while opening what's at the crosshair, which needs no turning to. */
+    private boolean fromCrosshair;
     private IconButton maximiseButton;
     private IconButton locateButton;
     private IconButton compassButton;
@@ -364,7 +380,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         // the row is too narrow for its label.
         Component rerollLabel = Component.translatable("screen.justenoughstructures.reroll");
         int rerollWide = LabelledIconButton.widthFor(font, rerollLabel, Icons.LARGE);
-        int others = 22 + 22 + 24;
+        int others = 22 + 22 + 22 + 24;
         int sliderRoom = LayerSlider.LABEL_WIDTH + LAYERS_ICON_ROOM;
         boolean sliderRow = viewW - (22 + others) < sliderRoom;
         boolean roomy = sliderRow ? viewW >= rerollWide + 2 + others - 4 : viewW - (rerollWide + 2 + others) >= sliderRoom;
@@ -419,7 +435,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         rerollButton.setTooltip(Tooltip.create(roomy ? shortcut : rerollLabel.copy().append("\n").append(shortcut)));
         bx += rerollW + 2;
         addRenderableWidget(new IconButton(bx, buttonsY, Icons.HOUSE,
-                Component.translatable("screen.justenoughstructures.reset"), b -> viewport.resetCamera()));
+                Component.translatable("screen.justenoughstructures.reset"), b -> {
+            stopFlying(true);
+            viewport.resetCamera();
+        }));
+        bx += 22;
+        flyButton = addRenderableWidget(new IconButton(bx, buttonsY, Icons.FLY, viewport::flying, flyLabel(), b -> toggleFlying()));
+        flyLabelFor = viewport.flying();
         bx += 22;
         markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> markerKind() == MarkerKind.MOBS ? MOB_MARKERS_ICON : MARKERS_ICON,
                 () -> ClientState.markers && !markersSecret(), markersLabel(), b -> {
@@ -527,6 +549,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         updateMarkersButton();
         updateCompassButton();
         updateConfigButton();
+        // Checked here as well as each frame, as a window can lose the focus and get it back between frames.
+        if (viewport.flying() && !FlyInput.windowActive()) {
+            stopFlying(false);
+        }
+        updateFlyButton();
         // The search looks through loot too, so it's run again whenever the loot index changes.
         if (FoundIn.changes() != seenIndex) {
             seenIndex = FoundIn.changes();
@@ -957,6 +984,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         if (view == null) {
             return;
         }
+        if (viewport.flying()) {
+            // Flying, the camera stays where it is and only turns to face it, such as the next one the
+            // popup's arrows go to. What the crosshair opened is in front of it already.
+            if (!fromCrosshair) {
+                viewport.face(x, y, z);
+            }
+            return;
+        }
         StructureViewport.Camera now = viewport.camera();
         // The first one is seen from the same distance every time; going on to the next keeps a zoom the player chose.
         float distance = tourFrom != null && tourZoom > 0 ? tourZoom : TOUR_DISTANCE;
@@ -977,6 +1012,181 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     /** The block a mob's middle is in, which stands for where it is, as a block does for a container. */
     private static BlockPos mobBlock(Entity mob) {
         return BlockPos.containing(mob.getX(), mob.getY() + mob.getBbHeight() / 2, mob.getZ());
+    }
+
+    // ------------------------------------------------------------------ flying
+
+    private void toggleFlying() {
+        if (viewport.flying()) {
+            stopFlying(true);
+        } else {
+            startFlying();
+        }
+    }
+
+    /** Starts flying through the structure from where the camera is. The mouse is taken in the next frame. */
+    private void startFlying() {
+        if (view == null || picking != Picking.NONE) {
+            return;
+        }
+        viewport.startFlying();
+        setFocused(null);
+        updateFlyButton();
+    }
+
+    /**
+     * Stops flying, the camera staying where it is and turning from then on around what's at the
+     * crosshair. With {@code warp} the cursor comes back at the crosshair; without, it stays where it
+     * is, for a window that has lost the focus.
+     */
+    private void stopFlying(boolean warp) {
+        if (viewport.flying()) {
+            float ahead = -1f;
+            Optional<StructureViewport.Hit> hit = viewport.pick(viewX + viewW / 2.0, viewY + viewH / 2.0);
+            if (hit.isPresent()) {
+                Vector3f eye = viewport.eye();
+                Entity mob = hit.get().entity();
+                BlockPos pos = hit.get().pos();
+                ahead = mob != null ? eye.distance((float) mob.getX(), (float) (mob.getY() + mob.getBbHeight() / 2), (float) mob.getZ())
+                        : eye.distance(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+            }
+            viewport.stopFlying(ahead);
+        }
+        FlyInput.release(this, viewX + viewW / 2.0, viewY + viewH / 2.0, warp);
+        flyPresses = 0;
+        updateFlyButton();
+    }
+
+    /**
+     * Fly mode's part of a frame. Takes the mouse while nothing else needs it and gives it back when
+     * something does, like a popup, so nothing has to remember to give it back, then turns and moves
+     * the camera for the mouse and the keys held.
+     */
+    private void flyFrame(float seconds) {
+        if (viewport.flying() && !FlyInput.windowActive()) {
+            stopFlying(false);
+        }
+        boolean want = viewport.flying() && view != null && popup == null && side() == null && foundIn == null && notes == null
+                && picking == Picking.NONE && FlyInput.canGrab(this);
+        double cx = viewX + viewW / 2.0;
+        double cy = viewY + viewH / 2.0;
+        if (want && !FlyInput.grabbed(this)) {
+            // Space would press whichever button has the keyboard, such as the fly button just clicked.
+            setFocused(null);
+            pressedInViewport = false;
+            flyPresses = 0;
+            FlyInput.grab(this, cx, cy);
+        } else if (!want && FlyInput.grabbed(this)) {
+            FlyInput.release(this, cx, cy, true);
+        }
+        if (!FlyInput.grabbed(this)) {
+            return;
+        }
+        float[] turn = FlyInput.turn();
+        if (turn[0] != 0 || turn[1] != 0) {
+            viewport.look(turn[0], turn[1]);
+        }
+        KeyMapping[] keys = FlyInput.movement();
+        float forward = held(keys[0]) - held(keys[1]);
+        float right = held(keys[3]) - held(keys[2]);
+        float up = held(keys[4]) - held(keys[5]);
+        if (forward != 0 || right != 0 || up != 0) {
+            float step = flySpeed() * (FlyInput.down(keys[6]) ? 2f : 1f) * seconds;
+            viewport.move(forward * step, right * step, up * step);
+        }
+    }
+
+    private static float held(KeyMapping key) {
+        return FlyInput.down(key) ? 1f : 0f;
+    }
+
+    /** How fast the camera flies, in blocks a second: quicker through bigger structures, then the speed the wheel set. */
+    private float flySpeed() {
+        float base = 4f;
+        if (view != null) {
+            float sx = view.size().getX(), sy = view.size().getY(), sz = view.size().getZ();
+            base = Math.max(4f, (float) Math.sqrt(sx * sx + sy * sy + sz * sz) / 8f);
+        }
+        return base * flySpeedFactor();
+    }
+
+    /** The speed the wheel set, from a quarter to eight times the usual. Test hook for the scripted scenarios. */
+    public float flySpeedFactor() {
+        return (float) Math.pow(2, flySpeedStep);
+    }
+
+    /** Whether the preview is flying through the structure. Test hook for the scripted scenarios. */
+    public boolean flying() {
+        return viewport.flying();
+    }
+
+    /** A step of the wheel while flying: faster or slower, shown over the preview for a second. */
+    private void stepFlySpeed(double delta) {
+        flyScroll += delta;
+        int steps = (int) flyScroll;
+        if (steps == 0) {
+            return;
+        }
+        flyScroll -= steps;
+        flySpeedStep = Math.max(-2, Math.min(3, flySpeedStep + steps));
+        flySpeedUntil = Util.getMillis() + 1000;
+    }
+
+    private Component flyLabel() {
+        Component label = Component.translatable(viewport.flying() ? "screen.justenoughstructures.fly_on" : "screen.justenoughstructures.fly_off");
+        return label.copy().append("\n").append(Component.translatable("screen.justenoughstructures.fly_shortcut"));
+    }
+
+    private void updateFlyButton() {
+        if (flyButton == null) {
+            return;
+        }
+        // Nothing to fly through until the structure shows, nor while picking something for Pack tools.
+        flyButton.active = view != null && picking == Picking.NONE;
+        if (flyLabelFor != viewport.flying()) {
+            flyLabelFor = viewport.flying();
+            flyButton.setLabel(flyLabel());
+        }
+    }
+
+    /** The line along the bottom of the preview while flying, naming the keys the player has bound. */
+    private Component flyHint() {
+        Options options = minecraft.options;
+        List<String> move = new ArrayList<>();
+        for (KeyMapping key : new KeyMapping[]{options.keyUp, options.keyLeft, options.keyDown, options.keyRight}) {
+            move.add(key.getTranslatedKeyMessage().getString());
+        }
+        // WASD reads best as one word; keys with longer names, like arrows, get a slash between them.
+        boolean letters = move.stream().allMatch(name -> name.length() == 1);
+        return Component.translatable("screen.justenoughstructures.fly_hint", String.join(letters ? "" : "/", move),
+                options.keyJump.getTranslatedKeyMessage(), options.keyShift.getTranslatedKeyMessage());
+    }
+
+    /** Opens the container, spawner or mob at the crosshair, by its marker or by itself, as a click on it in the preview does. */
+    private void openAtCrosshair() {
+        double cx = viewX + viewW / 2.0;
+        double cy = viewY + viewH / 2.0;
+        fromCrosshair = true;
+        try {
+            for (Marker m : markerRects) {
+                if (onMarker(m, cx, cy) && openMarker(m)) {
+                    Gui.clickSound();
+                    return;
+                }
+            }
+            openPicked(viewport.pick(cx, cy));
+        } finally {
+            fromCrosshair = false;
+        }
+    }
+
+    /** A plus at the middle of the preview, white with a dark edge so it shows on light blocks and dark ones. */
+    private static void crosshair(GuiGraphics g, int cx, int cy) {
+        g.fill(cx - 5, cy - 1, cx + 6, cy + 2, 0x90000000);
+        g.fill(cx - 1, cy - 5, cx + 2, cy - 1, 0x90000000);
+        g.fill(cx - 1, cy + 2, cx + 2, cy + 6, 0x90000000);
+        g.fill(cx - 4, cy, cx + 5, cy + 1, 0xFFFFFFFF);
+        g.fill(cx, cy - 4, cx + 1, cy + 5, 0xFFFFFFFF);
     }
 
     /** Opens a loot table that isn't in this layout, in a popup by itself: its chances and a roll of it. */
@@ -1853,6 +2063,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     /** Starts picking a chest or a spawner to change, from Pack tools. */
     void startPicking(Picking what) {
+        stopFlying(true);
         picking = what;
         closePopup();
         foundIn = null;
@@ -2115,6 +2326,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             case "reroll" -> rerollButton;
             case "markers" -> markersButton;
             case "ground" -> groundButton;
+            case "fly" -> flyButton;
             case "maximise" -> maximiseButton;
             case "locate" -> locateButton;
             case "compass" -> compassButton;
@@ -2179,6 +2391,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     public boolean containerOpen() {
         return popup != null && popup.items != null;
+    }
+
+    /** The container the open popup shows, or null, as for a popup showing all of them. Test hook for the scripted scenarios. */
+    public StructureSnapshot.Container shownContainer() {
+        return popup == null || popup.overview() ? null : popup.container;
     }
 
     public boolean foundInOpen() {
@@ -2375,9 +2592,16 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         long now = System.nanoTime();
         float seconds = Math.min(0.1f, (now - lastFrame) / 1e9f);
         lastFrame = now;
+        flyFrame(seconds);
+        if (FlyInput.centred()) {
+            // The hidden cursor's position means nothing, so the crosshair stands in for it, and the
+            // cursor just put back there is only heard of once it moves.
+            mouseX = viewX + viewW / 2;
+            mouseY = viewY + viewH / 2;
+        }
         // Turns slowly while the mouse is away, and stops where it is once the mouse is over it.
         boolean overPreview = mouseX >= viewX && mouseX < viewX + viewW && mouseY >= viewY && mouseY < viewY + viewH;
-        if (ClientState.spin && view != null && !overPreview && !(pressedInViewport && dragged)) {
+        if (ClientState.spin && view != null && !viewport.flying() && !overPreview && !(pressedInViewport && dragged)) {
             viewport.spin(seconds * 12f);
         }
 
@@ -2651,7 +2875,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         }
         headerOverflow = null;
         headerLines = 1;
-        if (locateText != null && picking == Picking.NONE) {
+        if (viewport.flying() && Util.getMillis() < flySpeedUntil) {
+            String factor = flySpeedStep >= 0 ? Integer.toString(1 << flySpeedStep) : flySpeedStep == -1 ? "0.5" : "0.25";
+            g.drawString(font, Component.translatable("screen.justenoughstructures.fly_speed", factor).getString(), headerTextX(), viewY + 6, 0xFFE0E0E0, true);
+        } else if (locateText != null && picking == Picking.NONE) {
             int room = Math.max(0, overlayLeft() - 4 - headerTextX());
             headerRoom = room;
             int colour = locateFound ? 0xFF9CE89C : locateUntil == Long.MAX_VALUE ? 0xFFE0E0E0 : 0xFFFF9C9C;
@@ -2674,8 +2901,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         } else if (picking != Picking.NONE) {
             pickingStrip(g, mouseX, mouseY);
         } else {
-            Gui.fineClipped(g, font, Component.translatable("screen.justenoughstructures.controls").getString(),
-                    viewX + 6, viewY + viewH - 3 - Gui.fineLine(font), viewW - 12, 0xFFE0E0E0);
+            Component controls = viewport.flying() ? flyHint() : Component.translatable("screen.justenoughstructures.controls");
+            Gui.fineClipped(g, font, controls.getString(), viewX + 6, viewY + viewH - 3 - Gui.fineLine(font), viewW - 12, 0xFFE0E0E0);
+        }
+        if (FlyInput.grabbed(this)) {
+            crosshair(g, viewX + viewW / 2, viewY + viewH / 2);
         }
         Gui.endScissor(g);
 
@@ -3081,6 +3311,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     // What takes a click at a point takes the narration there too, in the same order.
     @Override
     NarrationSupplier narrationAt(double mouseX, double mouseY) {
+        if (FlyInput.grabbed(this)) {
+            // The hidden cursor is over nothing in particular, so the narrator says how to fly instead.
+            return Narration.row(Component.translatable("screen.justenoughstructures.fly_narration", flyHint()));
+        }
         NarrationSupplier bar = navBar.narrationAt(mouseX, mouseY);
         if (bar != null || notes != null) {
             return bar;
@@ -3131,6 +3365,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (FlyInput.grabbed(this)) {
+            // Flying, with the cursor hidden where its position means nothing, every press is fly
+            // mode's. Letting go of the left button opens what's at the crosshair.
+            if (button >= 0 && button < 32) {
+                flyPresses |= 1 << button;
+            }
+            return true;
+        }
         // A click outside the search unfocuses it, as with any text box, so the next keys go to the
         // browser again (like R for a new layout) instead of typing.
         if (search.isFocused() && !search.isMouseOver(mouseX, mouseY)) {
@@ -3274,6 +3516,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dx, double dy) {
+        if (FlyInput.grabbed(this)) {
+            // The camera turns with the mouse anyway, held button or not.
+            return true;
+        }
         if (notes != null) {
             return super.mouseDragged(mouseX, mouseY, button, dx, dy);
         }
@@ -3298,6 +3544,20 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (FlyInput.grabbed(this)) {
+            boolean ours = button >= 0 && button < 32 && (flyPresses & 1 << button) != 0;
+            if (ours) {
+                flyPresses &= ~(1 << button);
+                if (button == InputConstants.MOUSE_BUTTON_LEFT) {
+                    openAtCrosshair();
+                }
+                return true;
+            }
+            // Pressed before flying, like the click on the fly button: let go of it as usual, though
+            // at the crosshair, as the cursor's position means nothing now.
+            mouseX = viewX + viewW / 2.0;
+            mouseY = viewY + viewH / 2.0;
+        }
         if (notes != null) {
             return super.mouseReleased(mouseX, mouseY, button);
         }
@@ -3330,6 +3590,10 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (FlyInput.grabbed(this)) {
+            stepFlySpeed(delta);
+            return true;
+        }
         if (notes != null) {
             if (notes.contains(mouseX, mouseY)) {
                 super.mouseScrolled(mouseX, mouseY, delta);
@@ -3388,6 +3652,20 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             picking = Picking.NONE;
             return true;
         }
+        if (key == InputConstants.KEY_ESCAPE && viewport.flying()) {
+            stopFlying(true);
+            return true;
+        }
+        if (FlyInput.grabbed(this) && (FlyInput.movementKey(key) || key == InputConstants.KEY_SPACE || key == InputConstants.KEY_RETURN
+                || key == InputConstants.KEY_NUMPADENTER || key == InputConstants.KEY_TAB)) {
+            // The movement keys are read each frame, and win over the browser's own shortcuts while
+            // flying. Space, Return and Tab would work whichever button has the keyboard.
+            return true;
+        }
+        if (key == InputConstants.KEY_F && !search.isFocused() && popup == null && side() == null && foundIn == null && picking == Picking.NONE) {
+            toggleFlying();
+            return true;
+        }
         if (key == InputConstants.KEY_U && !search.isFocused()) {
             ItemStack hovered = popup != null || side() != null ? popupHovered : info.hoveredStack();
             if (!hovered.isEmpty()) {
@@ -3434,6 +3712,9 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
 
     @Override
     public void removed() {
+        // Another screen is opening, or the world is showing again: the mouse is given back now, as
+        // nothing else would. If the game has taken it already, it's left to the game.
+        stopFlying(true);
         if (notes != null) {
             notes.save();
         }
