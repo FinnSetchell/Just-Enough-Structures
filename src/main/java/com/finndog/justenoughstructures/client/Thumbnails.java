@@ -39,8 +39,10 @@ import com.finndog.justenoughstructures.client.render.StructureViewport;
  * Small pictures of structures for the list, Pack tools, the found-in popup and recipe viewers. Each
  * is drawn at twice its shown size and halved smoothly, so edges stay clean at any GUI scale. A copy
  * saved to disk is reused, so the list doesn't need the server to generate every structure again,
- * while the structure's definition, the server's fingerprint (mods, datapacks, pools and templates),
- * the resource packs and the shown size all match. Render thread only.
+ * while the structure's definition and the server's fingerprint (mods, datapacks, pools and
+ * templates) match. One is kept for each shown size and set of resource packs, so going back to a GUI
+ * scale or packs used before finds its pictures; a change to the structure itself drops them all.
+ * Render thread only.
  */
 public final class Thumbnails {
     /** Bump when thumbnails are drawn differently, so saved ones aren't reused. */
@@ -49,11 +51,17 @@ public final class Thumbnails {
     /** Largest shown size in GUI units, used by the found-in popup and recipe viewers. The list and Pack tools show 16. */
     private static final int SHOWN_AT = 18;
 
+    /**
+     * Pictures in memory made for a GUI scale or resource packs other than the current ones. They're
+     * still shown until a picture for the current ones is read or drawn, but don't count as there.
+     */
+    private static final Set<ResourceLocation> STALE = new HashSet<>();
     private static final Map<ResourceLocation, DynamicTexture> CACHE = new LinkedHashMap<>(64, 0.75f, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<ResourceLocation, DynamicTexture> eldest) {
             if (size() > MAX) {
-                eldest.getValue().close();
+                retire(eldest.getValue());
+                STALE.remove(eldest.getKey());
                 return true;
             }
             return false;
@@ -74,10 +82,13 @@ public final class Thumbnails {
     private static final long LONGEST_WAIT_MILLIS = 160_000L;
     /** Thumbnails drawn but still being copied back from the GPU, which takes a frame or so from 26.1. */
     private static final Set<ResourceLocation> PENDING = new HashSet<>();
-    /** Incremented by {@link #clear()}, so a GPU copy that finishes after it is discarded. */
+    /** Incremented whenever the pictures in memory go out of date, so a GPU copy that finishes after that is discarded. */
     private static int generation;
     private static Map<ResourceLocation, String> keys = Map.of();
-    private static int savedSize;
+    /** The shown size and resource packs the pictures in memory were made with. */
+    private static int lookSize;
+    private static Object lookPacks;
+    private static String lookPackIds = "";
 
     private Thumbnails() {
     }
@@ -91,22 +102,60 @@ public final class Thumbnails {
         return Math.max(16, (int) Math.ceil(SHOWN_AT * Minecraft.getInstance().getWindow().getGuiScale()));
     }
 
-    /** The thumbnail's texture, read from disk if there's a saved one, or null if there's none. */
+    /**
+     * The thumbnail's texture for the current GUI scale and resource packs, read from disk if there's
+     * a saved one, or null if there's none.
+     */
     private static DynamicTexture texture(ResourceLocation id) {
+        checkLook();
         DynamicTexture texture = CACHE.get(id);
-        if (texture == null && load(id)) {
-            texture = CACHE.get(id);
+        if ((texture == null || STALE.contains(id)) && load(id)) {
+            return CACHE.get(id);
         }
-        return texture;
+        return STALE.contains(id) ? null : texture;
     }
 
+    /** Whether the structure has a thumbnail for the current GUI scale and resource packs, or one on its way. */
     public static boolean has(ResourceLocation id) {
+        checkLook();
         return PENDING.contains(id) || texture(id) != null;
     }
 
-    /** Draws the structure's thumbnail {@code size} square. Returns false, drawing nothing, if there isn't one. */
+    /**
+     * Marks the pictures in memory out of date when the GUI scale or the resource packs have changed
+     * since they were made, so each is read from disk or drawn again for the new ones. The selected
+     * packs list is a new object after every reload, so its ids are only compared then. Not while packs
+     * are still loading, when a picture drawn could have the old textures.
+     */
+    private static void checkLook() {
+        Minecraft mc = Minecraft.getInstance();
+        int size = shownSize();
+        Object packs = mc.getResourcePackRepository().getSelectedPacks();
+        if (size == lookSize && packs == lookPacks || mc.getOverlay() != null) {
+            return;
+        }
+        String packIds = String.join(",", mc.getResourcePackRepository().getSelectedIds());
+        boolean changed = size != lookSize || !packIds.equals(lookPackIds);
+        lookSize = size;
+        lookPacks = packs;
+        lookPackIds = packIds;
+        if (changed) {
+            STALE.addAll(CACHE.keySet());
+            PENDING.clear();
+            generation++;
+            NOT_SAVED.clear();
+        }
+    }
+
+    /**
+     * Draws the structure's thumbnail {@code size} square, or the one from before a GUI scale or
+     * resource pack change until it's replaced. Returns false, drawing nothing, if there isn't one.
+     */
     public static boolean draw(GuiGraphics g, ResourceLocation id, int x, int y, int size) {
         DynamicTexture texture = texture(id);
+        if (texture == null) {
+            texture = CACHE.get(id);
+        }
         if (texture == null) {
             return false;
         }
@@ -169,17 +218,37 @@ public final class Thumbnails {
     private static void keep(ResourceLocation id, NativeImage drawn) {
         NativeImage small = halve(drawn);
         drawn.close();
+        checkLook();
+        if (small.getWidth() != lookSize) {
+            // Drawn for a GUI scale that has changed since. It'll be drawn again at the new one.
+            small.close();
+            return;
+        }
 
         NativeImage copy = new NativeImage(small.getWidth(), small.getHeight(), false);
         copy.copyFrom(small);
         DynamicTexture texture = texture(small);
         DynamicTexture old = CACHE.put(id, texture);
         if (old != null && old != texture) {
-            old.close();
+            retire(old);
         }
+        STALE.remove(id);
         NOT_SAVED.remove(id);
         LATER.remove(id);
         save(id, copy);
+    }
+
+    /**
+     * Frees a picture that's been replaced, which may already be queued to draw this frame. From 26.1
+     * the screen is drawn at the end of the frame and a closed picture can't be drawn, so it's freed
+     * once the frame is done.
+     */
+    private static void retire(DynamicTexture texture) {
+        //? if >=26.1 {
+        /*RenderSystem.queueFencedTask(texture::close);
+        *///?} else {
+        texture.close();
+        //?}
     }
 
     private static DynamicTexture texture(NativeImage image) {
@@ -249,9 +318,8 @@ public final class Thumbnails {
     static void onCatalog(String fingerprint, List<StructureCatalog.Entry> entries) {
         Map<ResourceLocation, String> out = new HashMap<>();
         if (fingerprint != null) {
-            String packs = String.join(",", Minecraft.getInstance().getResourcePackRepository().getSelectedIds());
             for (StructureCatalog.Entry entry : entries) {
-                out.put(entry.id(), entry.id() + "|" + entry.definition() + "|" + fingerprint + "|" + packs);
+                out.put(entry.id(), entry.id() + "|" + entry.definition() + "|" + fingerprint);
             }
         }
         keys = out;
@@ -284,6 +352,7 @@ public final class Thumbnails {
     public static void clear() {
         CACHE.values().forEach(DynamicTexture::close);
         CACHE.clear();
+        STALE.clear();
         PENDING.clear();
         generation++;
         NOT_SAVED.clear();
@@ -292,38 +361,46 @@ public final class Thumbnails {
         keys = Map.of();
     }
 
-    /** The saved file's name for the structure's current state at the current shown size. */
-    private static String fileKey(ResourceLocation id) {
+    /**
+     * The start of the saved files' names for the structure's current state, or null without one.
+     * Pictures of the structure from before it changed don't start with it.
+     */
+    private static String statePrefix(ResourceLocation id) {
         String base = keys.get(id);
         if (base == null) {
             return null;
         }
-        int size = shownSize();
-        if (size != savedSize) {
-            // The GUI scale changed, so saved pictures are the wrong size. Look for them again.
-            savedSize = size;
-            NOT_SAVED.clear();
-        }
         Hasher hasher = Hashing.murmur3_128().newHasher();
-        hasher.putInt(VERSION).putInt(size).putString(base, StandardCharsets.UTF_8);
-        return hasher.hash().toString();
+        hasher.putInt(VERSION).putString(base, StandardCharsets.UTF_8);
+        return hasher.hash() + "-";
+    }
+
+    /** The saved file's name for the structure's current state at the current shown size and resource packs, or null. */
+    private static String fileName(ResourceLocation id) {
+        String prefix = statePrefix(id);
+        if (prefix == null) {
+            return null;
+        }
+        Hasher hasher = Hashing.murmur3_32_fixed().newHasher();
+        hasher.putInt(lookSize).putString(lookPackIds, StandardCharsets.UTF_8);
+        return prefix + hasher.hash() + ".png";
     }
 
     /**
      * The folder for a structure's pictures, or null for an id that would reach outside the cache.
-     * Structure ids come from the server, and saving a picture deletes the others in its folder.
+     * Structure ids come from the server, and saving a picture deletes others in its folder.
      */
     private static Path folder(ResourceLocation id) {
         return Ids.fileSafe(id) ? JustEnoughStructures.cacheDir().resolve("thumbnails").resolve(id.getNamespace()).resolve(id.getPath()) : null;
     }
 
     private static boolean load(ResourceLocation id) {
-        String key = fileKey(id);
-        if (key == null || NOT_SAVED.contains(id)) {
+        String name = fileName(id);
+        if (name == null || NOT_SAVED.contains(id)) {
             return false;
         }
         Path dir = folder(id);
-        Path file = dir == null ? null : dir.resolve(key + ".png");
+        Path file = dir == null ? null : dir.resolve(name);
         if (file == null || !Files.exists(file)) {
             NOT_SAVED.add(id);
             return false;
@@ -334,7 +411,11 @@ public final class Thumbnails {
             // Stored the right way up; textures drawn into render targets are upside down.
             image.flipY();
             //?}
-            CACHE.put(id, texture(image));
+            DynamicTexture old = CACHE.put(id, texture(image));
+            if (old != null) {
+                retire(old);
+            }
+            STALE.remove(id);
             return true;
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't read the saved thumbnail {}", file, e);
@@ -343,11 +424,39 @@ public final class Thumbnails {
         }
     }
 
+    /** The width in pixels of the structure's picture in memory, or 0 with none there. Test hook for the scripted scenarios. */
+    public static int widthInMemory(ResourceLocation id) {
+        DynamicTexture texture = CACHE.get(id);
+        NativeImage pixels = texture == null ? null : texture.getPixels();
+        return pixels == null ? 0 : pixels.getWidth();
+    }
+
+    /** The structure's picture in memory, or null, to tell one picture from the next. Test hook for the scripted scenarios. */
+    public static Object inMemory(ResourceLocation id) {
+        return CACHE.get(id);
+    }
+
+    /** The structures with a picture in memory, out of date or not. Test hook for the scripted scenarios. */
+    public static Set<ResourceLocation> inMemory() {
+        return Set.copyOf(CACHE.keySet());
+    }
+
+    /** How wide a picture is at the current GUI scale. Test hook for the scripted scenarios. */
+    public static int widthNow() {
+        return shownSize();
+    }
+
+    /** The folder the structure's pictures are saved in. Test hook for the scripted scenarios. */
+    public static Path savedIn(ResourceLocation id) {
+        return folder(id);
+    }
+
     /** Writes the picture to disk off the render thread, then frees it. */
     private static void save(ResourceLocation id, NativeImage image) {
-        String key = fileKey(id);
+        String prefix = statePrefix(id);
+        String name = fileName(id);
         Path dir = folder(id);
-        if (key == null || dir == null) {
+        if (name == null || dir == null) {
             image.close();
             return;
         }
@@ -357,13 +466,14 @@ public final class Thumbnails {
         Util.ioPool().execute(() -> {
             try (image) {
                 Files.createDirectories(dir);
-                // Keep only the picture for the structure's current state.
+                // Keep the pictures for the structure's current state, at every GUI scale and with
+                // every set of resource packs, and none from before it changed.
                 try (Stream<Path> old = Files.list(dir)) {
-                    for (Path file : old.filter(p -> p.toString().endsWith(".png")).toList()) {
+                    for (Path file : old.filter(p -> p.toString().endsWith(".png") && !p.getFileName().toString().startsWith(prefix)).toList()) {
                         Files.deleteIfExists(file);
                     }
                 }
-                image.writeToFile(dir.resolve(key + ".png"));
+                image.writeToFile(dir.resolve(name));
             } catch (IOException | RuntimeException e) {
                 JesLog.debug("Couldn't save the thumbnail for {}", id, e);
             }

@@ -54,6 +54,7 @@ public final class Scenarios {
             case "config_link" -> ConfigScenario.link(mc);
             case "config_owner" -> ConfigScenario.owner(mc);
             case "config_msl" -> ConfigScenario.msl(mc);
+            case "thumbnails" -> ThumbnailScenario.build(mc);
             case "command_only" -> CommandOnlyScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
