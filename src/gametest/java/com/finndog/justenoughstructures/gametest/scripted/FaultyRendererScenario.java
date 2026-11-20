@@ -38,6 +38,12 @@ import net.minecraft.client.renderer.Sheets;
  * sand may be left out, and no chest may be drawn where the sand's renderer left the pose. Until
  * 26.1 the half vertex lands in the chests' buffer. From 26.1 it's in custom geometry the game draws
  * later, and running out of stack happens during extraction, which the game doesn't wrap.
+ *
+ * <p>With {@code GAME_BUFFERS} (until 26.1, where the game has buffers a renderer can reach) the
+ * renderer writes its half vertex into the game's own buffers instead of the ones it's given, as some
+ * mods' renderers do. Once the preview has given up on it, the game's buffers must hold nothing it
+ * wrote, which the next thing drawn with that render type would otherwise draw too. Then chests are
+ * put all round the player and the world drawn for a while without the browser: it must go on.
  */
 final class FaultyRendererScenario {
     /** How far off the faulty renderer moves the poses it leaves pushed. */
@@ -63,13 +69,30 @@ final class FaultyRendererScenario {
         /** Runs out of stack, after leaving poses pushed and half a vertex until 26.1. */
         OUT_OF_STACK,
         /** Only leaves poses pushed, then throws, so a pose left wrong shows on its own. */
-        POSES
+        POSES,
+        /** Writes half a vertex into the game's own buffers, not the ones it's given, then throws. */
+        GAME_BUFFERS
     }
+
+    /** How many times the faulty renderer has written into the game's buffers. */
+    private static int gameBufferWrites;
 
     static Director build(Minecraft mc, Fault fault) {
         Object[] kept = new Object[1];
         JesScreen.startOn(Ids.parse("desert_pyramid"));
         Director d = new Director(mc);
+        if (fault == Fault.GAME_BUFFERS) {
+            //? if >=26.1 {
+            /*throw new UnsupportedOperationException("from 26.1 the game has no buffers a block entity renderer can reach");
+            *///?} else {
+            d.then(run(() -> {
+                String left = leftInGameBuffers(mc);
+                if (!left.isEmpty()) {
+                    throw new IllegalStateException("The game's buffers held something before the faulty renderer ran: " + left);
+                }
+            }));
+            //?}
+        }
         d.then(run(() -> kept[0] = install(mc, fault)))
                 .then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -80,12 +103,118 @@ final class FaultyRendererScenario {
                     case HALF_VERTEX -> "r01_after_renderer_half_vertex";
                     case OUT_OF_STACK -> "r02_after_renderer_error";
                     case POSES -> "r03_after_renderer_poses";
+                    case GAME_BUFFERS -> "r04_after_renderer_game_buffers";
                 }))
                 .then(run(() -> {
                     restore(mc, kept[0]);
                     check(mc);
                 }));
+        if (fault == Fault.GAME_BUFFERS) {
+            d.then(run(() -> {
+                        if (gameBufferWrites == 0) {
+                            throw new IllegalStateException("The faulty renderer never wrote into the game's buffers");
+                        }
+                        String left = leftInGameBuffers(mc);
+                        if (!left.isEmpty()) {
+                            throw new IllegalStateException("After the preview gave up on the faulty renderer, the game's buffers still hold what it wrote: " + left);
+                        }
+                        mc.setScreen(null);
+                    }))
+                    // Chests all round the player, so the world draws the game's chest buffer, for a while.
+                    .then(run(() -> command(mc, "fill ~-4 ~-1 ~-4 ~4 ~3 ~4 minecraft:chest outline")))
+                    .then(pause(100))
+                    .then(shoot("r05_world_after_game_buffers"))
+                    .then(run(() -> command(mc, "fill ~-4 ~-1 ~-4 ~4 ~3 ~4 minecraft:air outline")));
+        }
         return d;
+    }
+
+    //? if <1.21 {
+    /**
+     * What's left in the game's buffers between frames, by render type, when nothing should be: a
+     * buffer still being written. Read by field type, as the fields' names differ between loaders.
+     */
+    private static String leftInGameBuffers(Minecraft mc) {
+        MultiBufferSource.BufferSource source = mc.renderBuffers().bufferSource();
+        java.util.List<String> left = new java.util.ArrayList<>();
+        try {
+            for (java.lang.reflect.Field field : MultiBufferSource.BufferSource.class.getDeclaredFields()) {
+                field.setAccessible(true);
+                Object value = field.get(source);
+                if (value instanceof com.mojang.blaze3d.vertex.BufferBuilder builder && builder.building()) {
+                    left.add("the shared buffer");
+                } else if (value instanceof Map<?, ?> buffers) {
+                    for (Map.Entry<?, ?> entry : buffers.entrySet()) {
+                        if (entry.getValue() instanceof com.mojang.blaze3d.vertex.BufferBuilder builder && builder.building()) {
+                            left.add(String.valueOf(entry.getKey()));
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("couldn't read the game's buffers", e);
+        }
+        return String.join(", ", left);
+    }
+    //?} else if <26.1 {
+    /*/^*
+     * What's left in the game's buffers between frames, by render type, when nothing should be: data
+     * written but not drawn, which the next batch in that buffer would draw too, and batches still
+     * being written. Reading it lets it go, as drawing would. Read by field type, as the fields' names
+     * differ between loaders.
+     ^/
+    private static String leftInGameBuffers(Minecraft mc) {
+        MultiBufferSource.BufferSource source = mc.renderBuffers().bufferSource();
+        java.util.List<String> left = new java.util.ArrayList<>();
+        try {
+            for (java.lang.reflect.Field field : MultiBufferSource.BufferSource.class.getDeclaredFields()) {
+                field.setAccessible(true);
+                Object value = field.get(source);
+                if (value instanceof com.mojang.blaze3d.vertex.ByteBufferBuilder memory) {
+                    if (undrawn(memory)) {
+                        left.add("the shared buffer");
+                    }
+                } else if (value instanceof Map<?, ?> buffers) {
+                    for (Map.Entry<?, ?> entry : buffers.entrySet()) {
+                        if (entry.getValue() instanceof com.mojang.blaze3d.vertex.ByteBufferBuilder memory && undrawn(memory)) {
+                            left.add(String.valueOf(entry.getKey()));
+                        } else if (entry.getValue() instanceof com.mojang.blaze3d.vertex.BufferBuilder) {
+                            left.add(entry.getKey() + ", still being written");
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("couldn't read the game's buffers", e);
+        }
+        return String.join(", ", left);
+    }
+
+    private static boolean undrawn(com.mojang.blaze3d.vertex.ByteBufferBuilder memory) {
+        com.mojang.blaze3d.vertex.ByteBufferBuilder.Result result = memory.build();
+        if (result == null) {
+            return false;
+        }
+        result.close();
+        return true;
+    }
+    *///?} else {
+    /*/^* From 26.1 the game has no buffers a block entity renderer can reach, so nothing can be left in them. ^/
+    private static String leftInGameBuffers(Minecraft mc) {
+        return "";
+    }
+    *///?}
+
+    /** Runs a command as the player, on the server. */
+    private static void command(Minecraft mc, String command) {
+        net.minecraft.server.MinecraftServer server = mc.getSingleplayerServer();
+        java.util.UUID id = mc.player.getUUID();
+        server.execute(() -> {
+            net.minecraft.server.level.ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) {
+                server.getCommands().performPrefixedCommand(player.createCommandSourceStack(), command);
+            }
+        });
     }
 
     private static void check(Minecraft mc) {
@@ -137,6 +266,7 @@ final class FaultyRendererScenario {
     private static Object install(Minecraft mc, Fault fault) {
         chestsDrawn = 0;
         chestsFarOff = 0;
+        gameBufferWrites = 0;
         Object dispatcher = mc.getBlockEntityRenderDispatcher();
         Object before = Reflect.get(dispatcher, "renderers");
         Map<Object, Object> renderers = new HashMap<>((Map<Object, Object>) before);
@@ -155,7 +285,10 @@ final class FaultyRendererScenario {
         @Override
         public void render(BlockEntity be, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay) {
             leavePosesPushed(pose);
-            if (fault != Fault.POSES) {
+            if (fault == Fault.GAME_BUFFERS) {
+                gameBufferWrites++;
+                Minecraft.getInstance().renderBuffers().bufferSource().getBuffer(Sheets.chestSheet()).vertex(pose.last().pose(), 0f, 0f, 0f);
+            } else if (fault != Fault.POSES) {
                 buffers.getBuffer(Sheets.chestSheet()).vertex(pose.last().pose(), 0f, 0f, 0f);
             }
             fail(fault == Fault.OUT_OF_STACK);
@@ -166,7 +299,10 @@ final class FaultyRendererScenario {
         @Override
         public void render(BlockEntity be, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay) {
             leavePosesPushed(pose);
-            if (fault != Fault.POSES) {
+            if (fault == Fault.GAME_BUFFERS) {
+                gameBufferWrites++;
+                Minecraft.getInstance().renderBuffers().bufferSource().getBuffer(Sheets.chestSheet()).addVertex(pose.last().pose(), 0f, 0f, 0f);
+            } else if (fault != Fault.POSES) {
                 buffers.getBuffer(Sheets.chestSheet()).addVertex(pose.last().pose(), 0f, 0f, 0f);
             }
             fail(fault == Fault.OUT_OF_STACK);

@@ -77,6 +77,7 @@ public final class Scenarios {
             case "faulty_renderer" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.HALF_VERTEX);
             case "faulty_renderer_error" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.OUT_OF_STACK);
             case "faulty_renderer_pose" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.POSES);
+            case "faulty_renderer_game_buffers" -> FaultyRendererScenario.build(mc, FaultyRendererScenario.Fault.GAME_BUFFERS);
             case "faulty_fluid" -> FaultyFluidScenario.build(mc);
             case "faulty_mob_name" -> MobNameScenario.build(mc);
             case "faulty_minecart" -> LeftOutMinecartScenario.build(mc);
