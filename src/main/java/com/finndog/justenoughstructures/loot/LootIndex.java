@@ -38,10 +38,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 //? if >=1.21 {
 /*import com.mojang.serialization.JsonOps;
 import net.minecraft.resources.RegistryOps;
 *///?} else {
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.world.level.storage.loot.LootDataType;
 //?}
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -59,10 +62,16 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
  */
 public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure,
                         Map<ResourceLocation, Set<ResourceLocation>> itemsByTable,
-                        Map<ResourceLocation, Set<ResourceLocation>> placedByStructure) {
+                        Map<ResourceLocation, Set<ResourceLocation>> placedByStructure,
+                        Map<ResourceLocation, Map<ResourceLocation, Set<String>>> kindsByTable) {
 
     public LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure, Map<ResourceLocation, Set<ResourceLocation>> itemsByTable) {
         this(tablesByStructure, itemsByTable, Map.of());
+    }
+
+    public LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStructure, Map<ResourceLocation, Set<ResourceLocation>> itemsByTable,
+                     Map<ResourceLocation, Set<ResourceLocation>> placedByStructure) {
+        this(tablesByStructure, itemsByTable, placedByStructure, Map.of());
     }
 
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
@@ -193,9 +202,16 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     public static LootIndex of(MinecraftServer server, StructureScan scan, Map<ResourceLocation, String> hashes) {
         return JesLog.quietly(() -> {
             Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
+            Map<ResourceLocation, Map<ResourceLocation, Set<String>>> kinds = new TreeMap<>();
             for (Set<ResourceLocation> structureTables : scan.tables().values()) {
                 for (ResourceLocation table : structureTables) {
-                    items.computeIfAbsent(table, t -> itemsIn(server, t, new HashSet<>()));
+                    if (!items.containsKey(table)) {
+                        items.put(table, itemsIn(server, table, new HashSet<>()));
+                        Map<ResourceLocation, Set<String>> given = kindsIn(server, table);
+                        if (!given.isEmpty()) {
+                            kinds.put(table, given);
+                        }
+                    }
                 }
             }
             scan.rolled().forEach((table, rolled) -> {
@@ -204,7 +220,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     read.addAll(rolled.items());
                 }
             });
-            return new LootIndex(scan.tables(), items, scan.placed());
+            return new LootIndex(scan.tables(), items, scan.placed(), kinds);
         });
     }
 
@@ -275,7 +291,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 given.addAll(extra);
             }
         });
-        return new LootIndex(tablesByStructure, items, placedByStructure);
+        return new LootIndex(tablesByStructure, items, placedByStructure, kindsByTable);
     }
 
     private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
@@ -554,6 +570,203 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             JesLog.warnOnce("loot-table-unreadable", "Couldn't read the loot table {}, so its items aren't listed. Any more tables like it go to the debug log: {}",
                     tableId, e.toString());
             JesLog.debug("Couldn't read loot table {}", tableId, e);
+        }
+        return out;
+    }
+
+    /**
+     * The potions and named enchanted books a table can give ({@link ItemKinds}), by item, read from the
+     * table and the tables it rolls in turn: each potion a set_potion, or its data, gives a potion,
+     * splash or lingering potion or tipped arrow, and each enchantment a book is given by name. Read for
+     * the recipe viewers, which list each potion and book on its own, so a looked-up one finds its
+     * structures. A book with any random enchantment names none, and is left as a plain book: a lookup
+     * of one enchantment would list every such structure, each at about 1% (Finn, 20 November 2026).
+     * What loot modifiers add only shows when a table is rolled, and isn't here.
+     */
+    public static Map<ResourceLocation, Set<String>> kindsIn(MinecraftServer server, ResourceLocation tableId) {
+        Map<ResourceLocation, Set<String>> out = new TreeMap<>();
+        try {
+            Set<ResourceLocation> seen = new HashSet<>();
+            seen.add(tableId);
+            JsonElement json = json(server, tableId);
+            if (json instanceof JsonObject table) {
+                kinds(server, LootFormat.forEditing(table), List.of(), out, seen);
+            }
+        } catch (RuntimeException e) {
+            JesLog.debug("Couldn't read which potions and books loot table {} gives", tableId, e);
+        }
+        return out;
+    }
+
+    /** A table's kinds, with {@code outer} the functions of what rolled it, which run after its own. */
+    private static void kinds(MinecraftServer server, JsonObject table, List<JsonObject> outer, Map<ResourceLocation, Set<String>> out,
+                              Set<ResourceLocation> seen) {
+        List<JsonObject> tableFunctions = withFunctions(outer, table);
+        for (JsonElement pool : list(table.get("pools"))) {
+            if (pool instanceof JsonObject p) {
+                List<JsonObject> functions = withFunctions(tableFunctions, p);
+                for (JsonElement entry : list(p.get("entries"))) {
+                    entryKinds(server, entry, functions, out, seen);
+                }
+            }
+        }
+    }
+
+    private static void entryKinds(MinecraftServer server, JsonElement json, List<JsonObject> outer, Map<ResourceLocation, Set<String>> out,
+                                   Set<ResourceLocation> seen) {
+        if (!(json instanceof JsonObject entry)) {
+            return;
+        }
+        ResourceLocation type = idAt(entry, "type");
+        String kind = type == null ? "" : type.getPath();
+        List<JsonObject> functions = withFunctions(outer, entry);
+        switch (kind) {
+            case "item" -> {
+                ResourceLocation name = idAt(entry, "name");
+                if (name != null) {
+                    itemKinds(server, name, functions, out);
+                }
+            }
+            case "loot_table" -> {
+                // A table within a table is its id, under value from 1.20.5 and name before, or the table itself.
+                if (entry.get("value") instanceof JsonObject inline) {
+                    kinds(server, inline, functions, out, seen);
+                    return;
+                }
+                ResourceLocation name = entry.has("value") ? idAt(entry, "value") : idAt(entry, "name");
+                if (name != null && seen.add(name) && json(server, name) instanceof JsonObject nested) {
+                    kinds(server, LootFormat.forEditing(nested), functions, out, seen);
+                }
+            }
+            case "alternatives", "group", "sequence" -> list(entry.get("children")).forEach(child -> entryKinds(server, child, functions, out, seen));
+            default -> {
+            }
+        }
+    }
+
+    /** The potions or named books an item entry gives, through the functions that run on it. */
+    private static void itemKinds(MinecraftServer server, ResourceLocation name, List<JsonObject> functions, Map<ResourceLocation, Set<String>> out) {
+        Item item = Regs.value(BuiltInRegistries.ITEM, name);
+        boolean potion = ItemKinds.carriesPotion(item);
+        boolean book = item == Items.BOOK || item == Items.ENCHANTED_BOOK;
+        if (!potion && !book) {
+            return;
+        }
+        Set<String> kinds = new TreeSet<>();
+        for (JsonObject function : functions) {
+            ResourceLocation kind = idAt(function, "function");
+            if (kind == null || !kind.getNamespace().equals("minecraft")) {
+                continue;
+            }
+            switch (kind.getPath()) {
+                case "set_potion" -> {
+                    ResourceLocation id = idAt(function, "id");
+                    if (potion && id != null) {
+                        kinds.add(ItemKinds.POTION + id);
+                    }
+                }
+                //? if >=1.21 {
+                /*case "set_components" -> {
+                    // A potion given as data: its contents are the potion's id, or have it under potion.
+                    if (potion && function.get("components") instanceof JsonObject components) {
+                        JsonElement contents = components.get("minecraft:potion_contents");
+                        ResourceLocation id = contents == null ? null : contents.isJsonPrimitive() ? ResourceLocation.tryParse(contents.getAsString())
+                                : contents instanceof JsonObject object ? idAt(object, "potion") : null;
+                        if (id != null) {
+                            kinds.add(ItemKinds.POTION + id);
+                        }
+                    }
+                }
+                *///?} else {
+                case "set_nbt" -> {
+                    // A potion given as NBT: its Potion tag.
+                    if (potion && function.has("tag") && function.get("tag").isJsonPrimitive()) {
+                        try {
+                            CompoundTag tag = TagParser.parseTag(function.get("tag").getAsString());
+                            ResourceLocation id = tag.contains("Potion") ? ResourceLocation.tryParse(tag.getString("Potion")) : null;
+                            if (id != null) {
+                                kinds.add(ItemKinds.POTION + id);
+                            }
+                        } catch (CommandSyntaxException e) {
+                            JesLog.debug("Couldn't read the NBT a loot table gives a potion", e);
+                        }
+                    }
+                }
+                //?}
+                case "enchant_randomly", "set_enchantments" -> {
+                    if (book) {
+                        named(function).forEach(id -> kinds.add(ItemKinds.ENCHANTMENT + id));
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+        if (!kinds.isEmpty()) {
+            // A book given an enchantment comes out an enchanted book.
+            out.computeIfAbsent(book ? BuiltInRegistries.ITEM.getKey(Items.ENCHANTED_BOOK) : name, id -> new TreeSet<>()).addAll(kinds);
+        }
+    }
+
+    /** The most enchantments a random one is picked from for its book to count as named, like trial chambers' Breach or Density. */
+    private static final int MOST_NAMED = 8;
+
+    /**
+     * The enchantments set_enchantments or enchant_randomly names: set_enchantments' own, and the ones
+     * enchant_randomly picks from when it lists a few by id. None when it picks from a tag or from
+     * every enchantment.
+     */
+    private static Set<ResourceLocation> named(JsonObject function) {
+        Set<ResourceLocation> out = new TreeSet<>();
+        if (function.get("enchantments") instanceof JsonObject given) {
+            // set_enchantments: each enchantment with its level.
+            given.keySet().forEach(id -> {
+                ResourceLocation parsed = ResourceLocation.tryParse(id);
+                if (parsed != null) {
+                    out.add(parsed);
+                }
+            });
+            return out;
+        }
+        // enchant_randomly: its options from 1.21, a list of enchantments before.
+        JsonElement options = function.has("options") ? function.get("options") : function.get("enchantments");
+        List<JsonElement> listed = list(options);
+        if (listed.isEmpty() || listed.size() > MOST_NAMED) {
+            return out;
+        }
+        for (JsonElement option : listed) {
+            String id = option.isJsonPrimitive() ? option.getAsString() : "#";
+            ResourceLocation parsed = id.startsWith("#") ? null : ResourceLocation.tryParse(id);
+            if (parsed == null) {
+                return Set.of();
+            }
+            out.add(parsed);
+        }
+        return out;
+    }
+
+    /** The holder's own functions followed by {@code outer}, as its own run first. */
+    private static List<JsonObject> withFunctions(List<JsonObject> outer, JsonObject holder) {
+        List<JsonObject> out = new ArrayList<>();
+        for (JsonElement function : list(holder.get("functions"))) {
+            if (function instanceof JsonObject f) {
+                out.add(f);
+            }
+        }
+        out.addAll(outer);
+        return out;
+    }
+
+    /** One element as a list of it, a list as itself, nothing as none. */
+    private static List<JsonElement> list(JsonElement json) {
+        if (json == null) {
+            return List.of();
+        }
+        List<JsonElement> out = new ArrayList<>();
+        if (json instanceof JsonArray array) {
+            array.forEach(out::add);
+        } else {
+            out.add(json);
         }
         return out;
     }

@@ -721,8 +721,9 @@ public final class ClientRequests {
             LootIndex read = Codecs.readIndex(buf);
             // Newer servers mark an early index, with the finished one to follow.
             boolean early = Codecs.readIndexEarly(buf);
-            // Then what structures place themselves. Older servers send none.
-            LootIndex built = new LootIndex(read.tablesByStructure(), read.itemsByTable(), Codecs.readIndexPlaced(buf));
+            // Then what structures place themselves, and the kinds of potion and book each table gives. Older servers send none.
+            Map<ResourceLocation, Set<ResourceLocation>> placed = Codecs.readIndexPlaced(buf);
+            LootIndex built = new LootIndex(read.tablesByStructure(), read.itemsByTable(), placed, Codecs.readIndexKinds(buf));
             JesLog.debug("The loot index came with {} structures{}", built.tablesByStructure().size(), early ? ", an early one" : "");
             // Progress so far described the build of this index, so reset it.
             indexDone = 0;

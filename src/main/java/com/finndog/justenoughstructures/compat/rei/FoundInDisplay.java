@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures.compat.rei;
 // The 1.21.11 rename would catch REI's own class names, so it's off in this file.
 //~ !identifier
 
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import java.util.List;
 import me.shedaniel.rei.api.common.category.CategoryIdentifier;
@@ -22,7 +23,8 @@ final class FoundInDisplay implements Display {
 
     FoundInDisplay(FoundInRecipe recipe) {
         this.recipe = recipe;
-        this.outputs = List.of(EntryIngredients.of(recipe.item()));
+        // Each potion or named book the structure gives of the item, which REI shows each in turn.
+        this.outputs = List.of(EntryIngredients.ofItemStacks(recipe.stacks(FoundIn.registries())));
     }
 
     FoundInRecipe recipe() {

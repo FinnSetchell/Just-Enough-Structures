@@ -367,7 +367,7 @@ final class ToolsLoot extends ToolsSection {
                 float chance = (float) r.hits() / Math.max(1, odds.rolls());
                 boolean over = ui.hovered(x, oy, ow, OddsList.ROW);
                 if (oy + OddsList.ROW >= cy && oy <= y + h) {
-                    OddsList.drawRow(g, font, r.example(), names.get(r), counts.get(i), chance, x, oy, x + ow, over, room);
+                    OddsList.drawRow(g, font, OddsList.icon(r), names.get(r), counts.get(i), chance, x, oy, x + ow, over, room);
                 }
                 if (over) {
                     hoveredRow = r;
@@ -382,7 +382,8 @@ final class ToolsLoot extends ToolsSection {
     @Override
     void renderOver(GuiGraphics g, ToolsUi ui, int mouseX, int mouseY) {
         if (hoveredRow != null) {
-            List<Component> lines = new ArrayList<>(net.minecraft.client.gui.screens.Screen.getTooltipFromItem(net.minecraft.client.Minecraft.getInstance(), hoveredRow.example()));
+            List<Component> lines = new ArrayList<>(net.minecraft.client.gui.screens.Screen.getTooltipFromItem(net.minecraft.client.Minecraft.getInstance(),
+                    OddsList.icon(hoveredRow)));
             lines.addAll(OddsList.tooltip(hoveredRow, hoveredChance, 1, Component.translatable("screen.justenoughstructures.container").getString()));
             Gui.push(g);
             Gui.lift(g, 600);

@@ -1,6 +1,5 @@
 package com.finndog.justenoughstructures.loot;
 
-import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JesLog;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,21 +14,11 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 //? if >=1.21 {
-/*import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import net.minecraft.core.Holder;
-import net.minecraft.core.component.DataComponents;
+/*import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.item.enchantment.Enchantment;
-*///?} else {
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.item.alchemy.Potion;
-import net.minecraft.world.item.alchemy.PotionUtils;
-import net.minecraft.world.item.alchemy.Potions;
-//?}
+*///?}
 //? if >=26.3 {
 /*import net.minecraft.world.level.saveddata.maps.MapId;
 *///?} else {
@@ -257,6 +246,8 @@ public final class LootRolls {
             Map<Item, Integer> counts = new HashMap<>();
             Map<Item, ItemStack> examples = new HashMap<>();
             Map<Item, Map<String, Integer>> variants = new HashMap<>();
+            // The first stack of each kind of each item in this roll, which counts once however many come.
+            Map<Item, Map<String, ItemStack>> kinds = new HashMap<>();
             try {
                 List<ItemStack> rolled = asCount(() -> table.getRandomItems(params, seed));
                 for (ItemStack stack : rolled) {
@@ -265,7 +256,13 @@ public final class LootRolls {
                     }
                     counts.merge(stack.getItem(), stack.getCount(), Integer::sum);
                     examples.computeIfAbsent(stack.getItem(), item -> stack.copyWithCount(1));
-                    readVariants(stack, variants.computeIfAbsent(stack.getItem(), item -> new HashMap<>()));
+                    Map<String, Integer> of = ItemKinds.of(stack);
+                    Map<String, Integer> seen = variants.computeIfAbsent(stack.getItem(), item -> new HashMap<>());
+                    Map<String, ItemStack> firsts = kinds.computeIfAbsent(stack.getItem(), item -> new HashMap<>());
+                    of.forEach((kind, level) -> {
+                        seen.merge(kind, level, Math::max);
+                        firsts.computeIfAbsent(kind, k -> stack.copyWithCount(1));
+                    });
                 }
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 // Into the game's log once per table, with what was thrown, so a player's log names the
@@ -282,28 +279,9 @@ public final class LootRolls {
                 LootOdds.Row row = rows.computeIfAbsent(item, i -> new LootOdds.Row(examples.get(i)));
                 row.record(count);
                 variants.get(item).forEach(row::variant);
+                kinds.get(item).forEach(row::kind);
             });
         }
-    }
-
-    /** Puts the enchantments and potion a rolled stack came with in {@code into}, each at the highest level seen. */
-    private static void readVariants(ItemStack stack, Map<String, Integer> into) {
-        //? if >=1.21 {
-        /*for (Object2IntMap.Entry<Holder<Enchantment>> e : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
-            e.getKey().unwrapKey().ifPresent(key -> into.merge("enchantment:" + Ids.of(key), e.getIntValue(), Math::max));
-        }
-        PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
-        if (potion != null) {
-            potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> into.merge("potion:" + Ids.of(key), 0, Math::max));
-        }
-        *///?} else {
-        EnchantmentHelper.getEnchantments(stack).forEach((enchantment, enchantmentLevel) ->
-                into.merge("enchantment:" + BuiltInRegistries.ENCHANTMENT.getKey(enchantment), enchantmentLevel, Math::max));
-        Potion potion = PotionUtils.getPotion(stack);
-        if (potion != Potions.EMPTY) {
-            into.merge("potion:" + BuiltInRegistries.POTION.getKey(potion), 0, Math::max);
-        }
-        //?}
     }
 
     // Deliberately no origin. These rolls aren't for a chest anywhere, so any origin would be a made-up

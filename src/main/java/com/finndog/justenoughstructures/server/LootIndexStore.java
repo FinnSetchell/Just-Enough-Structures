@@ -614,6 +614,8 @@ public final class LootIndexStore {
             Codecs.writeIndexEarly(buf, early);
             // Then what structures place themselves, where clients from before it stop.
             Codecs.writeIndexPlaced(buf, shown.placedByStructure());
+            // Then the kinds of potion and book each table gives, where clients from before kinds stop.
+            Codecs.writeIndexKinds(buf, shown.kindsByTable());
         }));
     }
 
@@ -638,7 +640,13 @@ public final class LootIndexStore {
                 items.put(table, found);
             }
         });
-        return new LootIndex(tables, items, placed);
+        Map<ResourceLocation, Map<ResourceLocation, Set<String>>> kinds = new TreeMap<>();
+        full.kindsByTable().forEach((table, given) -> {
+            if (stillUsed.contains(table)) {
+                kinds.put(table, given);
+            }
+        });
+        return new LootIndex(tables, items, placed, kinds);
     }
 
     /**

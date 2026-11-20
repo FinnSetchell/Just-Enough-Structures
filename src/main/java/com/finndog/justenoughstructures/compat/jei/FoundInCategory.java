@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.compat.jei;
 
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -84,11 +85,12 @@ final class FoundInCategory implements IRecipeCategory<FoundInRecipe> {
         //? if >=26.1 {
         /*// From JEI 20 addItemStack is marked for removal in favour of add.
         builder.addSlot(RecipeIngredientRole.OUTPUT, FoundInRow.ITEM_X, FoundInRow.ITEM_Y)
-                .add(recipe.item())
+                .addIngredients(VanillaTypes.ITEM_STACK, recipe.stacks(FoundIn.registries()))
                 .setBackground(slot, -1, -1);
         *///?} else {
+        // Several stacks, each potion or named book the structure gives, which JEI shows each in turn.
         builder.addSlot(RecipeIngredientRole.OUTPUT, FoundInRow.ITEM_X, FoundInRow.ITEM_Y)
-                .addItemStack(recipe.item())
+                .addIngredients(VanillaTypes.ITEM_STACK, recipe.stacks(FoundIn.registries()))
                 .setBackground(slot, -1, -1);
         //?}
     }

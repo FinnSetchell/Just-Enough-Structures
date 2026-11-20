@@ -180,6 +180,14 @@ public final class StructureNames {
         //?}
     }
 
+    /**
+     * An item's own name, whatever its stacks are called: "Potion", where {@link #item} gives an empty
+     * potion's "Uncraftable Potion" from 26.1. For a row that stands for several kinds of the item.
+     */
+    public static Component plainItem(Item item) {
+        return Component.translatable(item.getDescriptionId());
+    }
+
     /** A potion's name as its bottle shows it, like "Potion of Swiftness". */
     public static Component potion(Holder<Potion> potion) {
         //? if >=26.1 {

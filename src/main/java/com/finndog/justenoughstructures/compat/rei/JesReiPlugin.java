@@ -70,8 +70,9 @@ public class JesReiPlugin implements REIClientPlugin {
             @Override
             public Optional<List<FoundInDisplay>> getRecipeFor(EntryStack<?> entry) {
                 if (ChestLootTabs.showsOwn() && entry.getValue() instanceof ItemStack stack) {
-                    List<FoundInDisplay> found = byItem.get(stack.getItem());
-                    if (found != null) {
+                    // The rows that give that potion or named book, as EMI and JEI match them.
+                    List<FoundInDisplay> found = byItem.getOrDefault(stack.getItem(), List.of()).stream().filter(d -> d.recipe().gives(stack)).toList();
+                    if (!found.isEmpty()) {
                         return Optional.of(found);
                     }
                     if (waitingFor(stack)) {
@@ -121,6 +122,17 @@ public class JesReiPlugin implements REIClientPlugin {
     /** Where the first row's structure is on screen, or null before REI has shown one. Test hook for the scripted scenarios. */
     public static int[] firstRow() {
         return FoundInReiCategory.firstRow;
+    }
+
+    /** Whether REI shows the newest loot index the client has, finished. Test hook for the scripted scenarios. */
+    public static boolean showsLatestIndex() {
+        LootIndex latest = ClientRequests.latestIndex();
+        return latest != null && !ClientRequests.indexFilling() && latest.equals(INDEX.shown());
+    }
+
+    /** How many Found in structures rows REI is given for a looked-up stack. Test hook for the scripted scenarios. */
+    public static long foundInFor(ItemStack stack) {
+        return byItem.getOrDefault(stack.getItem(), List.of()).stream().filter(d -> d.recipe().gives(stack)).count();
     }
 
     /** Opens REI on how to get an item, at the structures it's found in. Test hook for the scripted scenarios. */

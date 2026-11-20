@@ -259,6 +259,18 @@ public final class JesEmiPlugin implements EmiPlugin {
         return ids;
     }
 
+    /** Whether EMI shows the newest loot index the client has, finished. Test hook for the scripted scenarios. */
+    public static boolean showsLatestIndex() {
+        LootIndex latest = ClientRequests.latestIndex();
+        return latest != null && !ClientRequests.indexFilling() && latest.equals(INDEX.shown()) && EmiReloadManager.isLoaded();
+    }
+
+    /** How many Found in structures rows EMI finds for a looked-up stack, by its own matching. Test hook for the scripted scenarios. */
+    public static long foundInFor(ItemStack stack) {
+        return EmiApi.getRecipeManager().getRecipesByOutput(EmiStack.of(stack)).stream()
+                .filter(r -> r instanceof FoundInEmiRecipe row && row.structure() != null).count();
+    }
+
     /** Opens EMI on how to get an item. Test hook for the scripted scenarios. */
     public static void showFoundIn(ItemStack stack) {
         EmiApi.displayRecipes(EmiStack.of(stack));

@@ -2399,6 +2399,11 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return Optional.ofNullable(info.oddsRow(item));
     }
 
+    /** Where the open popup's list of chances drew the item's row, if it's on screen. Test hook for the scripted scenarios. */
+    public Optional<int[]> popupOddsRow(Item item) {
+        return popup == null ? Optional.empty() : Optional.ofNullable(popup.oddsRows.get(item));
+    }
+
     public Optional<int[]> chestSlotWithItem() {
         if (popup == null || popup.items == null) {
             return Optional.empty();

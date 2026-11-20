@@ -1247,7 +1247,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             }
             g.renderComponentTooltip(font, lines, mouseX, mouseY);
         } else if (!overlay && hoveredRow != null) {
-            List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, hoveredRow.example()));
+            List<Component> lines = new ArrayList<>(getTooltipFromItem(minecraft, OddsList.icon(hoveredRow)));
             lines.addAll(OddsList.tooltip(hoveredRow, hoveredChance, 1, Component.translatable("screen.justenoughstructures.container").getString()));
             g.renderComponentTooltip(font, lines, mouseX, mouseY);
         } else if (!overlay && !hoveredStack.isEmpty()) {
@@ -1762,7 +1762,7 @@ public final class LootEditorScreen extends BackdropScreen implements Nav.Page, 
             float chance = (float) row.hits() / Math.max(1, preview.rolls());
             boolean over = ui.hovered(x, y, w, OddsList.ROW);
             if (y + OddsList.ROW >= top && y <= contentBottom) {
-                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, y, x + w, over, detailRoom);
+                OddsList.drawRow(g, font, OddsList.icon(row), names.get(row), OddsList.counts(row), chance, x, y, x + w, over, detailRoom);
             }
             if (over) {
                 hoveredRow = row;

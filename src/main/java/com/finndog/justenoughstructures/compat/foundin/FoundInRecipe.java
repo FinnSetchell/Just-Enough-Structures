@@ -2,15 +2,18 @@ package com.finndog.justenoughstructures.compat.foundin;
 
 import com.finndog.justenoughstructures.Regs;
 import com.finndog.justenoughstructures.client.FoundIn;
+import com.finndog.justenoughstructures.loot.ItemKinds;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -24,10 +27,48 @@ import net.minecraft.world.item.Items;
  * Without an item it's a table row: a structure that uses a loot table, for a page about the table.
  * {@code placed} when the structure places the item itself; with no tables, that's the only way it has it.
  */
-public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables, boolean placed) {
+public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables, boolean placed, Set<String> kinds) {
 
     public FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables) {
         this(structure, item, tables, false);
+    }
+
+    public FoundInRecipe(ResourceLocation structure, ItemStack item, Set<ResourceLocation> tables, boolean placed) {
+        this(structure, item, tables, placed, Set.of());
+    }
+
+    /**
+     * The stacks the row gives, which a recipe viewer shows in turn and matches a looked-up stack
+     * against: one of each potion or named book its tables give ({@link ItemKinds#stacks}), or the
+     * item alone. {@code registries} are the world's.
+     */
+    public List<ItemStack> stacks(RegistryAccess registries) {
+        if (kinds.isEmpty()) {
+            return List.of(item);
+        }
+        // Many rows give the same kinds, so they share one list.
+        synchronized (STACKS) {
+            if (stacksFrom != registries) {
+                STACKS.clear();
+                stacksFrom = registries;
+            }
+            return STACKS.computeIfAbsent(BuiltInRegistries.ITEM.getKey(item.getItem()) + "|" + String.join(",", new TreeSet<>(kinds)), key -> {
+                List<ItemStack> stacks = ItemKinds.stacks(item.getItem(), kinds, registries);
+                return stacks.isEmpty() ? List.of(item) : List.copyOf(stacks);
+            });
+        }
+    }
+
+    /** The stacks rows give, by item and kinds, for the registries they were made with. */
+    private static final Map<String, List<ItemStack>> STACKS = new HashMap<>();
+    private static RegistryAccess stacksFrom;
+
+    /**
+     * Whether the row gives this stack: it's the row's item, and one of its kinds where the row has
+     * kinds. A row without them gives every stack of the item.
+     */
+    public boolean gives(ItemStack stack) {
+        return stack.is(item.getItem()) && (kinds.isEmpty() || ItemKinds.of(stack).keySet().stream().anyMatch(kinds::contains));
     }
 
     /** A waiting row for an item, with no structure yet. */
@@ -100,7 +141,10 @@ public record FoundInRecipe(ResourceLocation structure, ItemStack item, Set<Reso
             tablesByItem.forEach((id, tables) -> {
                 Item item = Regs.value(BuiltInRegistries.ITEM, id);
                 if (item != Items.AIR) {
-                    out.add(new FoundInRecipe(structure, new ItemStack(item), Set.copyOf(tables), placed.contains(id)));
+                    // The potions or named books the structure's tables give of it, for the viewers to match.
+                    Set<String> kinds = new TreeSet<>();
+                    tables.forEach(table -> kinds.addAll(index.kindsByTable().getOrDefault(table, Map.of()).getOrDefault(id, Set.of())));
+                    out.add(new FoundInRecipe(structure, new ItemStack(item), Set.copyOf(tables), placed.contains(id), Set.copyOf(kinds)));
                 }
             });
         }

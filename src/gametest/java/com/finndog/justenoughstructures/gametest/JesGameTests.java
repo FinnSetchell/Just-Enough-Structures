@@ -302,6 +302,26 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void combinedRowsShowEachKind(GameTestHelper helper) {
+        KindTests.combinedRowsShowEachKind(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void kindsTravelWithOdds(GameTestHelper helper) {
+        KindTests.kindsTravelWithOdds(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void workedOutKindsKeepTheirShare(GameTestHelper helper) {
+        KindTests.workedOutKindsKeepTheirShare(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void indexKnowsPotionsAndNamedBooks(GameTestHelper helper) {
+        KindTests.indexKnowsPotionsAndNamedBooks(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void containerNamesAreNeverMadePlural(GameTestHelper helper) {
         ChanceTextTests.containerNamesAreNeverMadePlural(helper);
     }

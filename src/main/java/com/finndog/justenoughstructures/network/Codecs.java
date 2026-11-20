@@ -498,6 +498,18 @@ public final class Codecs {
         buf.writeVarInt(odds.failedRolls());
         // After that, whether the chances are worked out from the table, which older servers don't send.
         buf.writeBoolean(odds.workedOut());
+        // Then each row's kinds, its potions or enchantments with how often each came. Only when a row
+        // has some, so odds without any are written as before.
+        if (odds.rows().stream().anyMatch(row -> !row.kinds().isEmpty())) {
+            for (LootOdds.Row row : odds.rows()) {
+                buf.writeVarInt(row.kinds().size());
+                row.kinds().forEach((key, kind) -> {
+                    buf.writeUtf(key);
+                    buf.writeVarInt(kind.hits());
+                    writeItem(buf, kind.example());
+                });
+            }
+        }
     }
 
     public static LootOdds readOdds(FriendlyByteBuf buf) {
@@ -513,6 +525,17 @@ public final class Codecs {
         // An older server doesn't send it: its odds stop at a roll that throws, counted as one that gave nothing.
         int failed = buf.isReadable() ? buf.readVarInt() : 0;
         boolean workedOut = buf.isReadable() && buf.readBoolean();
+        // Older servers, and odds with no kinds, send none.
+        if (buf.isReadable()) {
+            for (LootOdds.Row row : rows) {
+                int kinds = buf.readVarInt();
+                for (int i = 0; i < kinds; i++) {
+                    String key = buf.readUtf();
+                    int hits = buf.readVarInt();
+                    row.kinds().put(key, new LootOdds.Row.Kind(readItem(buf), hits));
+                }
+            }
+        }
         return new LootOdds(table, rolls, empty, rows, failed, workedOut);
     }
 
@@ -551,6 +574,44 @@ public final class Codecs {
     /** The items each structure places, read after the early mark. Older servers send nothing there, which reads as none. */
     public static Map<ResourceLocation, Set<ResourceLocation>> readIndexPlaced(FriendlyByteBuf buf) {
         return buf.isReadable() ? readIdMap(buf) : Map.of();
+    }
+
+    /**
+     * Written after what structures place: the kinds of potion and enchanted book each table gives,
+     * by item. Older clients stop reading before it.
+     */
+    public static void writeIndexKinds(FriendlyByteBuf buf, Map<ResourceLocation, Map<ResourceLocation, Set<String>>> kinds) {
+        buf.writeVarInt(kinds.size());
+        kinds.forEach((table, byItem) -> {
+            buf.writeResourceLocation(table);
+            buf.writeVarInt(byItem.size());
+            byItem.forEach((item, keys) -> {
+                buf.writeResourceLocation(item);
+                buf.writeVarInt(keys.size());
+                keys.forEach(buf::writeUtf);
+            });
+        });
+    }
+
+    /** The kinds each table gives, read after what structures place. Older servers send none. */
+    public static Map<ResourceLocation, Map<ResourceLocation, Set<String>>> readIndexKinds(FriendlyByteBuf buf) {
+        Map<ResourceLocation, Map<ResourceLocation, Set<String>>> out = new TreeMap<>();
+        if (!buf.isReadable()) {
+            return out;
+        }
+        int tables = buf.readVarInt();
+        for (int t = 0; t < tables; t++) {
+            Map<ResourceLocation, Set<String>> byItem = out.computeIfAbsent(buf.readResourceLocation(), id -> new TreeMap<>());
+            int items = buf.readVarInt();
+            for (int i = 0; i < items; i++) {
+                Set<String> keys = byItem.computeIfAbsent(buf.readResourceLocation(), id -> new TreeSet<>());
+                int count = buf.readVarInt();
+                for (int k = 0; k < count; k++) {
+                    keys.add(buf.readUtf());
+                }
+            }
+        }
+        return out;
     }
 
     /** The saved part of the loot index, the structure scan, for the server's disk cache. */

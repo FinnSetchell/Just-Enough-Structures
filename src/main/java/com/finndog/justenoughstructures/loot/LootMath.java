@@ -173,12 +173,23 @@ public final class LootMath {
                 return;
             }
             rows.add(new LootOdds.Row(example, hits, (int) Math.min(Integer.MAX_VALUE, Math.round(stat.mean() * WORKED_OUT_ROLLS)),
-                    stat.min(), stat.max(), seen != null ? seen.variants() : new TreeMap<>()));
+                    stat.min(), stat.max(), seen != null ? seen.variants() : new TreeMap<>(), seen != null ? kindsAt(seen, hits) : new TreeMap<>()));
         });
         rows.sort((x, y) -> x.hits() != y.hits() ? Integer.compare(y.hits(), x.hits())
                 : x.example().getItem().getDescriptionId().compareTo(y.example().getItem().getDescriptionId()));
         return new Checked(new LootOdds(rolled.tableId(), WORKED_OUT_ROLLS, (int) Math.round(math.empty() * WORKED_OUT_ROLLS), rows, 0, true),
                 true, math.variants());
+    }
+
+    /**
+     * A rolled row's kinds counted in worked-out odds where the item comes in {@code hits} of them:
+     * each keeps its share of the item, as the rolls gave it, since which kind comes is only rolled.
+     */
+    private static Map<String, LootOdds.Row.Kind> kindsAt(LootOdds.Row seen, int hits) {
+        Map<String, LootOdds.Row.Kind> out = new TreeMap<>();
+        seen.kinds().forEach((key, kind) -> out.put(key,
+                new LootOdds.Row.Kind(kind.example(), (int) Math.round((double) kind.hits() * hits / Math.max(1, seen.hits())))));
+        return out;
     }
 
     /** Whether rolls fit what a table gives, worked out. */

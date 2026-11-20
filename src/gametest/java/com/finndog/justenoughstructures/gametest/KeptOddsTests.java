@@ -25,7 +25,7 @@ public final class KeptOddsTests {
     public static void keptOddsAnswerWithoutRolling(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         AtomicReference<LootOdds> first = new AtomicReference<>();
-        JesServer.forgetOdds();
+        JesServer.forgetOdds(TABLE);
         JesServer.odds(server, TABLE, LootRolls.table(server, TABLE), first::set);
         helper.succeedWhen(() -> {
             helper.assertTrue(first.get() != null, "the odds of " + TABLE + " haven't been rolled yet");
@@ -33,7 +33,7 @@ public final class KeptOddsTests {
             Path file = OddsStore.fileNow();
             helper.assertTrue(file != null && Files.exists(file), "no file of kept odds after rolling " + TABLE + ": " + file);
             // As after a restart: nothing in memory, and the answer has to come without a single tick of rolling.
-            JesServer.forgetOdds();
+            JesServer.forgetOdds(TABLE);
             AtomicReference<LootOdds> again = new AtomicReference<>();
             JesServer.odds(server, TABLE, LootRolls.table(server, TABLE), again::set);
             helper.assertTrue(again.get() != null, "the kept odds of " + TABLE + " weren't used: they're being rolled again");

@@ -905,9 +905,12 @@ public final class JesServer {
         odds(server, table, LootRolls.table(server, table), reply);
     }
 
-    /** Forgets the odds kept in memory, as a restart would. For tests. */
-    public static void forgetOdds() {
-        ODDS_CACHE.clear();
+    /**
+     * Forgets a table's odds kept in memory, as a restart would. For tests. One table only, as other
+     * tests running at the same time keep odds of their own.
+     */
+    public static void forgetOdds(ResourceLocation table) {
+        ODDS_CACHE.remove(table);
     }
 
     /**

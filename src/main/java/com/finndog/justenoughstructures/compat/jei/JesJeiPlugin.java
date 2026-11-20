@@ -192,6 +192,21 @@ public final class JesJeiPlugin implements IModPlugin {
         recipes.addRecipes(FOUND_IN, shown);
     }
 
+    /** Whether JEI shows the newest loot index the client has, finished. Test hook for the scripted scenarios. */
+    public static boolean showsLatestIndex() {
+        LootIndex latest = ClientRequests.latestIndex();
+        return latest != null && !ClientRequests.indexFilling() && latest.equals(INDEX.shown());
+    }
+
+    /** How many Found in structures rows JEI finds for a looked-up stack, by its own matching; -1 without JEI running. Test hook for the scripted scenarios. */
+    public static long foundInFor(ItemStack stack) {
+        if (runtime == null) {
+            return -1;
+        }
+        var focus = runtime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack);
+        return runtime.getRecipeManager().createRecipeLookup(FOUND_IN).limitFocus(List.of(focus)).get().filter(row -> !row.isWaiting()).count();
+    }
+
     /** Opens JEI on every way to get an item; false without JEI running. Test hook for the scripted scenarios. */
     public static boolean showRecipesFor(ItemStack stack) {
         if (runtime == null) {
@@ -206,7 +221,7 @@ public final class JesJeiPlugin implements IModPlugin {
         if (runtime == null) {
             return false;
         }
-        List<FoundInRecipe> matching = shown.stream().filter(r -> r.item().is(stack.getItem())).toList();
+        List<FoundInRecipe> matching = shown.stream().filter(r -> r.gives(stack)).toList();
         runtime.getRecipesGui().showRecipes(runtime.getRecipeManager().getRecipeCategory(FOUND_IN), matching,
                 List.of(runtime.getJeiHelpers().getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack)));
         return true;

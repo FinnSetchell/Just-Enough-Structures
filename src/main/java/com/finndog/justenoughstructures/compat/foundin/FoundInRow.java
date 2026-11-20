@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.Thumbnails;
 import com.finndog.justenoughstructures.client.screen.Gui;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
+import com.finndog.justenoughstructures.client.screen.OddsList;
 import com.finndog.justenoughstructures.client.screen.StructureNames;
 import java.util.ArrayList;
 import java.util.List;
@@ -126,6 +127,11 @@ public final class FoundInRow {
             lines.add(Component.translatable("viewer.justenoughstructures.chance", FoundIn.percent(chance)).withStyle(ChatFormatting.GRAY));
         } else if (chance == FoundIn.UNKNOWN) {
             lines.add(Component.translatable("viewer.justenoughstructures.unknown_chance").withStyle(ChatFormatting.GRAY));
+        }
+        // The potions or books the item comes as there, with their chances.
+        FoundIn.Best best = recipe.isTable() ? null : FoundIn.best(recipe.item().getItem(), recipe.tables());
+        if (best != null && !best.row().kinds().isEmpty()) {
+            lines.addAll(OddsList.kindLines(OddsList.kinds(best.row(), best.chance()), best.row().variants()));
         }
         if (recipe.placed() && !recipe.isTable()) {
             String placed = recipe.onlyPlaced() ? "screen.justenoughstructures.placed_tip" : "screen.justenoughstructures.placed_too";

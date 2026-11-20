@@ -1013,6 +1013,9 @@ final class InfoPanel {
         double amount;
         final List<Component> from = new ArrayList<>();
         final Map<String, Integer> variants = new TreeMap<>();
+        /** Each kind's chance of none in the layout, and its first stack. */
+        final Map<String, Double> kindNone = new TreeMap<>();
+        final Map<String, ItemStack> kindExample = new TreeMap<>();
 
         Total(ItemStack example) {
             this.example = example;
@@ -1020,6 +1023,27 @@ final class InfoPanel {
 
         float chance() {
             return (float) (1 - none);
+        }
+
+        List<OddsList.KindChance> kinds() {
+            List<OddsList.KindChance> out = new ArrayList<>();
+            kindNone.forEach((key, kindNone) -> out.add(new OddsList.KindChance(key, kindExample.get(key), 1 - kindNone)));
+            return out;
+        }
+
+        /** The stack the row shows now, cycling through its kinds as a table's rows do. */
+        ItemStack icon() {
+            if (kindNone.size() < 2) {
+                return kindExample.isEmpty() ? example : kindExample.values().iterator().next();
+            }
+            List<OddsList.KindChance> sorted = new ArrayList<>(kinds());
+            sorted.sort(Comparator.comparingDouble((OddsList.KindChance k) -> -k.chance()));
+            return OddsList.cycle(sorted.stream().map(OddsList.KindChance::example).toList(), example, System.currentTimeMillis());
+        }
+
+        String name() {
+            return kindNone.size() > 1 ? StructureNames.plainItem(example.getItem()).getString() : (kindExample.isEmpty() ? example : kindExample.values().iterator().next())
+                    .getHoverName().getString();
         }
     }
 
@@ -1073,6 +1097,10 @@ final class InfoPanel {
                 total.from.add(Component.literal("  ").append(Component.translatable("screen.justenoughstructures.tip_from_table",
                         StructureNames.lootTable(e.getKey()), String.format(Locale.ROOT, "%.1f%%", p * 100), counted(kinds))).withStyle(ChatFormatting.DARK_AQUA));
                 row.variants().forEach((variant, level) -> total.variants.merge(variant, level, Math::max));
+                for (OddsList.KindChance kind : OddsList.kinds(row, p)) {
+                    total.kindNone.merge(kind.key(), Math.pow(1 - kind.chance(), n), (a, b) -> a * b);
+                    total.kindExample.putIfAbsent(kind.key(), kind.example());
+                }
             }
         }
         List<Total> rows = new ArrayList<>(totals.values());
@@ -1089,7 +1117,7 @@ final class InfoPanel {
             String amount = amounts.get(total);
             boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
             if (cy + OddsList.ROW >= clipTop && cy <= clipTop + clipHeight) {
-                OddsList.drawRow(g, font, total.example, total.example.getHoverName().getString(), amount, chance, x, cy, contentRight, hovered, detailRoom);
+                OddsList.drawRow(g, font, total.icon(), total.name(), amount, chance, x, cy, contentRight, hovered, detailRoom);
             }
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
@@ -1099,8 +1127,8 @@ final class InfoPanel {
                         : Component.translatable("screen.justenoughstructures.tip_on_average", String.format(Locale.ROOT, "%.1f", total.amount))).withStyle(ChatFormatting.GRAY));
                 lines.add(Component.translatable("screen.justenoughstructures.tip_from").withStyle(ChatFormatting.GRAY));
                 lines.addAll(total.from);
-                lines.addAll(OddsList.variantLines(total.variants));
-                hoveredStack = total.example;
+                lines.addAll(total.kindNone.isEmpty() ? OddsList.variantLines(total.variants) : OddsList.kindLines(total.kinds(), total.variants));
+                hoveredStack = total.icon();
                 hoveredExtra = lines;
             }
             ItemStack example = total.example;
@@ -1228,9 +1256,10 @@ final class InfoPanel {
         for (LootOdds.Row row : rows) {
             float chance = (float) row.hits() / odds.rolls();
             boolean hovered = inside(mouseX, mouseY, x + 2, cy, contentRight - x - 2, OddsList.ROW, clipTop, clipHeight);
-            OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, x, cy, contentRight, hovered, detailRoom);
+            ItemStack shown = OddsList.icon(row);
+            OddsList.drawRow(g, font, shown, names.get(row), OddsList.counts(row), chance, x, cy, contentRight, hovered, detailRoom);
             if (hovered) {
-                hoveredStack = row.example();
+                hoveredStack = shown;
                 hoveredExtra = OddsList.tooltip(row, chance, selectedCount, selectedName == null ? "" : selectedName);
             }
             ItemStack example = row.example();

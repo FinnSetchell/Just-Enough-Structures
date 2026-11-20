@@ -14,6 +14,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -156,6 +159,37 @@ public final class FoundIn {
             }
         }
         return best < 0 && unrolled && !waiting ? UNKNOWN : best;
+    }
+
+    /**
+     * The row for the item of whichever of these tables gives it most often, with its chance per
+     * container, or null until one of their odds is known and gives it.
+     */
+    public static Best best(Item item, Set<ResourceLocation> tables) {
+        Best best = null;
+        for (ResourceLocation table : tables) {
+            LootOdds odds = ClientRequests.odds(table).getNow(null);
+            if (odds == null || odds.rolls() == 0) {
+                continue;
+            }
+            for (LootOdds.Row r : odds.rows()) {
+                float chance = (float) r.hits() / odds.rolls();
+                if (r.example().is(item) && (best == null || chance > best.chance())) {
+                    best = new Best(r, chance);
+                }
+            }
+        }
+        return best;
+    }
+
+    /** A table's row for an item, and its chance in each container. */
+    public record Best(LootOdds.Row row, float chance) {
+    }
+
+    /** The world's registries the client was sent, or none before it's in one. */
+    public static RegistryAccess registries() {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        return connection == null ? null : connection.registryAccess();
     }
 
     /**

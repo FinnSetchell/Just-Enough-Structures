@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.client.ClientRequests;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -14,6 +15,7 @@ import net.minecraft.client.gui.narration.NarrationSupplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -78,6 +80,8 @@ final class ChestPopup {
     Action hoveredAction;
     /** Lines to add to the tooltip of the hovered item, in the list of chances. */
     List<Component> hoveredExtra = List.of();
+    /** Where the list of chances last drew each item's row, for the scripted scenarios. */
+    final Map<Item, int[]> oddsRows = new HashMap<>();
     /** The tooltip of a link or icon under the mouse, or null. */
     List<Component> hoveredTip;
     /**
@@ -410,6 +414,7 @@ final class ChestPopup {
         ItemStack hovered = ItemStack.EMPTY;
         List<LootOdds.Row> rows = OddsList.sorted(odds, false);
         Map<LootOdds.Row, String> names = OddsList.names(rows);
+        oddsRows.clear();
         fitScroll();
         int rowRight = scroll.scrolls() ? right - 7 : right;
         Gui.scissor(g, left + 1, top, right - 1, bottom);
@@ -419,9 +424,13 @@ final class ChestPopup {
             if (cy + OddsList.ROW > top && cy < bottom) {
                 float chance = (float) row.hits() / odds.rolls();
                 boolean over = mouseX >= left && mouseX < rowRight && mouseY >= Math.max(cy, top) && mouseY < Math.min(cy + OddsList.ROW, bottom);
-                OddsList.drawRow(g, font, row.example(), names.get(row), OddsList.counts(row), chance, left, cy, rowRight - 1, over, detailRoom);
+                ItemStack shown = OddsList.icon(row);
+                OddsList.drawRow(g, font, shown, names.get(row), OddsList.counts(row), chance, left, cy, rowRight - 1, over, detailRoom);
+                if (cy >= top && cy + OddsList.ROW <= bottom) {
+                    oddsRows.put(row.example().getItem(), new int[]{left + 60, cy + OddsList.ROW / 2});
+                }
                 if (over) {
-                    hovered = row.example();
+                    hovered = shown;
                     hoveredExtra = OddsList.tooltip(row, chance, count, kind);
                 }
             }

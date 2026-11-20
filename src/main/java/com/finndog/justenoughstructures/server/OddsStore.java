@@ -36,7 +36,7 @@ import net.minecraft.server.MinecraftServer;
  */
 public final class OddsStore {
     /** Bump when what's kept, or how it's rolled, changes. */
-    private static final String FORMAT = "1";
+    private static final String FORMAT = "2";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of("loot_modifiers", "loot");
     private static final String SUFFIX = ".odds";

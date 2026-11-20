@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.compat.emi;
 
 import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRecipe;
 import com.finndog.justenoughstructures.compat.foundin.FoundInRow;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -11,21 +12,26 @@ import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.Bounds;
 import dev.emi.emi.api.widget.Widget;
 import dev.emi.emi.api.widget.WidgetHolder;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 
 /** EMI's side of a {@link FoundInRow}. */
 final class FoundInEmiRecipe implements EmiRecipe {
     private final FoundInRecipe recipe;
-    private final EmiStack item;
+    /** What the row gives: each potion or named book its structure gives of the item, or the item alone. */
+    private final List<EmiStack> outputs;
     private final ResourceLocation id;
 
     FoundInEmiRecipe(FoundInRecipe recipe) {
         this.recipe = recipe;
-        this.item = EmiStack.of(recipe.item());
+        this.outputs = emiStacks(recipe.stacks(FoundIn.registries()));
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(recipe.item().getItem());
         // EMI's convention for recipes that aren't in the game's recipe list: a path starting with a slash.
         String structure = recipe.isWaiting() ? "/waiting" : "/found_in/" + recipe.structure().getNamespace() + "/" + recipe.structure().getPath();
@@ -35,10 +41,20 @@ final class FoundInEmiRecipe implements EmiRecipe {
     /** A table row, whose output is the stack another mod's page shows for the table, so that page's link lists it. */
     FoundInEmiRecipe(FoundInRecipe recipe, EmiStack table) {
         this.recipe = recipe;
-        this.item = table;
+        this.outputs = List.of(table);
         ResourceLocation tableId = recipe.tables().iterator().next();
         this.id = JustEnoughStructures.id("/found_in_table/" + recipe.structure().getNamespace() + "/" + recipe.structure().getPath()
                 + "/" + tableId.getNamespace() + "/" + tableId.getPath());
+    }
+
+    /**
+     * EMI's stacks for rows that share a list of stacks ({@link FoundInRecipe#stacks}), made once. A
+     * list goes with its rows, as nothing else holds it.
+     */
+    private static final Map<List<ItemStack>, List<EmiStack>> EMI_STACKS = Collections.synchronizedMap(new WeakHashMap<>());
+
+    private static List<EmiStack> emiStacks(List<ItemStack> stacks) {
+        return stacks.size() == 1 ? List.of(EmiStack.of(stacks.get(0))) : EMI_STACKS.computeIfAbsent(stacks, s -> s.stream().map(EmiStack::of).toList());
     }
 
     /** The row's structure, or null for a waiting row. */
@@ -63,7 +79,7 @@ final class FoundInEmiRecipe implements EmiRecipe {
 
     @Override
     public List<EmiStack> getOutputs() {
-        return List.of(item);
+        return outputs;
     }
 
     @Override
@@ -86,7 +102,8 @@ final class FoundInEmiRecipe implements EmiRecipe {
         widgets.add(new Row(recipe));
         // A table row's stack draws nothing, so it gets no slot.
         if (!recipe.isTable()) {
-            widgets.addSlot(item, FoundInRow.ITEM_X - 1, FoundInRow.ITEM_Y - 1).recipeContext(this);
+            // Several stacks make a list, which EMI shows each in turn.
+            widgets.addSlot(EmiIngredient.of(outputs), FoundInRow.ITEM_X - 1, FoundInRow.ITEM_Y - 1).recipeContext(this);
         }
     }
 
