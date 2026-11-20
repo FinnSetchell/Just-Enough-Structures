@@ -81,6 +81,7 @@ final class StructureDisables {
         } catch (ClassNotFoundException e) {
             return null;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            JesLog.warnOnce("msl-disables", "Couldn't read what Moog's Structure Lib turns off or replaces, so the browser won't say: {}", e.toString());
             JesLog.debug("Couldn't read what Moog's Structure Lib turns off", e);
         }
         return null;
@@ -100,6 +101,8 @@ final class StructureDisables {
         } catch (ClassNotFoundException e) {
             return false;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+            JesLog.warnOnce("yung-disables:" + yung.modId(), "Couldn't read {}'s setting for replacing vanilla structures, so the browser won't say: {}",
+                    yung.modId(), e.toString());
             JesLog.debug("Couldn't read {}'s setting for turning off vanilla structures", yung.modId(), e);
             return false;
         }

@@ -151,6 +151,7 @@ public final class ClientState {
                 }
             }
         } catch (IOException | JsonParseException | IllegalStateException e) {
+            JesLog.warnOnce("settings-unreadable", "Couldn't read the browser's settings in {}, so they're as they were: {}", file, e.toString());
             JesLog.debug("Couldn't read {}, keeping the defaults", file, e);
         }
     }
@@ -177,6 +178,7 @@ public final class ClientState {
             Files.createDirectories(file.getParent());
             SafeFiles.write(file, GSON.toJson(json));
         } catch (IOException e) {
+            JesLog.warnOnce("settings-unsaved", "Couldn't save the browser's settings to {}: {}", file, e.toString());
             JesLog.debug("Couldn't save {}", file, e);
         }
     }
@@ -244,6 +246,7 @@ public final class ClientState {
                 }
             }
         } catch (IOException | JsonParseException | IllegalStateException e) {
+            JesLog.warnOnce("notes-unreadable", "Couldn't read the notes written in the browser in {}: {}", file, e.toString());
             JesLog.debug("Couldn't read {}, keeping the notes as they were", file, e);
         }
     }

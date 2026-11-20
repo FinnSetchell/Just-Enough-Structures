@@ -487,6 +487,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 }
             } catch (RuntimeException | LinkageError | StackOverflowError e) {
                 // A broken structure from some mod is left out instead of ending the whole index.
+                JesLog.warnOnce("loot-index-structure", "Couldn't find all the loot in {}, so some of it isn't listed. Any more structures like it go to the debug log: {}",
+                        id, e.toString());
                 JesLog.debug("Indexing {} failed", id, e);
                 break;
             }
@@ -517,6 +519,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 return out;
             });
         } catch (RuntimeException | LinkageError e) {
+            JesLog.warnOnce("loot-chest-items", "Couldn't list the items chest loot can give, so recipe viewers won't show them: {}", e.toString());
             JesLog.debug("Couldn't list the items chest loot can give", e);
             return Set.of();
         }
@@ -548,6 +551,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 walk(server, json, out, seen);
             }
         } catch (RuntimeException e) {
+            JesLog.warnOnce("loot-table-unreadable", "Couldn't read the loot table {}, so its items aren't listed. Any more tables like it go to the debug log: {}",
+                    tableId, e.toString());
             JesLog.debug("Couldn't read loot table {}", tableId, e);
         }
         return out;

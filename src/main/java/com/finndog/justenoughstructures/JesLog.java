@@ -113,6 +113,11 @@ public final class JesLog {
         }
     }
 
+    /** Whether a warning or error under {@code key} has gone to the game's log. Test hook for the game tests. */
+    public static boolean reportedToGameLog(String key) {
+        return SEEN.contains(key);
+    }
+
     /** Like {@link #warnOnce}, but logs an error. */
     public static void errorOnce(String key, String format, Object... args) {
         try {

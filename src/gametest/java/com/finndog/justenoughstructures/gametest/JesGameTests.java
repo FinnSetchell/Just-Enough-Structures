@@ -673,6 +673,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void failuresPlayersNoticeReachTheGameLog(GameTestHelper helper) {
+        GameLogTests.failuresPlayersNoticeReachTheGameLog(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void chestLootSettingSurvivesARestart(GameTestHelper helper) {
         ChestLootTabsTests.chestLootSettingSurvivesARestart(helper);
     }
