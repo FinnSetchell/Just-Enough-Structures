@@ -615,7 +615,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
     }
 
     /** The loaded table written out as JSON, or null if there's no such table. */
-    private static JsonElement json(MinecraftServer server, ResourceLocation tableId) {
+    static JsonElement json(MinecraftServer server, ResourceLocation tableId) {
         LootTable table = LootRolls.table(server, tableId);
         if (table == LootTable.EMPTY) {
             return null;

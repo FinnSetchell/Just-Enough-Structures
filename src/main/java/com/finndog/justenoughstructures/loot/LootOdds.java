@@ -10,9 +10,15 @@ import net.minecraft.world.item.ItemStack;
  * How often each item came out of a loot table over a number of rolls. Chances are out of
  * {@code rolls}, the rolls that worked. The {@code failedRolls} threw, as other mods' loot can, and
  * are left out, as they say nothing about what the table gives. A table none of whose rolls worked
- * has no rolls and no rows.
+ * has no rolls and no rows. {@code workedOut} odds have their chances worked out from the table
+ * ({@link LootMath#withWorkedOutChances}), carried as counts out of {@link LootMath#WORKED_OUT_ROLLS}.
  */
-public record LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows, int failedRolls) {
+public record LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows, int failedRolls, boolean workedOut) {
+
+    /** Odds counted from rolls. */
+    public LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows, int failedRolls) {
+        this(tableId, rolls, emptyRolls, rows, failedRolls, false);
+    }
 
     /** Odds from rolls that all worked. */
     public LootOdds(ResourceLocation tableId, int rolls, int emptyRolls, List<Row> rows) {

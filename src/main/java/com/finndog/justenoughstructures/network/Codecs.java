@@ -496,6 +496,8 @@ public final class Codecs {
         // Last, after everything older versions read. Odds come last in every message they're in, so
         // older versions still read the rest and never get to this.
         buf.writeVarInt(odds.failedRolls());
+        // After that, whether the chances are worked out from the table, which older servers don't send.
+        buf.writeBoolean(odds.workedOut());
     }
 
     public static LootOdds readOdds(FriendlyByteBuf buf) {
@@ -510,7 +512,8 @@ public final class Codecs {
         }
         // An older server doesn't send it: its odds stop at a roll that throws, counted as one that gave nothing.
         int failed = buf.isReadable() ? buf.readVarInt() : 0;
-        return new LootOdds(table, rolls, empty, rows, failed);
+        boolean workedOut = buf.isReadable() && buf.readBoolean();
+        return new LootOdds(table, rolls, empty, rows, failed, workedOut);
     }
 
     // ------------------------------------------------------------------ loot index

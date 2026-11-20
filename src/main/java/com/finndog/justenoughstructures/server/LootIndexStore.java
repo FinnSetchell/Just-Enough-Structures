@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.loot.StructureScan;
@@ -443,6 +444,13 @@ public final class LootIndexStore {
                     if (!broke) {
                         Set<ResourceLocation> items = new TreeSet<>();
                         LootOdds odds = roller.odds();
+                        // Where the rolls fit what the table gives, its chances are worked out from it, and
+                        // players get those without the table being rolled again for them. Not where an item
+                        // can come with enchantments or a potion: the odds roll more times, which lists more of those.
+                        LootMath.Checked checked = LootMath.check(server, odds);
+                        if (checked.fits() && !checked.variants()) {
+                            JesServer.keepOdds(checked.odds());
+                        }
                         rolls += odds.rolls();
                         for (LootOdds.Row row : odds.rows()) {
                             items.add(BuiltInRegistries.ITEM.getKey(row.example().getItem()));

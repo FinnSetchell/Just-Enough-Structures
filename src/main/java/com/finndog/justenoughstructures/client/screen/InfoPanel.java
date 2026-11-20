@@ -1251,8 +1251,9 @@ final class InfoPanel {
                     x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         if (Gui.advanced()) {
-            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.odds_note", String.format(Locale.ROOT, "%,d", odds.rolls())),
-                    x + PAD, cy + 2, textWidth(), Gui.labelSoft());
+            Component note = odds.workedOut() ? Component.translatable("screen.justenoughstructures.odds_worked_out")
+                    : Component.translatable("screen.justenoughstructures.odds_note", String.format(Locale.ROOT, "%,d", odds.rolls()));
+            cy = Gui.fineWrapped(g, font, note, x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         return cy;
     }

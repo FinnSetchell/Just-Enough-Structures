@@ -277,6 +277,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void workedOutChancesMatchRolls(GameTestHelper helper) {
+        LootMathTests.workedOutChancesMatchRolls(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void workedOutOddsReplaceRolledOnesOnlyWhenTheyFit(GameTestHelper helper) {
+        LootMathTests.workedOutOddsReplaceRolledOnesOnlyWhenTheyFit(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);
     }

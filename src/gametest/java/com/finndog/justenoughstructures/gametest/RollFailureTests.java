@@ -136,25 +136,32 @@ public final class RollFailureTests {
     }
 
     /**
-     * How many rolls failed goes to players after the rest of the odds, where an older version stops
-     * reading, so either side of the connection can be the older one.
+     * How many rolls failed, and then whether the chances are worked out, go to players after the rest
+     * of the odds, where an older version stops reading, so either side of the connection can be the older one.
      */
     public static void failedRollsTravel(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         ResourceLocation table = Ids.parse("chests/igloo_chest");
         List<LootOdds.Row> rows = List.of(new LootOdds.Row(new ItemStack(Items.STONE), 1797, 1797, 1, 1, new TreeMap<>()));
-        byte[] sent = written(registries, new LootOdds(table, 1800, 3, rows, 200));
+        byte[] sent = written(registries, new LootOdds(table, 1800, 3, rows, 200, true));
         LootOdds back = Codecs.readOdds(Blobs.fromBytes(registries, sent));
-        helper.assertTrue(back.failedRolls() == 200 && back.rolls() == 1800 && back.emptyRolls() == 3 && back.rows().size() == 1
-                && back.rows().get(0).hits() == 1797, "odds with 200 failed rolls read back as " + describe(back) + ", " + back.failedRolls() + " failed");
-        // Odds as JES 1.1.0 sends and reads them are these without the count at the end, which is one byte for none.
+        helper.assertTrue(back.failedRolls() == 200 && back.workedOut() && back.rolls() == 1800 && back.emptyRolls() == 3 && back.rows().size() == 1
+                && back.rows().get(0).hits() == 1797, "odds with 200 failed rolls, worked out, read back as " + describe(back) + ", "
+                + back.failedRolls() + " failed, worked out " + back.workedOut());
+        // Odds as JES 1.1.0 sends and reads them are these without the two values at the end: the failed
+        // rolls, one byte for none, and whether the chances are worked out, one byte for no.
         byte[] none = written(registries, new LootOdds(table, 1800, 3, rows, 0));
-        byte[] older = Arrays.copyOf(none, none.length - 1);
-        helper.assertTrue(none[none.length - 1] == 0 && Arrays.equals(Arrays.copyOf(sent, older.length), older),
+        byte[] older = Arrays.copyOf(none, none.length - 2);
+        helper.assertTrue(none[none.length - 2] == 0 && none[none.length - 1] == 0 && Arrays.equals(Arrays.copyOf(sent, older.length), older),
                 "the odds don't start with what an older version reads, so it would misread them");
         LootOdds fromOlder = Codecs.readOdds(Blobs.fromBytes(registries, older));
-        helper.assertTrue(fromOlder.failedRolls() == 0 && fromOlder.rolls() == 1800 && fromOlder.emptyRolls() == 3 && fromOlder.rows().size() == 1,
-                "odds from an older server read as " + describe(fromOlder) + ", " + fromOlder.failedRolls() + " failed");
+        helper.assertTrue(fromOlder.failedRolls() == 0 && !fromOlder.workedOut() && fromOlder.rolls() == 1800 && fromOlder.emptyRolls() == 3
+                && fromOlder.rows().size() == 1, "odds from an older server read as " + describe(fromOlder) + ", " + fromOlder.failedRolls() + " failed");
+        // A server that sends the failed rolls but not whether the chances are worked out: they read as rolled.
+        LootOdds fromRolled = Codecs.readOdds(Blobs.fromBytes(registries, Arrays.copyOf(sent, sent.length - 1)));
+        helper.assertTrue(fromRolled.failedRolls() == 200 && !fromRolled.workedOut() && fromRolled.rows().size() == 1,
+                "odds from a server without worked-out chances read as " + describe(fromRolled) + ", " + fromRolled.failedRolls()
+                + " failed, worked out " + fromRolled.workedOut());
         helper.succeed();
     }
 

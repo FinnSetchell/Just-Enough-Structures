@@ -13,6 +13,7 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.catalog.StructureCatalog;
 import com.finndog.justenoughstructures.catalog.StructureInfo;
+import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -904,7 +905,16 @@ public final class JesServer {
     }
 
     /**
-     * Hands {@code reply} the odds of a table that exists, rolled once and kept until a reload.
+     * Keeps odds the loot index's rolls already worked out, so a player asking for them isn't kept
+     * waiting while the table is rolled again. Kept until a reload, like the odds rolled for players.
+     */
+    public static void keepOdds(LootOdds odds) {
+        ODDS_CACHE.put(odds.tableId(), odds);
+    }
+
+    /**
+     * Hands {@code reply} the odds of a table that exists, rolled once and kept until a reload, with
+     * the chances worked out from the table where the rolls fit it ({@link LootMath#withWorkedOutChances}).
      * {@code loot} is handed in so that a test's needn't be a loaded table. Server thread only.
      */
     public static void odds(MinecraftServer server, ResourceLocation table, LootTable loot, Consumer<LootOdds> reply) {
@@ -924,7 +934,10 @@ public final class JesServer {
         List<Consumer<LootOdds>> these = new ArrayList<>(List.of(reply));
         ROLLING.put(table, these);
         LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, loot, ODDS_ROLLS, table.hashCode());
-        rollInSlices(server, roller, ODDS_BUDGET_NANOS, (odds, keep) -> {
+        // Only the loaded table can be worked out: a test's own table isn't in the game.
+        boolean loaded = loot == LootRolls.table(server, table);
+        rollInSlices(server, roller, ODDS_BUDGET_NANOS, (rolled, keep) -> {
+            LootOdds odds = loaded ? LootMath.withWorkedOutChances(server, rolled) : rolled;
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
             if (ROLLING.get(table) == these) {
                 ROLLING.remove(table);
