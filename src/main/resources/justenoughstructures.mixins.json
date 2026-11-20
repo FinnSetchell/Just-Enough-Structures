@@ -23,7 +23,8 @@
     "StructureTemplateManagerMixin",
     "StructureTemplateMixin",
     "StructureTemplatePaletteMixin",
-    "TemplateStructurePieceAccessor"
+    "TemplateStructurePieceAccessor",
+    "TierifyAttributesMixin"
   ],
   "client": [
     "ClientLanguageMixin",

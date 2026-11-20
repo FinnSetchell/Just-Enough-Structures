@@ -48,6 +48,11 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 public final class LootRolls {
     /** Set while this thread rolls a table for JES. */
     private static final ThreadLocal<Boolean> ROLLING = ThreadLocal.withInitial(() -> false);
+    /**
+     * Set while this thread rolls a table many times over to count what it gives: the odds and the
+     * loot index's rolls, not a single chest's worth for a player to look at.
+     */
+    private static final ThreadLocal<Boolean> COUNTING = ThreadLocal.withInitial(() -> false);
 
     private LootRolls() {
     }
@@ -55,6 +60,24 @@ public final class LootRolls {
     /** Whether this thread is rolling a table for JES. */
     public static boolean rolling() {
         return ROLLING.get();
+    }
+
+    /**
+     * Whether this thread is rolling a table for JES to count what it gives. Work that only changes
+     * a rolled stack's NBT can be left out of these, as only which items come out, how many and their
+     * enchantments and potions are counted (TierifyAttributesMixin).
+     */
+    public static boolean counting() {
+        return COUNTING.get();
+    }
+
+    /**
+     * One roll of {@code table} with this seed, made as the odds and the loot index make theirs, in
+     * the level they're made in. For checks that compare these rolls with the game's own.
+     */
+    public static List<ItemStack> countedRoll(ServerLevel level, LootTable table, long seed) {
+        LootParams params = chestParams(level);
+        return asCount(() -> table.getRandomItems(params, seed));
     }
 
     /**
@@ -82,6 +105,17 @@ public final class LootRolls {
             return roll.get();
         } finally {
             ROLLING.set(before);
+        }
+    }
+
+    /** Runs {@code roll} as one of JES's rolls that count what a table gives. */
+    private static <T> T asCount(Supplier<T> roll) {
+        boolean before = COUNTING.get();
+        COUNTING.set(true);
+        try {
+            return asRoll(roll);
+        } finally {
+            COUNTING.set(before);
         }
     }
 
@@ -224,7 +258,7 @@ public final class LootRolls {
             Map<Item, ItemStack> examples = new HashMap<>();
             Map<Item, Map<String, Integer>> variants = new HashMap<>();
             try {
-                List<ItemStack> rolled = asRoll(() -> table.getRandomItems(params, seed));
+                List<ItemStack> rolled = asCount(() -> table.getRandomItems(params, seed));
                 for (ItemStack stack : rolled) {
                     if (stack.isEmpty()) {
                         continue;

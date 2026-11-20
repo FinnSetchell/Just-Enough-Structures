@@ -22,7 +22,7 @@ public final class JesMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.endsWith(".C2meRandomMixin") || mixinClassName.endsWith(".FtbQuestsTaskButtonMixin")) {
+        if (mixinClassName.endsWith(".C2meRandomMixin") || mixinClassName.endsWith(".TierifyAttributesMixin") || mixinClassName.endsWith(".FtbQuestsTaskButtonMixin")) {
             return installed(targetClassName);
         }
         return true;
