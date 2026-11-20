@@ -1,11 +1,13 @@
 package com.finndog.justenoughstructures.gametest.scripted;
 
+import static com.finndog.justenoughstructures.gametest.scripted.Director.chain;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.click;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.moveTo;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pause;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.pressBrowserKey;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.run;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.shoot;
+import static com.finndog.justenoughstructures.gametest.scripted.Director.skipIf;
 import static com.finndog.justenoughstructures.gametest.scripted.Director.until;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser;
 
@@ -28,11 +30,14 @@ import net.minecraft.world.entity.Entity;
  * preview leaves it out, as it does anything it can't draw, and nothing may point at where it stood:
  * no marker with its popup open, no lit marker or tint there while another chest minecart's popup is
  * open or the Loot tab's row for them is hovered, and nothing found there by the mouse. Another
- * chest minecart, drawn as usual, keeps its marker.
+ * chest minecart, drawn as usual, keeps its marker. Where a pack's mods leave the mineshaft with
+ * fewer than two chest minecarts, new layouts are asked for until one has them.
  */
 final class LeftOutMinecartScenario {
     /** How many chest minecarts are tried before giving up on finding one the mouse can point at. */
     private static final int TRIES = 8;
+    /** How many new layouts are asked for when a pack's mods leave the mineshaft with fewer than two chest minecarts. */
+    private static final int LAYOUTS = 5;
 
     private LeftOutMinecartScenario() {
     }
@@ -62,15 +67,22 @@ final class LeftOutMinecartScenario {
                 .then(until(() -> browser(mc).idle() && browser(mc).result() != null && browser(mc).result().succeeded(), 600))
                 .then(run(() -> {
                     browser(mc).setSpin(false);
-                    for (StructureSnapshot.Container c : browser(mc).result().snapshot().containers()) {
-                        if (c.entity() && minecart(mc, c) != null) {
-                            carts.add(c);
-                        }
-                    }
-                    if (carts.size() < 2) {
-                        throw new IllegalStateException("The mineshaft has " + carts.size() + " chest minecarts, and this needs two");
-                    }
+                    countCarts(mc, carts);
                 }));
+        // In a real pack the mineshaft can come out with fewer, so new layouts are asked for until two turn up.
+        for (int i = 0; i < LAYOUTS; i++) {
+            d.then(skipIf(() -> carts.size() >= 2, chain(
+                    moveTo(() -> browser(mc).button("reroll"), 10),
+                    click(),
+                    pause(5),
+                    until(() -> browser(mc).idle() && browser(mc).result() != null && browser(mc).result().succeeded(), 600),
+                    run(() -> countCarts(mc, carts)))));
+        }
+        d.then(run(() -> {
+            if (carts.size() < 2) {
+                throw new IllegalStateException("The mineshaft had fewer than two chest minecarts in " + (LAYOUTS + 1) + " layouts, and this needs two");
+            }
+        }));
         // The camera turns to one after another until one is in the middle of the preview, with its marker showing.
         for (int i = 0; i < TRIES; i++) {
             int at = i;
@@ -178,6 +190,16 @@ final class LeftOutMinecartScenario {
     }
 
     /** The chest minecart in the preview that {@code container} is, or null. */
+    /** The chest minecarts in the layout on show, drawn as mobs, in place of any counted before. */
+    private static void countCarts(Minecraft mc, List<StructureSnapshot.Container> carts) {
+        carts.clear();
+        for (StructureSnapshot.Container c : browser(mc).result().snapshot().containers()) {
+            if (c.entity() && minecart(mc, c) != null) {
+                carts.add(c);
+            }
+        }
+    }
+
     private static Entity minecart(Minecraft mc, StructureSnapshot.Container container) {
         for (Entity e : browser(mc).placedMobs()) {
             if (e instanceof Container && e.blockPosition().equals(container.pos())) {
