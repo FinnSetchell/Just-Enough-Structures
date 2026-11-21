@@ -6,6 +6,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.loot.RemovedItems;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.google.common.hash.Hasher;
@@ -30,9 +31,10 @@ import net.minecraft.server.MinecraftServer;
  *
  * <p>Each table's odds are kept under its hash ({@link LootIndex#tableHash}), so a table that changed is
  * rolled again. They're in a file named after everything else a roll depends on: the game and every
- * mod's version, and the files of loot modifiers and of Loot Integrations, which change what a table
- * gives as it's rolled. A mod's config can do that too and isn't in it. Structure and pool files aren't
- * in it either, so changing a datapack's structures keeps every table's odds.
+ * mod's version, the files of loot modifiers and of Loot Integrations, which change what a table
+ * gives as it's rolled, and Item Obliterator's config, which takes items out ({@link RemovedItems}).
+ * Other mods' configs can change rolls too and aren't in it. Structure and pool files aren't in it
+ * either, so changing a datapack's structures keeps every table's odds.
  */
 public final class OddsStore {
     /** Bump when what's kept, or how it's rolled, changes. */
@@ -141,7 +143,7 @@ public final class OddsStore {
     }
 
     /** A hash of what every table's rolls depend on besides the table itself, or null if the files can't be read. */
-    static String keyOf(MinecraftServer server) {
+    public static String keyOf(MinecraftServer server) {
         try {
             Hasher hasher = Hashing.sha256().newHasher();
             //? if >=26.1 {
@@ -152,6 +154,7 @@ public final class OddsStore {
             hasher.putString(FORMAT + "|" + game + "|", StandardCharsets.UTF_8);
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) -> hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
             LootIndexStore.hashFiles(hasher, server.getResourceManager(), SOURCES, null);
+            hasher.putString(RemovedItems.fingerprint(), StandardCharsets.UTF_8);
             return hasher.hash().toString();
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't fingerprint what loot rolls depend on, so no odds are kept", e);

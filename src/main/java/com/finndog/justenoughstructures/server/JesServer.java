@@ -16,6 +16,7 @@ import com.finndog.justenoughstructures.catalog.StructureInfo;
 import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.loot.RemovedItems;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
 import com.finndog.justenoughstructures.network.JesNetwork;
@@ -188,6 +189,7 @@ public final class JesServer {
         catalog = null;
         ODDS_CACHE.clear();
         ROLLING.clear();
+        RemovedItems.forget();
     }
 
     /**

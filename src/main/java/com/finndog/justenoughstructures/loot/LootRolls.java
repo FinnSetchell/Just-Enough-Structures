@@ -32,7 +32,8 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
  * Rolls loot tables with the game's loot code, so functions and conditions added by any mod run as
  * they do in a real chest. The rolls have no origin, player or entity, though, so anything that reads
  * one comes out differently (see chestParams). An exploration map is the exception (see blankMap).
- * Rolls for players and the loot index are made in the same level (see level).
+ * Rolls for players and the loot index are made in the same level (see level). Items another mod
+ * takes out of every chest are left out, as a real chest is left without them ({@link RemovedItems}).
  */
 public final class LootRolls {
     /** Set while this thread rolls a table for JES. */
@@ -66,7 +67,9 @@ public final class LootRolls {
      */
     public static List<ItemStack> countedRoll(ServerLevel level, LootTable table, long seed) {
         LootParams params = chestParams(level);
-        return asCount(() -> table.getRandomItems(params, seed));
+        List<ItemStack> rolled = new ArrayList<>(asCount(() -> table.getRandomItems(params, seed)));
+        rolled.removeIf(stack -> !stack.isEmpty() && RemovedItems.removed(stack.getItem()));
+        return rolled;
     }
 
     /**
@@ -148,7 +151,8 @@ public final class LootRolls {
                 table.fill(container, chestParams(level), seed);
                 List<ItemStack> out = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
-                    out.add(container.getItem(i).copy());
+                    ItemStack stack = container.getItem(i);
+                    out.add(stack.isEmpty() || RemovedItems.removed(stack.getItem()) ? ItemStack.EMPTY : stack.copy());
                 }
                 return out;
             }));
@@ -251,7 +255,7 @@ public final class LootRolls {
             try {
                 List<ItemStack> rolled = asCount(() -> table.getRandomItems(params, seed));
                 for (ItemStack stack : rolled) {
-                    if (stack.isEmpty()) {
+                    if (stack.isEmpty() || RemovedItems.removed(stack.getItem())) {
                         continue;
                     }
                     counts.merge(stack.getItem(), stack.getCount(), Integer::sum);

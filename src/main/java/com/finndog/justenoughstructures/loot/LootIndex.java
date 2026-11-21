@@ -220,7 +220,20 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     read.addAll(rolled.items());
                 }
             });
-            return new LootIndex(scan.tables(), items, scan.placed(), kinds);
+            // Items another mod takes out of every chest are in none, whatever a table names, its rolls
+            // found before, or a structure places (RemovedItems).
+            items.values().forEach(RemovedItems::dropFrom);
+            kinds.values().forEach(given -> given.keySet().removeIf(RemovedItems::removed));
+            kinds.values().removeIf(Map::isEmpty);
+            Map<ResourceLocation, Set<ResourceLocation>> placed = new TreeMap<>();
+            scan.placed().forEach((structure, given) -> {
+                Set<ResourceLocation> kept = new TreeSet<>(given);
+                RemovedItems.dropFrom(kept);
+                if (!kept.isEmpty()) {
+                    placed.put(structure, kept);
+                }
+            });
+            return new LootIndex(scan.tables(), items, placed, kinds);
         });
     }
 
@@ -289,6 +302,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             Set<ResourceLocation> given = items.get(table);
             if (given != null) {
                 given.addAll(extra);
+                RemovedItems.dropFrom(given);
             }
         });
         return new LootIndex(tablesByStructure, items, placedByStructure, kindsByTable);
@@ -532,6 +546,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                         out.addAll(itemsIn(server, id, new HashSet<>()));
                     }
                 }
+                RemovedItems.dropFrom(out);
                 return out;
             });
         } catch (RuntimeException | LinkageError e) {

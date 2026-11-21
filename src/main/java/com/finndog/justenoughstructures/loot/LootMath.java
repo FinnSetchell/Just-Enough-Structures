@@ -606,8 +606,9 @@ public final class LootMath {
                     s.max = Math.max(s.max, c);
                 }
             }
-            // Air, and items the world's features leave out, never reach a chest.
-            if (i == Items.AIR || !i.isEnabled(level.enabledFeatures())) {
+            // Air, items the world's features leave out, and items another mod takes out of every
+            // chest (RemovedItems) never reach one.
+            if (i == Items.AIR || !i.isEnabled(level.enabledFeatures()) || RemovedItems.removed(i)) {
                 nothing += sum(counts);
                 continue;
             }
