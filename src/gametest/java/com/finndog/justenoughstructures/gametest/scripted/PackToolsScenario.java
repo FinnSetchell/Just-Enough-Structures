@@ -17,8 +17,9 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.orZero;
 import static com.finndog.justenoughstructures.gametest.scripted.Screens.tools;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.JustEnoughStructures;
+import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
-import com.finndog.justenoughstructures.client.screen.TablePickerScreen;
 import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 
@@ -28,6 +29,9 @@ import net.minecraft.client.Minecraft;
  * saved, so the world's settings stay as they were.
  */
 final class PackToolsScenario {
+    /** How long the table picker may wait for the loot index: ten minutes, longer with the patience setting. */
+    private static final int INDEX_FRAMES = 20 * 60 * 10;
+
     private PackToolsScenario() {
     }
 
@@ -78,7 +82,23 @@ final class PackToolsScenario {
                 .then(pause(20))
                 .then(moveTo(() -> orZero(tools(mc).buttonAt("Change")), 10))
                 .then(click())
-                .then(until(() -> mc.screen instanceof TablePickerScreen p && p.ready(), 400))
+                .then(until(() -> tablePicker(mc) != null, 40))
+                .then(run(() -> {
+                    if (tablePicker(mc) == null) {
+                        throw new IllegalStateException("Pack tools' Change left " + mc.screen + " open, not the table picker");
+                    }
+                    if (!tablePicker(mc).ready()) {
+                        JustEnoughStructures.LOGGER.info("The table picker opened before the loot index was here, so its list waits for it");
+                    }
+                }))
+                // The picker lists the tables once the loot index is here, which in a fresh game with a
+                // big pack can take minutes. Until then it says it's looking through the loot.
+                .then(until(() -> tablePicker(mc) != null && tablePicker(mc).ready(), INDEX_FRAMES))
+                .then(run(() -> {
+                    if (tablePicker(mc) == null || !tablePicker(mc).ready()) {
+                        throw new IllegalStateException("The table picker still hasn't listed the tables" + (FoundIn.ready() ? "" : ": the loot index never came"));
+                    }
+                }))
                 .then(pause(20))
                 .then(shoot("p09_picker"))
                 .then(moveTo(() -> orZero(tablePicker(mc).scrollBar(0.02f)), 8))
