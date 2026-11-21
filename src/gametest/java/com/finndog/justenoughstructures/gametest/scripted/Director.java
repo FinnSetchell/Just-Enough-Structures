@@ -190,6 +190,7 @@ public final class Director {
             return;
         }
         renders++;
+        FrameClock.frame();
         if (!showCursor) {
             return;
         }

@@ -862,6 +862,14 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         return catalog != null && result != null && !viewport.meshing();
     }
 
+    /**
+     * Whether the preview tints what {@code key} is about, such as "block:minecraft:chest", found and
+     * built for the current cut. Test hook for the scripted scenarios.
+     */
+    public boolean highlightReady(String key) {
+        return key.equals(highlightKey) && highlight != null && view != null && highlight.ready(view.sliceY());
+    }
+
     public CaptureResult result() {
         return result;
     }
@@ -1773,6 +1781,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         StructureSnapshot shown = view == null ? null : view.snapshot();
         String key = null;
         Function<StructureSnapshot, LongSet> wanted = null;
+        // Whether wanted reads nothing but the snapshot, which never changes, so it can run off the render thread.
+        boolean snapshotOnly = false;
         if (popup != null && popup.container != null && popup.count > 1 && foundIn == null) {
             // Every container the popup steps through, so where they all are shows beside it, except the
             // current one: its marker's white outline marks it, and the tint would hide it close up.
@@ -1826,11 +1836,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
                 }
                 return out;
             };
+            snapshotOnly = true;
         } else if (sides && popup == null && side() == null && foundIn == null) {
             InfoPanel.Hovered hovered = info.hoveredBlocks();
             if (hovered != null) {
                 key = hovered.key();
                 wanted = hovered.positions();
+                snapshotOnly = hovered.snapshotOnly();
             }
         }
         if (key == null && picking == Picking.SPAWNER && popup == null && side() == null && foundIn == null) {
@@ -1852,6 +1864,13 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             highlightKey = key;
             highlightFor = shown;
             highlightLeftOut = viewport.leftOutCount();
+            if (snapshotOnly) {
+                // Every block of a kind means going through every block in the structure, which for a
+                // big one takes longer than a frame, so they're found off the render thread.
+                Function<StructureSnapshot, LongSet> find = wanted;
+                highlight = Highlight.finding(() -> find.apply(shown));
+                return highlight;
+            }
             LongSet positions = wanted.apply(shown);
             // Not where a chest minecart the preview left out stood: the tint and its marker would be over an empty spot.
             if (positions != null && (key.startsWith("popup:") || key.startsWith("loot:"))) {

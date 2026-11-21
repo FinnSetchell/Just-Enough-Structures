@@ -89,6 +89,7 @@ public final class Scenarios {
             case "hover" -> HoverScenario.build(mc);
             case "marker_clicks" -> MarkerClicksScenario.build(mc);
             case "highlight" -> HighlightScenario.build(mc);
+            case "stalls" -> StallScenario.build(mc);
             case "loot_tab" -> LootTabScenario.build(mc);
             case "kinds" -> KindsScenario.build(mc);
             case "pack_tools" -> PackToolsScenario.build(mc);

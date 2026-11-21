@@ -299,9 +299,14 @@ final class InfoPanel {
 
     /**
      * The blocks a row is about, for the preview to tint while it's hovered: {@code key} says which,
-     * and {@code positions} finds them in a snapshot, as {@link BlockPos#asLong}.
+     * and {@code positions} finds them in a snapshot, as {@link BlockPos#asLong}. With
+     * {@code snapshotOnly}, {@code positions} reads nothing but the snapshot, so it can run off the
+     * render thread.
      */
-    record Hovered(String key, Function<StructureSnapshot, LongSet> positions) {
+    record Hovered(String key, Function<StructureSnapshot, LongSet> positions, boolean snapshotOnly) {
+        Hovered(String key, Function<StructureSnapshot, LongSet> positions) {
+            this(key, positions, false);
+        }
     }
 
     /** What the row under the mouse is about in the preview, or null. */
@@ -1394,7 +1399,7 @@ final class InfoPanel {
                 }
                 hoveredText = lines;
                 if (count <= Highlight.MAX_BLOCKS) {
-                    hoveredBlocks = new Hovered("block:" + BuiltInRegistries.BLOCK.getKey(block), snapshot -> positionsOf(snapshot, block));
+                    hoveredBlocks = new Hovered("block:" + BuiltInRegistries.BLOCK.getKey(block), snapshot -> positionsOf(snapshot, block), true);
                 }
             }
             highlightRows.put("block:" + BuiltInRegistries.BLOCK.getKey(block), new int[]{x + (contentRight - x) / 2, cy + rowHeight / 2});
@@ -1407,7 +1412,7 @@ final class InfoPanel {
         return cy;
     }
 
-    /** Where every block of a kind is in a snapshot. */
+    /** Where every block of a kind is in a snapshot. Reads only the snapshot, so it can run on any thread. */
     static LongSet positionsOf(StructureSnapshot snapshot, Block block) {
         boolean[] matches = new boolean[snapshot.palette().size()];
         for (int i = 0; i < matches.length; i++) {
