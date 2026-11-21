@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.FluidState;
@@ -31,8 +32,9 @@ import net.minecraft.world.ticks.ScheduledTick;
  * thread.
  *
  * <p>While a thread is capturing, real levels answer it from the sandbox. Inside the capture area,
- * blocks, block entities, heights, ticks and new entities go to the sandbox. Elsewhere, and in other
- * dimensions, everything is air, writes are dropped and no chunk loads. Entity searches find nothing,
+ * blocks, block entities, heights, ticks and new entities go to the sandbox, and the level's terrain
+ * generator is the sandbox's. Elsewhere, and in other dimensions, everything is air, writes are
+ * dropped and no chunk loads. Entity searches find nothing,
  * sounds and effects are dropped, and tasks handed to the server are discarded unless the code waits
  * on them. Other threads, including the server thread, are not affected.
  */
@@ -76,6 +78,7 @@ public final class RealWorldGuard {
         private final String what;
         private final Sandbox outer;
         private CaptureRegion region;
+        private ChunkGenerator generator;
         /** How many times each kind of real-world call was redirected, and where the first came from. */
         private final Map<String, Integer> reaches = new LinkedHashMap<>();
         private final Map<String, String> firstFrom = new LinkedHashMap<>();
@@ -89,6 +92,25 @@ public final class RealWorldGuard {
         /** Sets the capture area once placement starts. Until then every call gets air. */
         void placing(CaptureRegion region) {
             this.region = region;
+        }
+
+        /** Sets the sandbox's terrain generator, which the captured level answers with. */
+        void generating(ChunkGenerator generator) {
+            this.generator = generator;
+        }
+
+        /**
+         * The sandbox's terrain generator if this level is the one being captured in, or null for the
+         * real one. Structure code that reads the ground through the level's generator, like Moog's
+         * Structure Lib's follow_floor judging whether a piece would stand on rock, otherwise reads
+         * the real world's terrain at the sandbox's place.
+         */
+        public ChunkGenerator generator(Level asked) {
+            if (asked != level || generator == null) {
+                return null;
+            }
+            note("read the world's generator");
+            return generator;
         }
 
         /** The sandbox area if this level is the one being captured in and the chunk is part of it, or null. */

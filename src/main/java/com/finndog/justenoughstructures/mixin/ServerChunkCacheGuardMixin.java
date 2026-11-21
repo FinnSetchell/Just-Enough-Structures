@@ -8,6 +8,7 @@ import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,8 +20,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * The last line of {@link RealWorldGuard}: a capturing thread never gets a real chunk loaded or
  * generated. Its requests to the chunk source are answered from the sandbox instead: the sandbox's
- * chunk inside the capture area, and none anywhere else. Code that then insists on a chunk fails,
- * which fails the preview instead of touching the world. Other threads are unaffected.
+ * chunk inside the capture area, and none anywhere else, and the sandbox's terrain generator. Code
+ * that then insists on a chunk fails, which fails the preview instead of touching the world. Other
+ * threads are unaffected.
  *
  * <p>This answers before anything else in {@code getChunk} runs. Lithium and Canary overwrite the
  * method, and overwrites are applied before any mod's injections at its start, so this lands in
@@ -59,6 +61,14 @@ public abstract class ServerChunkCacheGuardMixin {
             sandbox.refuseChunk();
             cir.setReturnValue(ChunkHolder.UNLOADED_CHUNK_FUTURE);
         }
+    }
+
+    /** To a capturing thread, the world's terrain generator is the sandbox's (see {@link RealWorldGuard.Sandbox#generator}). */
+    @ModifyReturnValue(method = "getGenerator", at = @At("RETURN"), require = 0)
+    private ChunkGenerator justenoughstructures$sandboxGenerator(ChunkGenerator real) {
+        RealWorldGuard.Sandbox sandbox = RealWorldGuard.current();
+        ChunkGenerator own = sandbox != null ? sandbox.generator(level) : null;
+        return own != null ? own : real;
     }
 
     /** To a capturing thread, only the sandbox's area is loaded. */

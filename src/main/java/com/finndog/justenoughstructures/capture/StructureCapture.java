@@ -716,7 +716,9 @@ public final class StructureCapture {
             Holder<Biome> biome = place.biome() != null ? place.biome()
                     : biomeFor(structure.value(), place.terrain(), level.registryAccess().registryOrThrow(Registries.BIOME));
             FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
-            return start(server, structure, level, new SandboxChunkGenerator(biomeSource, place.terrain(), level), biomeSource, place).isValid();
+            SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, place.terrain(), level);
+            guard.generating(generator);
+            return start(server, structure, level, generator, biomeSource, place).isValid();
         } finally {
             RealWorldGuard.end(guard);
         }
@@ -806,6 +808,7 @@ public final class StructureCapture {
         Holder<Biome> biome = place.biome() != null ? place.biome() : biomeFor(structure, terrain, biomes);
         FixedBiomeSource biomeSource = new FixedBiomeSource(biome);
         SandboxChunkGenerator generator = new SandboxChunkGenerator(biomeSource, terrain, level);
+        guard.generating(generator);
 
         StructureStart start = start(server, holder, level, generator, biomeSource, place);
         // Structure code has returned; building the sandbox isn't timed.
@@ -926,6 +929,7 @@ public final class StructureCapture {
         SANDBOX_RANDOM.set(new XoroshiroRandomSource(0));
         WATCH.set(new Watch(stepNanos));
         try {
+            guard.generating(generator);
             guard.placing(region);
             return action.apply(region);
         } finally {

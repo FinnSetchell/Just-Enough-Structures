@@ -1025,6 +1025,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void capturesGetTheSandboxsGenerator(GameTestHelper helper) {
+        RealWorldTests.capturesGetTheSandboxsGenerator(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void chunkGuardCheckWaitsForTheWorld(GameTestHelper helper) {
         RealWorldTests.chunkGuardCheckWaitsForTheWorld(helper);
     }

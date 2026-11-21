@@ -34,6 +34,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.ChunkStatus;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -179,6 +180,26 @@ public final class RealWorldTests {
             thread.setDaemon(true);
             thread.start();
         });
+    }
+
+    /**
+     * Structure code that asks the real level for the world's terrain generator gets the sandbox's, as
+     * the rest of what it asks the real level comes from the sandbox. Moog's Structure Lib's follow_floor
+     * reads the ground through it to tell whether a piece would stand on rock, and with the real one it
+     * judged the real world's terrain at the sandbox's place and threw small pieces away. Outside a
+     * capture the real level answers with its own.
+     */
+    public static void capturesGetTheSandboxsGenerator(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ChunkGenerator real = level.getChunkSource().getGenerator();
+        BlockPos at = helper.absolutePos(BlockPos.ZERO);
+        ChunkPos centre = new ChunkPos(SectionPos.blockToSectionCoord(at.getX()), SectionPos.blockToSectionCoord(at.getZ()));
+        ChunkGenerator inside = StructureCapture.inSandbox(level, centre, () -> level.getChunkSource().getGenerator());
+        JustEnoughStructures.LOGGER.info("In the test of the world's generator in a capture: outside {}, inside {}", real.getClass().getName(),
+                inside == null ? null : inside.getClass().getName());
+        helper.assertTrue(inside != null && inside != real, "a capture asking the real level for its generator got the real one, " + real.getClass().getName());
+        helper.assertTrue(level.getChunkSource().getGenerator() == real, "after the capture the real level answers with another generator");
+        helper.succeed();
     }
 
     /**
