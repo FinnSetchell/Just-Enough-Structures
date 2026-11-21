@@ -19,6 +19,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.finndog.justenoughstructures.client.screen.LootEditorScreen;
 import com.finndog.justenoughstructures.client.screen.Scroll;
+import com.finndog.justenoughstructures.loot.LootFormat;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -47,6 +48,7 @@ final class EditorScenario {
         int[] counted = new int[1];
         String[] clipboard = new String[1];
         String[] dragged = new String[1];
+        String[] offered = new String[1];
         Director d = new Director(mc);
         d.then(pressBrowserKey())
                 .then(until(() -> browser(mc) != null, 40))
@@ -249,6 +251,35 @@ final class EditorScenario {
                     }
                 }))
                 .then(shoot("e08_entry_inside"))
+                // The alternatives themselves. Before 26.3 the game runs no functions on alternatives, group
+                // or sequence entries, so the form offers none; from 26.3 they run on each item inside.
+                .then(run(() -> editor(mc).pick(0, 0)))
+                .then(pause(20))
+                .then(shoot("e08b_alternatives"))
+                .then(run(() -> offered[0] = functionsOffered(mc, "the oak leaves' alternatives")))
+                // A group that has a function already, from a file: it's still shown, so it can be taken out.
+                // Typed as this version's game writes it, as the chances beside it are worked out from the
+                // JSON as typed, and from 26.3 a function written the older way isn't read.
+                .then(run(() -> editor(mc).showJson(LootFormat.forGame(JsonParser.parseString("{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, "
+                        + "\"entries\": [{\"type\": \"minecraft:group\", \"children\": [{\"type\": \"minecraft:item\", \"name\": \"minecraft:stick\"}], "
+                        + "\"functions\": [{\"function\": \"minecraft:set_count\", \"count\": 5}]}]}]}").getAsJsonObject()).toString())))
+                .then(pause(10))
+                .then(moveTo(() -> new int[]{24, mc.getWindow().getGuiScaledHeight() - 22}, 8))
+                .then(click())
+                .then(pause(10))
+                .then(run(() -> editor(mc).pick(0, 0)))
+                .then(pause(20))
+                .then(shoot("e08c_group_with_function"))
+                // Checked once both are shot, so a run that fails still shows both.
+                .then(run(() -> {
+                    String group = functionsOffered(mc, "a group");
+                    if (editor(mc).fieldAt("pools.0.entries.0.functions.0.count#kind") == null) {
+                        throw new IllegalStateException("The form doesn't show the function a group has");
+                    }
+                    if (offered[0] != null || group != null) {
+                        throw new IllegalStateException(offered[0] != null ? offered[0] : group);
+                    }
+                }))
                 // A function the form doesn't know, like a mod's, takes settings added by name.
                 .then(run(() -> editor(mc).showJson("{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", "
                         + "\"name\": \"minecraft:stick\", \"functions\": [{\"function\": \"examplemod:sparkle\", \"colour\": \"red\"}]}]}]}")))
@@ -338,6 +369,20 @@ final class EditorScenario {
                 }))
                 .then(shoot("e13_name_made_bold"));
         return d;
+    }
+
+    /**
+     * What's wrong with the form's offer to add a function to the selected entry, which holds others,
+     * or null if it's offered on 26.3 and only there.
+     */
+    private static String functionsOffered(Minecraft mc, String what) {
+        //? if >=26.3 {
+        /*boolean wanted = true;
+        *///?} else {
+        boolean wanted = false;
+        //?}
+        boolean offered = editor(mc).buttonAt("+ Add function") != null;
+        return offered == wanted ? null : "The form " + (wanted ? "doesn't offer" : "offers") + " to add a function to " + what;
     }
 
     /** A point part of the way down the compare screen's scroll bar. */

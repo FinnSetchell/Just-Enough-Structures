@@ -313,6 +313,20 @@ public final class LootTypes {
         return out;
     }
 
+    /**
+     * Whether the game runs functions on an entry of this kind, and so whether the editor offers them.
+     * Single entries always take them. Before 26.3 alternatives, group and sequence read only their
+     * children and conditions, so the game ignores functions on them. From 26.3 every entry has a
+     * modifier, and theirs runs on each item their children give.
+     */
+    public static boolean takesFunctions(String type) {
+        //? if >=26.3 {
+        /*return true;
+        *///?} else {
+        return !List.of("alternatives", "group", "sequence").contains(shortId(type));
+        //?}
+    }
+
     private static boolean isItemType(JsonObject entry) {
         return entry.has("type") && shortId(entry.get("type").getAsString()).equals("item");
     }

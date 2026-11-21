@@ -215,7 +215,15 @@ final class LootForm {
             y = row(g, x, y, w, "weight", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "weight"), Kind.INT, "1"));
             y = row(g, x, y, w, "quality", (cx, cw) -> number(g, cx, y(), 50, JsonPaths.join(path, "quality"), Kind.INT, "0"));
         }
-        y = list(g, x, y, w, "functions", JsonPaths.join(path, "functions"), true);
+        // Before 26.3 the game ignores functions on alternatives, group and sequence, so none are
+        // offered there. Any that such an entry has already, from a file or an older edit, are still
+        // shown so they can be taken out.
+        String functions = JsonPaths.join(path, "functions");
+        if (LootTypes.takesFunctions(type)) {
+            y = list(g, x, y, w, "functions", functions, true);
+        } else if (size(functions) > 0) {
+            y = list(g, x, y, w, "functions", functions, true, text("functions_ignored"));
+        }
         y = list(g, x, y, w, "conditions", JsonPaths.join(path, "conditions"), false);
         return end(g, x, top, y, w);
     }
@@ -802,16 +810,26 @@ final class LootForm {
 
     /** A heading with a count and a link to add one, then a card for each function or condition. */
     private int list(GuiGraphics g, int x, int y, int w, String key, String path, boolean functions) {
+        return list(g, x, y, w, key, path, functions, null);
+    }
+
+    /** The same, with {@code instead}, if given, said under the heading in place of the link to add one. */
+    private int list(GuiGraphics g, int x, int y, int w, String key, String path, boolean functions, Component instead) {
         int count = size(path);
         y += 2;
         g.drawString(font, text("list." + key), x + 4, y + 1, ToolsUi.TEXT, false);
         String countText = count == 0 ? text("none").getString() : String.valueOf(count);
         Gui.fine(g, font, countText, x + 8 + font.width(text("list." + key)), y + 2, Gui.labelSoft());
-        Component add = text(functions ? "add_function" : "add_condition");
-        int addW = Gui.fineWidth(font, add.getString());
-        ui.link(g, add, x + w - 4 - addW, y + 2, true,
-                () -> append(path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance")));
+        if (instead == null) {
+            Component add = text(functions ? "add_function" : "add_condition");
+            int addW = Gui.fineWidth(font, add.getString());
+            ui.link(g, add, x + w - 4 - addW, y + 2, true,
+                    () -> append(path, functions ? LootTypes.function("minecraft:set_count") : LootTypes.condition("minecraft:random_chance")));
+        }
         y += font.lineHeight + 3;
+        if (instead != null) {
+            y = Gui.fineWrapped(g, font, instead, x + 4, y, w - 8, Gui.labelSoft()) + 2;
+        }
         for (int i = 0; i < count; i++) {
             String itemPath = JsonPaths.join(path, i);
             y = (functions ? functionCard(g, x + INDENT, y, w - INDENT * 2, itemPath) : conditionCard(g, x + INDENT, y, w - INDENT * 2, itemPath)) + 3;

@@ -447,6 +447,104 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /** The kinds of entry around a stick in {@link #fiveSticks}: the item entry itself, then those that hold others. */
+    private static final List<String> AROUND_A_STICK = List.of("minecraft:item", "minecraft:alternatives", "minecraft:group", "minecraft:sequence");
+
+    /**
+     * Functions on an alternatives, group or sequence entry. The table loads, and saves with them,
+     * on every version. Before 26.3 the game reads only such an entry's children and conditions, so
+     * its functions never run and its items come out as if they weren't there. From 26.3 every entry
+     * has a modifier, and one of these runs on each item its children give. The same function on the
+     * item entry itself runs on every version, or this would prove nothing.
+     */
+    public static void groupFunctionsRunOnlyFrom26_3(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        //? if >=26.3 {
+        /*int aroundSticks = 5;
+        *///?} else {
+        int aroundSticks = 1;
+        //?}
+        List<String> wrong = new ArrayList<>();
+        freshFolder();
+        try {
+            for (String type : AROUND_A_STICK) {
+                String json = LootFormat.forGame(fiveSticks(type)).toString();
+                Component problem = LootOverrides.check(IGLOO, json);
+                if (problem != null) {
+                    wrong.add(type + " doesn't load: " + problem.getString());
+                    continue;
+                }
+                Component saved = LootOverrides.save(server.getResourceManager(), IGLOO, json);
+                LootOverrides.View view = LootOverrides.view(server.getResourceManager(), IGLOO);
+                if (!key(saved).endsWith("override.saved") || view.status() != LootOverrides.Status.ACTIVE || !view.current().contains("minecraft:set_count")) {
+                    wrong.add(type + " didn't save with its function: " + saved.getString() + ", " + view.status() + ", " + view.current());
+                }
+                int expected = type.equals("minecraft:item") ? 5 : aroundSticks;
+                int given = sticks(helper, json);
+                if (given != expected) {
+                    wrong.add(type + " gave " + given + " sticks where this version gives " + expected);
+                }
+            }
+        } finally {
+            LootOverrides.setFolder(null);
+        }
+        helper.assertTrue(wrong.isEmpty(), "a stick with a function to make it 5: " + wrong);
+        helper.succeed();
+    }
+
+    /**
+     * The editor offers functions on an entry where the game runs them, and only there: the kinds
+     * around a stick are checked against what the game makes of five sticks, and the other kinds
+     * are single entries, which take functions on every version.
+     */
+    public static void editorOffersFunctionsWhereTheGameRunsThem(GameTestHelper helper) {
+        List<String> wrong = new ArrayList<>();
+        for (String type : AROUND_A_STICK) {
+            int given = sticks(helper, LootFormat.forGame(fiveSticks(type)).toString());
+            if (given != 1 && given != 5) {
+                wrong.add(type + " gave " + given + " sticks, which says nothing about its function");
+            } else if (LootTypes.takesFunctions(type) != (given == 5)) {
+                wrong.add(type + (given == 5 ? " runs its functions, but the editor doesn't offer them" : " ignores its functions, but the editor offers them"));
+            }
+        }
+        for (String type : LootTypes.entryTypes()) {
+            if (type.startsWith("minecraft:") && !AROUND_A_STICK.contains(type) && !LootTypes.takesFunctions(type)) {
+                wrong.add(type + " is a single entry, but the editor doesn't offer it functions");
+            }
+        }
+        helper.assertTrue(wrong.isEmpty(), "the editor's Functions list: " + wrong);
+        helper.succeed();
+    }
+
+    /** A table of one stick with a function that makes it 5, on the item entry itself or on an entry of {@code type} holding it. */
+    private static JsonObject fiveSticks(String type) {
+        JsonObject stick = json("{'type': 'minecraft:item', 'name': 'minecraft:stick'}");
+        JsonObject entry = stick;
+        if (!type.equals("minecraft:item")) {
+            entry = json("{'type': '" + type + "', 'children': []}");
+            entry.getAsJsonArray("children").add(stick);
+        }
+        JsonArray functions = new JsonArray();
+        functions.add(json("{'function': 'minecraft:set_count', 'count': 5}"));
+        entry.add("functions", functions);
+        JsonObject table = json("{'type': 'minecraft:chest', 'pools': [{'rolls': 1, 'entries': []}]}");
+        table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(entry);
+        return table;
+    }
+
+    /** How many sticks one roll of a table gives, rolled as the odds roll it, or -1 if the game can't read the table. */
+    private static int sticks(GameTestHelper helper, String json) {
+        var table = LootOverrides.parse(json);
+        if (table == null) {
+            return -1;
+        }
+        int sticks = 0;
+        for (var stack : LootRolls.countedRoll(helper.getLevel(), table, 1L)) {
+            sticks += stack.is(Items.STICK) ? stack.getCount() : 0;
+        }
+        return sticks;
+    }
+
     /** A list's item is copied to the place after it and moved a place at a time, and nothing else in the table changes. */
     public static void listItemsAreCopiedAndMoved(GameTestHelper helper) {
         JsonObject table = JsonParser.parseString("{\"pools\": [{\"rolls\": 1, \"entries\": [{\"name\": \"a\", \"weight\": 2}, {\"name\": \"b\"}, {\"name\": \"c\"}]}]}")

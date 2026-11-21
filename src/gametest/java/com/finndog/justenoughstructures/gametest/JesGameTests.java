@@ -581,6 +581,16 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void groupFunctionsRunOnlyFrom26_3(GameTestHelper helper) {
+        OverrideTests.groupFunctionsRunOnlyFrom26_3(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void editorOffersFunctionsWhereTheGameRunsThem(GameTestHelper helper) {
+        OverrideTests.editorOffersFunctionsWhereTheGameRunsThem(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void indexReadsTagsAndTablesInTables(GameTestHelper helper) {
         OverrideTests.indexReadsTagsAndTablesInTables(helper);
     }

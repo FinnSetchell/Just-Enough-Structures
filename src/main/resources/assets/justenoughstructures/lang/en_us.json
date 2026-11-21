@@ -606,6 +606,7 @@
   "screen.justenoughstructures.editor.list.terms": "Terms",
   "screen.justenoughstructures.editor.none": "none",
   "screen.justenoughstructures.editor.add_function": "+ Add function",
+  "screen.justenoughstructures.editor.functions_ignored": "The game ignores functions on this kind of entry. Put them on the entries inside instead, or take them out.",
   "screen.justenoughstructures.editor.add_condition": "+ Add condition",
   "screen.justenoughstructures.editor.remove_function": "Remove this function",
   "screen.justenoughstructures.editor.remove_condition": "Remove this condition",
