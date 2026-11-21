@@ -17,6 +17,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -220,6 +221,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     read.addAll(rolled.items());
                 }
             });
+            addIntegrations(server, items, kinds);
             // Items another mod takes out of every chest are in none, whatever a table names, its rolls
             // found before, or a structure places (RemovedItems).
             items.values().forEach(RemovedItems::dropFrom);
@@ -235,6 +237,47 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             });
             return new LootIndex(scan.tables(), items, placed, kinds);
         });
+    }
+
+    /**
+     * Adds to each table what Loot Integrations adds to it as it's rolled, read from its map: what the
+     * tables it rolls into the table can give, as the index has them, or read from them, and their
+     * potions and named books (see {@link LootIntegrations}). Its picks are random each roll with a
+     * random of its own, so rolling shows a different few of them in each build. What the tables are
+     * read to give is used rather than worked out: its rolls are made in the real chest's place, where
+     * a table's checks of the place can pass, unlike in JES's rolls.
+     */
+    private static void addIntegrations(MinecraftServer server, Map<ResourceLocation, Set<ResourceLocation>> items,
+                                        Map<ResourceLocation, Map<ResourceLocation, Set<String>>> kinds) {
+        LootIntegrations.Listing integrations = LootIntegrations.read();
+        if (integrations.map().isEmpty()) {
+            return;
+        }
+        // What each table gives before anything is added, so a table added to and rolled into another
+        // doesn't pass on what it was given itself, which its own sources pass on already.
+        Map<ResourceLocation, Set<ResourceLocation>> given = new HashMap<>();
+        items.forEach((table, set) -> given.put(table, new TreeSet<>(set)));
+        Map<ResourceLocation, Map<ResourceLocation, Set<String>>> givenKinds = new HashMap<>();
+        kinds.forEach((table, map) -> givenKinds.put(table, new TreeMap<>(map)));
+        for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : items.entrySet()) {
+            ResourceLocation table = entry.getKey();
+            for (ResourceLocation source : integrations.sourcesOf(table)) {
+                for (ResourceLocation item : given.computeIfAbsent(source, s -> itemsIn(server, s, new HashSet<>()))) {
+                    if (!integrations.leftOut().contains(item)) {
+                        entry.getValue().add(item);
+                    }
+                }
+                givenKinds.computeIfAbsent(source, s -> kindsIn(server, s)).forEach((item, named) -> {
+                    if (!integrations.leftOut().contains(item)) {
+                        kinds.computeIfAbsent(table, t -> new TreeMap<>()).merge(item, new TreeSet<>(named), (a, b) -> {
+                            Set<String> both = new TreeSet<>(a);
+                            both.addAll(b);
+                            return both;
+                        });
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -294,17 +337,31 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         return scan.withRolled(moved);
     }
 
-    /** The index with these items added to what each of its tables can give. */
-    public LootIndex withItems(Map<ResourceLocation, Set<ResourceLocation>> more) {
+    /**
+     * The index with these items, which rolls found, added to what each of its tables can give, and to
+     * what each table Loot Integrations rolls one of them into can give (see {@link #of}).
+     */
+    public LootIndex withItems(Map<ResourceLocation, Set<ResourceLocation>> more, LootIntegrations.Listing integrations) {
         Map<ResourceLocation, Set<ResourceLocation>> items = new TreeMap<>();
         itemsByTable.forEach((table, given) -> items.put(table, new TreeSet<>(given)));
         more.forEach((table, extra) -> {
             Set<ResourceLocation> given = items.get(table);
             if (given != null) {
                 given.addAll(extra);
-                RemovedItems.dropFrom(given);
             }
         });
+        if (!integrations.map().isEmpty()) {
+            items.forEach((table, given) -> {
+                for (ResourceLocation source : integrations.sourcesOf(table)) {
+                    for (ResourceLocation item : more.getOrDefault(source, Set.of())) {
+                        if (!integrations.leftOut().contains(item)) {
+                            given.add(item);
+                        }
+                    }
+                }
+            });
+        }
+        items.values().forEach(RemovedItems::dropFrom);
         return new LootIndex(tablesByStructure, items, placedByStructure, kindsByTable);
     }
 

@@ -9,6 +9,7 @@ import com.finndog.justenoughstructures.SafeFiles;
 import com.finndog.justenoughstructures.Threads;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.loot.LootIndex;
+import com.finndog.justenoughstructures.loot.LootIntegrations;
 import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
@@ -25,7 +26,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -353,7 +356,7 @@ public final class LootIndexStore {
             return;
         }
         building = true;
-        SpareTime.add(server, new TableRolls(server, unrolled.keySet(), () -> generation != GENERATION.get() || !server.isRunning(), seen -> {
+        SpareTime.add(server, new TableRolls(server, unrolled.keySet(), read, () -> generation != GENERATION.get() || !server.isRunning(), seen -> {
             Map<ResourceLocation, StructureScan.Rolled> rolled = new TreeMap<>();
             Map<ResourceLocation, Set<ResourceLocation>> added = new TreeMap<>();
             seen.forEach((table, items) -> {
@@ -367,7 +370,7 @@ public final class LootIndexStore {
             JesLog.debug("Rolling found items that reading doesn't show in {} loot tables {}", added.size(), added);
             OddsStore.save(server);
             StructureScan withRolls = scanned.withRolled(rolled);
-            finish(server, withRolls, read.withItems(added));
+            finish(server, withRolls, read.withItems(added, LootIntegrations.read()));
             if (key != null) {
                 inBackground(server, generation, () -> write(dir, key, withRolls));
             }
@@ -397,6 +400,8 @@ public final class LootIndexStore {
         private final Map<ResourceLocation, Set<ResourceLocation>> seen = new TreeMap<>();
         /** The tables other mods' code changes as they're rolled, which are rolled in full. */
         private final LootHooks.Found hooks;
+        /** What the index lists each table gives before these rolls. */
+        private final Map<ResourceLocation, Set<ResourceLocation>> read;
         private final long started = System.nanoTime();
         private int stoppedEarly;
         private int reused;
@@ -408,14 +413,35 @@ public final class LootIndexStore {
         private long rollingNanos;
         private int rolls;
 
-        TableRolls(MinecraftServer server, Set<ResourceLocation> tables, BooleanSupplier stale,
+        TableRolls(MinecraftServer server, Set<ResourceLocation> tables, LootIndex read, BooleanSupplier stale,
                    Consumer<Map<ResourceLocation, Set<ResourceLocation>>> done) {
             this.server = server;
-            this.tables = List.copyOf(tables).iterator();
+            this.hooks = LootHooks.find();
+            this.read = read.itemsByTable();
+            // Tables Loot Integrations adds to go last, after the tables it rolls into them (givesOnlyListed).
+            List<ResourceLocation> ordered = new ArrayList<>(tables);
+            ordered.sort(Comparator.comparing(hooks::listed));
+            this.tables = ordered.iterator();
             this.count = tables.size();
             this.stale = stale;
             this.done = done;
-            this.hooks = LootHooks.find();
+        }
+
+        /**
+         * Whether a table Loot Integrations adds to gave nothing in its first rolls that the index
+         * doesn't list already: what reading it shows, and what the tables Loot Integrations rolls into
+         * it give, including what their own rolls here found, like loot modifiers' items.
+         */
+        private boolean givesOnlyListed(ResourceLocation table, LootOdds odds) {
+            Set<ResourceLocation> listed = new HashSet<>(read.getOrDefault(table, Set.of()));
+            for (ResourceLocation source : hooks.integrations().sourcesOf(table)) {
+                for (ResourceLocation item : seen.getOrDefault(source, Set.of())) {
+                    if (!hooks.integrations().leftOut().contains(item)) {
+                        listed.add(item);
+                    }
+                }
+            }
+            return listed.containsAll(itemsOf(odds));
         }
 
         @Override
@@ -430,9 +456,11 @@ public final class LootIndexStore {
                     if (!tables.hasNext()) {
                         rollingNanos += System.nanoTime() - sliceStarted;
                         JesLog.debug("Rolled {} loot tables {} times in all for the loot index, in {} ms of the server's time over {} ms; "
-                                        + "{} stopped after their first {} rolls fit what they give, {} named by other mods' loot code{}; {} kept from an earlier start",
+                                        + "{} stopped after their first {} rolls fit what they give, {} named by other mods' loot code{}, {} with what "
+                                        + "Loot Integrations adds listed; {} kept from an earlier start",
                                 count, rolls, rollingNanos / 1_000_000L, (System.nanoTime() - started) / 1_000_000L, stoppedEarly, FIRST_ROLLS,
-                                hooks.tables().size(), hooks.anyTable() ? ", which may change any table" : "", reused);
+                                hooks.tables().size(), hooks.anyTable() ? ", which may change any table" : "",
+                                hooks.integrations().map().keySet().stream().filter(hooks::listed).count(), reused);
                         done.accept(seen);
                         return true;
                     }
@@ -471,7 +499,7 @@ public final class LootIndexStore {
                 }
                 tableNanos += System.nanoTime() - before;
                 if (first && finished && !broke) {
-                    if (!LootMath.check(server, roller.odds()).fits()) {
+                    if (hooks.listed(table) ? !givesOnlyListed(table, roller.odds()) : !LootMath.check(server, roller.odds()).fits()) {
                         // Something may change the table as it's rolled: rolled in full, from the same
                         // seed, so the first rolls are among them.
                         roller = new LootRolls.Roller(LootRolls.level(server), table, ROLLS, table.hashCode());

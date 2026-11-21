@@ -315,6 +315,7 @@ tasks {
     // build in a launcher instance. Never shipped, and kept out of build/libs, where a release looks.
     register<Jar>("gametestJar") {
         from(gametest.output)
+        exclude(StandIns.PATHS)
         // A real game reads a jar's mixin configs from its manifest, and only gets the mixins it uses.
         filesMatching("${modId}_gametest.mixins.json") {
             val config = RealGameMixins()

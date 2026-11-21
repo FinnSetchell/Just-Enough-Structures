@@ -324,12 +324,14 @@ loom {
 if (loomx.isUnobfuscated) {
     tasks.register<Jar>("gametestJar") {
         from(gametest.output)
+        exclude(StandIns.PATHS)
         archiveClassifier = "gametest"
         destinationDirectory = layout.buildDirectory.dir("testlibs")
     }
 } else {
     val gametestDevJar = tasks.register<Jar>("gametestDevJar") {
         from(gametest.output)
+        exclude(StandIns.PATHS)
         filesMatching("justenoughstructures_gametest.mixins.json") {
             val config = RealGameMixins()
             filter { line -> config.line(line) }

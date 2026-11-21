@@ -1,9 +1,9 @@
 package com.finndog.justenoughstructures.server;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.loot.LootIntegrations;
 import java.lang.reflect.Field;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,7 +20,9 @@ import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
  * <li>Porting Lib's loot modifiers (Forge's, ported to Fabric, as in Prominence II): each names its
  * table with a loot_table_id condition. One that needs a killer, a tool, a block or a place never acts
  * in JES's rolls, which have none of those. Any other could act on every table.</li>
- * <li>Loot Integrations' map of the tables it adds to.</li>
+ * <li>Loot Integrations' map of the tables it adds to. Where it only adds, the loot index lists what
+ * it adds from the map ({@link LootIntegrations}), so a few rolls that give nothing more are enough.
+ * Where it may only take stacks out, the table is rolled in full.</li>
  * </ul>
  *
  * <p>Forge's and NeoForge's own loot modifiers, Fabric's MODIFY_DROPS event (from 26.1) and LootJS
@@ -33,10 +35,18 @@ public final class LootHooks {
             "minecraft:entity_properties", "minecraft:block_state_property", "minecraft:damage_source_properties", "minecraft:location_check",
             "minecraft:entity_scores", "porting_lib:can_tool_perform_action", "forge:can_tool_perform_action");
 
-    /** What's known: the tables mod code changes as they're rolled, or that it may change any table. */
-    public record Found(Set<ResourceLocation> tables, boolean anyTable) {
+    /**
+     * What's known: the tables mod code changes as they're rolled, or that it may change any table, and
+     * what Loot Integrations adds to tables.
+     */
+    public record Found(Set<ResourceLocation> tables, boolean anyTable, LootIntegrations.Listing integrations) {
         public boolean touches(ResourceLocation table) {
             return anyTable || tables.contains(table);
+        }
+
+        /** Whether all that's changed in the table as it's rolled is what Loot Integrations adds, which the index lists. */
+        public boolean listed(ResourceLocation table) {
+            return !touches(table) && integrations.onlyAdds(table);
         }
     }
 
@@ -45,24 +55,29 @@ public final class LootHooks {
 
     /** Looks now. On the server thread, after the server's data has loaded. */
     public static Found find() {
+        LootIntegrations.Listing integrations = LootIntegrations.read();
         //? if fabric {
         Set<ResourceLocation> tables = new TreeSet<>();
         try {
             if (present("com.almostreliable.lootjs.LootModificationsAPI") || modifyDropsListened()) {
-                return new Found(tables, true);
+                return new Found(tables, true, integrations);
             }
             if (!portingLib(tables)) {
-                return new Found(tables, true);
+                return new Found(tables, true, integrations);
             }
-            lootIntegrations(tables);
-            return new Found(tables, false);
+            for (ResourceLocation table : integrations.map().keySet()) {
+                if (!integrations.onlyAdds(table)) {
+                    tables.add(table);
+                }
+            }
+            return new Found(tables, false, integrations);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
             JesLog.debug("Couldn't read which loot tables other mods change as they're rolled, so every table is rolled in full", e);
-            return new Found(tables, true);
+            return new Found(tables, true, integrations);
         }
         //?} else {
         /*// Forge's and NeoForge's own loot modifiers aren't read here.
-        return new Found(Set.of(), true);
+        return new Found(Set.of(), true, integrations);
         *///?}
     }
 
@@ -120,19 +135,6 @@ public final class LootHooks {
             }
         }
         return true;
-    }
-
-    /** Adds the tables Loot Integrations adds to, from its own map of them. */
-    private static void lootIntegrations(Set<ResourceLocation> tables) throws ReflectiveOperationException {
-        String manager = "com.lootintegrations.loot.LootModifierManager";
-        if (present(manager)) {
-            Map<?, ?> options = (Map<?, ?>) Class.forName(manager).getField("lootOptionsMap").get(null);
-            for (Object key : options.keySet()) {
-                if (key instanceof ResourceLocation id) {
-                    tables.add(id);
-                }
-            }
-        }
     }
 
     private static ResourceLocation typeOf(LootItemCondition condition) {

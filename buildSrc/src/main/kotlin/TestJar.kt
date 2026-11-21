@@ -39,3 +39,14 @@ class RealGameMixins {
         )
     }
 }
+
+/**
+ * What the test mod's jar for a real game leaves out: the game tests' stand-ins for other mods, which
+ * are under those mods' own names (Item Obliterator's check and config, Loot Integrations' map), and
+ * their data (Loot Integrations' ignored tag). A real game with the mod would get two of each class
+ * and the test's tag in its own, and one without it would take the mod for there. Patterns for a jar
+ * task's exclude.
+ */
+object StandIns {
+    val PATHS = listOf("elocindev/**", "com/lootintegrations/**", "data/lootintegrations/**")
+}
