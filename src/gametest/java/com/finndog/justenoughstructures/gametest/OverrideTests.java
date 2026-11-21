@@ -414,6 +414,39 @@ public final class OverrideTests {
         helper.succeed();
     }
 
+    /**
+     * Changing an entry to another kind keeps what the new kind has in the game: its conditions for
+     * every kind, and its weight, quality and functions only for a single entry. Alternatives, group
+     * and sequence have none of those three. Each comes out as something the game loads.
+     */
+    public static void entryKindKeepsItsConditions(GameTestHelper helper) {
+        JsonObject was = JsonParser.parseString("{\"type\": \"minecraft:item\", \"name\": \"minecraft:apple\", \"weight\": 3, \"quality\": 1, "
+                + "\"functions\": [{\"function\": \"minecraft:set_count\", \"count\": 2}], "
+                + "\"conditions\": [{\"condition\": \"minecraft:random_chance\", \"chance\": 0.5}]}").getAsJsonObject();
+        List<String> wrong = new ArrayList<>();
+        for (String type : List.of("minecraft:alternatives", "minecraft:group", "minecraft:sequence", "minecraft:tag", "minecraft:empty")) {
+            JsonObject now = LootTypes.entry(type, was);
+            boolean composite = List.of("minecraft:alternatives", "minecraft:group", "minecraft:sequence").contains(type);
+            if (!was.get("conditions").equals(now.get("conditions"))) {
+                wrong.add(type + " lost its conditions: " + now);
+            }
+            if (composite && (now.has("weight") || now.has("quality") || now.has("functions"))) {
+                wrong.add(type + " kept settings the game doesn't give it: " + now);
+            }
+            if (!composite && !was.get("functions").equals(now.get("functions"))) {
+                wrong.add(type + " lost its functions: " + now);
+            }
+            JsonObject table = JsonParser.parseString("{\"type\": \"minecraft:generic\", \"pools\": [{\"rolls\": 1, \"entries\": []}]}").getAsJsonObject();
+            table.getAsJsonArray("pools").get(0).getAsJsonObject().getAsJsonArray("entries").add(now);
+            Component problem = LootOverrides.check(IGLOO, LootFormat.forGame(table).toString());
+            if (problem != null) {
+                wrong.add(type + " doesn't load: " + problem.getString());
+            }
+        }
+        helper.assertTrue(wrong.isEmpty(), "changing an entry's kind: " + wrong);
+        helper.succeed();
+    }
+
     /** A list's item is copied to the place after it and moved a place at a time, and nothing else in the table changes. */
     public static void listItemsAreCopiedAndMoved(GameTestHelper helper) {
         JsonObject table = JsonParser.parseString("{\"pools\": [{\"rolls\": 1, \"entries\": [{\"name\": \"a\", \"weight\": 2}, {\"name\": \"b\"}, {\"name\": \"c\"}]}]}")

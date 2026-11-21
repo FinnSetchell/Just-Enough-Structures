@@ -278,7 +278,9 @@ public final class LootTypes {
 
     /**
      * A new entry of this kind. Given {@code was}, a new item entry keeps its item if it was an item
-     * entry, and any kind but a composite one keeps its weight, quality, functions and conditions.
+     * entry, and the new entry keeps whatever of its settings its kind has in the game: conditions for
+     * every kind, and weight, quality and functions for single entries. A composite one (alternatives,
+     * group, sequence) has none of those three.
      */
     public static JsonObject entry(String type, JsonObject was) {
         JsonObject out = new JsonObject();
@@ -301,9 +303,9 @@ public final class LootTypes {
             }
         }
         if (was != null) {
-            // Carry over the settings single entries share. Composite kinds take none of them.
-            for (String key : List.of("weight", "quality", "functions", "conditions")) {
-                if (was.has(key) && !List.of("alternatives", "group", "sequence").contains(kind)) {
+            boolean composite = List.of("alternatives", "group", "sequence").contains(kind);
+            for (String key : composite ? List.of("conditions") : List.of("weight", "quality", "functions", "conditions")) {
+                if (was.has(key)) {
                     out.add(key, was.get(key).deepCopy());
                 }
             }

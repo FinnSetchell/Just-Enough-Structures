@@ -566,6 +566,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void entryKindKeepsItsConditions(GameTestHelper helper) {
+        OverrideTests.entryKindKeepsItsConditions(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void indexReadsTagsAndTablesInTables(GameTestHelper helper) {
         OverrideTests.indexReadsTagsAndTablesInTables(helper);
     }
