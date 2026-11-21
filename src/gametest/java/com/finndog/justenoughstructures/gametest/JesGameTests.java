@@ -975,6 +975,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void locatesWaitBelowOperatorLevel(GameTestHelper helper) {
+        MessageTests.locatesWaitBelowOperatorLevel(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void openBrowserReadsBack(GameTestHelper helper) {
         MessageTests.openBrowserReadsBack(helper);
     }

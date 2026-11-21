@@ -330,6 +330,64 @@ public final class MessageTests {
         helper.succeed();
     }
 
+    /**
+     * A player below operator level who can locate waits between locates, and is told so in answer to
+     * the request; once made an operator they don't wait.
+     */
+    public static void locatesWaitBelowOperatorLevel(GameTestHelper helper) {
+        var server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        ResourceLocation igloo = Ids.parse("igloo");
+        ServerConfig.Settings before = ServerConfig.get();
+        JesServer.forgetLocateTimes();
+        try {
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, ServerConfig.PackTools.level(4)));
+            Codecs.LocateReply first = locate(helper, player, 21, igloo);
+            helper.assertFalse(key(first.reply()).endsWith("locate_cooldown"), "the first locate had to wait: " + first);
+            Codecs.LocateReply second = locate(helper, player, 22, igloo);
+            helper.assertTrue(second.requestId() == 22 && key(second.reply()).endsWith("locate_cooldown"),
+                    "a locate straight after another wasn't told to wait: " + second);
+            setOperator(player, true);
+            Codecs.LocateReply operator = locate(helper, player, 23, igloo);
+            helper.assertFalse(key(operator.reply()).endsWith("locate_cooldown"), "an operator had to wait: " + operator);
+        } finally {
+            setOperator(player, false);
+            ServerConfig.set(before);
+            JesServer.forgetLocateTimes();
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Makes the player an operator at level 4, or not. The op command is only on dedicated servers, and
+     * gives the server's operator level, which on the test server is too low to count.
+     */
+    private static void setOperator(ServerPlayer player, boolean on) {
+        var players = com.finndog.justenoughstructures.Players.level(player).getServer().getPlayerList();
+        //? if >=26.1 {
+        /*var who = new net.minecraft.server.players.NameAndId(player.getGameProfile());
+        if (on) {
+            players.op(who, java.util.Optional.of(net.minecraft.server.permissions.LevelBasedPermissionSet.OWNER), java.util.Optional.empty());
+        } else {
+            players.deop(who);
+        }
+        *///?} else {
+        if (on) {
+            players.getOps().add(new net.minecraft.server.players.ServerOpListEntry(player.getGameProfile(), 4, false));
+            players.sendPlayerPermissionLevel(player);
+        } else {
+            players.deop(player.getGameProfile());
+        }
+        //?}
+    }
+
+    /** A locate asked for the way the browser asks for one, and the server's answer to it. */
+    private static Codecs.LocateReply locate(GameTestHelper helper, ServerPlayer player, int requestId, ResourceLocation id) {
+        var server = helper.getLevel().getServer();
+        return read(helper, only(helper, sent(player, JesNetwork.LOCATE, () -> JesServer.queueLocate(server, player, requestId, id, false)), "locate"),
+                Codecs::readLocateReply);
+    }
+
     public static void openBrowserReadsBack(GameTestHelper helper) {
         ResourceLocation igloo = Ids.parse("igloo");
         byte[] onOne = bytes(helper, buf -> Codecs.writeOpenBrowser(buf, igloo));

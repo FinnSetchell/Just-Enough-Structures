@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -1007,9 +1008,18 @@ public final class JesServer {
 
     private static final String[] DIRECTIONS = {"north", "north_east", "east", "south_east", "south", "south_west", "west", "north_west"};
 
+    /** How long a player below operator level waits between locates, as each is a full structure search. */
+    private static final long LOCATE_COOLDOWN_MILLIS = 10_000L;
+    /** The permission level operators have, who aren't kept waiting. */
+    private static final int OPERATOR_LEVEL = 2;
+    /** When each player below operator level last started a locate. Server thread only. */
+    private static final Map<UUID, Long> LAST_LOCATE = new HashMap<>();
+
     /**
      * Queues a locate on the server thread, unless this player already has one waiting: each is a
-     * full structure search, so repeated clicks mustn't pile them up.
+     * full structure search, so repeated clicks mustn't pile them up. A player below operator level
+     * also waits {@link #LOCATE_COOLDOWN_MILLIS} between them, so locating can't be used to slow the
+     * server down.
      */
     public static void queueLocate(MinecraftServer server, ServerPlayer player, int requestId, ResourceLocation id, boolean teleport) {
         UUID uuid = player.getUUID();
@@ -1021,11 +1031,42 @@ public final class JesServer {
         }
         server.execute(() -> {
             try {
+                Component wait = locateCooldown(player);
+                if (wait != null) {
+                    FriendlyByteBuf buf = Blobs.buffer(server.registryAccess());
+                    Codecs.writeLocateReply(buf, new Codecs.LocateReply(requestId, wait));
+                    JesNetwork.send(player, JesNetwork.LOCATE, buf);
+                    return;
+                }
                 onRequestLocate(player, requestId, id, teleport);
             } finally {
                 LOCATING.remove(uuid);
             }
         });
+    }
+
+    /**
+     * What to tell a player below operator level who located less than {@link #LOCATE_COOLDOWN_MILLIS}
+     * ago, or null when they can locate now, which starts their wait again. Players who can't locate
+     * at all aren't counted, so they're told that instead. Server thread only.
+     */
+    private static Component locateCooldown(ServerPlayer player) {
+        if (Players.hasPermission(player, OPERATOR_LEVEL) || !Players.hasPermission(player, ServerConfig.get().locatePermission())) {
+            return null;
+        }
+        long now = Util.getMillis();
+        Long last = LAST_LOCATE.get(player.getUUID());
+        if (last != null && now - last < LOCATE_COOLDOWN_MILLIS) {
+            long seconds = (LOCATE_COOLDOWN_MILLIS - (now - last) + 999) / 1000;
+            return Component.translatable("screen.justenoughstructures.locate_cooldown", seconds);
+        }
+        LAST_LOCATE.put(player.getUUID(), now);
+        return null;
+    }
+
+    /** Forgets when players last located, so a test starts with none waiting. */
+    public static void forgetLocateTimes() {
+        LAST_LOCATE.clear();
     }
 
     /** Sets the player's compass searching for a structure, on the server thread, and answers like a locate. */

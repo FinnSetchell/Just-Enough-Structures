@@ -279,6 +279,7 @@
   "screen.justenoughstructures.direction.north_west": "north-west",
   "screen.justenoughstructures.locate_none": "None found nearby in this dimension",
   "screen.justenoughstructures.locate_busy": "Still looking for the last one",
+  "screen.justenoughstructures.locate_cooldown": "You can find another structure in %s s",
   "screen.justenoughstructures.locate_hidden": "This server keeps that structure hidden",
   "screen.justenoughstructures.locate_structures_off": "Structures are turned off in this world",
   "screen.justenoughstructures.locate_wrong_dimension": "It can't generate in this dimension",
