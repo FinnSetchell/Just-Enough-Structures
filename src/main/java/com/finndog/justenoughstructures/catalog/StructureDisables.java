@@ -71,9 +71,8 @@ final class StructureDisables {
                 return new Availability(Availability.Reason.TURNED_OFF, "moogs_structures", null);
             }
             Class<?> manager = Class.forName("com.finndog.moogs_structures.config.ReplaceVanillaManager");
-            Optional<?> replacement = (Optional<?>) manager.getMethod("getActiveReplacement", ResourceLocation.class).invoke(null, id);
-            if (replacement.isPresent()) {
-                Object r = replacement.get();
+            Object r = activeReplacement(manager, id);
+            if (r != null) {
                 Method mod = r.getClass().getMethod("modid");
                 Method by = r.getClass().getMethod("replacementStructure");
                 return new Availability(Availability.Reason.REPLACED, (String) mod.invoke(r), (ResourceLocation) by.invoke(r));
@@ -85,6 +84,21 @@ final class StructureDisables {
             JesLog.debug("Couldn't read what Moog's Structure Lib turns off", e);
         }
         return null;
+    }
+
+    /**
+     * What Moog's Structure Lib puts in this structure's place, or null for nothing. From MSL 4 it lists
+     * every active replacement, in a fixed order, and the first is the one shown; before that it gave
+     * at most one.
+     */
+    private static Object activeReplacement(Class<?> manager, ResourceLocation id) throws ReflectiveOperationException {
+        try {
+            List<?> active = (List<?>) manager.getMethod("getActiveReplacements", ResourceLocation.class).invoke(null, id);
+            return active.isEmpty() ? null : active.get(0);
+        } catch (NoSuchMethodException beforeMsl4) {
+            Optional<?> active = (Optional<?>) manager.getMethod("getActiveReplacement", ResourceLocation.class).invoke(null, id);
+            return active.orElse(null);
+        }
     }
 
     private static boolean on(Yung yung) {
