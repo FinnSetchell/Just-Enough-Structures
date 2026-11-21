@@ -546,7 +546,7 @@ public final class Gallery {
 
     private void reelFrame(Minecraft mc) {
         StructureViewport.Camera c = reelFrom;
-        viewport().setCamera(new StructureViewport.Camera(c.yaw() + stepTicks * reelTurn, c.pitch(), c.distance(), c.focusX(), c.focusY(), c.focusZ()));
+        viewport().setCamera(new StructureViewport.Camera(c.yaw() + stepTicks * reelTurn, c.pitch(), c.distance(), c.focusX(), c.focusY(), c.focusZ(), c.moved()));
         shoot(mc, String.format("reel/f_%05d", reelFrames++));
     }
 

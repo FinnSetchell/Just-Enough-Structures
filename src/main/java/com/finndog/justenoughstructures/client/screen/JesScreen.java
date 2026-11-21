@@ -115,6 +115,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private Button rerollButton;
     private IconButton markersButton;
     private IconButton groundButton;
+    private IconButton resetButton;
     private IconButton flyButton;
     /** Whether the fly button's label was last set for flying. */
     private boolean flyLabelFor;
@@ -441,7 +442,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
         Component shortcut = Component.translatable("screen.justenoughstructures.reroll_tooltip");
         rerollButton.setTooltip(Tooltip.create(roomy ? shortcut : rerollLabel.copy().append("\n").append(shortcut)));
         bx += rerollW + 2;
-        addRenderableWidget(new IconButton(bx, buttonsY, Icons.HOUSE,
+        resetButton = addRenderableWidget(new IconButton(bx, buttonsY, Icons.HOUSE,
                 Component.translatable("screen.justenoughstructures.reset"), b -> {
             stopFlying(true);
             viewport.resetCamera();
@@ -1006,7 +1007,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             tourFrom = now;
             tourSlice = view.sliceY();
         }
-        StructureViewport.Camera to = new StructureViewport.Camera(now.yaw(), now.pitch(), distance, (float) x, (float) y, (float) z);
+        StructureViewport.Camera to = new StructureViewport.Camera(now.yaw(), now.pitch(), distance, (float) x, (float) y, (float) z, now.moved());
         int keep = top > tourSlice ? view.size().getY() : tourSlice;
         int slice = viewport.blocked(to, target, keep) ? top : keep;
         if (slice != view.sliceY()) {
@@ -2348,6 +2349,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             case "reroll" -> rerollButton;
             case "markers" -> markersButton;
             case "ground" -> groundButton;
+            case "reset" -> resetButton;
             case "fly" -> flyButton;
             case "maximise" -> maximiseButton;
             case "locate" -> locateButton;
@@ -2493,7 +2495,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             // Restore the earlier zoom and centre, but keep the angle the player turned to.
             StructureViewport.Camera now = viewport.camera();
             StructureViewport.Camera back = new StructureViewport.Camera(now.yaw(), now.pitch(), tourFrom.distance(),
-                    tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ());
+                    tourFrom.focusX(), tourFrom.focusY(), tourFrom.focusZ(), now.moved());
             if (refitAfterTour) {
                 // The zoom from before was for another size of preview: fit to this one instead.
                 viewport.setCamera(back);
@@ -2626,7 +2628,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             mouseX = viewX + viewW / 2;
             mouseY = viewY + viewH / 2;
         }
-        // Turns slowly while the mouse is away, and stops where it is once the mouse is over it.
+        // Turns slowly while the mouse is away, and stops where it is once the mouse is over it. Only
+        // the default view turns: once the player moves the camera, it stays until Reset view.
         boolean overPreview = mouseX >= viewX && mouseX < viewX + viewW && mouseY >= viewY && mouseY < viewY + viewH;
         if (ClientState.spin && view != null && !viewport.flying() && !overPreview && !(pressedInViewport && dragged)) {
             viewport.spin(seconds * 12f);

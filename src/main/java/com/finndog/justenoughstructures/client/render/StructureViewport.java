@@ -130,6 +130,17 @@ public final class StructureViewport implements AutoCloseable {
      * front of the eye: the same view as a first-person camera, and markers keep a sensible size.
      */
     private boolean flying;
+    /**
+     * Whether the player has turned, panned, zoomed or flown the camera since it was last put at the
+     * default view. Only the default view spins.
+     */
+    private boolean moved;
+    /**
+     * How far the mouse has turned or panned the camera since the default view, in GUI pixels. A click
+     * in the preview can wobble the mouse a pixel or two, which turns it a little but isn't a move.
+     */
+    private double nudged;
+    private static final double NUDGE = 3;
     /** How far in front of the eye the focus is kept while flying, in blocks. */
     private static final float FLY_LOOK = 8f;
 
@@ -232,12 +243,12 @@ public final class StructureViewport implements AutoCloseable {
         return mesh == null ? 0f : mesh.progress();
     }
 
-    /** A camera position, saved so it can be restored later. */
-    public record Camera(float yaw, float pitch, float distance, float focusX, float focusY, float focusZ) {
+    /** A camera position, saved so it can be restored later, and whether the player had moved it from the default view. */
+    public record Camera(float yaw, float pitch, float distance, float focusX, float focusY, float focusZ, boolean moved) {
     }
 
     public Camera camera() {
-        return new Camera(yaw, pitch, distance, focus.x, focus.y, focus.z);
+        return new Camera(yaw, pitch, distance, focus.x, focus.y, focus.z, moved);
     }
 
     /**
@@ -286,7 +297,7 @@ public final class StructureViewport implements AutoCloseable {
         }
     }
 
-    /** Moves the camera smoothly to {@code to} over a fraction of a second. Not while flying. */
+    /** Moves the camera smoothly to {@code to} over a fraction of a second, leaving whether the player moved it as it is. Not while flying. */
     public void glideTo(Camera to) {
         if (flying) {
             return;
@@ -303,12 +314,16 @@ public final class StructureViewport implements AutoCloseable {
         pitch = camera.pitch();
         distance = camera.distance();
         focus.set(camera.focusX(), camera.focusY(), camera.focusZ());
+        moved = camera.moved();
+        nudged = 0;
         needsFit = false;
     }
 
     /** Back to the default view of the whole structure. Stops flying. */
     public void resetCamera() {
         flying = false;
+        moved = false;
+        nudged = 0;
         glide = null;
         yaw = 225f;
         pitch = 30f;
@@ -393,6 +408,7 @@ public final class StructureViewport implements AutoCloseable {
 
     /** Turns the camera around its focus for a drag, or while flying, around the eye. */
     public void rotate(double dx, double dy) {
+        nudge(dx, dy);
         if (flying) {
             look((float) dx * 0.6f, (float) dy * 0.6f);
             return;
@@ -402,8 +418,9 @@ public final class StructureViewport implements AutoCloseable {
         pitch = Math.max(-89f, Math.min(89f, pitch + (float) dy * 0.6f));
     }
 
+    /** Turns the camera on its own, by degrees. Only at the default view: once the player has moved it, it stays where they left it. */
     public void spin(float degrees) {
-        if (!flying) {
+        if (!flying && !moved) {
             yaw += degrees;
         }
     }
@@ -412,6 +429,7 @@ public final class StructureViewport implements AutoCloseable {
         if (flying) {
             return;
         }
+        nudge(dx, dy);
         glide = null;
         float scale = distance * (float) Math.tan(Math.toRadians(FOV / 2f)) * 2f / Math.max(1, height);
         Matrix4f inverse = new Matrix4f(viewMatrix).invert();
@@ -420,14 +438,20 @@ public final class StructureViewport implements AutoCloseable {
         focus.add(right.mul((float) -dx * scale)).add(up.mul((float) dy * scale));
     }
 
+    private void nudge(double dx, double dy) {
+        nudged += Math.abs(dx) + Math.abs(dy);
+        moved |= nudged > NUDGE;
+    }
+
     public void zoom(double amount) {
         if (flying) {
             return;
         }
+        moved = true;
         float factor = (float) Math.pow(0.88, amount);
         if (glide != null) {
             // During a glide, zooming changes the glide's target distance, so it still ends centred on its target.
-            glide = new Camera(glide.yaw(), glide.pitch(), zoomed(glide.distance(), factor), glide.focusX(), glide.focusY(), glide.focusZ());
+            glide = new Camera(glide.yaw(), glide.pitch(), zoomed(glide.distance(), factor), glide.focusX(), glide.focusY(), glide.focusZ(), glide.moved());
             return;
         }
         distance = zoomed(distance, factor);
@@ -461,6 +485,7 @@ public final class StructureViewport implements AutoCloseable {
         glide = null;
         Vector3f from = eyeNow();
         flying = true;
+        moved = true;
         refocus(from, FLY_LOOK);
     }
 

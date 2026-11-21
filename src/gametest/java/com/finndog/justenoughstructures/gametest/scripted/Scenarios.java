@@ -84,6 +84,8 @@ public final class Scenarios {
             case "spawners" -> SpawnersScenario.build(mc);
             case "back" -> BackScenario.build(mc);
             case "hover_spin" -> SpinScenario.build(mc);
+            case "spin_home" -> SpinHomeScenario.build(mc);
+            case "spin_home_clip" -> SpinHomeScenario.clip(mc);
             case "hover" -> HoverScenario.build(mc);
             case "marker_clicks" -> MarkerClicksScenario.build(mc);
             case "highlight" -> HighlightScenario.build(mc);

@@ -189,7 +189,7 @@ final class MarkerClicksScenario {
                 run(() -> {
                     StructureViewport.Camera now = viewport(mc).camera();
                     float[] foot = foot(chest[0]);
-                    viewport(mc).setCamera(new StructureViewport.Camera(now.yaw(), now.pitch(), CLOSE, foot[0], foot[1], foot[2]));
+                    viewport(mc).setCamera(new StructureViewport.Camera(now.yaw(), now.pitch(), CLOSE, foot[0], foot[1], foot[2], true));
                 }),
                 pause(2),
                 run(() -> {
