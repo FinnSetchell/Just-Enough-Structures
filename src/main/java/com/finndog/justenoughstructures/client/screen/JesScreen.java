@@ -89,6 +89,8 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
     private static final ItemStack MARKERS_ICON = new ItemStack(Items.CHEST);
     private static final ItemStack MOB_MARKERS_ICON = new ItemStack(Items.SPAWNER);
     private static final ItemStack GROUND_ICON = new ItemStack(Items.GRASS_BLOCK);
+    // The eye of ender, as the game's game mode switcher shows spectator mode.
+    private static final ItemStack FLY_ICON = new ItemStack(Items.ENDER_EYE);
     /** Room left of the layer slider for the dark end that holds its icon. */
     private static final int LAYERS_ICON_ROOM = 14;
     private static final ResourceLocation MAXIMISE_ICON = JustEnoughStructures.id("textures/gui/maximise.png");
@@ -448,7 +450,7 @@ public class JesScreen extends BackdropScreen implements Nav.Page {
             viewport.resetCamera();
         }));
         bx += 22;
-        flyButton = addRenderableWidget(new IconButton(bx, buttonsY, Icons.FLY, viewport::flying, flyLabel(), b -> toggleFlying()));
+        flyButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> FLY_ICON, viewport::flying, flyLabel(), b -> toggleFlying()));
         flyLabelFor = viewport.flying();
         bx += 22;
         markersButton = addRenderableWidget(new IconButton(bx, buttonsY, () -> markerKind() == MarkerKind.MOBS ? MOB_MARKERS_ICON : MARKERS_ICON,
