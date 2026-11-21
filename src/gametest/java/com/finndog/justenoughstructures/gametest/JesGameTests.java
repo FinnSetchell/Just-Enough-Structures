@@ -1126,6 +1126,12 @@ public final class JesGameTests {
         IndexStoreTests.indexIsHandedOutEarlyThenFinished(helper);
     }
 
+    // Builds the whole loot index twice, cutting the second short, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_resume", timeoutTicks = 12000)
+    public void aCutShortBuildIsKept(GameTestHelper helper) {
+        IndexStoreTests.aCutShortBuildIsKept(helper);
+    }
+
     // Builds the whole loot index, then stops it and starts it again as opening another world does, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_switch", timeoutTicks = 6000)
     public void progressFromTheLastWorldIsForgotten(GameTestHelper helper) {

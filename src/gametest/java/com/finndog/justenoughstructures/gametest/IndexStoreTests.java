@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -440,6 +442,122 @@ public final class IndexStoreTests {
             helper.assertTrue(wrong.isEmpty(), String.join("; ", wrong));
         });
         *///?}
+    }
+
+    /**
+     * A build cut short, here by a /reload once its early index is out, keeps what it had done: the
+     * next start finds it, sends it as an early index, and generates only the structures still to do,
+     * not every one again. The index it finishes lists what a build from nothing does, which is made
+     * first to compare with.
+     */
+    public static void aCutShortBuildIsKept(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<Sent> sent = new CopyOnWriteArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        Path folder = JustEnoughStructures.cacheDir().resolve("loot-index");
+        String fingerprint = LootIndexStore.fingerprintOf(server);
+        int structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE).size();
+        // 0: a build from nothing. 1: waiting for what it saves after sending its index. 2: built again
+        // from nothing, to be cut short once its early index is out. 3: the start after the cut.
+        AtomicInteger stage = new AtomicInteger();
+        AtomicInteger generatedAfterCut = new AtomicInteger();
+        LootIndexStore.watchProgress(d -> {
+            if (stage.get() == 3) {
+                generatedAfterCut.incrementAndGet();
+            }
+        });
+        int[] from = new int[1];
+        LootIndex[] fromNothing = new LootIndex[1];
+        CompletableFuture<?>[] savedAll = new CompletableFuture<?>[1];
+        boolean[] logged = new boolean[1];
+        forgetSaved(folder, fingerprint);
+        LootIndexStore.stop();
+        LootIndexStore.refresh(server);
+        JesServer.onRequestIndex(player);
+        Pace pace = new Pace(server);
+        helper.succeedWhen(() -> {
+            if (stage.get() == 0) {
+                LootIndex built = finished(sent, 0);
+                if (built == null) {
+                    pace.keep();
+                }
+                helper.assertTrue(built != null, "the build from nothing isn't finished yet");
+                fromNothing[0] = built;
+                // Its scan is saved again with the rolls after the index is sent. Deleted before that,
+                // it would be there again for the next build to find.
+                LootIndexStore.stop();
+                savedAll[0] = LootIndexStore.workSoFarDone();
+                stage.set(1);
+            }
+            if (stage.get() == 1) {
+                boolean saved = savedAll[0].isDone();
+                if (!saved) {
+                    pace.keep();
+                }
+                helper.assertTrue(saved, "the build from nothing is still saving what it found");
+                forgetSaved(folder, fingerprint);
+                from[0] = sent.size();
+                stage.set(2);
+                LootIndexStore.refresh(server);
+                JesServer.onRequestIndex(player);
+            }
+            if (stage.get() == 2) {
+                boolean early = sent.subList(from[0], sent.size()).stream().anyMatch(s -> s.index() != null && Boolean.TRUE.equals(s.early()));
+                if (!early) {
+                    pace.keep();
+                }
+                helper.assertTrue(early || finished(sent, from[0]) == null,
+                        "the second build sent a finished index and no early one, so it found an index saved after the first was deleted");
+                helper.assertTrue(early, "the second build hasn't sent its early index yet");
+                from[0] = sent.size();
+                stage.set(3);
+                // As a /reload does: the build under way stops, and what's saved is looked for.
+                LootIndexStore.refresh(server);
+            }
+            LootIndex resumed = finished(sent, from[0]);
+            if (resumed == null) {
+                pace.keep();
+            }
+            helper.assertTrue(resumed != null, "the start after the cut hasn't finished its index yet");
+            boolean earlyAgain = sent.subList(from[0], sent.size()).stream().anyMatch(s -> s.index() != null && Boolean.TRUE.equals(s.early()));
+            if (!logged[0]) {
+                logged[0] = true;
+                JesNetwork.setServerSender(before);
+                LootIndexStore.watchProgress(null);
+                // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
+                JesServer.left(player);
+                // The game's summary of a failed test leaves out the reason on some versions.
+                JustEnoughStructures.LOGGER.info("In the test of a cut-short build: after the cut {} of {} structures were generated, {} early index was sent first, "
+                                + "and the finished index {} the one built from nothing", generatedAfterCut.get(), structures, earlyAgain ? "an" : "no",
+                        resumed.equals(fromNothing[0]) ? "matches" : "differs from");
+            }
+            helper.assertTrue(generatedAfterCut.get() < structures, "after the cut " + generatedAfterCut.get() + " of " + structures + " structures were generated");
+            helper.assertTrue(earlyAgain, "the start after the cut sent no early index of what was kept");
+            helper.assertTrue(resumed.tablesByStructure().equals(fromNothing[0].tablesByStructure()),
+                    "after the cut the index has the loot tables of " + resumed.tablesByStructure().size() + " structures, not the same as the "
+                            + fromNothing[0].tablesByStructure().size() + " a build from nothing has");
+            helper.assertTrue(resumed.itemsByTable().equals(fromNothing[0].itemsByTable()), "after the cut the index lists other items than a build from nothing");
+            helper.assertTrue(resumed.placedByStructure().equals(fromNothing[0].placedByStructure()),
+                    "after the cut the index lists other items structures place than a build from nothing");
+        });
+    }
+
+    /** The first finished index among what was sent from {@code from} on, or null. */
+    private static LootIndex finished(List<Sent> sent, int from) {
+        return sent.subList(from, sent.size()).stream().filter(s -> s.index() != null && Boolean.FALSE.equals(s.early())).map(Sent::index).findFirst().orElse(null);
+    }
+
+    /** Deletes the index saved under this fingerprint, and what a build cut short kept, so the next start builds from nothing. */
+    private static void forgetSaved(Path folder, String fingerprint) {
+        try {
+            Files.deleteIfExists(folder.resolve(fingerprint + ".bin"));
+            Files.deleteIfExists(folder.resolve(fingerprint + ".partial"));
+        } catch (IOException e) {
+            throw new AssertionError("couldn't delete the saved index", e);
+        }
     }
 
     /**

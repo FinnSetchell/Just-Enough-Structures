@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +76,8 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         this(tablesByStructure, itemsByTable, placedByStructure, Map.of());
     }
 
+    /** How often a build hands on the scan so far while it generates structures with pools, to be kept in case it's cut short. */
+    private static final long SO_FAR_EVERY_NANOS = 60_000_000_000L;
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int MOST_LAYOUTS = 16;
     /**
@@ -132,19 +135,29 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         });
     }
 
+    /** The same, also handing {@code early} the partial scan once the quick part is done (see the next). */
+    public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
+                                     AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
+        return scan(server, ids, progress, cancelled, failed, firstViews, early, sofar -> {
+        });
+    }
+
     /**
      * The same, also handing {@code early} the partial scan once the quick part is done: every
      * structure's pools read, and the structures without pools generated. That is most of the loot,
      * long before the rest have each been generated for what their code adds as it places them.
-     * {@code progress} counts finished structures, so those with pools only count once they've been
-     * generated.
+     * {@code sofar} gets the scan so far about once a minute after that, while structures with pools
+     * are generated. Both list the structures still to generate as ones to try again, so a copy kept
+     * on disk is gone on with by {@link #update} if the build is cut short. {@code progress} counts
+     * finished structures, so those with pools only count once they've been generated.
      */
     public static StructureScan scan(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
-                                     AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
+                                     AtomicInteger failed, BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early,
+                                     Consumer<StructureScan> sofar) {
         // Current container and spawner patches, which templates load with.
         Map<ResourceLocation, String> patches = templatePatches();
         // Reading other mods' pieces and loot tables can make vanilla complain on this thread.
-        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews, early));
+        return JesLog.quietly(() -> scanQuietly(server, ids, progress, cancelled, failed, patches, firstViews, early, sofar));
     }
 
     /**
@@ -162,15 +175,19 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
      * {@code base} was made, and those it's keeping to try again, and keeps the rest. Null if cancelled.
      */
     public static StructureScan update(MinecraftServer server, StructureScan base, BooleanSupplier cancelled) {
+        return update(server, base, cancelled, done -> {
+        });
+    }
+
+    /** The same, with {@code progress} counting the structures generated again so far, of {@link #toGenerateAgain}. */
+    public static StructureScan update(MinecraftServer server, StructureScan base, BooleanSupplier cancelled, IntConsumer progress) {
         Map<ResourceLocation, String> now = templatePatches();
         Set<ResourceLocation> changed = base.changedTemplates(now);
         if (changed.isEmpty() && base.retry().isEmpty()) {
             return base;
         }
-        Set<ResourceLocation> affected = new TreeSet<>(base.placing(changed));
-        affected.addAll(base.retry());
-        StructureScan part = scan(server, new ArrayList<>(affected), done -> {
-        }, cancelled, new AtomicInteger());
+        Set<ResourceLocation> affected = generateAgain(base, changed);
+        StructureScan part = scan(server, new ArrayList<>(affected), progress, cancelled, new AtomicInteger());
         if (part == null) {
             return null;
         }
@@ -188,6 +205,17 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         JesLog.debug("Generated {} of {} structures again for what was changed in {} and {} tried again", affected.size(), base.templates().size(),
                 changed, base.retry());
         return new StructureScan(tables, templates, now, part.retry(), placed, base.rolled());
+    }
+
+    /** How many structures {@link #update} generates again for {@code base}. */
+    public static int toGenerateAgain(StructureScan base) {
+        return generateAgain(base, base.changedTemplates(templatePatches())).size();
+    }
+
+    private static Set<ResourceLocation> generateAgain(StructureScan base, Set<ResourceLocation> changedTemplates) {
+        Set<ResourceLocation> affected = new TreeSet<>(base.placing(changedTemplates));
+        affected.addAll(base.retry());
+        return affected;
     }
 
     /**
@@ -365,9 +393,19 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         return new LootIndex(tablesByStructure, items, placedByStructure, kindsByTable);
     }
 
+    /** The scan so far, with the structures still to generate ({@code left}) among those to try again. */
+    private static StructureScan soFar(Map<ResourceLocation, Set<ResourceLocation>> tables, Map<ResourceLocation, Set<ResourceLocation>> templates,
+                                       Map<ResourceLocation, String> patches, Set<ResourceLocation> retry, Set<ResourceLocation> left,
+                                       Map<ResourceLocation, Set<ResourceLocation>> placed) {
+        Set<ResourceLocation> again = new TreeSet<>(retry);
+        again.addAll(left);
+        return new StructureScan(new TreeMap<>(tables), new TreeMap<>(templates), patches, again, new TreeMap<>(placed));
+    }
+
     private static StructureScan scanQuietly(MinecraftServer server, List<ResourceLocation> ids, IntConsumer progress, BooleanSupplier cancelled,
                                              AtomicInteger failed, Map<ResourceLocation, String> patches,
-                                             BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early) {
+                                             BiConsumer<ResourceLocation, CaptureResult> firstViews, Consumer<StructureScan> early,
+                                             Consumer<StructureScan> sofar) {
         Map<ResourceLocation, Set<ResourceLocation>> tables = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> templates = new TreeMap<>();
         Map<ResourceLocation, Set<ResourceLocation>> placed = new TreeMap<>();
@@ -403,8 +441,10 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                 progress.accept(++done);
             }
         }
-        early.accept(new StructureScan(new TreeMap<>(tables), new TreeMap<>(templates), patches, new TreeSet<>(retry), new TreeMap<>(placed)));
+        early.accept(soFar(tables, templates, patches, retry, pooled.keySet(), placed));
         // Then the slow part: one generation of each structure that has pools, for loot its code sets as it's placed.
+        Set<ResourceLocation> left = new LinkedHashSet<>(pooled.keySet());
+        long saved = System.nanoTime();
         for (Map.Entry<ResourceLocation, PoolScan.Reach> entry : pooled.entrySet()) {
             ResourceLocation id = entry.getKey();
             Found found = LoadedPieces.during(server, () -> generate(server, id, entry.getValue(), cancelled, firstViews));
@@ -417,7 +457,12 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             } else if (!found.generated()) {
                 failed.incrementAndGet();
             }
+            left.remove(id);
             progress.accept(++done);
+            if (!left.isEmpty() && System.nanoTime() - saved >= SO_FAR_EVERY_NANOS) {
+                sofar.accept(soFar(tables, templates, patches, retry, left, placed));
+                saved = System.nanoTime();
+            }
         }
         // Those that failed for a temporary reason get one more try. Any that fail that way again
         // are kept to try another time.

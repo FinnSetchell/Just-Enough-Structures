@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -83,6 +84,8 @@ public final class LootIndexStore {
     /** Bump when the saved format or what goes in it changes, so old files aren't read as new. */
     private static final String FORMAT = "7";
     private static final int KEPT_FILES = 4;
+    /** What a build cut short kept, beside the finished scans' ".bin" files. */
+    private static final String KEPT_SUFFIX = ".partial";
     // Loot modifiers are Forge's and NeoForge's, listed in forge/ or neoforge/ except on NeoForge from 26.1.
     private static final List<String> SOURCES = List.of(Folders.STRUCTURES, "worldgen/structure", "worldgen/template_pool",
             "worldgen/processor_list", "loot_modifiers");
@@ -174,6 +177,13 @@ public final class LootIndexStore {
             }
             OddsStore.refresh(server);
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
+            // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
+            // what it kept: its structures still to generate are among those to try again.
+            boolean goingOn = false;
+            if (base == null && current != null) {
+                base = readKept(dir, current);
+                goingOn = base != null;
+            }
             StructureScan updated = null;
             LootIndex updatedIndex = null;
             Map<ResourceLocation, String> unrolled = Map.of();
@@ -181,7 +191,12 @@ public final class LootIndexStore {
                 // Only structures placing patched templates, and those to retry, are generated
                 // again; what each table can give is read from the current loot tables.
                 try {
-                    updated = LootIndex.update(server, base, () -> generation != GENERATION.get() || !server.isRunning());
+                    IntConsumer progress = d -> {
+                    };
+                    if (goingOn) {
+                        progress = goOnFrom(server, generation, base);
+                    }
+                    updated = LootIndex.update(server, base, () -> generation != GENERATION.get() || !server.isRunning(), progress);
                     if (updated == null) {
                         return;
                     }
@@ -192,7 +207,7 @@ public final class LootIndexStore {
                     updated = LootIndex.rehashed(server, updated, hashes);
                     updatedIndex = LootIndex.of(server, updated, hashes);
                     unrolled = LootIndex.unrolled(updated, hashes);
-                    if (updated != base && current != null) {
+                    if ((updated != base || goingOn) && current != null) {
                         write(dir, current, updated);
                     }
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -243,6 +258,15 @@ public final class LootIndexStore {
     public static void watchProgress(IntConsumer watcher) {
         progressWatcher = watcher != null ? watcher : d -> {
         };
+    }
+
+    /**
+     * Done once the index's thread has finished what it was given before this, such as saving a scan
+     * with its rolls, which comes after the index is sent. For tests that delete what was saved.
+     */
+    public static CompletableFuture<Void> workSoFarDone() {
+        return CompletableFuture.runAsync(() -> {
+        }, WORKER);
     }
 
     /** When the server stops: drops everything and stops any work in progress. */
@@ -315,13 +339,24 @@ public final class LootIndexStore {
             }
             AtomicInteger failed = new AtomicInteger();
             // This also captures every structure's first view along the way, which is saved for players.
+            // What it has done is kept as it goes, so a build cut short is gone on with at the next start.
             StructureScan scanned = LootIndex.scan(server, ids, d -> {
                         done = d;
                         sayProgress(server, generation);
                         progressWatcher.accept(d);
                     }, () -> generation != GENERATION.get() || !server.isRunning(), failed,
                     (id, firstView) -> SavedPreviews.offer(server, id, StructureCapture.defaultSeed(id), firstView),
-                    early -> publishEarly(server, generation, early, started));
+                    early -> {
+                        if (key != null) {
+                            keep(dir, key, early);
+                        }
+                        publishEarly(server, generation, early, started);
+                    },
+                    sofar -> {
+                        if (key != null) {
+                            keep(dir, key, sofar);
+                        }
+                    });
             if (scanned == null) {
                 JesLog.debug("Stopped building the loot index after {} of {} structures, as {}", done, ids.size(),
                         server.isRunning() ? "the server's data was reloaded" : "the server is stopping");
@@ -569,6 +604,38 @@ public final class LootIndexStore {
     }
 
     /**
+     * For a start that goes on with a build cut short: players get what it kept as an early index, as
+     * the build had sent it, and are told how far it has got as the rest is generated. Hands back what
+     * counts those for {@link LootIndex#update}. Called on the index's thread.
+     */
+    private static IntConsumer goOnFrom(MinecraftServer server, int generation, StructureScan kept) {
+        int structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE).size();
+        int left = LootIndex.toGenerateAgain(kept);
+        total = structures;
+        done = Math.max(0, structures - left);
+        if (chestItems == null) {
+            chestItems = LootIndex.chestItems(server);
+        }
+        LootIndex soon = LootIndex.of(server, kept);
+        server.execute(() -> {
+            if (generation != GENERATION.get() || (index != null && !partial)) {
+                return;
+            }
+            JesLog.debug("Going on with the loot index build that was cut short: {} of {} structures still to generate", left, structures);
+            index = soon;
+            partial = true;
+            send(server);
+            Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
+        });
+        int from = done;
+        return d -> {
+            done = from + d;
+            sayProgress(server, generation);
+            progressWatcher.accept(done);
+        };
+    }
+
+    /**
      * Called once the quick part of a build is done. Players get the partial index instead of nothing
      * until every structure has been generated, unless they already have a finished one. Called on
      * the index's thread.
@@ -752,7 +819,31 @@ public final class LootIndexStore {
 
     /** Returns the scan saved under this fingerprint, or null if there's none or it can't be read. */
     public static StructureScan read(Path dir, String key) {
-        Path file = dir.resolve(key + ".bin");
+        return readFile(dir.resolve(key + ".bin"));
+    }
+
+    /**
+     * What a build cut short under this fingerprint kept (see {@link #keep}), or null. Kept apart from the
+     * finished scan, under {@link #KEPT_SUFFIX}, so that only a start that finds no finished one goes on
+     * with it, and versions from before don't read it.
+     */
+    static StructureScan readKept(Path dir, String key) {
+        return readFile(dir.resolve(key + KEPT_SUFFIX));
+    }
+
+    /** Keeps what a build has done so far under this fingerprint, until the finished scan is saved. */
+    private static void keep(Path dir, String key, StructureScan sofar) {
+        try {
+            Files.createDirectories(dir);
+            Path file = dir.resolve(key + KEPT_SUFFIX);
+            SafeFiles.write(file, Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, sofar))));
+            CacheFiles.keepNewest(dir, p -> p.toString().endsWith(KEPT_SUFFIX), 2, file);
+        } catch (IOException | RuntimeException e) {
+            JesLog.debug("Couldn't keep the loot index build so far in {}", dir, e);
+        }
+    }
+
+    private static StructureScan readFile(Path file) {
         if (!Files.exists(file)) {
             return null;
         }
@@ -766,13 +857,17 @@ public final class LootIndexStore {
         }
     }
 
-    /** Saves the scan under this fingerprint, keeping the few most recently used others. */
+    /**
+     * Saves the scan under this fingerprint, keeping the few most recently used others. What a build cut
+     * short kept under it is no longer needed.
+     */
     public static void write(Path dir, String key, StructureScan saved) {
         try {
             Files.createDirectories(dir);
             Path file = dir.resolve(key + ".bin");
             SafeFiles.write(file, Blobs.deflate(Blobs.toBytes(RegistryAccess.EMPTY, buf -> Codecs.writeScan(buf, saved))));
             CacheFiles.keepNewest(dir, p -> p.toString().endsWith(".bin"), KEPT_FILES, file);
+            Files.deleteIfExists(dir.resolve(key + KEPT_SUFFIX));
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't save the loot index to {}", dir, e);
         }

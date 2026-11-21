@@ -69,6 +69,9 @@ public final class ScanTests {
             helper.assertTrue(!early[0].tables().getOrDefault(id, Set.of()).isEmpty(), id + "'s pools showed no loot early");
             helper.assertTrue(!early[0].templates().getOrDefault(id, Set.of()).isEmpty(), id + "'s pools showed no templates early");
         }
+        // Those two are still to generate, so a copy of the early scan kept from a build cut short has them to try again.
+        helper.assertTrue(early[0].retry().containsAll(List.of(outpost, village)) && !early[0].retry().contains(pyramid),
+                "the early scan lists " + early[0].retry() + " to try again, not the two with pools still to generate");
         // The early scan is a copy: the finished one's later changes didn't reach into it.
         helper.assertTrue(early[0].tables() != finished.tables() && early[0].templates() != finished.templates(), "the early scan shares its maps with the finished one");
 
