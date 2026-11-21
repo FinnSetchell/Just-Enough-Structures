@@ -18,7 +18,8 @@ import net.minecraft.client.Minecraft;
 /**
  * Whether JEI takes the structures' rows again for a loot index that hasn't changed. JEI can't
  * remove a recipe it has been given, only hide it, so rows replaced by equal ones stay there, hidden,
- * until JEI restarts. Needs JEI, the dev game's default recipe viewer.
+ * until JEI restarts. Needs JEI, the dev game's default recipe viewer, and no EMI beside it: EMI doesn't
+ * call the JEI plugin of a mod that has an EMI plugin, as JES has, so JEI never gets the rows.
  */
 final class JeiIndexScenario {
     private JeiIndexScenario() {
@@ -120,11 +121,25 @@ final class JeiIndexScenario {
         if (!JustEnoughStructures.modVersions().containsKey("jei")) {
             throw new UnsupportedOperationException("needs JEI");
         }
+        // EMI doesn't call the JEI plugin of a mod with an EMI plugin of its own, so JEI never gets the rows.
+        if (JustEnoughStructures.modVersions().containsKey("emi") && hasEmiPlugin()) {
+            throw new UnsupportedOperationException("needs JEI without EMI, which shows JES's rows itself");
+        }
         MinecraftServer server = mc.getSingleplayerServer();
         if (server == null) {
             throw new UnsupportedOperationException("needs a world of its own");
         }
         return server;
+    }
+
+    /** Whether this build has JES's own EMI plugin. */
+    private static boolean hasEmiPlugin() {
+        try {
+            Class.forName("com.finndog.justenoughstructures.compat.emi.JesEmiPlugin", false, JeiIndexScenario.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
     /**
