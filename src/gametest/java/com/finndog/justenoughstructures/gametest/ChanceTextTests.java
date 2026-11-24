@@ -136,7 +136,7 @@ public final class ChanceTextTests {
     }
 
     /** A line of JES's English lang file, read from the mod's own resources. */
-    private static String english(String key) {
+    static String english(String key) {
         try (InputStream in = JustEnoughStructures.class.getClassLoader().getResourceAsStream("assets/justenoughstructures/lang/en_us.json")) {
             if (in == null) {
                 throw new AssertionError("JES's en_us.json isn't on the classpath");

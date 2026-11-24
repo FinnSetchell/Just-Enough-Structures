@@ -26,9 +26,9 @@ public final class LangFileTests {
     /** A JES lang key written out whole in quotes. One followed by + is the start of a key built in code. */
     private static final Pattern KEY = Pattern.compile(
             "\"((?:screen|config|commands|viewer|key|pack)\\.justenoughstructures\\.[a-z0-9_.]*[a-z0-9_])\"(\\s*\\+)?");
-    /** A translatable line with its key and fallback both written out. */
+    /** A translatable line with its key and fallback both written out, and any arguments after them. */
     private static final Pattern FALLBACK = Pattern.compile(
-            "Component\\.translatableWithFallback\\(\\s*\"([^\"]+)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*\\)");
+            "Component\\.translatableWithFallback\\(\\s*\"([^\"]+)\"\\s*,\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*[,)]");
 
     private LangFileTests() {
     }

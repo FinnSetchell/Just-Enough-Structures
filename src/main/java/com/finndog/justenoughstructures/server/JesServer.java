@@ -1061,7 +1061,8 @@ public final class JesServer {
         Long last = LAST_LOCATE.get(player.getUUID());
         if (last != null && now - last < LOCATE_COOLDOWN_MILLIS) {
             long seconds = (LOCATE_COOLDOWN_MILLIS - (now - last) + 999) / 1000;
-            return Component.translatable("screen.justenoughstructures.locate_cooldown", seconds);
+            // Newer than 1.2.0, whose players can join: their lang file hasn't the line, so it comes along.
+            return Component.translatableWithFallback("screen.justenoughstructures.locate_cooldown", "You can find another structure in %s s", seconds);
         }
         LAST_LOCATE.put(player.getUUID(), now);
         return null;

@@ -1012,6 +1012,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void locateWaitReadsWithoutItsLangLine(GameTestHelper helper) {
+        MessageTests.locateWaitReadsWithoutItsLangLine(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void openBrowserReadsBack(GameTestHelper helper) {
         MessageTests.openBrowserReadsBack(helper);
     }

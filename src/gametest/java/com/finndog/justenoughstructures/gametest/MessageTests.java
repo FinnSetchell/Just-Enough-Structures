@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -25,8 +26,12 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.locale.Language;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -356,6 +361,64 @@ public final class MessageTests {
             JesServer.forgetLocateTimes();
         }
         helper.succeed();
+    }
+
+    /**
+     * The wait between locates is newer than JES 1.2.0, whose players can join a server with this
+     * version. Their lang file has no line for it, so the reply brings its English text along, and
+     * reads as that rather than as its key.
+     */
+    public static void locateWaitReadsWithoutItsLangLine(GameTestHelper helper) {
+        String line = "screen.justenoughstructures.locate_cooldown";
+        ServerPlayer player = TestPlayers.mock(helper);
+        ResourceLocation igloo = Ids.parse("igloo");
+        ServerConfig.Settings before = ServerConfig.get();
+        Language language = Language.getInstance();
+        JesServer.forgetLocateTimes();
+        try {
+            ServerConfig.set(new ServerConfig.Settings(Set.of(), Set.of(), 0, 2, true, ServerConfig.PackTools.level(4)));
+            locate(helper, player, 31, igloo);
+            Codecs.LocateReply waiting = locate(helper, player, 32, igloo);
+            helper.assertTrue(key(waiting.reply()).equals(line), "a locate straight after another wasn't told to wait: " + waiting);
+            Object[] args = Arrays.stream(((TranslatableContents) waiting.reply().getContents()).getArgs())
+                    .map(arg -> arg instanceof Component text ? text.getString() : arg).toArray();
+            String english = String.format(Locale.ROOT, ChanceTextTests.english(line), args);
+            // As a game with JES 1.2.0 shows it: the same lines, but none for the wait.
+            Language.inject(without(language, line));
+            String shown = waiting.reply().getString();
+            Language.inject(language);
+            helper.assertTrue(shown.equals(english), "a game without the line for it shows the wait as \"" + shown + "\", not \"" + english + "\"");
+        } finally {
+            Language.inject(language);
+            ServerConfig.set(before);
+            JesServer.forgetLocateTimes();
+        }
+        helper.succeed();
+    }
+
+    /** The game's lines, but none for {@code missing}. */
+    private static Language without(Language language, String missing) {
+        return new Language() {
+            @Override
+            public String getOrDefault(String key, String fallback) {
+                return key.equals(missing) ? fallback : language.getOrDefault(key, fallback);
+            }
+
+            @Override
+            public boolean has(String key) {
+                return !key.equals(missing) && language.has(key);
+            }
+
+            @Override
+            public boolean isDefaultRightToLeft() {
+                return language.isDefaultRightToLeft();
+            }
+
+            @Override
+            public FormattedCharSequence getVisualOrder(FormattedText text) {
+                return language.getVisualOrder(text);
+            }
+        };
     }
 
     /**
