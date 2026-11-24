@@ -204,10 +204,16 @@ public final class FoundIn {
         if (chance < 0) {
             return "...";
         }
-        if (chance < READS_AS_NOTHING) {
-            return Component.translatable("screen.justenoughstructures.rare_chance").getString();
-        }
-        return chance >= 0.1 ? Math.round(chance * 100) + "%" : String.format(Locale.ROOT, "%.1f%%", chance * 100);
+        return chance >= 0.1 ? Math.round(chance * 100) + "%" : tenthPercent(chance);
+    }
+
+    /**
+     * A chance of something that can come to a tenth of a percent, or {@code <0.1%} where that would
+     * read 0.0%, which reads as never.
+     */
+    public static String tenthPercent(double chance) {
+        return chance < READS_AS_NOTHING ? Component.translatable("screen.justenoughstructures.rare_chance").getString()
+                : String.format(Locale.ROOT, "%.1f%%", chance * 100);
     }
 
     /**

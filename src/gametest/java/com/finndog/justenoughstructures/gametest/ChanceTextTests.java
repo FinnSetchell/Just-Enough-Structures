@@ -5,6 +5,7 @@ import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.client.FoundIn;
 import com.finndog.justenoughstructures.client.screen.OddsList;
 import com.finndog.justenoughstructures.loot.LootFormat;
+import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
@@ -21,6 +22,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -28,6 +30,8 @@ import net.minecraft.world.level.block.Blocks;
 /** How loot chances read. */
 public final class ChanceTextTests {
     private static final ResourceLocation TABLE = Ids.parse("justenoughstructures_gametest:kills_only");
+    /** The test mod's table with a diamond in one chest of 5,000 and a stick in the rest. */
+    private static final ResourceLocation RARE = Ids.parse("justenoughstructures_gametest:chests/rare_loot");
 
     private ChanceTextTests() {
     }
@@ -70,6 +74,32 @@ public final class ChanceTextTests {
         JustEnoughStructures.LOGGER.info("In the test of rare loot: at least one in two chests reads {}, 0.4% reads {}, 25.6% reads {}", twoChests, few, most);
         helper.assertTrue(twoChests.equals("0.1%") && few.equals("0.4%"), "at least one in two chests reads " + twoChests + " and 0.4% reads " + few);
         helper.assertTrue(most.equals("26%"), "25.6% reads " + most);
+        helper.succeed();
+    }
+
+    /**
+     * A table whose chances are worked out lists everything it can give, however rare: the test mod's
+     * diamond comes in one chest of 5,000. Its chance reads {@code <0.1%} in its row and its tooltip,
+     * not 0.0%, which reads as never. Rolled odds never list anything under one in 2,000 rolls, which
+     * reads 0.1%. Other chances read as they did.
+     */
+    public static void workedOutRareLootIsNeverShownAsNothing(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        LootOdds odds = LootMath.withWorkedOutChances(server, LootRolls.odds(LootRolls.level(server), RARE, 2000, 5L));
+        LootOdds.Row diamond = odds.rows().stream().filter(r -> r.example().is(Items.DIAMOND)).findFirst().orElse(null);
+        helper.assertTrue(odds.workedOut() && diamond != null, RARE + " wasn't worked out with its diamond: worked out " + odds.workedOut()
+                + ", " + odds.rows().size() + " rows");
+        float chance = (float) diamond.hits() / odds.rolls();
+        String under = Component.translatable("screen.justenoughstructures.rare_chance").getString();
+        String row = OddsList.percent(chance);
+        String tip = argument(OddsList.tooltip(diamond, chance, 1, "chest"), "screen.justenoughstructures.tip_chance", 1);
+        JustEnoughStructures.LOGGER.info("In the test of rare worked-out loot: the diamond's chance is {}, which reads {} in its row and {} in its tooltip",
+                chance, row, tip);
+        helper.assertTrue(chance > 0 && chance < 0.0005f, "the diamond's worked-out chance is " + chance + ", not one in 5,000");
+        helper.assertTrue(row.equals(under), "a diamond in one chest of 5,000 reads " + row + " in its row, not " + under);
+        helper.assertTrue(tip.equals(under), "a diamond in one chest of 5,000 reads " + tip + " in its tooltip, not " + under);
+        String usual = OddsList.percent(1 / 2000f) + " " + OddsList.percent(0.0123f) + " " + OddsList.percent(0.25f);
+        helper.assertTrue(usual.equals("0.1% 1.2% 25%"), "one in 2000, 1.23% and 25% read " + usual);
         helper.succeed();
     }
 

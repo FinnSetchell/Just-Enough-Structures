@@ -314,6 +314,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void workedOutRareLootIsNeverShownAsNothing(GameTestHelper helper) {
+        ChanceTextTests.workedOutRareLootIsNeverShownAsNothing(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void combinedRowsShowEachKind(GameTestHelper helper) {
         KindTests.combinedRowsShowEachKind(helper);
     }

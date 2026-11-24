@@ -57,7 +57,19 @@ final class LootTabScenario {
                 .then(moveTo(() -> orZero(browser(mc).popupLink("roll")), 10))
                 .then(click())
                 .then(pause(20))
-                .then(shoot("l06_table_popup_roll"));
+                .then(shoot("l06_table_popup_roll"))
+                // The test mod's table with a diamond in one chest of 5,000, whose chances are worked
+                // out: the diamond's row and tooltip read <0.1%, not 0.0%.
+                .then(pressKey(InputConstants.KEY_ESCAPE))
+                .then(run(() -> browser(mc).openTable("justenoughstructures_gametest:chests/rare_loot")))
+                .then(until(() -> browser(mc).popupOddsRow(Items.DIAMOND).isPresent(), 400))
+                // On the popup's title, above its first row, so no tooltip hides the rows' chances.
+                .then(moveTo(() -> browser(mc).popupOddsRow(Items.STICK).map(at -> new int[]{at[0], at[1] - 19}).orElse(new int[]{0, 0}), 10))
+                .then(pause(10))
+                .then(shoot("l07_rare_chance"))
+                .then(moveTo(() -> browser(mc).popupOddsRow(Items.DIAMOND).orElse(new int[]{0, 0}), 10))
+                .then(pause(10))
+                .then(shoot("l08_rare_chance_tooltip"));
         return d;
     }
 }
