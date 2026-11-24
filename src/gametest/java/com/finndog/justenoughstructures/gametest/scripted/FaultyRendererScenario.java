@@ -10,10 +10,12 @@ import static com.finndog.justenoughstructures.gametest.scripted.Screens.browser
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.client.screen.JesScreen;
 import com.mojang.blaze3d.vertex.PoseStack;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -267,17 +269,41 @@ final class FaultyRendererScenario {
         chestsDrawn = 0;
         chestsFarOff = 0;
         gameBufferWrites = 0;
-        Object dispatcher = mc.getBlockEntityRenderDispatcher();
-        Object before = Reflect.get(dispatcher, "renderers");
+        Object before = renderers(mc);
         Map<Object, Object> renderers = new HashMap<>((Map<Object, Object>) before);
         renderers.put(SAND, new Faulty(fault));
         renderers.put(CHEST, new Probe((BlockEntityRenderer) renderers.get(CHEST)));
-        Reflect.set(dispatcher, "renderers", renderers);
+        setRenderers(mc, renderers);
         return before;
     }
 
     private static void restore(Minecraft mc, Object before) {
-        Reflect.set(mc.getBlockEntityRenderDispatcher(), "renderers", before);
+        setRenderers(mc, before);
+    }
+
+    private static void setRenderers(Minecraft mc, Object renderers) {
+        try {
+            renderersField().set(mc.getBlockEntityRenderDispatcher(), renderers);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static Object renderers(Minecraft mc) {
+        try {
+            return renderersField().get(mc.getBlockEntityRenderDispatcher());
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * The dispatcher's renderer for each kind of block entity, found as its only map: a real game on
+     * Fabric, or on Forge 1.20.1, doesn't know the field as "renderers". On every build and loader it's
+     * the dispatcher's one map (read with javap on 24 November 2026).
+     */
+    private static Field renderersField() {
+        return Reflect.only(BlockEntityRenderDispatcher.class, Map.class);
     }
 
     //? if <1.21 {
