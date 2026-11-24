@@ -121,8 +121,7 @@ final class JeiIndexScenario {
         if (!JustEnoughStructures.modVersions().containsKey("jei")) {
             throw new UnsupportedOperationException("needs JEI");
         }
-        // EMI doesn't call the JEI plugin of a mod with an EMI plugin of its own, so JEI never gets the rows.
-        if (JustEnoughStructures.modVersions().containsKey("emi") && hasEmiPlugin()) {
+        if (emiShowsJesRows()) {
             throw new UnsupportedOperationException("needs JEI without EMI, which shows JES's rows itself");
         }
         MinecraftServer server = mc.getSingleplayerServer();
@@ -130,6 +129,14 @@ final class JeiIndexScenario {
             throw new UnsupportedOperationException("needs a world of its own");
         }
         return server;
+    }
+
+    /**
+     * Whether EMI is in the game along with JES's own EMI plugin. EMI then shows JES's rows itself, and
+     * doesn't call the JEI plugin of a mod with an EMI plugin of its own, so JEI never gets them.
+     */
+    static boolean emiShowsJesRows() {
+        return JustEnoughStructures.modVersions().containsKey("emi") && hasEmiPlugin();
     }
 
     /** Whether this build has JES's own EMI plugin. */

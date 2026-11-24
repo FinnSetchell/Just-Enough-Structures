@@ -130,7 +130,10 @@ final class KindsScenario {
         }
         //?}
         //? if jei {
-        if (JustEnoughStructures.modVersions().containsKey("jei")) {
+        if (JustEnoughStructures.modVersions().containsKey("jei") && JeiIndexScenario.emiShowsJesRows()) {
+            // JEI would never get the rows, so it would wait for ever: EMI's half checked them.
+            JustEnoughStructures.LOGGER.info("In the kinds scenario: JEI is left out, as EMI shows JES's rows and doesn't let JEI have them");
+        } else if (JustEnoughStructures.modVersions().containsKey("jei")) {
             // The rows are checked against the finished index, which a viewer shows once it has loaded again for it.
             d.then(until(JesJeiPlugin::showsLatestIndex, 20 * 60 * 10))
                     .then(run(() -> JesJeiPlugin.showFoundIn(potion("water_breathing"))))
