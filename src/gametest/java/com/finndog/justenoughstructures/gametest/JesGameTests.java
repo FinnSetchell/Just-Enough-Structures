@@ -302,6 +302,12 @@ public final class JesGameTests {
         KeptOddsTests.keptOddsReadBackInAnotherWorld(helper);
     }
 
+    // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_reload", timeoutTicks = 1200)
+    public void keptOddsOfAnEditedTableAreNotAnswered(GameTestHelper helper) {
+        KeptOddsTests.keptOddsOfAnEditedTableAreNotAnswered(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);

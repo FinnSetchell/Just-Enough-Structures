@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BooleanSupplier;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
@@ -58,20 +59,37 @@ public final class OddsStore {
     private static final Map<ResourceLocation, String> hashes = new HashMap<>();
     private static String key;
     private static boolean changed;
+    /**
+     * Whether what's kept is for the game as it's loaded now. From a start or /reload until
+     * {@link #refresh} has read the odds for it, the tables and the file they belong in may have
+     * changed, so nothing is answered or kept.
+     */
+    private static boolean ready;
 
     private OddsStore() {
     }
 
+    /** When a start or /reload begins, on the server thread: nothing is answered or kept until {@link #refresh} has caught up. */
+    static void reloaded() {
+        ready = false;
+        hashes.clear();
+    }
+
     /**
      * After a start or /reload, on the index's thread: reads the odds kept for the game as it is now,
-     * and hands them to the server thread.
+     * and hands them to the server thread, unless {@code current} says another /reload has come since,
+     * whose own refresh follows.
      */
-    static void refresh(MinecraftServer server) {
+    static void refresh(MinecraftServer server, BooleanSupplier current) {
         String now = keyOf(server);
         Map<ResourceLocation, Kept> read = now == null ? new HashMap<>() : read(server.registryAccess(), file(now));
         server.execute(() -> {
+            if (!current.getAsBoolean()) {
+                return;
+            }
             // Tables may have changed with a /reload, so their hashes are worked out again.
             hashes.clear();
+            ready = true;
             if (now != null && now.equals(key)) {
                 // The same game: what's kept here is what was read, and what was kept since.
                 return;
@@ -103,7 +121,7 @@ public final class OddsStore {
      * fewer rolls. Server thread only.
      */
     static void keep(MinecraftServer server, LootOdds odds, boolean forPlayers) {
-        if (key == null) {
+        if (key == null || !ready) {
             return;
         }
         ResourceLocation table = odds.tableId();
@@ -132,9 +150,13 @@ public final class OddsStore {
         hashes.clear();
         key = null;
         changed = false;
+        ready = false;
     }
 
     private static Kept current(MinecraftServer server, ResourceLocation table) {
+        if (!ready) {
+            return null;
+        }
         Kept k = kept.get(table);
         return k != null && k.hash().equals(hash(server, table)) && !k.hash().isEmpty() ? k : null;
     }

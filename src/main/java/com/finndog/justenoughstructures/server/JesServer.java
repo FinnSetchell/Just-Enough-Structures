@@ -189,6 +189,7 @@ public final class JesServer {
         catalog = null;
         ODDS_CACHE.clear();
         ROLLING.clear();
+        OddsStore.reloaded();
         RemovedItems.forget();
     }
 

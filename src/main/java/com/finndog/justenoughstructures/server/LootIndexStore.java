@@ -175,7 +175,7 @@ public final class LootIndexStore {
             if (generation != GENERATION.get()) {
                 return;
             }
-            OddsStore.refresh(server);
+            OddsStore.refresh(server, () -> generation == GENERATION.get());
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
             // what it kept: its structures still to generate are among those to try again.

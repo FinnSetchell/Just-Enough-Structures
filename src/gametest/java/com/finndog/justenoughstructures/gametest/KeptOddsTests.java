@@ -4,11 +4,15 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.OddsStore;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -17,6 +21,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 //? if fabric {
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -32,6 +37,10 @@ public final class KeptOddsTests {
     private static final ResourceLocation TABLE = Ids.parse("chests/igloo_chest");
     /** Kinds of enchanted book among other loot, so a file of its odds holds items both in rows and in kinds. */
     private static final ResourceLocation WITH_KINDS = Ids.parse("chests/ancient_city");
+    /** The test mod's table of an apple, which only this test edits. */
+    private static final ResourceLocation EDITED = Ids.parse("justenoughstructures_gametest:chests/edited_on_reload");
+    private static final String DIAMONDS_ONLY = "{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": "
+            + "[{\"type\": \"minecraft:item\", \"name\": \"minecraft:diamond\"}]}]}";
 
     private KeptOddsTests() {
     }
@@ -99,6 +108,61 @@ public final class KeptOddsTests {
             helper.assertTrue(found.get()[1] == null, "with " + a + " and " + b + " numbered the other way round, as another world can have them, the kept odds of "
                     + WITH_KINDS + " read back differently: " + found.get()[1]);
         });
+    }
+
+    /**
+     * A table edited and loaded again with /reload, or Reload in Pack tools, isn't answered with the
+     * odds kept for it before, also when they're asked for at once: before the loot index's thread has
+     * looked at what the reload changed, which takes a few seconds in a large pack. Those odds would
+     * then be kept until the next /reload. The reload hook is run here as each loader runs it, with the
+     * request straight after, so the test doesn't depend on how soon the index's thread gets there.
+     */
+    public static void keptOddsOfAnEditedTableAreNotAnswered(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path dir;
+        try {
+            dir = Files.createTempDirectory("jes-kept-odds");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't make a temporary folder", e);
+        }
+        LootOverrides.setFolder(dir);
+        AtomicReference<LootOdds> before = new AtomicReference<>();
+        AtomicReference<LootOdds> after = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> edited = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> undone = new AtomicReference<>();
+        JesServer.forgetOdds(EDITED);
+        JesServer.odds(server, EDITED, LootRolls.table(server, EDITED), before::set);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(before.get() != null, "the odds of " + EDITED + " haven't been rolled yet");
+            if (edited.get() == null) {
+                helper.assertTrue(only(before.get(), Items.APPLE), "before the edit " + EDITED + " gave " + rows(before.get()));
+                LootOverrides.save(server.getResourceManager(), EDITED, DIAMONDS_ONLY);
+                edited.set(TestSupport.reload(server).thenRun(() -> {
+                    JesServer.reload(server);
+                    JesServer.odds(server, EDITED, LootRolls.table(server, EDITED), after::set);
+                }));
+            }
+            helper.assertTrue(edited.get().isDone(), "still reloading with the edit");
+            helper.assertTrue(after.get() != null, "the edited table's odds haven't come yet");
+            if (undone.get() == null) {
+                LootOverrides.remove(EDITED);
+                undone.set(TestSupport.reload(server));
+            }
+            helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
+            LootOverrides.setFolder(null);
+            JustEnoughStructures.LOGGER.info("In the test of kept odds after an edit: {} gave {}, and after the edit and a /reload {}", EDITED,
+                    rows(before.get()), rows(after.get()));
+            helper.assertTrue(only(after.get(), Items.DIAMOND), "asked for at once after the edit and a /reload, " + EDITED + " was answered with "
+                    + rows(after.get()) + ", the odds kept from before, not the edited table's diamonds");
+        });
+    }
+
+    private static boolean only(LootOdds odds, Item item) {
+        return odds.rows().size() == 1 && odds.rows().get(0).example().is(item);
+    }
+
+    private static List<String> rows(LootOdds odds) {
+        return odds.rows().stream().map(row -> BuiltInRegistries.ITEM.getKey(row.example().getItem()) + " " + row.hits() + "/" + odds.rolls()).toList();
     }
 
     /** How {@code b} differs from {@code a}, row by row and kind by kind, or null when it doesn't. */
