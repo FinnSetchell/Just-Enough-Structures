@@ -29,7 +29,7 @@
   "screen.justenoughstructures.fly_on": "Stop flying",
   "screen.justenoughstructures.fly_off": "Fly through",
   "screen.justenoughstructures.fly_shortcut": "Shortcut: F",
-  "screen.justenoughstructures.fly_hint": "%s to move, %s and %s up and down, scroll for speed, Esc to stop",
+  "screen.justenoughstructures.fly_hint": "Esc to stop, %s to move, %s/%s up/down, scroll for speed",
   "screen.justenoughstructures.fly_speed": "Speed x%s",
   "screen.justenoughstructures.fly_narration": "Flying through the structure. %s",
   "screen.justenoughstructures.maximise": "Maximise",

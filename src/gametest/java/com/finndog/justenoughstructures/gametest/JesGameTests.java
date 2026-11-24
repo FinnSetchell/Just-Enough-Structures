@@ -369,6 +369,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void flyHintSaysHowToStopFirst(GameTestHelper helper) {
+        LangFileTests.flyHintSaysHowToStopFirst(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void savedLootIndexReadsBack(GameTestHelper helper) {
         ServiceTests.savedLootIndexReadsBack(helper);
     }

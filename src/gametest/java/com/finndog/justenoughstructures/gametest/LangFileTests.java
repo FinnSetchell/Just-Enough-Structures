@@ -97,6 +97,20 @@ public final class LangFileTests {
         helper.succeed();
     }
 
+    /**
+     * The hint along the bottom of the preview while flying says how to stop before anything else. It's
+     * cut short where the preview is too narrow for it, as at GUI scale 2 in a 1600 x 900 window, and
+     * can't be hovered to be read in full while the mouse turns the camera.
+     */
+    public static void flyHintSaysHowToStopFirst(GameTestHelper helper) {
+        String hint = read().get("screen.justenoughstructures.fly_hint");
+        helper.assertTrue(hint != null, "en_us.json has no fly hint");
+        String first = hint.split(",")[0];
+        JustEnoughStructures.LOGGER.info("In the test of the fly hint: it reads \"{}\", and starts \"{}\"", hint, first);
+        helper.assertTrue(first.contains("Esc"), "the fly hint starts \"" + first + "\", so a hint cut short loses how to stop: \"" + hint + "\"");
+        helper.succeed();
+    }
+
     /** The lines of en_us.json, read from the mod's own resources, failing on a key that's there twice. */
     private static Map<String, String> read() {
         try (InputStream in = JustEnoughStructures.class.getClassLoader().getResourceAsStream(LANG)) {
