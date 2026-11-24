@@ -296,6 +296,12 @@ public final class JesGameTests {
         KeptOddsTests.keptOddsAnswerWithoutRolling(helper);
     }
 
+    // A batch of its own: on Fabric it renumbers two items for a moment, which no other test should see.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_file", timeoutTicks = 1200)
+    public void keptOddsReadBackInAnotherWorld(GameTestHelper helper) {
+        KeptOddsTests.keptOddsReadBackInAnotherWorld(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE)
     public void rareLootIsNeverShownAsNothing(GameTestHelper helper) {
         ChanceTextTests.rareLootIsNeverShownAsNothing(helper);

@@ -34,11 +34,12 @@ import net.minecraft.server.MinecraftServer;
  * mod's version, the files of loot modifiers and of Loot Integrations, which change what a table
  * gives as it's rolled, and Item Obliterator's config, which takes items out ({@link RemovedItems}).
  * Other mods' configs can change rolls too and aren't in it. Structure and pool files aren't in it
- * either, so changing a datapack's structures keeps every table's odds.
+ * either, so changing a datapack's structures keeps every table's odds. Items are kept by name, as
+ * each world of the game can number them its own way.
  */
 public final class OddsStore {
-    /** Bump when what's kept, or how it's rolled, changes. */
-    private static final String FORMAT = "2";
+    /** Bump when what's kept, or how it's rolled, changes. 3: items by name, not by number. */
+    private static final String FORMAT = "3";
     private static final int KEPT_FILES = 4;
     private static final List<String> SOURCES = List.of("loot_modifiers", "loot");
     private static final String SUFFIX = ".odds";
@@ -180,7 +181,7 @@ public final class OddsStore {
                 boolean forPlayers = buf.readBoolean();
                 byte[] odds = buf.readByteArray();
                 try {
-                    out.put(table, new Kept(hash, Codecs.readOdds(Blobs.fromBytes(registries, odds)), forPlayers));
+                    out.put(table, new Kept(hash, Codecs.readSavedOdds(Blobs.fromBytes(registries, odds)), forPlayers));
                 } catch (RuntimeException e) {
                     // An item from a mod that's gone, say: that table is rolled again.
                     JesLog.debug("Couldn't read the kept odds of {}", table, e);
@@ -195,15 +196,25 @@ public final class OddsStore {
 
     private static void write(RegistryAccess registries, String key, Map<ResourceLocation, Kept> what) {
         Path file = file(key);
+        // Each table's odds on their own, as odds are read to the end of what they're in, and so one
+        // that can't be saved, as an item with data the game can't save, is left out on its own.
+        Map<ResourceLocation, byte[]> saved = new TreeMap<>();
+        what.forEach((table, k) -> {
+            try {
+                saved.put(table, Blobs.toBytes(registries, b -> Codecs.writeSavedOdds(b, k.odds())));
+            } catch (RuntimeException e) {
+                JesLog.debug("Couldn't save the kept odds of {}, so they're rolled again", table, e);
+            }
+        });
         try {
             byte[] bytes = Blobs.deflate(Blobs.toBytes(registries, buf -> {
-                buf.writeVarInt(what.size());
-                what.forEach((table, k) -> {
+                buf.writeVarInt(saved.size());
+                saved.forEach((table, odds) -> {
+                    Kept k = what.get(table);
                     buf.writeResourceLocation(table);
                     buf.writeUtf(k.hash());
                     buf.writeBoolean(k.forPlayers());
-                    // Each on its own, as odds are read to the end of what they're in.
-                    buf.writeByteArray(Blobs.toBytes(registries, b -> Codecs.writeOdds(b, k.odds())));
+                    buf.writeByteArray(odds);
                 });
             }));
             Files.createDirectories(file.getParent());
@@ -217,5 +228,12 @@ public final class OddsStore {
     /** For tests: the file the odds are kept in now, or null. */
     public static Path fileNow() {
         return key == null ? null : file(key);
+    }
+
+    /** For tests: a table's odds as read back from the file they're kept in now, as a start reads them, or null. */
+    public static LootOdds readBack(MinecraftServer server, ResourceLocation table) {
+        Path file = fileNow();
+        Kept k = file == null ? null : read(server.registryAccess(), file).get(table);
+        return k == null ? null : k.odds();
     }
 }

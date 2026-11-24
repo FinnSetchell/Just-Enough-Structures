@@ -638,7 +638,7 @@ public final class IndexStoreTests {
      * where a real server waits. In the tick it would count as the tick's own time, and the index's
      * rolls, which only get what a tick leaves over ({@link SpareTime}), would be left almost nothing.
      */
-    private static final class Pace {
+    static final class Pace {
         private final MinecraftServer server;
         // Server thread only: when the last wait ended, and whether the next one is queued.
         private long last = System.nanoTime();

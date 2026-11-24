@@ -47,6 +47,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 //? if >=1.21 {
 /*import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.ComponentSerialization;
 *///?}
@@ -481,12 +482,60 @@ public final class Codecs {
     }
 
     public static void writeOdds(FriendlyByteBuf buf, LootOdds odds) {
+        writeOdds(buf, odds, Codecs::writeItem);
+    }
+
+    public static LootOdds readOdds(FriendlyByteBuf buf) {
+        return readOdds(buf, Codecs::readItem);
+    }
+
+    /**
+     * Odds as they're kept on disk: as {@link #writeOdds} writes them, but with each item by name. A
+     * packet's items go by number, which only holds within one world: Forge numbers a world's items as
+     * they were when it was made, and from 1.21 a world's datapacks number its enchantments.
+     */
+    public static void writeSavedOdds(FriendlyByteBuf buf, LootOdds odds) {
+        writeOdds(buf, odds, Codecs::writeSavedItem);
+    }
+
+    public static LootOdds readSavedOdds(FriendlyByteBuf buf) {
+        return readOdds(buf, Codecs::readSavedItem);
+    }
+
+    /** An item and its data by name, as the game saves them, with the count apart, as from 1.21 the game saves no more than 99. */
+    private static void writeSavedItem(FriendlyByteBuf buf, ItemStack stack) {
+        buf.writeVarInt(stack.getCount());
+        //? if >=1.21 {
+        /*RegistryAccess registries = ((RegistryFriendlyByteBuf) buf).registryAccess();
+        buf.writeNbt(ItemStack.OPTIONAL_CODEC.encodeStart(registries.createSerializationContext(NbtOps.INSTANCE), stack.copyWithCount(1)).getOrThrow());
+        *///?} else {
+        buf.writeNbt(stack.copyWithCount(1).save(new CompoundTag()));
+        //?}
+    }
+
+    /** An item written by {@link #writeSavedItem}. One that isn't in the game, from a mod that's gone, say, throws. */
+    private static ItemStack readSavedItem(FriendlyByteBuf buf) {
+        int count = buf.readVarInt();
+        CompoundTag tag = buf.readNbt();
+        //? if >=1.21 {
+        /*RegistryAccess registries = ((RegistryFriendlyByteBuf) buf).registryAccess();
+        ItemStack stack = ItemStack.OPTIONAL_CODEC.parse(registries.createSerializationContext(NbtOps.INSTANCE), tag).getOrThrow();
+        *///?} else {
+        ItemStack stack = ItemStack.of(tag);
+        if (stack.isEmpty() && !tag.getString("id").equals("minecraft:air")) {
+            throw new DecoderException("No item " + tag.getString("id"));
+        }
+        //?}
+        return stack.copyWithCount(count);
+    }
+
+    private static void writeOdds(FriendlyByteBuf buf, LootOdds odds, BiConsumer<FriendlyByteBuf, ItemStack> itemWriter) {
         buf.writeResourceLocation(odds.tableId());
         buf.writeVarInt(odds.rolls());
         buf.writeVarInt(odds.emptyRolls());
         buf.writeVarInt(odds.rows().size());
         for (LootOdds.Row row : odds.rows()) {
-            writeItem(buf, row.example());
+            itemWriter.accept(buf, row.example());
             buf.writeVarInt(row.hits());
             buf.writeVarInt(row.total());
             buf.writeVarInt(row.min());
@@ -506,20 +555,20 @@ public final class Codecs {
                 row.kinds().forEach((key, kind) -> {
                     buf.writeUtf(key);
                     buf.writeVarInt(kind.hits());
-                    writeItem(buf, kind.example());
+                    itemWriter.accept(buf, kind.example());
                 });
             }
         }
     }
 
-    public static LootOdds readOdds(FriendlyByteBuf buf) {
+    private static LootOdds readOdds(FriendlyByteBuf buf, Function<FriendlyByteBuf, ItemStack> itemReader) {
         ResourceLocation table = buf.readResourceLocation();
         int rolls = buf.readVarInt();
         int empty = buf.readVarInt();
         int count = buf.readVarInt();
         List<LootOdds.Row> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            rows.add(new LootOdds.Row(readItem(buf), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+            rows.add(new LootOdds.Row(itemReader.apply(buf), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                     new TreeMap<>(readMap(buf, b -> b.readUtf(), b -> b.readVarInt()))));
         }
         // An older server doesn't send it: its odds stop at a roll that throws, counted as one that gave nothing.
@@ -532,7 +581,7 @@ public final class Codecs {
                 for (int i = 0; i < kinds; i++) {
                     String key = buf.readUtf();
                     int hits = buf.readVarInt();
-                    row.kinds().put(key, new LootOdds.Row.Kind(readItem(buf), hits));
+                    row.kinds().put(key, new LootOdds.Row.Kind(itemReader.apply(buf), hits));
                 }
             }
         }
