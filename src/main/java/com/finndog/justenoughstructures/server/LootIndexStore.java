@@ -73,8 +73,8 @@ import net.minecraft.server.packs.resources.ResourceManager;
  * structure used before, is rolled again.
  *
  * <p>It all runs on a separate thread and never holds up the server starting or players joining.
- * A dedicated server builds at once; singleplayer waits until someone asks. While a rebuild runs,
- * the old index stays in use.
+ * It builds as soon as the server has started, in singleplayer too, so it's as far on as it can be
+ * when recipe viewers load as the world is joined. While a rebuild runs, the old index stays in use.
  *
  * <p>With no old index, a build sends an early one first: every structure's template pools plus
  * the structures without pools, which is most of the loot. Players see progress for the rest and
@@ -119,7 +119,6 @@ public final class LootIndexStore {
     private static boolean building;
     // Building failed, and won't be tried again until the next /reload.
     private static boolean broken;
-    private static boolean wanted;
     // The index players have is an early one, with more to come. Read on the index's thread too.
     private static volatile boolean partial;
     private static volatile long progressSaid;
@@ -238,15 +237,9 @@ public final class LootIndexStore {
                     return;
                 }
                 scan = null;
-                // Anyone who had the old one gets the new one, so rebuild for them too. They keep
-                // the old one until it's done.
-                if (server.isDedicatedServer() || wanted || !WAITING.isEmpty()) {
-                    build(server, generation);
-                } else {
-                    index = null;
-                    payload = null;
-                    partial = false;
-                }
+                // Built at once, in singleplayer too, so it's as far on as it can be when the world is
+                // joined and recipe viewers load. Anyone who had the old one keeps it until it's done.
+                build(server, generation);
             });
         });
     }
@@ -280,7 +273,6 @@ public final class LootIndexStore {
         checking = false;
         building = false;
         broken = false;
-        wanted = false;
         partial = false;
         // In singleplayer the next world's server starts in the same game, and a player asking it
         // before it has started a build of its own would be told how far this one got.
@@ -306,7 +298,6 @@ public final class LootIndexStore {
             }
             return;
         }
-        wanted = true;
         if (!checking && !building && !broken) {
             build(Players.server(player), GENERATION.get());
         }

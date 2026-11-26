@@ -201,6 +201,41 @@ public final class IndexStoreTests {
     }
 
     /**
+     * A server with nothing saved builds its index as soon as it has started, singleplayer ones too,
+     * without waiting for anyone to ask: recipe viewers load as the world is joined, and the further
+     * on the build is by then, the more of it they can show. Only Forge's and NeoForge's game tests
+     * show the change: Fabric API makes its game test server say it's a dedicated one, which always
+     * built at once.
+     */
+    public static void indexIsBuiltWithoutBeingAsked(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        AtomicInteger done = new AtomicInteger();
+        LootIndexStore.stop();
+        // A build an earlier test left going stops after the structure it's on, which would count here,
+        // and can still keep what it did on disk, which a start would go on with.
+        CompletableFuture<Void> idle = LootIndexStore.workSoFarDone();
+        boolean[] started = new boolean[1];
+        Pace pace = new Pace(server);
+        helper.succeedWhen(() -> {
+            if (!started[0]) {
+                pace.keep();
+                helper.assertTrue(idle.isDone(), "the loot index's thread is still busy with the last build");
+                started[0] = true;
+                forgetSaved(JustEnoughStructures.cacheDir().resolve("loot-index"), LootIndexStore.fingerprintOf(server));
+                LootIndexStore.watchProgress(done::set);
+                // What the server starting does with the index (JesServer's reload). Nobody asks for it.
+                LootIndexStore.refresh(server);
+            }
+            if (done.get() == 0) {
+                pace.keep();
+            }
+            helper.assertTrue(done.get() > 0, "with nothing saved and nobody asking, the server hasn't started building its index");
+            LootIndexStore.watchProgress(null);
+            JustEnoughStructures.LOGGER.info("In the test of building without being asked: {} structures done before the test ended", done.get());
+        });
+    }
+
+    /**
      * In singleplayer, opening another world stops the server and starts the next one in the same
      * game, so what the index kept from before is still there. A player who asks the next server
      * before it has checked its own index is told that nothing is known yet, not how far the build

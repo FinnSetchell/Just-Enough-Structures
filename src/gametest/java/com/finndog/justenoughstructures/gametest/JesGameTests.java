@@ -1193,6 +1193,12 @@ public final class JesGameTests {
         ScanTests.knownLootIsWhatGeneratingFinds(helper);
     }
 
+    // Starts building the whole loot index with nobody asking, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_unasked", timeoutTicks = 3000)
+    public void indexIsBuiltWithoutBeingAsked(GameTestHelper helper) {
+        IndexStoreTests.indexIsBuiltWithoutBeingAsked(helper);
+    }
+
     // Builds the whole loot index, then reads it back as the next start does, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "modified_loot", timeoutTicks = 6000)
     public void lootModifierItemsAreListed(GameTestHelper helper) {
