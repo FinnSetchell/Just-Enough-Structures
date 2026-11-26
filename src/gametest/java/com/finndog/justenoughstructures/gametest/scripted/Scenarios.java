@@ -56,6 +56,7 @@ public final class Scenarios {
             case "config_msl" -> ConfigScenario.msl(mc);
             case "thumbnails" -> ThumbnailScenario.build(mc);
             case "command_only" -> CommandOnlyScenario.build(mc);
+            case "blocks_snapshot" -> BlocksSnapshotScenario.build(mc);
             case "editor" -> EditorScenario.build(mc);
             case "containers" -> ContainerScenario.build(mc);
             case "details" -> DetailsScenario.build(mc);

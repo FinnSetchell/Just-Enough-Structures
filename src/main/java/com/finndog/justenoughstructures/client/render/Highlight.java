@@ -533,10 +533,15 @@ public final class Highlight implements AutoCloseable {
         }
     }
 
-    /** Frees the mesh. A build still running for it is dropped when it finishes. */
+    /**
+     * Frees the mesh. A build still running for it is dropped when it finishes. That build is kept until
+     * the next highlight takes it in, so this lets go of what the positions were to be found in, like a
+     * structure's every block: the build has its own hold on that while it runs.
+     */
     @Override
     public void close() {
         closed = true;
+        find = null;
         closeMeshes();
         collect();
     }
