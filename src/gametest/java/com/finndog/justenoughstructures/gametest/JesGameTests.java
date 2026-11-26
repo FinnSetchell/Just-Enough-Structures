@@ -1187,6 +1187,12 @@ public final class JesGameTests {
         IndexStoreTests.aFailedBuildSaysSo(helper);
     }
 
+    // Generates every vanilla structure without pools, up to 16 layouts each, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "known_loot", timeoutTicks = 3000)
+    public void knownLootIsWhatGeneratingFinds(GameTestHelper helper) {
+        ScanTests.knownLootIsWhatGeneratingFinds(helper);
+    }
+
     // Builds the whole loot index, then reads it back as the next start does, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "modified_loot", timeoutTicks = 6000)
     public void lootModifierItemsAreListed(GameTestHelper helper) {

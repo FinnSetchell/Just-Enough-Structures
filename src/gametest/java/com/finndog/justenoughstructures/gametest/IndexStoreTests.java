@@ -174,6 +174,14 @@ public final class IndexStoreTests {
             helper.assertTrue(!between.isEmpty() && between.stream().allMatch(s -> s.total() > 0 && s.done() < s.total()),
                     "between the two indexes the player was told " + between.stream().map(s -> s.done() + "/" + s.total()).toList());
             helper.assertTrue(!early.tablesByStructure().isEmpty(), "the early index is empty");
+            // It comes before anything is generated, with what pools hold, like the ancient city's
+            // chests, and what's known of vanilla's structures without pools, like buried treasure.
+            ResourceLocation ancientCity = Ids.parse("ancient_city");
+            ResourceLocation buriedTreasure = Ids.parse("buried_treasure");
+            helper.assertTrue(early.tablesByStructure().containsKey(ancientCity), "the early index lacks the ancient city's chests, which its pools hold");
+            helper.assertTrue(early.tablesByStructure().getOrDefault(buriedTreasure, Set.of()).equals(finished.tablesByStructure().get(buriedTreasure)),
+                    "buried treasure has " + early.tablesByStructure().get(buriedTreasure) + " in the early index and "
+                            + finished.tablesByStructure().get(buriedTreasure) + " in the finished one");
             for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : early.tablesByStructure().entrySet()) {
                 helper.assertTrue(finished.tablesByStructure().getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue()),
                         entry.getKey() + " had loot in the early index that the finished one doesn't");
@@ -248,8 +256,9 @@ public final class IndexStoreTests {
      * Once a build fails, nothing more is built until the next /reload. A player waiting for the
      * index, or for the rest of an early one, is told it failed: when it fails, and again whenever
      * they ask. Otherwise the browser would show a stuck percentage. Progress still comes first, so
-     * older clients can read it. The build is made to fail twice: at its second structure, with no
-     * index yet, and once the player has the early one, with the rest still to come.
+     * older clients can read it. The build is made to fail twice, each time once the player has the
+     * early index, which comes before anything is generated, with the rest still to come: at its
+     * second structure, and at its first.
      */
     public static void aFailedBuildSaysSo(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -349,9 +358,10 @@ public final class IndexStoreTests {
                 List<Sent> progress = askedAfter.get(i).stream().filter(s -> s.index() == null).toList();
                 helper.assertTrue(!progress.isEmpty() && progress.stream().allMatch(s -> s.failed() && s.total() > 0 && s.done() < s.total()), told);
             }
-            // Asked after the early index, the player is still sent that, as it's all there is; with none, nothing.
-            helper.assertTrue(askedAfter.get(0).stream().noneMatch(s -> s.index() != null), told);
-            helper.assertTrue(!askedAfter.get(1).isEmpty() && Boolean.TRUE.equals(askedAfter.get(1).get(0).early()), told);
+            // Asked after the early index, the player is still sent that, as it's all there is.
+            for (int i = 0; i < 2; i++) {
+                helper.assertTrue(!askedAfter.get(i).isEmpty() && Boolean.TRUE.equals(askedAfter.get(i).get(0).early()), told);
+            }
         });
     }
 
@@ -445,10 +455,11 @@ public final class IndexStoreTests {
     }
 
     /**
-     * A build cut short, here by a /reload once its early index is out, keeps what it had done: the
-     * next start finds it, sends it as an early index, and generates only the structures still to do,
-     * not every one again. The index it finishes lists what a build from nothing does, which is made
-     * first to compare with.
+     * A build cut short, here by a /reload once its early index is out and a few structures are
+     * generated, keeps what it had done: the next start finds it, sends it as an early index, and
+     * generates only the structures still to do, not every one again. The index it finishes lists what
+     * a build from nothing does, which is made first to compare with. The build keeps what it has done
+     * after every structure here, not once a minute, so the cut always finds some of it kept.
      */
     public static void aCutShortBuildIsKept(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -464,11 +475,15 @@ public final class IndexStoreTests {
         // from nothing, to be cut short once its early index is out. 3: the start after the cut.
         AtomicInteger stage = new AtomicInteger();
         AtomicInteger generatedAfterCut = new AtomicInteger();
+        AtomicInteger generatedBeforeCut = new AtomicInteger();
         LootIndexStore.watchProgress(d -> {
-            if (stage.get() == 3) {
+            if (stage.get() == 2) {
+                generatedBeforeCut.set(d);
+            } else if (stage.get() == 3) {
                 generatedAfterCut.incrementAndGet();
             }
         });
+        long keptEvery = LootIndex.keepSoFarEvery(0);
         int[] from = new int[1];
         LootIndex[] fromNothing = new LootIndex[1];
         CompletableFuture<?>[] savedAll = new CompletableFuture<?>[1];
@@ -512,6 +527,10 @@ public final class IndexStoreTests {
                 helper.assertTrue(early || finished(sent, from[0]) == null,
                         "the second build sent a finished index and no early one, so it found an index saved after the first was deleted");
                 helper.assertTrue(early, "the second build hasn't sent its early index yet");
+                if (generatedBeforeCut.get() < 3) {
+                    pace.keep();
+                }
+                helper.assertTrue(generatedBeforeCut.get() >= 3, "the second build has generated " + generatedBeforeCut.get() + " structures so far, not 3");
                 from[0] = sent.size();
                 stage.set(3);
                 // As a /reload does: the build under way stops, and what's saved is looked for.
@@ -527,6 +546,7 @@ public final class IndexStoreTests {
                 logged[0] = true;
                 JesNetwork.setServerSender(before);
                 LootIndexStore.watchProgress(null);
+                LootIndex.keepSoFarEvery(keptEvery);
                 // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
                 JesServer.left(player);
                 // The game's summary of a failed test leaves out the reason on some versions.

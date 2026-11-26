@@ -2,6 +2,7 @@ package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.capture.StructureCapture;
+import com.finndog.justenoughstructures.loot.KnownLoot;
 import com.finndog.justenoughstructures.loot.LootIndex;
 import com.finndog.justenoughstructures.loot.StructureScan;
 import java.util.ArrayList;
@@ -9,24 +10,28 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
+import net.minecraft.world.level.levelgen.structure.Structure;
 
 /**
- * The loot index's scan of the structures, which goes through them twice: first what is quick to
- * find, handed over early so players have most of the loot at once, then the rest.
+ * The loot index's scan of the structures, which goes through them twice: first what is found
+ * without generating anything, handed over early so players have most of the loot at once, then
+ * every structure generated.
  */
 public final class ScanTests {
     private ScanTests() {
     }
 
     /**
-     * The scan handed over early holds what template pools show and the whole of the structures
-     * without pools, never anything the finished scan doesn't, and the finished scan is what each
-     * structure gives when it's scanned on its own.
+     * The scan handed over early comes before anything is generated: it holds what template pools
+     * show and what's known of vanilla's structures without pools, never anything the finished scan
+     * doesn't, and the finished scan is what each structure gives when it's scanned on its own.
      */
     public static void earlyScanIsPartOfTheFinishedOne(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -41,16 +46,18 @@ public final class ScanTests {
         List<Integer> progress = new ArrayList<>();
         List<Integer> doneWhenEarly = new ArrayList<>();
         List<ResourceLocation> generated = new ArrayList<>();
+        List<Integer> generatedWhenEarly = new ArrayList<>();
         StructureScan finished = LootIndex.scan(server, ids, progress::add, () -> false, new AtomicInteger(), (id, firstView) -> generated.add(id), scan -> {
             early[0] = scan;
             doneWhenEarly.add(progress.size());
+            generatedWhenEarly.add(generated.size());
         });
         helper.assertTrue(finished != null, "the scan was cancelled");
-        // Every one of them is generated, once each for its first view: those without pools before the early scan, the rest after.
+        // Every one of them is generated after the early scan, once each for its first view: those without pools first.
         helper.assertTrue(generated.equals(List.of(pyramid, shipwreck, outpost, village)), "the structures were generated in the order " + generated);
         helper.assertTrue(early[0] != null && doneWhenEarly.size() == 1, "the scan was handed over early " + doneWhenEarly.size() + " times");
-        // The two without pools were finished by then, and counted. The two with pools weren't.
-        helper.assertTrue(doneWhenEarly.get(0) == 2, doneWhenEarly.get(0) + " structures were counted as done when the scan was handed over early");
+        helper.assertTrue(generatedWhenEarly.get(0) == 0 && doneWhenEarly.get(0) == 0,
+                generatedWhenEarly.get(0) + " structures were generated, and " + doneWhenEarly.get(0) + " counted as done, when the scan was handed over early");
         helper.assertTrue(progress.equals(List.of(1, 2, 3, 4)), "progress went " + progress);
 
         for (ResourceLocation id : ids) {
@@ -62,16 +69,15 @@ public final class ScanTests {
                     id + " had templates early that the finished scan doesn't");
         }
         for (ResourceLocation id : List.of(pyramid, shipwreck)) {
-            helper.assertTrue(early[0].tables().get(id).equals(finished.tables().get(id)),
-                    id + " has no pools, yet its loot changed after the early scan: " + early[0].tables().get(id) + " then " + finished.tables().get(id));
+            helper.assertTrue(early[0].tables().get(id) != null && early[0].tables().get(id).equals(finished.tables().get(id)),
+                    id + "'s known loot isn't what generating it finds: " + early[0].tables().get(id) + " then " + finished.tables().get(id));
         }
         for (ResourceLocation id : List.of(outpost, village)) {
             helper.assertTrue(!early[0].tables().getOrDefault(id, Set.of()).isEmpty(), id + "'s pools showed no loot early");
             helper.assertTrue(!early[0].templates().getOrDefault(id, Set.of()).isEmpty(), id + "'s pools showed no templates early");
         }
-        // Those two are still to generate, so a copy of the early scan kept from a build cut short has them to try again.
-        helper.assertTrue(early[0].retry().containsAll(List.of(outpost, village)) && !early[0].retry().contains(pyramid),
-                "the early scan lists " + early[0].retry() + " to try again, not the two with pools still to generate");
+        // All four are still to generate, so a copy of the early scan kept from a build cut short has them to try again.
+        helper.assertTrue(early[0].retry().containsAll(ids), "the early scan lists " + early[0].retry() + " to try again, not all four still to generate");
         // The early scan is a copy: the finished one's later changes didn't reach into it.
         helper.assertTrue(early[0].tables() != finished.tables() && early[0].templates() != finished.templates(), "the early scan shares its maps with the finished one");
 
@@ -84,6 +90,36 @@ public final class ScanTests {
             helper.assertTrue(alone.templates().getOrDefault(id, Set.of()).equals(finished.templates().getOrDefault(id, Set.of())),
                     id + " on its own places " + alone.templates().get(id) + ", in the scan of all four " + finished.templates().get(id));
         }
+        helper.succeed();
+    }
+
+    /**
+     * What the first loot index knows of vanilla's structures without pools is what generating them
+     * for the index finds, on this build: their loot tables, and the items they place themselves.
+     */
+    public static void knownLootIsWhatGeneratingFinds(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        List<ResourceLocation> ids = new ArrayList<>();
+        for (ResourceLocation id : new TreeSet<>(KnownLoot.listed())) {
+            if (KnownLoot.of(registry, id) != null) {
+                ids.add(id);
+            }
+        }
+        helper.assertTrue(ids.size() >= 15, "only " + ids.size() + " of the known vanilla structures are here as vanilla's: " + ids);
+        StructureScan scan = LootIndex.scan(server, ids, done -> {
+        }, () -> false, new AtomicInteger());
+        helper.assertTrue(scan != null, "the scan was cancelled");
+        List<String> wrong = new ArrayList<>();
+        for (ResourceLocation id : ids) {
+            KnownLoot.Known known = KnownLoot.of(registry, id);
+            Set<ResourceLocation> tables = scan.tables().getOrDefault(id, Set.of());
+            Set<ResourceLocation> placed = scan.placed().getOrDefault(id, Set.of());
+            if (!tables.equals(known.tables()) || !placed.equals(known.placed())) {
+                wrong.add(id + " gives tables " + new TreeSet<>(tables) + " and places " + new TreeSet<>(placed));
+            }
+        }
+        helper.assertTrue(wrong.isEmpty(), "what's known isn't what generating finds: " + String.join("; ", wrong));
         helper.succeed();
     }
 

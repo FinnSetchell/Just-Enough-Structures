@@ -78,6 +78,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     /** How often a build hands on the scan so far while it generates structures with pools, to be kept in case it's cut short. */
     private static final long SO_FAR_EVERY_NANOS = 60_000_000_000L;
+    private static volatile long soFarEveryNanos = SO_FAR_EVERY_NANOS;
     /** Most layouts generated for a structure without pools to read. Different seeds pick different pieces. */
     private static final int MOST_LAYOUTS = 16;
     /**
@@ -144,9 +145,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
 
     /**
      * The same, also handing {@code early} the partial scan once the quick part is done: every
-     * structure's pools read, and the structures without pools generated. That is most of the loot,
-     * long before the rest have each been generated for what their code adds as it places them.
-     * {@code sofar} gets the scan so far about once a minute after that, while structures with pools
+     * structure's pools read, before anything is generated. That is most of the loot, long before the
+     * structures without pools are generated, and those with pools for what their code adds as it
+     * places them. {@code sofar} gets the scan so far about once a minute after that, while structures
      * are generated. Both list the structures still to generate as ones to try again, so a copy kept
      * on disk is gone on with by {@link #update} if the build is cut short. {@code progress} counts
      * finished structures, so those with pools only count once they've been generated.
@@ -205,6 +206,16 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         JesLog.debug("Generated {} of {} structures again for what was changed in {} and {} tried again", affected.size(), base.templates().size(),
                 changed, base.retry());
         return new StructureScan(tables, templates, now, part.retry(), placed, base.rolled());
+    }
+
+    /**
+     * Sets how often a build hands on the scan so far, for tests, and returns the old setting. A
+     * negative value restores the default.
+     */
+    public static long keepSoFarEvery(long nanos) {
+        long was = soFarEveryNanos;
+        soFarEveryNanos = nanos < 0 ? SO_FAR_EVERY_NANOS : nanos;
+        return was;
     }
 
     /** How many structures {@link #update} generates again for {@code base}. */
@@ -413,39 +424,40 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
         Registry<Structure> registry = server.registryAccess().registryOrThrow(Registries.STRUCTURE);
         PoolScan scan = new PoolScan(server);
         int done = 0;
-        // First what's quick to find: every structure's pools are read, and the structures without
-        // pools generated, which is all there is to do for those.
+        // First what's found without generating anything: every structure's pools are read, and what
+        // vanilla's structures without pools name in their code is known. That is most of the loot,
+        // and it goes out at once as the early index.
         Map<ResourceLocation, PoolScan.Reach> pooled = new LinkedHashMap<>();
+        Map<ResourceLocation, PoolScan.Reach> toGenerate = new LinkedHashMap<>();
         for (ResourceLocation id : ids) {
-            Found found = LoadedPieces.during(server, () -> {
-                if (cancelled.getAsBoolean()) {
-                    return null;
-                }
-                PoolScan.Reach reach = pools(registry, scan, id);
-                if (reach == null) {
-                    return generate(server, id, null, cancelled, firstViews);
-                }
-                pooled.put(id, reach);
-                return new Found(new TreeSet<>(reach.tables()), new TreeSet<>(reach.templates()), new TreeSet<>(reach.items()), true, false);
-            });
-            if (found == null) {
+            if (cancelled.getAsBoolean()) {
                 return null;
             }
-            keep(id, found, tables, templates, placed);
-            if (!pooled.containsKey(id)) {
-                if (found.tryAgain()) {
-                    retry.add(id);
-                } else if (!found.generated()) {
-                    failed.incrementAndGet();
+            PoolScan.Reach reach = LoadedPieces.during(server, () -> pools(registry, scan, id));
+            if (reach != null) {
+                pooled.put(id, reach);
+                keep(id, new Found(new TreeSet<>(reach.tables()), new TreeSet<>(reach.templates()), new TreeSet<>(reach.items()), true, false),
+                        tables, templates, placed);
+            } else {
+                KnownLoot.Known known = KnownLoot.of(registry, id);
+                if (known != null) {
+                    keep(id, new Found(new TreeSet<>(known.tables()), new TreeSet<>(), new TreeSet<>(known.placed()), true, false),
+                            tables, templates, placed);
                 }
-                progress.accept(++done);
             }
         }
-        early.accept(soFar(tables, templates, patches, retry, pooled.keySet(), placed));
-        // Then the slow part: one generation of each structure that has pools, for loot its code sets as it's placed.
-        Set<ResourceLocation> left = new LinkedHashSet<>(pooled.keySet());
+        // Then every structure is generated: those without pools, which is all there is to do for
+        // those, then those with pools, once each, for loot their code sets as it's placed.
+        for (ResourceLocation id : ids) {
+            if (!pooled.containsKey(id)) {
+                toGenerate.put(id, null);
+            }
+        }
+        toGenerate.putAll(pooled);
+        early.accept(soFar(tables, templates, patches, retry, toGenerate.keySet(), placed));
+        Set<ResourceLocation> left = new LinkedHashSet<>(toGenerate.keySet());
         long saved = System.nanoTime();
-        for (Map.Entry<ResourceLocation, PoolScan.Reach> entry : pooled.entrySet()) {
+        for (Map.Entry<ResourceLocation, PoolScan.Reach> entry : toGenerate.entrySet()) {
             ResourceLocation id = entry.getKey();
             Found found = LoadedPieces.during(server, () -> generate(server, id, entry.getValue(), cancelled, firstViews));
             if (found == null) {
@@ -459,7 +471,7 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             }
             left.remove(id);
             progress.accept(++done);
-            if (!left.isEmpty() && System.nanoTime() - saved >= SO_FAR_EVERY_NANOS) {
+            if (!left.isEmpty() && System.nanoTime() - saved >= soFarEveryNanos) {
                 sofar.accept(soFar(tables, templates, patches, retry, left, placed));
                 saved = System.nanoTime();
             }
