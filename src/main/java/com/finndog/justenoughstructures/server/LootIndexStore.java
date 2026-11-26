@@ -347,6 +347,8 @@ public final class LootIndexStore {
                         if (key != null) {
                             keep(dir, key, sofar);
                         }
+                        // What's been generated so far goes out too, so the browser and Found in fill in as it comes.
+                        publishEarly(server, generation, sofar, started);
                     });
             if (scanned == null) {
                 JesLog.debug("Stopped building the loot index after {} of {} structures, as {}", done, ids.size(),
@@ -627,9 +629,9 @@ public final class LootIndexStore {
     }
 
     /**
-     * Called once the quick part of a build is done. Players get the partial index instead of nothing
-     * until every structure has been generated, unless they already have a finished one. Called on
-     * the index's thread.
+     * Called once the quick part of a build is done, and again about once a minute while structures are
+     * generated. Players get the partial index instead of nothing until every structure has been
+     * generated, unless they already have a finished one. Called on the index's thread.
      */
     private static void publishEarly(MinecraftServer server, int generation, StructureScan early, long started) {
         LootIndex soon = LootIndex.of(server, early);

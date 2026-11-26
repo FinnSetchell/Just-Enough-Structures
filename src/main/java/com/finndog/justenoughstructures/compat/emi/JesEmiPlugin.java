@@ -178,6 +178,11 @@ public final class JesEmiPlugin implements EmiPlugin {
         if (loading || !INDEX.isNew(index)) {
             return;
         }
+        // While the rest is built the server sends what it has so far now and then. EMI has the first
+        // of those, or loads with it now, and then waits for the finished one.
+        if (INDEX.shown() != null && ClientRequests.indexEarly()) {
+            return;
+        }
         reload(index);
     }
 

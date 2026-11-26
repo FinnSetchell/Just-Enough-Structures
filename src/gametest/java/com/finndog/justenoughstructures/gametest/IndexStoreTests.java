@@ -117,6 +117,8 @@ public final class IndexStoreTests {
                 held.add(await(allDone, 240));
             }
         }));
+        // One early index and the finished one: what the build has so far isn't sent again as it goes on.
+        long keptEvery = LootIndex.keepSoFarEvery(Long.MAX_VALUE);
         // As on a server that has only just started, with nothing saved to read: the build under way, if any, is dropped.
         LootIndexStore.stop();
         JesServer.onRequestIndex(player);
@@ -138,6 +140,7 @@ public final class IndexStoreTests {
                 seen.add(List.copyOf(sent.subList(had, sent.size())));
                 JesNetwork.setServerSender(before);
                 LootIndexStore.watchProgress(null);
+                LootIndex.keepSoFarEvery(keptEvery);
                 // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
                 JesServer.left(player);
                 // Back to how a started server has it: what is saved is looked for, and built if it isn't there.
@@ -232,6 +235,57 @@ public final class IndexStoreTests {
             helper.assertTrue(done.get() > 0, "with nothing saved and nobody asking, the server hasn't started building its index");
             LootIndexStore.watchProgress(null);
             JustEnoughStructures.LOGGER.info("In the test of building without being asked: {} structures done before the test ended", done.get());
+        });
+    }
+
+    /**
+     * While the rest of a build goes on, the player is sent what it has found so far each time the
+     * build keeps it, as an early index: here after every structure, not once a minute, so a short
+     * build shows it. Each holds all the one before did, and the finished index holds everything.
+     */
+    public static void indexFillsInAsItsBuilt(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestPlayers.mock(helper);
+        List<Sent> sent = new CopyOnWriteArrayList<>();
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender(recorder(player, server.registryAccess(), before, sent, progress -> {
+        }));
+        long keptEvery = LootIndex.keepSoFarEvery(0);
+        forgetSaved(JustEnoughStructures.cacheDir().resolve("loot-index"), LootIndexStore.fingerprintOf(server));
+        LootIndexStore.stop();
+        JesServer.onRequestIndex(player);
+        boolean[] done = new boolean[1];
+        Pace pace = new Pace(server);
+        helper.succeedWhen(() -> {
+            LootIndex finished = finished(sent, 0);
+            if (finished == null) {
+                pace.keep();
+            }
+            helper.assertTrue(finished != null, "the index isn't finished yet");
+            if (!done[0]) {
+                done[0] = true;
+                LootIndex.keepSoFarEvery(keptEvery);
+                JesNetwork.setServerSender(before);
+                // Otherwise the mock player would be sent every index after this test, which NeoForge refuses to do.
+                JesServer.left(player);
+            }
+            List<LootIndex> early = sent.stream().filter(s -> s.index() != null && Boolean.TRUE.equals(s.early())).map(Sent::index).toList();
+            helper.assertTrue(early.size() >= 3, "the player was sent " + early.size() + " early indexes as the build went on, not one each time it kept what it had");
+            List<LootIndex> all = new ArrayList<>(early);
+            all.add(finished);
+            for (int i = 1; i < all.size(); i++) {
+                LootIndex was = all.get(i - 1);
+                LootIndex now = all.get(i);
+                for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : was.tablesByStructure().entrySet()) {
+                    helper.assertTrue(now.tablesByStructure().getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue()),
+                            entry.getKey() + " had loot in index " + (i - 1) + " that index " + i + " doesn't");
+                }
+                for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : was.placedByStructure().entrySet()) {
+                    helper.assertTrue(now.placedByStructure().getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue()),
+                            entry.getKey() + " placed items in index " + (i - 1) + " that index " + i + " doesn't");
+                }
+            }
+            JustEnoughStructures.LOGGER.info("In the test of an index filling in: {} early indexes, then the finished one", early.size());
         });
     }
 

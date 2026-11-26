@@ -1208,6 +1208,12 @@ public final class JesGameTests {
         ScanTests.knownLootIsWhatGeneratingFinds(helper);
     }
 
+    // Builds the whole loot index, sending it after every structure, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_filling", timeoutTicks = 6000)
+    public void indexFillsInAsItsBuilt(GameTestHelper helper) {
+        IndexStoreTests.indexFillsInAsItsBuilt(helper);
+    }
+
     // Starts building the whole loot index with nobody asking, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_unasked", timeoutTicks = 3000)
     public void indexIsBuiltWithoutBeingAsked(GameTestHelper helper) {
