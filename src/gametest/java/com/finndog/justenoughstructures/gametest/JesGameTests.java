@@ -297,7 +297,8 @@ public final class JesGameTests {
     }
 
     // A batch of its own: on Fabric it renumbers two items for a moment, which no other test should see.
-    @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_file", timeoutTicks = 1200)
+    // It waits for the loot index, so it has as long as the tests that build the index.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_file", timeoutTicks = 6000)
     public void keptOddsReadBackInAnotherWorld(GameTestHelper helper) {
         KeptOddsTests.keptOddsReadBackInAnotherWorld(helper);
     }

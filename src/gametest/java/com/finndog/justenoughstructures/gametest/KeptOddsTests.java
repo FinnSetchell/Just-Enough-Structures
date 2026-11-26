@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -71,24 +72,48 @@ public final class KeptOddsTests {
      * from 1.21 a world's datapacks number their enchantments. Every build reads the file back as a
      * start does. On Fabric it's read again with two of the items given each other's numbers, as
      * Fabric's own registry sync numbers them for a world or a server that has them that way.
+     *
+     * <p>Odds are only kept while the kept odds are ready, from a start or another test's /reload until
+     * the loot index's thread has read them again, which it hands over before the index is ready
+     * (LootIndexStore.refresh). So the table is rolled once the index is ready, and rolled again if a
+     * /reload came while it rolled and it wasn't kept. Each look that finds nothing yet waits a tick's
+     * length, so the time out is the same time however fast the ticks go.
      */
     public static void keptOddsReadBackInAnotherWorld(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         AtomicReference<LootOdds> first = new AtomicReference<>();
+        AtomicBoolean asked = new AtomicBoolean();
         // What reading back here found, then with the items renumbered: null where nothing differs.
         AtomicReference<String[]> found = new AtomicReference<>();
         IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
-        JesServer.forgetOdds(WITH_KINDS);
-        JesServer.odds(server, WITH_KINDS, LootRolls.table(server, WITH_KINDS), first::set);
         helper.succeedWhen(() -> {
-            helper.assertTrue(first.get() != null, "the odds of " + WITH_KINDS + " haven't been rolled yet");
-            // Items aren't renumbered while the loot index's thread may be reading them.
-            boolean ready = LootIndexStore.ready();
+            // Items aren't renumbered while the loot index's thread may be reading them, and odds aren't kept.
+            boolean ready = found.get() != null || LootIndexStore.ready();
             if (!ready) {
                 pace.keep();
             }
             helper.assertTrue(ready, "the loot index is still being built");
+            if (!asked.getAndSet(true)) {
+                JesServer.forgetOdds(WITH_KINDS);
+                JesServer.odds(server, WITH_KINDS, LootRolls.table(server, WITH_KINDS), first::set);
+            }
+            if (first.get() == null) {
+                pace.keep();
+            }
+            helper.assertTrue(first.get() != null, "the odds of " + WITH_KINDS + " haven't been rolled yet");
             LootOdds odds = first.get();
+            if (found.get() == null) {
+                OddsStore.save(server);
+                LootOdds kept = OddsStore.readBack(server, WITH_KINDS);
+                boolean wasKept = kept != null && kept.rolls() == odds.rolls();
+                if (!wasKept) {
+                    first.set(null);
+                    asked.set(false);
+                    pace.keep();
+                }
+                helper.assertTrue(wasKept, "the odds of " + WITH_KINDS + " from " + odds.rolls() + " rolls weren't kept (the file has "
+                        + (kept == null ? "none" : kept.rolls() + " rolls") + "), as after a /reload while they rolled, so they're rolled again");
+            }
             helper.assertTrue(odds.rows().size() >= 2 && odds.rows().stream().anyMatch(row -> !row.kinds().isEmpty()),
                     WITH_KINDS + " gave no rows with kinds, so this shows nothing: " + odds.rows().size() + " rows");
             Item one = odds.rows().get(0).example().getItem();
