@@ -1099,8 +1099,7 @@ final class InfoPanel {
                 Total total = totals.computeIfAbsent(row.example().getItem(), item -> new Total(row.example()));
                 total.none *= Math.pow(1 - p, n);
                 total.amount += n * (double) row.total() / table.rolls();
-                total.from.add(Component.literal("  ").append(Component.translatable("screen.justenoughstructures.tip_from_table",
-                        StructureNames.lootTable(e.getKey()), String.format(Locale.ROOT, "%.1f%%", p * 100), counted(kinds))).withStyle(ChatFormatting.DARK_AQUA));
+                total.from.add(OddsList.fromTable(StructureNames.lootTable(e.getKey()), p, counted(kinds)));
                 row.variants().forEach((variant, level) -> total.variants.merge(variant, level, Math::max));
                 for (OddsList.KindChance kind : OddsList.kinds(row, p)) {
                     total.kindNone.merge(kind.key(), Math.pow(1 - kind.chance(), n), (a, b) -> a * b);
@@ -1126,7 +1125,7 @@ final class InfoPanel {
             }
             if (hovered) {
                 List<Component> lines = new ArrayList<>();
-                lines.add(Component.translatable("screen.justenoughstructures.tip_at_least_one", String.format(Locale.ROOT, "%.1f%%", chance * 100)).withStyle(ChatFormatting.GRAY));
+                lines.add(OddsList.atLeastOne(chance));
                 lines.add((total.amount >= 0.95
                         ? Component.translatable("screen.justenoughstructures.tip_in_all", Math.max(1, Math.round(total.amount)))
                         : Component.translatable("screen.justenoughstructures.tip_on_average", String.format(Locale.ROOT, "%.1f", total.amount))).withStyle(ChatFormatting.GRAY));
@@ -1276,13 +1275,10 @@ final class InfoPanel {
             cy += OddsList.ROW + 1;
         }
         if (odds.emptyRolls() > 0) {
-            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.empty_rolls",
-                    String.format(Locale.ROOT, "%.1f%%", 100f * odds.emptyRolls() / odds.rolls())), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
+            cy = Gui.fineWrapped(g, font, OddsList.emptyRolls(odds), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         if (odds.failedRolls() > 0) {
-            cy = Gui.fineWrapped(g, font, Component.translatable("screen.justenoughstructures.failed_rolls",
-                    String.format(Locale.ROOT, "%.1f%%", 100f * odds.failedRolls() / (odds.rolls() + odds.failedRolls()))),
-                    x + PAD, cy + 2, textWidth(), Gui.labelSoft());
+            cy = Gui.fineWrapped(g, font, OddsList.failedRolls(odds), x + PAD, cy + 2, textWidth(), Gui.labelSoft());
         }
         if (Gui.advanced()) {
             Component note = odds.workedOut() ? Component.translatable("screen.justenoughstructures.odds_worked_out")

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -81,7 +82,8 @@ public final class ChanceTextTests {
      * A table whose chances are worked out lists everything it can give, however rare: the test mod's
      * diamond comes in one chest of 5,000. Its chance reads {@code <0.1%} in its row and its tooltip,
      * not 0.0%, which reads as never. Rolled odds never list anything under one in 2,000 rolls, which
-     * reads 0.1%. Other chances read as they did.
+     * reads 0.1%. The same goes for the lines of the layout's Combined chances tooltip, and for a
+     * table's Empty and failed rolls lines. Other chances read as they did.
      */
     public static void workedOutRareLootIsNeverShownAsNothing(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -98,6 +100,21 @@ public final class ChanceTextTests {
         helper.assertTrue(chance > 0 && chance < 0.0005f, "the diamond's worked-out chance is " + chance + ", not one in 5,000");
         helper.assertTrue(row.equals(under), "a diamond in one chest of 5,000 reads " + row + " in its row, not " + under);
         helper.assertTrue(tip.equals(under), "a diamond in one chest of 5,000 reads " + tip + " in its tooltip, not " + under);
+        // In a layout with one chest of the table, as the Combined chances tooltip shows it.
+        String combined = argument(List.of(OddsList.atLeastOne(chance)), "screen.justenoughstructures.tip_at_least_one", 0);
+        String fromTable = argument(List.of(OddsList.fromTable("Rare loot", chance, "1 x Chest")), "screen.justenoughstructures.tip_from_table", 1);
+        // Rolled a million times, of which three gave nothing, or three failed.
+        String empty = argument(List.of(OddsList.emptyRolls(new LootOdds(RARE, 1_000_000, 3, odds.rows()))), "screen.justenoughstructures.empty_rolls", 0);
+        String failed = argument(List.of(OddsList.failedRolls(new LootOdds(RARE, 1_000_000, 0, odds.rows(), 3))), "screen.justenoughstructures.failed_rolls", 0);
+        JustEnoughStructures.LOGGER.info("In the test of rare worked-out loot: in Combined chances it reads {} in the layout and {} from its table;"
+                + " three empty rolls in a million read {}, three failed {}", combined, fromTable, empty, failed);
+        helper.assertTrue(combined.equals(under), "a diamond in one chest of 5,000 reads " + combined + " in the layout's Combined chances, not " + under);
+        helper.assertTrue(fromTable.equals(under), "a diamond in one chest of 5,000 reads " + fromTable + " from its table in Combined chances, not " + under);
+        helper.assertTrue(empty.equals(under), "three empty rolls in a million read " + empty + ", not " + under);
+        helper.assertTrue(failed.equals(under), "three failed rolls in a million read " + failed + ", not " + under);
+        String usualLines = argument(List.of(OddsList.atLeastOne(0.0123f)), "screen.justenoughstructures.tip_at_least_one", 0) + " "
+                + argument(List.of(OddsList.emptyRolls(new LootOdds(RARE, 2000, 500, odds.rows()))), "screen.justenoughstructures.empty_rolls", 0);
+        helper.assertTrue(usualLines.equals("1.2% 25.0%"), "1.23% in Combined chances and 500 empty rolls in 2000 read " + usualLines);
         String usual = OddsList.percent(1 / 2000f) + " " + OddsList.percent(0.0123f) + " " + OddsList.percent(0.25f);
         helper.assertTrue(usual.equals("0.1% 1.2% 25%"), "one in 2000, 1.23% and 25% read " + usual);
         helper.succeed();
@@ -132,9 +149,9 @@ public final class ChanceTextTests {
         helper.succeed();
     }
 
-    /** What a tooltip line with that key was given in that place, as text. */
+    /** What a tooltip line with that key, or a part of the line, was given in that place, as text. */
     private static String argument(List<Component> lines, String key, int index) {
-        return lines.stream().map(Component::getContents)
+        return lines.stream().flatMap(line -> Stream.concat(Stream.of(line), line.getSiblings().stream())).map(Component::getContents)
                 .filter(c -> c instanceof TranslatableContents t && t.getKey().equals(key))
                 .map(c -> String.valueOf(((TranslatableContents) c).getArgs()[index])).findFirst().orElse("(no " + key + " line)");
     }

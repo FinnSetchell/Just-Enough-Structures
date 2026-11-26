@@ -187,6 +187,28 @@ public final class OddsList {
         }
     }
 
+    /** A table's line under "From:" in a Combined chances tooltip: the item's chance in each of its containers, and which use it. */
+    public static Component fromTable(String table, float chance, String containers) {
+        return Component.literal("  ").append(Component.translatable("screen.justenoughstructures.tip_from_table", table, FoundIn.tenthPercent(chance), containers))
+                .withStyle(ChatFormatting.DARK_AQUA);
+    }
+
+    /** The first line of a Combined chances tooltip: the chance of at least one in the whole layout. */
+    public static Component atLeastOne(float chance) {
+        return Component.translatable("screen.justenoughstructures.tip_at_least_one", FoundIn.tenthPercent(chance)).withStyle(ChatFormatting.GRAY);
+    }
+
+    /** How often a table gives nothing, under its rows. */
+    public static Component emptyRolls(LootOdds odds) {
+        return Component.translatable("screen.justenoughstructures.empty_rolls", FoundIn.tenthPercent((double) odds.emptyRolls() / odds.rolls()));
+    }
+
+    /** How many of a table's rolls failed, under its rows. */
+    public static Component failedRolls(LootOdds odds) {
+        return Component.translatable("screen.justenoughstructures.failed_rolls",
+                FoundIn.tenthPercent((double) odds.failedRolls() / (odds.rolls() + odds.failedRolls())));
+    }
+
     /** The tooltip for an item in one table: its chance in each container, in all of them, and what it can come with. */
     public static List<Component> tooltip(LootOdds.Row row, float chance, int containers, String containerName) {
         List<Component> lines = new ArrayList<>();
