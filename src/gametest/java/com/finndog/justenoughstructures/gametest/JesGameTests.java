@@ -1043,8 +1043,8 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
-    public void earlyIndexWaitsForTheFinishedOne(GameTestHelper helper) {
-        IndexArrivalTests.earlyIndexWaitsForTheFinishedOne(helper);
+    public void earlyIndexIsHandedOverAtOnce(GameTestHelper helper) {
+        IndexArrivalTests.earlyIndexIsHandedOverAtOnce(helper);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)

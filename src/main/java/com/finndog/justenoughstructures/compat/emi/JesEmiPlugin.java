@@ -21,8 +21,6 @@ import dev.emi.emi.runtime.EmiReloadManager;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -33,9 +31,10 @@ import net.minecraft.world.item.ItemStack;
  * structures whose loot can give it. The recipes come from the loot index, which the server sends
  * after the world is joined. EMI only reads recipes while it loads, which starts as the world is
  * joined, so its load waits briefly for an index on its way. An index that arrives later, or
- * changes, makes EMI reload, unless it's an early one: then EMI waits for the finished one. A load
- * without an index has a waiting row for each item chest loot can give, if the server has said
- * which, so the page is there with the server's progress until the index comes.
+ * changes, makes EMI reload: an early one too, which holds most of the loot long before the build
+ * is done, and then the finished one, if it holds more. A load without an index has a waiting row
+ * for each item chest loot can give, if the server has said which, so the page is there with the
+ * server's progress until the index comes.
  *
  * <p>With EMI Loot, each loot table also gets a row for each structure that uses it, made for the
  * stack EMI Loot's chest loot page stands for, so clicking the table's name there lists them.
@@ -59,13 +58,6 @@ public final class JesEmiPlugin implements EmiPlugin {
      * short of that.
      */
     private static final long INDEX_WAIT_MS = 5_000;
-    /**
-     * How long the server can stay silent about an early index before EMI loads it anyway, as the
-     * server may have stopped building the rest. While building it reports progress as structures
-     * finish, but a slow structure, or a wait for memory, can keep it quiet for a while.
-     * Public for the scripted scenarios.
-     */
-    public static final long QUIET_MS = 5 * 60_000;
 
     // The index EMI last loaded with, and the one it was last asked to reload for, until that load
     // starts. Asking again before then would make EMI restart the load.
@@ -73,8 +65,6 @@ public final class JesEmiPlugin implements EmiPlugin {
     // Whether EMI is loading now, which it does on a separate thread.
     private static volatile boolean loading;
     private static boolean listening;
-    // Whether a recheck of an early index is scheduled. Client thread only, like listening.
-    private static boolean lookDue;
     private static volatile int loads;
     private static volatile int waitingRows;
     private static volatile int tableRows;
@@ -183,34 +173,17 @@ public final class JesEmiPlugin implements EmiPlugin {
         }
         // An index that arrives while EMI loads is left for the check after the load. The server resends
         // its index each time it has checked it, and one equal to what EMI has, or is about to load,
-        // isn't worth a reload.
+        // isn't worth a reload. An early one is: it's most of the loot, and the finished one can be
+        // minutes away. The finished one then reloads EMI only if it holds something the early one didn't.
         if (loading || !INDEX.isNew(index)) {
-            return;
-        }
-        // Nor is an early one, since the finished one follows. If the server goes quiet for QUIET_MS,
-        // EMI loads the early one anyway.
-        long wait = ClientRequests.finishedIndexWait(QUIET_MS);
-        if (wait > 0) {
-            lookAgainIn(wait);
             return;
         }
         reload(index);
     }
 
-    /** Client thread only: checks the index again in {@code millis}. Only one check is scheduled at a time. */
-    private static void lookAgainIn(long millis) {
-        if (lookDue) {
-            return;
-        }
-        lookDue = true;
-        JesLog.debug("EMI waits for the finished loot index, and looks again in {} s", millis / 1000);
-        CompletableFuture.delayedExecutor(millis, TimeUnit.MILLISECONDS, Minecraft.getInstance()).execute(() -> {
-            lookDue = false;
-            LootIndex latest = ClientRequests.latestIndex();
-            if (latest != null) {
-                arrived(latest);
-            }
-        });
+    /** The loot index EMI last loaded with, or null. Test hook for the scripted scenarios. */
+    public static LootIndex shown() {
+        return INDEX.shown();
     }
 
     /** Whether EMI has loaded with the structures in it. Test hook for the scripted scenarios. */

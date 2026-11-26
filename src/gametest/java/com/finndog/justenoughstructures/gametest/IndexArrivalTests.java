@@ -10,15 +10,12 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * How EMI's load waits for a loot index on its way, and for the finished index once an early one has
- * arrived. The index arrives on the game thread and EMI loads on another, so these tests hand it over
+ * How EMI's load waits for a loot index on its way. The index arrives on the game thread and EMI loads on another, so these tests hand it over
  * from a separate thread. And which indexes a recipe viewer takes.
  */
 public final class IndexArrivalTests {
     /** Well under the waits asked for below, and well over the time a busy machine needs to notice an arrival. */
     private static final long SOON = 2500;
-    /** How long the server may say nothing here before the finished index stops being waited for. */
-    private static final long QUIET = 1000;
 
     private IndexArrivalTests() {
     }
@@ -27,7 +24,7 @@ public final class IndexArrivalTests {
         LootIndex index = new LootIndex(Map.of(), Map.of());
         IndexArrival arrival = new IndexArrival();
         arrival.asked();
-        later(() -> arrival.arrived(index, false));
+        later(() -> arrival.arrived(index));
         long started = System.nanoTime();
         LootIndex got = arrival.await(10_000);
         long waited = millisSince(started);
@@ -73,7 +70,7 @@ public final class IndexArrivalTests {
         helper.assertTrue(got == null && waited >= 290 && waited < SOON, "a wait of 300 ms for an index that never came took " + waited);
 
         // Leaving the server forgets the one it sent, and that another was on its way.
-        arrival.arrived(index, false);
+        arrival.arrived(index);
         arrival.forget();
         started = System.nanoTime();
         helper.assertTrue(arrival.now() == null && arrival.await(10_000) == null && millisSince(started) < SOON, "an index was kept, or waited for, after leaving the server");
@@ -81,47 +78,17 @@ public final class IndexArrivalTests {
     }
 
     /**
-     * With an early index here, the finished one is waited for while the server keeps sending
-     * progress, but not after QUIET ms of silence, as the build may have stopped. A finished index, or
-     * one from a server that doesn't mark them, needs no wait. EMI's load takes whichever is here.
+     * An early index is handed to EMI's load as soon as it's here, as a finished one is: it holds
+     * most of the loot, long before the finished one.
      */
-    public static void earlyIndexWaitsForTheFinishedOne(GameTestHelper helper) {
+    public static void earlyIndexIsHandedOverAtOnce(GameTestHelper helper) {
         LootIndex early = new LootIndex(Map.of(), Map.of());
-        LootIndex finished = new LootIndex(Map.of(), Map.of());
         IndexArrival arrival = new IndexArrival();
-        helper.assertTrue(arrival.finishedWait(QUIET) == 0, "with no index here, a finished one was waited for");
-
         arrival.asked();
-        arrival.arrived(early, true);
-        long wait = arrival.finishedWait(QUIET);
-        helper.assertTrue(wait > 0 && wait <= QUIET, "an early index that had only just come had " + wait + " ms of waiting for the finished one");
+        arrival.arrived(early);
+        arrival.building();
         long started = System.nanoTime();
         helper.assertTrue(arrival.await(10_000) == early && millisSince(started) < SOON, "an early index wasn't handed over to EMI's load straight away");
-
-        // Past QUIET, but the server has kept sending progress.
-        pause(QUIET + 200);
-        arrival.building();
-        helper.assertTrue(arrival.finishedWait(QUIET) > 0, "the wait for the finished index ended while the server was still saying how the rest was going");
-
-        // Then it says nothing more, as when its build has stopped.
-        pause(QUIET + 200);
-        helper.assertTrue(arrival.finishedWait(QUIET) == 0, "the finished index was still waited for after the server had said nothing for " + (QUIET + 200) + " ms");
-
-        // The server says the build of the rest failed, so the early one is all there is.
-        arrival.arrived(early, true);
-        arrival.building();
-        arrival.failed();
-        helper.assertTrue(arrival.finishedWait(QUIET) == 0 && arrival.now() == early, "the finished index was waited for after its build had failed");
-
-        // The finished one, or one from a server that doesn't say, is nothing to wait for.
-        arrival.arrived(early, true);
-        arrival.arrived(finished, false);
-        helper.assertTrue(arrival.finishedWait(QUIET) == 0 && arrival.now() == finished, "a finished index that came after an early one was waited on");
-
-        // Leaving the server forgets that the one here was early.
-        arrival.arrived(early, true);
-        arrival.forget();
-        helper.assertTrue(arrival.finishedWait(QUIET) == 0, "the finished index was waited for after leaving the server");
         helper.succeed();
     }
 
@@ -164,14 +131,6 @@ public final class IndexArrivalTests {
         return new LootIndex(Map.of(Ids.parse("minecraft:desert_pyramid"), Set.of(Ids.parse("minecraft:chests/desert_pyramid"))),
                 Map.of(Ids.parse("minecraft:chests/desert_pyramid"), Set.of(Ids.parse("minecraft:" + item))),
                 placed.isEmpty() ? Map.of() : Map.of(Ids.parse("minecraft:desert_pyramid"), placed));
-    }
-
-    private static void pause(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     /** Runs {@code then} on another thread in 150 ms. */

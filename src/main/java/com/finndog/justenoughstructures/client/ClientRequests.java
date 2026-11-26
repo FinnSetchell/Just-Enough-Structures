@@ -393,14 +393,6 @@ public final class ClientRequests {
         return Minecraft.getInstance().isSameThread() ? ARRIVAL.now() : ARRIVAL.await(millis);
     }
 
-    /**
-     * For a recipe viewer that must reload to show a new index; see {@link IndexArrival#finishedWait}.
-     * Always 0 with a server too old to mark early indexes.
-     */
-    public static long finishedIndexWait(long quiet) {
-        return ARRIVAL.finishedWait(quiet);
-    }
-
     /** How much of the index is built, from 0 to 1, or -1 before the server has said. */
     public static float indexProgress() {
         return indexTotal <= 0 ? -1f : (float) indexDone / indexTotal;
@@ -729,7 +721,7 @@ public final class ClientRequests {
             indexDone = 0;
             indexTotal = 0;
             indexFailed = false;
-            ARRIVAL.arrived(built, early);
+            ARRIVAL.arrived(built);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
             if (index == null || index.isDone()) {

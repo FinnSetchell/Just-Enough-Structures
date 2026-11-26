@@ -23,7 +23,7 @@ final class EmiScenario {
     /**
      * With a loot index saved from an earlier game, EMI loads once: the index arrives in time for the
      * load EMI starts on joining. The first game with a set of mods has no saved index, so EMI loads
-     * twice there.
+     * again there, for the early index and the finished one.
      */
     static Director once(Minecraft mc) {
         //? if emi {
@@ -79,16 +79,16 @@ final class EmiScenario {
 
     /**
      * A first game with nothing saved, where the loot index comes early and the finished one
-     * follows: EMI loads as the world is joined and again for the finished index, but not for the
-     * early one in between. Only meaningful when the server has no saved loot index and the finished
-     * index holds more than the early one.
+     * follows: EMI loads with the early index as soon as it's here, and once more for the finished
+     * one. Only meaningful when the server has no saved loot index and the finished index holds more
+     * than the early one.
      */
     static Director early(Minecraft mc) {
         //? if emi {
         if (!JustEnoughStructures.modVersions().containsKey("emi")) {
             throw new UnsupportedOperationException("needs EMI");
         }
-        int[] loadsWhenEarly = new int[1];
+        int[] loadsWithEarly = new int[1];
         LootIndex[] early = new LootIndex[1];
         Director d = new Director(mc);
         // EMI requests the index on joining. With nothing saved, an early index arrives first,
@@ -99,9 +99,17 @@ final class EmiScenario {
                         throw new IllegalStateException("The loot index never arrived early: this game's server had one saved, or built it in one go");
                     }
                     early[0] = ClientRequests.latestIndex();
-                    loadsWhenEarly[0] = JesEmiPlugin.loads();
                     JustEnoughStructures.LOGGER.info("The early loot index is here at {}%, and EMI has loaded {} times",
-                            Math.round(ClientRequests.indexProgress() * 100), loadsWhenEarly[0]);
+                            Math.round(ClientRequests.indexProgress() * 100), JesEmiPlugin.loads());
+                }))
+                // EMI loads with it while the rest is still being built.
+                .then(until(() -> JesEmiPlugin.ready() && early[0].equals(JesEmiPlugin.shown()) || !ClientRequests.indexFilling(), 20 * 60 * 2))
+                .then(run(() -> {
+                    if (!early[0].equals(JesEmiPlugin.shown()) || !JesEmiPlugin.ready()) {
+                        throw new IllegalStateException("EMI didn't load with the early loot index while the rest was being built");
+                    }
+                    loadsWithEarly[0] = JesEmiPlugin.loads();
+                    JustEnoughStructures.LOGGER.info("EMI loaded with the early loot index, {} loads so far", loadsWithEarly[0]);
                 }))
                 .then(until(() -> ClientRequests.indexReady() && !ClientRequests.indexFilling(), 20 * 60 * 15))
                 .then(run(() -> {
@@ -110,19 +118,19 @@ final class EmiScenario {
                         throw new IllegalStateException("The finished loot index never came");
                     }
                     if (finished.equals(early[0])) {
-                        throw new IllegalStateException("The finished loot index holds no more than the early one, so this game can't show whether EMI waited for it");
+                        throw new IllegalStateException("The finished loot index holds no more than the early one, so this game can't show EMI loading for it");
                     }
                 }))
                 // Give EMI time to start loading for the finished index.
                 .then(pause(200))
                 .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
                 .then(run(() -> {
-                    JustEnoughStructures.LOGGER.info("EMI loaded {} times, {} of them by the time the early loot index was here", JesEmiPlugin.loads(), loadsWhenEarly[0]);
-                    if (!JesEmiPlugin.ready()) {
+                    JustEnoughStructures.LOGGER.info("EMI loaded {} times, {} of them by the time it had the early loot index", JesEmiPlugin.loads(), loadsWithEarly[0]);
+                    if (!JesEmiPlugin.showsLatestIndex()) {
                         throw new IllegalStateException("EMI never loaded with the finished loot index");
                     }
-                    if (JesEmiPlugin.loads() != 2) {
-                        throw new IllegalStateException("EMI loaded " + JesEmiPlugin.loads() + " times, not once as the world was joined and once for the finished loot index");
+                    if (JesEmiPlugin.loads() != loadsWithEarly[0] + 1) {
+                        throw new IllegalStateException("EMI loaded " + (JesEmiPlugin.loads() - loadsWithEarly[0]) + " times for the finished loot index, not once");
                     }
                 }));
         return d;
@@ -132,10 +140,9 @@ final class EmiScenario {
     }
 
     /**
-     * If the server stops building after the early loot index, as when its build fails, EMI loads
-     * with the early index once the server has been quiet for JesEmiPlugin.QUIET_MS, and not before.
-     * Here the build is stopped as soon as the early index arrives. Only meaningful when the server
-     * has no saved loot index.
+     * If the server stops building after the early loot index, as when its build fails, EMI still
+     * loads with the early index, at once, and then stays as it is. Here the build is stopped as soon
+     * as the early index arrives. Only meaningful when the server has no saved loot index.
      */
     static Director quiet(Minecraft mc) {
         //? if emi {
@@ -146,10 +153,8 @@ final class EmiScenario {
         if (server == null) {
             throw new UnsupportedOperationException("needs a world of its own");
         }
-        int[] loadsWhenEarly = new int[1];
         LootIndex[] early = new LootIndex[1];
-        long[] stopped = new long[1];
-        int quietTicks = (int) (JesEmiPlugin.QUIET_MS / 50);
+        int[] loadsWithEarly = new int[1];
         Director d = new Director(mc);
         d.then(until(ClientRequests::indexFilling, 20 * 60 * 10))
                 .then(run(() -> {
@@ -157,34 +162,22 @@ final class EmiScenario {
                         throw new IllegalStateException("The loot index never arrived early: this game's server had one saved, or built it in one go");
                     }
                     early[0] = ClientRequests.latestIndex();
-                    loadsWhenEarly[0] = JesEmiPlugin.loads();
                     // As when the build fails: the server says nothing more, and the finished index never comes.
                     server.execute(LootIndexStore::stop);
-                    stopped[0] = System.nanoTime();
-                    JustEnoughStructures.LOGGER.info("The early loot index is here and the server's build is stopped, with EMI loaded {} times", loadsWhenEarly[0]);
+                    JustEnoughStructures.LOGGER.info("The early loot index is here and the server's build is stopped, with EMI loaded {} times", JesEmiPlugin.loads());
                 }))
-                .then(until(() -> JesEmiPlugin.loads() > loadsWhenEarly[0], quietTicks + 20 * 60 * 2))
+                .then(until(() -> JesEmiPlugin.ready() && early[0].equals(JesEmiPlugin.shown()), 20 * 60 * 2))
                 .then(run(() -> {
-                    long after = (System.nanoTime() - stopped[0]) / 1_000_000_000L;
-                    JustEnoughStructures.LOGGER.info("EMI loaded again {} s after the server stopped building the loot index", after);
-                    if (JesEmiPlugin.loads() == loadsWhenEarly[0]) {
-                        throw new IllegalStateException("EMI never loaded with the early loot index once the server had stopped saying anything of it");
+                    if (!JesEmiPlugin.ready() || !early[0].equals(JesEmiPlugin.shown())) {
+                        throw new IllegalStateException("EMI didn't load with the early loot index once the server had stopped building");
                     }
-                    // The server's last progress update can come a moment before its build is stopped.
-                    if (after < JesEmiPlugin.QUIET_MS / 1000 - 10) {
-                        throw new IllegalStateException("EMI loaded again " + after + " s after the server stopped building, before it had been quiet for "
-                                + JesEmiPlugin.QUIET_MS / 1000 + " s");
-                    }
+                    loadsWithEarly[0] = JesEmiPlugin.loads();
                 }))
-                .then(until(JesEmiPlugin::ready, 20 * 60 * 5))
-                // Give a second load time to start, if one is coming.
-                .then(pause(200))
+                // Give another load time to start, if one is coming.
+                .then(pause(20 * 30))
                 .then(run(() -> {
-                    if (!JesEmiPlugin.ready() || ClientRequests.latestIndex() != early[0]) {
-                        throw new IllegalStateException("EMI didn't end up loaded with the early loot index");
-                    }
-                    if (JesEmiPlugin.loads() != loadsWhenEarly[0] + 1) {
-                        throw new IllegalStateException("EMI loaded " + (JesEmiPlugin.loads() - loadsWhenEarly[0]) + " times once the server had stopped, not once");
+                    if (JesEmiPlugin.loads() != loadsWithEarly[0]) {
+                        throw new IllegalStateException("EMI loaded " + (JesEmiPlugin.loads() - loadsWithEarly[0]) + " more times after the early loot index, with the build stopped");
                     }
                 }));
         return d;
