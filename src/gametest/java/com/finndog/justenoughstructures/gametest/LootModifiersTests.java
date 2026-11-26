@@ -1,11 +1,15 @@
 package com.finndog.justenoughstructures.gametest;
 
 import com.finndog.justenoughstructures.Ids;
+import com.finndog.justenoughstructures.loot.LootMath;
 import com.finndog.justenoughstructures.loot.LootModifiers;
+import com.finndog.justenoughstructures.loot.LootOdds;
+import com.finndog.justenoughstructures.loot.LootRolls;
 import com.finndog.justenoughstructures.server.LootHooks;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.Set;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -115,6 +119,40 @@ public final class LootModifiersTests {
         helper.assertTrue(found.anyTable() && found.tables().contains(modified),
                 "with the ice-box modifier, any table may be changed, and the gametest table among them: " + found.anyTable() + ", " + found.tables());
         *///?}
+        helper.succeed();
+    }
+
+    /**
+     * NeoForge's add_table modifiers are worked out with the table they name: the gametest table gives
+     * an apple, and its modifier adds a roll of the rare loot table, whose diamond comes once in 5,000.
+     * So the table's worked-out chances list the diamond for certain, and its rolls fit them. Elsewhere
+     * the test mod's modifier (Forge's own type) isn't known to the working out, so the rolls, which
+     * give more than the apple, stay the answer; Fabric's dev game has no modifiers, and the table
+     * gives the apple alone.
+     */
+    public static void addTableWorkedOut(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ResourceLocation modified = Ids.of("justenoughstructures_gametest", "chests/modified");
+        ResourceLocation apple = Ids.parse("apple");
+        ResourceLocation diamond = Ids.parse("diamond");
+        LootMath.Result math = LootMath.of(server, modified);
+        LootOdds rolled = LootRolls.odds(helper.getLevel(), modified, 500, modified.hashCode());
+        LootMath.Checked checked = LootMath.check(server, rolled);
+        helper.assertTrue(math.exact(), "the gametest table couldn't be worked out: " + math.unknown());
+        helper.assertTrue(math.items().containsKey(apple) && math.items().get(apple).chance() > 0.999999, "the apple's chance is " + (math.items().containsKey(apple) ? math.items().get(apple).chance() : 0));
+        //? if neoforge {
+        /*LootMath.Stat stat = math.items().get(diamond);
+        helper.assertTrue(stat != null && Math.abs(stat.chance() - 1.0 / 5000) < 1e-9, "the diamond the add_table modifier adds is worked out as " + (stat == null ? "not given" : stat.chance()));
+        helper.assertTrue(checked.fits(), "500 rolls of the gametest table don't fit what it gives with its modifier worked out");
+        helper.assertTrue(checked.odds().workedOut() && checked.odds().rows().stream().anyMatch(r -> BuiltInRegistries.ITEM.getKey(r.example().getItem()).equals(diamond)),
+                "the worked-out odds of the gametest table don't list the diamond: " + checked.odds().rows().stream().map(r -> r.example().getItem()).toList());
+        *///?} else if forge {
+        /*helper.assertTrue(math.items().keySet().equals(Set.of(apple)), "the gametest table is worked out as giving " + math.items().keySet());
+        helper.assertFalse(checked.fits(), "rolls with what the test mod's modifier adds fit the table worked out without it");
+        *///?} else {
+        helper.assertTrue(math.items().keySet().equals(Set.of(apple)), "the gametest table is worked out as giving " + math.items().keySet());
+        helper.assertTrue(checked.fits(), "rolls of the gametest table don't fit it, with no loot modifiers in the game");
+        //?}
         helper.succeed();
     }
 

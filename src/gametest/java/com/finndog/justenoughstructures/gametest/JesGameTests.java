@@ -301,6 +301,11 @@ public final class JesGameTests {
         LootModifiersTests.loadedModifiersListed(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void addTableWorkedOut(GameTestHelper helper) {
+        LootModifiersTests.addTableWorkedOut(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void keptOddsAnswerWithoutRolling(GameTestHelper helper) {
         KeptOddsTests.keptOddsAnswerWithoutRolling(helper);

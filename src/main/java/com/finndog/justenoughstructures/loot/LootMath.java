@@ -250,10 +250,13 @@ public final class LootMath {
         return x * Math.log(x) - x + 0.5 * Math.log(2 * Math.PI * x) + 1 / (12 * x) - 1 / (360 * x * x * x);
     }
 
-    /** Works out a loaded table. A table that isn't loaded gives nothing. */
+    /**
+     * Works out a loaded table, with what NeoForge's add_table loot modifiers that name it add as it's
+     * rolled. A table that isn't loaded gives nothing.
+     */
     public static Result of(MinecraftServer server, ResourceLocation tableId) {
         LootMath math = new LootMath(server);
-        Gives gives = math.table(tableId);
+        Gives gives = math.withAddedTables(tableId, math.table(tableId));
         Map<ResourceLocation, Stat> out = new TreeMap<>();
         gives.items().forEach((item, stat) -> {
             if (stat.none < 1) {
@@ -261,6 +264,67 @@ public final class LootMath {
             }
         });
         return new Result(out, gives.nothing(), math.unknown, math.variants);
+    }
+
+    // ---- loot modifiers ----
+
+    /** Modifiers that add what a whole table gives, under their conditions: NeoForge's own, named under table. */
+    private static final Set<String> ADD_TABLE = Set.of("neoforge:add_table");
+
+    /**
+     * What a table gives with what the add_table modifiers that name it add: each rolls its table once
+     * more, after the table, when its conditions pass, so it's an independent extra draw. Other loot
+     * modifiers aren't known here, and the rolls show what they do.
+     */
+    private Gives withAddedTables(ResourceLocation tableId, Gives gives) {
+        for (LootModifiers.Modifier m : LootModifiers.read(server).on(tableId)) {
+            if (m.json() == null || !ADD_TABLE.contains(m.type())) {
+                continue;
+            }
+            ResourceLocation added = id(m.json(), "table");
+            if (added == null) {
+                unknown.add("an add_table loot modifier with no table: " + m.id());
+                continue;
+            }
+            double p = 1;
+            for (JsonElement c : LootModifiers.conditionsOf(m.json())) {
+                if (c instanceof JsonObject o && !namesTable(o, tableId)) {
+                    p *= condition(o);
+                }
+            }
+            if (p > 0) {
+                gives = also(gives, table(added), p);
+            }
+        }
+        return gives;
+    }
+
+    /** Whether a condition is a loot_table_id naming this table, which passes as it's rolled. */
+    private static boolean namesTable(JsonObject c, ResourceLocation tableId) {
+        return kind(c, "condition", "type").endsWith(":loot_table_id") && tableId.equals(id(c, "loot_table_id"));
+    }
+
+    /** What {@code a} gives with {@code b} given as well, independently, with chance {@code p}. */
+    private static Gives also(Gives a, Gives b, double p) {
+        Map<Item, Stat> items = new HashMap<>();
+        a.items().forEach((item, stat) -> items.put(item, copy(stat)));
+        b.items().forEach((item, stat) -> {
+            Stat sum = items.computeIfAbsent(item, i -> new Stat());
+            sum.none *= 1 - p + p * stat.none;
+            sum.mean += p * stat.mean;
+            sum.min = Math.min(sum.min, stat.min);
+            sum.max += stat.max;
+        });
+        return new Gives(items, a.nothing() * (1 - p + p * b.nothing()));
+    }
+
+    private static Stat copy(Stat stat) {
+        Stat out = new Stat();
+        out.none = stat.none;
+        out.mean = stat.mean;
+        out.min = stat.min;
+        out.max = stat.max;
+        return out;
     }
 
     // ---- tables and pools ----
