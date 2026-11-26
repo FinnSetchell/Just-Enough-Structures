@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- A settings button beside a structure's mod name opens that mod's settings, in single player
+  - When another mod turns a structure off or replaces it, the Info tab links to that mod's settings
+- A Command only setting that hides everything Just Enough Structures adds to the game until you use /jes open; Pack tools changes still apply
+- A fly button in the preview: fly through a structure with your movement keys and the mouse, like spectator mode, and click chests and spawners to open them
+
+### Fixed
+- In packs with Tierify, such as Prominence II, loot chances show many times faster and the full loot list is ready much sooner
+- Pictures in the structure list are drawn again after a GUI scale or resource pack change, instead of staying blurry or out of date until you rejoin
+- Looking up a potion, a tipped arrow, or a book a chest names (like Swift Sneak) in EMI, JEI or REI now finds the structures that give it
+- In the loot editor, turning an entry into an alternatives, group or sequence keeps its conditions
+- Items that Item Obliterator removes no longer show in loot chances, rolled chests or Found in
+- Quitting or reloading while the loot list is still being built no longer starts it over: it carries on from where it stopped
+- Hovering a row in the Blocks tab no longer makes the preview stutter on big structures
+- The loot editor no longer offers functions on alternatives, groups and sequences before Minecraft 26.3, as the game ignores them there
+
+### Changed
+- Chances for chest loot no mod changes as it's rolled are now exact, worked out from the loot table, and shown at once
+- On Fabric, loot chances and Found in lists are ready sooner in big packs, as chests no mod changes are no longer rolled in full
+- Loot chances are kept between game starts, so they show at once after the first start until the pack's mods or loot change
+- The game's log now says why when loot can't all be listed, or the browser's settings or notes can't be read or saved
+- Loot chances for potions, tipped arrows, enchanted books and enchanted gear now show every kind they come in: the picture cycles through them and the tooltip gives each one's chance
+- Players below operator level wait 10 seconds between structure searches, so searching can't be used to slow a server down
+- In packs with Loot Integrations, such as Prominence II, Found in now lists everything it can add to a chest, the same every time, and the full loot list is ready sooner
+- The preview only spins until you move the camera, and spins again after Reset view or when you open another structure
+
 ## [1.2.0] - 2026-11-05
 
 ### Added
