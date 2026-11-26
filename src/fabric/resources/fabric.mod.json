@@ -40,7 +40,7 @@
   "depends": {
     "fabricloader": "${fabric_loader_dep}",
     "minecraft": "${mc_compat}",
-    "fabric-api": "${fabric_api_dep}",
+    "fabric-api": "*",
     "java": ">=${java_version}"
   },
   "suggests": {

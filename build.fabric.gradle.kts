@@ -365,7 +365,6 @@ tasks {
             "mod_author" to modAuthor,
             "mc_compat" to prop("mod.mc_compat"),
             "fabric_loader_dep" to prop("mod.fabric_loader_dep"),
-            "fabric_api_dep" to prop("mod.fabric_api_dep"),
             "java_version" to requiredJava.majorVersion,
         )
         props.forEach { (k, v) -> inputs.property(k, v) }
