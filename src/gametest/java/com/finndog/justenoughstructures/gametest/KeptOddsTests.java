@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
@@ -20,6 +21,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -76,13 +78,17 @@ public final class KeptOddsTests {
      * <p>Odds are only kept while the kept odds are ready, from a start or another test's /reload until
      * the loot index's thread has read them again, which it hands over before the index is ready
      * (LootIndexStore.refresh). So the table is rolled once the index is ready, and rolled again if a
-     * /reload came while it rolled and it wasn't kept. Each look that finds nothing yet waits a tick's
-     * length, so the time out is the same time however fast the ticks go.
+     * /reload came while it rolled and it wasn't kept. After a /reload that changed what it was built
+     * from, the index is only built again when a player asks for it, or on a dedicated server, which
+     * the test server isn't, so the test asks for it as a player opening the browser does. Each look
+     * that finds nothing yet waits a tick's length, so the time out is the same time however fast the
+     * ticks go.
      */
     public static void keptOddsReadBackInAnotherWorld(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         AtomicReference<LootOdds> first = new AtomicReference<>();
         AtomicBoolean asked = new AtomicBoolean();
+        AtomicBoolean indexAsked = new AtomicBoolean();
         // What reading back here found, then with the items renumbered: null where nothing differs.
         AtomicReference<String[]> found = new AtomicReference<>();
         IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
@@ -90,6 +96,9 @@ public final class KeptOddsTests {
             // Items aren't renumbered while the loot index's thread may be reading them, and odds aren't kept.
             boolean ready = found.get() != null || LootIndexStore.ready();
             if (!ready) {
+                if (!indexAsked.getAndSet(true)) {
+                    askForTheIndex(helper);
+                }
                 pace.keep();
             }
             helper.assertTrue(ready, "the loot index is still being built");
@@ -180,6 +189,27 @@ public final class KeptOddsTests {
             helper.assertTrue(only(after.get(), Items.DIAMOND), "asked for at once after the edit and a /reload, " + EDITED + " was answered with "
                     + rows(after.get()) + ", the odds kept from before, not the edited table's diamonds");
         });
+    }
+
+    /**
+     * Asks for the loot index as a player opening the browser does, which builds it if it isn't being
+     * built. What it would send the mock player is dropped, as NeoForge refuses to send JES's messages
+     * to one, and the player is gone again at once: the build goes ahead without anyone waiting for it.
+     */
+    private static void askForTheIndex(GameTestHelper helper) {
+        ServerPlayer player = TestPlayers.mock(helper);
+        JesNetwork.ServerSender before = JesNetwork.serverSender();
+        JesNetwork.setServerSender((target, channel, buf) -> {
+            if (target != player) {
+                before.send(target, channel, buf);
+            }
+        });
+        try {
+            JesServer.onRequestIndex(player);
+        } finally {
+            JesNetwork.setServerSender(before);
+            JesServer.left(player);
+        }
     }
 
     private static boolean only(LootOdds odds, Item item) {
