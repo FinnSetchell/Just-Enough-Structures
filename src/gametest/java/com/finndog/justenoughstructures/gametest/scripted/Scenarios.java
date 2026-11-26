@@ -109,6 +109,7 @@ public final class Scenarios {
             case "jei_same" -> JeiIndexScenario.same(mc);
             case "jei_reload" -> JeiIndexScenario.reload(mc);
             case "index_filling" -> IndexFillingScenario.build(mc);
+            case "modifier_items" -> ModifierItemsScenario.build(mc);
             case "placed" -> PlacedScenario.build(mc);
             case "ui_clicks" -> UiClicksScenario.build(mc);
             //? if ftbquests {

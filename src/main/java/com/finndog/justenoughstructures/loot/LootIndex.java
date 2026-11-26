@@ -260,6 +260,17 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
                     read.addAll(rolled.items());
                 }
             });
+            // What loot modifiers name for a table is listed as it's read, before any rolls: most of
+            // what they add. The rolls show the rest.
+            LootModifiers.Listing modifiers = LootModifiers.read(server);
+            items.forEach((table, given) -> {
+                for (LootModifiers.Modifier m : modifiers.on(table)) {
+                    given.addAll(m.items());
+                    for (ResourceLocation named : m.namedTables()) {
+                        given.addAll(itemsIn(server, named, new HashSet<>()));
+                    }
+                }
+            });
             addIntegrations(server, items, kinds);
             // Items another mod takes out of every chest are in none, whatever a table names, its rolls
             // found before, or a structure places (RemovedItems).

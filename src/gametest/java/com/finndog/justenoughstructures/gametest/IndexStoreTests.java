@@ -190,6 +190,21 @@ public final class IndexStoreTests {
                         entry.getKey() + " had loot in the early index that the finished one doesn't");
             }
             helper.assertTrue(finished.tablesByStructure().size() >= early.tablesByStructure().size(), "the finished index has fewer structures than the early one");
+            //? if forge || neoforge {
+            /*// What a loot modifier names is listed as its table is read, before any table is rolled: the test
+            // mod's add-table modifier on its "modified" chest names its rare loot table, so what that gives is
+            // listed for the chest. No structure uses that chest, so it's read here as the index reads a table.
+            // (The ice box's nether star comes from a modifier that checks its table in code, which only rolls
+            // show.) Fabric reads Porting Lib's modifiers the same way, but its game tests have none to load.
+            ResourceLocation modified = Ids.parse("justenoughstructures_gametest:chests/modified");
+            Set<ResourceLocation> rare = LootIndex.itemsIn(server, Ids.parse("justenoughstructures_gametest:chests/rare_loot"), new HashSet<>());
+            helper.assertTrue(!rare.isEmpty() && !LootIndex.itemsIn(server, modified, new HashSet<>()).containsAll(rare),
+                    "the test mod's rare loot table gives nothing the modified chest doesn't already, so this shows nothing");
+            Set<ResourceLocation> read = LootIndex.of(server, new StructureScan(Map.of(Ids.parse("justenoughstructures_gametest:reader"), Set.of(modified)),
+                    Map.of(), Map.of())).itemsByTable().getOrDefault(modified, Set.of());
+            helper.assertTrue(read.containsAll(rare), "read before any rolls, the modified chest gives " + read
+                    + ", without what the rare loot table its loot modifier names gives, " + rare);
+            *///?}
             // What structures place themselves comes too, like the elytra in an End city ship's item frame.
             for (Map.Entry<ResourceLocation, Set<ResourceLocation>> entry : early.placedByStructure().entrySet()) {
                 helper.assertTrue(finished.placedByStructure().getOrDefault(entry.getKey(), Set.of()).containsAll(entry.getValue()),

@@ -78,6 +78,9 @@ public final class ClientRequests {
     private static boolean indexAsked;
     // Whether the latest index is an early one, with the finished one to follow. Read from recipe viewers' threads too.
     private static volatile boolean indexEarly;
+    // The first index received on this connection, and whether it was early. Read by the scripted scenarios.
+    private static volatile LootIndex firstIndex;
+    private static volatile boolean firstIndexEarly;
     // What the server's chest loot can give, sent with the index's progress. Read from recipe viewers' threads too.
     private static volatile Set<ResourceLocation> chestItems = Set.of();
     private static final List<Runnable> CHEST_ITEMS_LISTENERS = new ArrayList<>();
@@ -139,6 +142,8 @@ public final class ClientRequests {
         indexFailed = false;
         indexAsked = false;
         indexEarly = false;
+        firstIndex = null;
+        firstIndexEarly = false;
         chestItems = Set.of();
         FoundIn.clear();
         locatePermission = 2;
@@ -399,6 +404,16 @@ public final class ClientRequests {
     /** Whether the latest index is an early one, with the finished one still to come. False with a server too old to say. */
     public static boolean indexEarly() {
         return indexEarly;
+    }
+
+    /** The first loot index received since joining, or null. Test hook for the scripted scenarios. */
+    public static LootIndex firstIndex() {
+        return firstIndex;
+    }
+
+    /** Whether the first loot index received since joining was an early one, sent before the server rolled any table. Test hook for the scripted scenarios. */
+    public static boolean firstIndexEarly() {
+        return firstIndexEarly;
     }
 
     /** How much of the index is built, from 0 to 1, or -1 before the server has said. */
@@ -730,6 +745,10 @@ public final class ClientRequests {
             indexTotal = 0;
             indexFailed = false;
             indexEarly = early;
+            if (firstIndex == null) {
+                firstIndex = built;
+                firstIndexEarly = early;
+            }
             ARRIVAL.arrived(built);
             FoundIn.rebuild(built);
             // The server sends a new one when it changes, after a /reload for instance.
