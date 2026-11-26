@@ -1,0 +1,12 @@
+{
+  "type": "neoforge:add_table",
+  "conditions": [
+    {
+      "condition": "minecraft:killed_by_player"
+    }
+  ],
+  "condition": {
+    "type": "minecraft:killed_by_player"
+  },
+  "table": "justenoughstructures_gametest:chests/rare_loot"
+}

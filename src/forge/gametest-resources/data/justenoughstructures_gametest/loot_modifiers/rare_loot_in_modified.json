@@ -1,0 +1,11 @@
+{
+  "type": "justenoughstructures_gametest:add_table",
+  "conditions": [
+    {
+      "condition": "forge:loot_table_id",
+      "loot_table_id": "justenoughstructures_gametest:chests/modified",
+      "type": "forge:loot_table_id"
+    }
+  ],
+  "table": "justenoughstructures_gametest:chests/rare_loot"
+}

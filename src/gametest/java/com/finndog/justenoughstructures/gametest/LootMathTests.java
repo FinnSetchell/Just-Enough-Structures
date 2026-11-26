@@ -110,11 +110,11 @@ public final class LootMathTests {
     /**
      * With no mod in the game that changes loot as it's rolled, nothing is named on Fabric, where Porting
      * Lib's and Loot Integrations' lists are read. From 26.1 the test mod listens to Fabric's drops event,
-     * which can change any table. On Forge and NeoForge, whose own loot modifiers aren't read, any table
-     * may be changed, so every table is rolled in full as before.
+     * which can change any table. On Forge and NeoForge the test mod's ice-box loot modifier names its
+     * table only in its code, so any table may be changed, and every table is rolled in full.
      */
     public static void lootHooksFoundInModsLists(GameTestHelper helper) {
-        LootHooks.Found found = LootHooks.find();
+        LootHooks.Found found = LootHooks.find(helper.getLevel().getServer());
         //? if fabric {
         helper.assertTrue(found.tables().isEmpty(), "with no loot-changing mod, these tables were said to be changed: " + found.tables());
         //?}
@@ -123,7 +123,7 @@ public final class LootMathTests {
         *///?} else if fabric {
         helper.assertFalse(found.anyTable(), "with no loot-changing mod, any table was said to be changed as it's rolled");
         //?} else {
-        /*helper.assertTrue(found.anyTable(), "Forge's and NeoForge's own loot modifiers aren't read, so any table may be changed");
+        /*helper.assertTrue(found.anyTable(), "the test mod's ice-box loot modifier names no table, yet no table was said to be changed");
         *///?}
         helper.succeed();
     }

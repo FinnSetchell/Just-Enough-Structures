@@ -86,7 +86,7 @@ public final class LootIntegrationsTests {
             helper.assertTrue(rolled.itemsByTable().get(dungeon).contains(star) && rolled.itemsByTable().get(ruin).contains(star),
                     "what the dungeon's rolls found didn't reach the ruin's chest: " + rolled.itemsByTable().get(ruin));
 
-            LootHooks.Found found = LootHooks.find();
+            LootHooks.Found found = LootHooks.find(server);
             //? if fabric && >=26.1 {
             /*// From 26.1 the test mod listens to Fabric's drops event, which can change any table, so every table is rolled in full.
             helper.assertTrue(found.anyTable() && !found.listed(ruin), "the ruin's chest is listed, though the drops event may change any table");
@@ -94,8 +94,8 @@ public final class LootIntegrationsTests {
             helper.assertTrue(found.listed(ruin) && !found.touches(ruin), "the ruin's chest is rolled in full, though what's added to it is listed");
             helper.assertTrue(found.touches(trimmed) && !found.listed(trimmed), "a table Loot Integrations may take stacks out of isn't rolled in full");
             //?} else {
-            /*// Forge's and NeoForge's own loot modifiers aren't read, so every table is rolled in full there.
-            helper.assertTrue(found.anyTable() && !found.listed(ruin), "the ruin's chest is listed, though Forge's loot modifiers may change any table");
+            /*// The test mod's ice-box loot modifier names its table only in its code, so every table is rolled in full there.
+            helper.assertTrue(found.anyTable() && !found.listed(ruin), "the ruin's chest is listed, though the ice-box loot modifier may change any table");
             *///?}
         } finally {
             map.clear();

@@ -442,7 +442,7 @@ public final class LootIndexStore {
         TableRolls(MinecraftServer server, Set<ResourceLocation> tables, LootIndex read, BooleanSupplier stale,
                    Consumer<Map<ResourceLocation, Set<ResourceLocation>>> done) {
             this.server = server;
-            this.hooks = LootHooks.find();
+            this.hooks = LootHooks.find(server);
             this.read = read.itemsByTable();
             // Tables Loot Integrations adds to go last, after the tables it rolls into them (givesOnlyListed).
             List<ResourceLocation> ordered = new ArrayList<>(tables);

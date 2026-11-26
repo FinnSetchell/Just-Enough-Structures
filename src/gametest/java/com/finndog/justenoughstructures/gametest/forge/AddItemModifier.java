@@ -40,7 +40,7 @@ public record AddItemModifier(ResourceLocation table, ResourceLocation item) imp
                 ResourceLocation.CODEC.fieldOf("item").forGetter(AddItemModifier::item)).apply(instance, AddItemModifier::new);
     }
 
-    /** Registers the modifier as justenoughstructures_gametest:add_item. */
+    /** Registers the modifier as justenoughstructures_gametest:add_item, and {@link AddTableModifier}. */
     //? if >=26.1 {
     /*static void register(BusGroup modBus) {
     *///?} else {
@@ -48,6 +48,7 @@ public record AddItemModifier(ResourceLocation table, ResourceLocation item) imp
     //?}
         var codecs = DeferredRegister.create(ForgeRegistries.Keys.GLOBAL_LOOT_MODIFIER_SERIALIZERS, "justenoughstructures_gametest");
         codecs.register("add_item", () -> CODEC);
+        codecs.register("add_table", () -> AddTableModifier.CODEC);
         codecs.register(modBus);
     }
 

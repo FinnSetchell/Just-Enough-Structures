@@ -1,0 +1,10 @@
+{
+  "type": "justenoughstructures_gametest:add_table",
+  "conditions": [
+    {
+      "condition": "minecraft:killed_by_player",
+      "type": "minecraft:killed_by_player"
+    }
+  ],
+  "table": "justenoughstructures_gametest:chests/rare_loot"
+}

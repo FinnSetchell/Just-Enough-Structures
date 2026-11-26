@@ -291,6 +291,16 @@ public final class JesGameTests {
         LootMathTests.lootHooksFoundInModsLists(helper);
     }
 
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void modifierConditionsReadForChests(GameTestHelper helper) {
+        LootModifiersTests.modifierConditionsReadForChests(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void loadedModifiersListed(GameTestHelper helper) {
+        LootModifiersTests.loadedModifiersListed(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void keptOddsAnswerWithoutRolling(GameTestHelper helper) {
         KeptOddsTests.keptOddsAnswerWithoutRolling(helper);

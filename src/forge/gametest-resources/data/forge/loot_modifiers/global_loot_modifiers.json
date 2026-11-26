@@ -1,6 +1,8 @@
 {
   "replace": false,
   "entries": [
-    "justenoughstructures_gametest:nether_star_in_ice_boxes"
+    "justenoughstructures_gametest:nether_star_in_ice_boxes",
+    "justenoughstructures_gametest:rare_loot_in_modified",
+    "justenoughstructures_gametest:rare_loot_from_players"
   ]
 }
