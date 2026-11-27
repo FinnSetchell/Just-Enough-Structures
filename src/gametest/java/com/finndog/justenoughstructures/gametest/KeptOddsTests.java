@@ -430,16 +430,16 @@ public final class KeptOddsTests {
             }
             if (failed[0] == null) {
                 helper.assertTrue(edited.get().isDone() && LootRolls.table(server, EDITED) != tableBefore[0], "still reloading with the edit");
-                // A second, as a player opening the Loot tab after a /reload would.
-                if (++waited[0] < 20) {
-                    helper.assertTrue(false, "waiting a second after the /reload");
+                // A second and a half, past the half second the hook is given, as a player opening the Loot tab after a /reload would.
+                if (++waited[0] < 30) {
+                    helper.assertTrue(false, "waiting a second and a half after the /reload");
                 }
-                if (waited[0] == 20) {
+                if (waited[0] == 30) {
                     JesServer.odds(server, EDITED, LootRolls.table(server, EDITED), after::set);
                 }
                 helper.assertTrue(after.get() != null, "the edited table's odds haven't come yet");
                 if (!only(after.get(), Items.DIAMOND)) {
-                    failed[0] = "a second after a /reload that didn't reach JES, " + EDITED + " was answered with " + rows(after.get())
+                    failed[0] = "a second and a half after a /reload that didn't reach JES, " + EDITED + " was answered with " + rows(after.get())
                             + ", the odds kept in memory from before, not the edited table's diamonds";
                 }
             }

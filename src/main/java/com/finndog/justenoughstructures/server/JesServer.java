@@ -206,15 +206,46 @@ public final class JesServer {
     }
 
     /**
+     * How long the loaders' reload hook has to come once the server's resources are new. It usually
+     * comes in a task queued by the /reload, which the server runs within four ticks; until then other
+     * mods' end-of-reload listeners, which JES may read, haven't all run either.
+     */
+    private static final int HOOK_GRACE_TICKS = 10;
+    // New resources whose hook hasn't come yet, and the tick they were first seen on. Server thread only.
+    private static Object noticed;
+    private static int noticedAt;
+
+    /**
      * As each server tick starts: a /reload whose hook didn't reach JES, as another mod's listener
-     * failing before JES's can stop it, is caught up with here, from the server's resources being new.
+     * failing before JES's can stop it, is caught up with here, from the server's resources being new
+     * half a second after they were first seen so.
      */
     static void noticeReload(MinecraftServer server) {
-        if (server == running && reloadedFor != null && server.getResourceManager() != reloadedFor) {
-            JesLog.warnOnce("late-reload", "A /reload didn't reach Just Enough Structures, so it caught up on the next tick. "
-                    + "Another mod's reload listener may have failed before JES's");
-            lateReloads++;
+        if (server != running || reloadedFor == null) {
+            return;
+        }
+        Object now = server.getResourceManager();
+        if (now == reloadedFor) {
+            noticed = null;
+            return;
+        }
+        if (now != noticed) {
+            noticed = now;
+            noticedAt = server.getTickCount();
+            return;
+        }
+        if (server.getTickCount() - noticedAt < HOOK_GRACE_TICKS) {
+            return;
+        }
+        noticed = null;
+        JesLog.warnOnce("late-reload", "A /reload didn't reach Just Enough Structures within half a second, so it caught up then. "
+                + "Another mod's reload listener may have failed before JES's");
+        lateReloads++;
+        // On a tick, where a throw would stop the server, not in a task as the hook is.
+        try {
             reload(server);
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            JustEnoughStructures.LOGGER.error("Couldn't catch up with a /reload", e);
         }
     }
 
@@ -309,6 +340,7 @@ public final class JesServer {
         OddsStore.stop(running);
         running = null;
         reloadedFor = null;
+        noticed = null;
         guardChecked = false;
         invalidate();
         Uploads.clear();
