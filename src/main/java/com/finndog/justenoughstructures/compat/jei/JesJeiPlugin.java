@@ -168,8 +168,15 @@ public final class JesJeiPlugin implements IModPlugin {
                 .anyMatch(category -> category.getRecipeType().getUid().equals(FOUND_IN.getUid()));
     }
 
-    /** Shows an index's rows, unless they're the ones shown: JEI would keep the old ones, hidden, beside them. */
+    /**
+     * Shows an index's rows, unless they're the ones shown: JEI would keep the old ones, hidden, beside
+     * them. While the rest is built the server sends what it has so far now and then; JEI has the first
+     * of those and then waits for the finished one, as each set of rows it replaces stays hidden in it.
+     */
     private static void show(LootIndex index) {
+        if (INDEX.shown() != null && ClientRequests.indexEarly() && !ClientRequests.indexFailed()) {
+            return;
+        }
         if (runtime != null && INDEX.isNew(index)) {
             replace(FoundInRecipe.fromIndex(index, StructureNames::structure));
             INDEX.showing(index);
