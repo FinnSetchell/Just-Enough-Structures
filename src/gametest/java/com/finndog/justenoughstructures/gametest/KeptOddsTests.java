@@ -25,6 +25,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -466,7 +467,12 @@ public final class KeptOddsTests {
         int reloadsBefore = JesServer.reloads();
         int lateBefore = JesServer.lateReloads();
         AtomicReference<CompletableFuture<Void>> reloading = new AtomicReference<>();
-        server.execute(() -> reloading.set(TestSupport.reload(server)));
+        // Queued, as execute runs it at once on the server's thread.
+        //? if >=26.1 {
+        /*server.schedule(new TickTask(server.getTickCount(), () -> reloading.set(TestSupport.reload(server))));
+        *///?} else {
+        server.tell(new TickTask(server.getTickCount(), () -> reloading.set(TestSupport.reload(server))));
+        //?}
         int[] waited = {0};
         helper.succeedWhen(() -> {
             helper.assertTrue(reloading.get() != null && reloading.get().isDone(), "still reloading");

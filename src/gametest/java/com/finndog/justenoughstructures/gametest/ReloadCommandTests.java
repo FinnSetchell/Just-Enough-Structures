@@ -4,7 +4,6 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
-import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.OddsStore;
@@ -38,8 +37,6 @@ import net.minecraft.server.MinecraftServer;
 public final class ReloadCommandTests {
     private static final ResourceLocation TABLE = Ids.parse("chests/igloo_chest");
     private static final String KEYS = "commands.justenoughstructures.reload.";
-    private static final String DIAMONDS_ONLY = "{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": "
-            + "[{\"type\": \"minecraft:item\", \"name\": \"minecraft:diamond\"}]}]}";
     /** What a file the test puts where a setup's kept chances go holds, so it can tell whether it was deleted. */
     private static final byte[] DECOY = {7};
 
@@ -195,7 +192,8 @@ public final class ReloadCommandTests {
     }
 
     /**
-     * {@code /jes reload} straight after a /reload that changed a loot table, before the kept chances
+     * {@code /jes reload} straight after a /reload that changed what loot rolls depend on, as a loot
+     * modifier does (here a test hook does it), before the kept chances
      * and first views have caught up with it: only what's saved for the game as it's set up after the
      * /reload is deleted. The kept chances of the setup before it stay, as another setup's do.
      */
@@ -221,12 +219,7 @@ public final class ReloadCommandTests {
         Path[] views = {null};
         Path[] marker = {null};
         byte[][] keptBefore = {null};
-        Path overrides;
-        try {
-            overrides = Files.createTempDirectory("jes-reload-command");
-        } catch (IOException e) {
-            throw new AssertionError("couldn't make a temporary folder", e);
-        }
+        boolean[] logged = {false};
         helper.succeedWhen(() -> {
             if (stage[0] == 0) {
                 waitUntilSaved(helper, server, pace, indexAsked, odds, saved);
@@ -245,19 +238,18 @@ public final class ReloadCommandTests {
                     }
                 }
                 if (stage[0] == 0) {
-                    LootOverrides.setFolder(overrides);
-                    LootOverrides.save(server.getResourceManager(), TABLE, DIAMONDS_ONLY);
+                    OddsStore.saltKey("reload-command-test");
                     reloadsBefore[0] = JesServer.reloads();
                     reloading.set(TestSupport.reload(server));
                     stage[0] = 1;
                 }
             }
             if (stage[0] == 1) {
-                helper.assertTrue(reloading.get().isDone() && JesServer.reloads() > reloadsBefore[0], "still reloading with the edit");
+                helper.assertTrue(reloading.get().isDone() && JesServer.reloads() > reloadsBefore[0], "still reloading with the change");
                 // At once, as a pack maker typing /jes reload straight after /reload would.
                 after[0] = folder.resolve("odds-" + OddsStore.keyOf(server) + ".odds");
                 if (after[0].equals(before[0])) {
-                    failed[0] = "the edit didn't change the setup the loot chances are kept for, so this shows nothing";
+                    failed[0] = "the /reload didn't change the setup the loot chances are kept for, so this shows nothing";
                     stage[0] = 3;
                 } else {
                     try {
@@ -298,15 +290,18 @@ public final class ReloadCommandTests {
             }
             // Every stage before waits by throwing, so only the last one gets here.
             if (undone.get() == null) {
-                LootOverrides.setFolder(null);
+                OddsStore.saltKey("");
                 deleteQuietly(marker[0]);
                 if (after[0] != null && Arrays.equals(readOrNull(after[0]), DECOY)) {
                     deleteQuietly(after[0]);
                 }
                 undone.set(TestSupport.reload(server));
             }
-            helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
-            JustEnoughStructures.LOGGER.info("In the test of jes reload straight after a /reload: it said {}", said.stream().map(Component::getString).toList());
+            helper.assertTrue(undone.get().isDone(), "still reloading without the change");
+            if (!logged[0]) {
+                logged[0] = true;
+                JustEnoughStructures.LOGGER.info("In the test of jes reload straight after a /reload: it said {}", said.stream().map(Component::getString).toList());
+            }
             if (failed[0] != null) {
                 helper.assertTrue(false, failed[0]);
             }

@@ -59,6 +59,8 @@ public final class OddsStore {
     private static final Map<ResourceLocation, String> hashes = new HashMap<>();
     private static String key;
     private static boolean changed;
+    /** Added to the key, as a changed loot modifier changes it. Test hook. */
+    private static volatile String keySalt = "";
     /**
      * Whether what's kept is for the game as it's loaded now. From a start or /reload until
      * {@link #refresh} has read the odds for it, the tables and the file they belong in may have
@@ -189,6 +191,11 @@ public final class OddsStore {
         return hashes.computeIfAbsent(table, t -> LootIndex.tableHash(server, t));
     }
 
+    /** Makes the key another, as a changed loot modifier does, from the next start or /reload; "" for none. Test hook. */
+    public static void saltKey(String salt) {
+        keySalt = salt;
+    }
+
     /** A hash of what every table's rolls depend on besides the table itself, or null if the files can't be read. */
     public static String keyOf(MinecraftServer server) {
         try {
@@ -202,6 +209,7 @@ public final class OddsStore {
             new TreeMap<>(JustEnoughStructures.modVersions()).forEach((id, version) -> hasher.putString(id + "@" + version + "|", StandardCharsets.UTF_8));
             LootIndexStore.hashFiles(hasher, server.getResourceManager(), SOURCES, null);
             hasher.putString(RemovedItems.fingerprint(), StandardCharsets.UTF_8);
+            hasher.putString(keySalt, StandardCharsets.UTF_8);
             return hasher.hash().toString();
         } catch (IOException | RuntimeException e) {
             JesLog.debug("Couldn't fingerprint what loot rolls depend on, so no odds are kept", e);
