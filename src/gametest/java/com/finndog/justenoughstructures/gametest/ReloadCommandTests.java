@@ -4,6 +4,7 @@ import com.finndog.justenoughstructures.Ids;
 import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.loot.LootOdds;
 import com.finndog.justenoughstructures.loot.LootRolls;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.OddsStore;
@@ -13,6 +14,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -36,6 +38,10 @@ import net.minecraft.server.MinecraftServer;
 public final class ReloadCommandTests {
     private static final ResourceLocation TABLE = Ids.parse("chests/igloo_chest");
     private static final String KEYS = "commands.justenoughstructures.reload.";
+    private static final String DIAMONDS_ONLY = "{\"type\": \"minecraft:chest\", \"pools\": [{\"rolls\": 1, \"entries\": "
+            + "[{\"type\": \"minecraft:item\", \"name\": \"minecraft:diamond\"}]}]}";
+    /** What a file the test puts where a setup's kept chances go holds, so it can tell whether it was deleted. */
+    private static final byte[] DECOY = {7};
 
     private ReloadCommandTests() {
     }
@@ -186,6 +192,215 @@ public final class ReloadCommandTests {
         helper.assertTrue(said(said, "waiting"), "/jes reload loot didn't say Pack tools' changes wait for /reload; it said " + text);
         helper.assertFalse(said(said, "loot"), "/jes reload loot started building with Pack tools' changes waiting; it said " + text);
         helper.succeed();
+    }
+
+    /**
+     * {@code /jes reload} straight after a /reload that changed a loot table, before the kept chances
+     * and first views have caught up with it: only what's saved for the game as it's set up after the
+     * /reload is deleted. The kept chances of the setup before it stay, as another setup's do.
+     */
+    public static void reloadCommandRightAfterAReloadKeepsOtherSetups(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        PackToolsServer.reloaded();
+        Path folder = JustEnoughStructures.cacheDir().resolve("loot-index");
+        List<Component> said = new CopyOnWriteArrayList<>();
+        CommandSourceStack console = console(server, said);
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        boolean[] indexAsked = {false};
+        AtomicReference<LootOdds> odds = new AtomicReference<>();
+        AtomicReference<CompletableFuture<?>> saved = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> reloading = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> undone = new AtomicReference<>();
+        int[] stage = {0};
+        int[] reloadsBefore = {0};
+        String[] failed = {null};
+        // The kept chances of the setup before the edit and after it, the first views' folder in use
+        // before the edit, and a file the test put there.
+        Path[] before = {null};
+        Path[] after = {null};
+        Path[] views = {null};
+        Path[] marker = {null};
+        byte[][] keptBefore = {null};
+        Path overrides;
+        try {
+            overrides = Files.createTempDirectory("jes-reload-command");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't make a temporary folder", e);
+        }
+        helper.succeedWhen(() -> {
+            if (stage[0] == 0) {
+                waitUntilSaved(helper, server, pace, indexAsked, odds, saved);
+                before[0] = OddsStore.fileNow();
+                views[0] = SavedPreviews.current();
+                if (before[0] == null || !Files.exists(before[0]) || views[0] == null) {
+                    failed[0] = "no loot chances were kept on disk, or no folder of saved first views was in use, before the /reload, so this shows nothing";
+                    stage[0] = 3;
+                } else {
+                    try {
+                        keptBefore[0] = Files.readAllBytes(before[0]);
+                        marker[0] = Files.write(views[0].resolve("reload-command-test.bin"), new byte[] {1});
+                    } catch (IOException e) {
+                        failed[0] = "couldn't read or write the test's files: " + e;
+                        stage[0] = 3;
+                    }
+                }
+                if (stage[0] == 0) {
+                    LootOverrides.setFolder(overrides);
+                    LootOverrides.save(server.getResourceManager(), TABLE, DIAMONDS_ONLY);
+                    reloadsBefore[0] = JesServer.reloads();
+                    reloading.set(TestSupport.reload(server));
+                    stage[0] = 1;
+                }
+            }
+            if (stage[0] == 1) {
+                helper.assertTrue(reloading.get().isDone() && JesServer.reloads() > reloadsBefore[0], "still reloading with the edit");
+                // At once, as a pack maker typing /jes reload straight after /reload would.
+                after[0] = folder.resolve("odds-" + OddsStore.keyOf(server) + ".odds");
+                if (after[0].equals(before[0])) {
+                    failed[0] = "the edit didn't change the setup the loot chances are kept for, so this shows nothing";
+                    stage[0] = 3;
+                } else {
+                    try {
+                        Files.write(after[0], DECOY);
+                    } catch (IOException e) {
+                        failed[0] = "couldn't write the test's files: " + e;
+                        stage[0] = 3;
+                    }
+                }
+                if (stage[0] == 1) {
+                    server.getCommands().performPrefixedCommand(console, "jes reload");
+                    stage[0] = 2;
+                }
+            }
+            if (stage[0] == 2) {
+                if (said(said, "failed")) {
+                    failed[0] = "jes reload said the loot index couldn't be built again";
+                } else {
+                    boolean done = said(said, "done");
+                    if (!done) {
+                        pace.keep();
+                    }
+                    helper.assertTrue(done, "jes reload hasn't said the loot index is built again");
+                    Path now = SavedPreviews.current();
+                    helper.assertTrue(now != null, "no folder of saved first views is in use after jes reload");
+                    boolean marked = Files.exists(marker[0]);
+                    if (!Arrays.equals(readOrNull(before[0]), keptBefore[0])) {
+                        failed[0] = "jes reload straight after a /reload deleted or changed the loot chances kept for the setup before it, " + before[0];
+                    } else if (Arrays.equals(readOrNull(after[0]), DECOY)) {
+                        failed[0] = "jes reload straight after a /reload left the loot chances kept for the setup in use, " + after[0];
+                    } else if (now.equals(views[0]) && marked) {
+                        failed[0] = "jes reload straight after a /reload left the saved first views of the setup in use, in " + now;
+                    } else if (!now.equals(views[0]) && !marked) {
+                        failed[0] = "jes reload straight after a /reload deleted the saved first views of another setup, in " + views[0];
+                    }
+                }
+                stage[0] = 3;
+            }
+            // Every stage before waits by throwing, so only the last one gets here.
+            if (undone.get() == null) {
+                LootOverrides.setFolder(null);
+                deleteQuietly(marker[0]);
+                if (after[0] != null && Arrays.equals(readOrNull(after[0]), DECOY)) {
+                    deleteQuietly(after[0]);
+                }
+                undone.set(TestSupport.reload(server));
+            }
+            helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
+            JustEnoughStructures.LOGGER.info("In the test of jes reload straight after a /reload: it said {}", said.stream().map(Component::getString).toList());
+            if (failed[0] != null) {
+                helper.assertTrue(false, failed[0]);
+            }
+        });
+    }
+
+    /**
+     * A /reload straight after {@code /jes reload loot}, before the loot index's thread has deleted the
+     * saved scan, doesn't make it read that scan back: the index is still built from nothing before
+     * the command says it's built.
+     */
+    public static void reloadCommandBuildsFromNothingThoughAReloadFollows(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        PackToolsServer.reloaded();
+        List<Component> said = new CopyOnWriteArrayList<>();
+        CommandSourceStack console = console(server, said);
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        boolean[] indexAsked = {false};
+        AtomicReference<LootOdds> odds = new AtomicReference<>();
+        AtomicReference<CompletableFuture<?>> saved = new AtomicReference<>();
+        AtomicInteger generated = new AtomicInteger();
+        int[] stage = {0};
+        helper.succeedWhen(() -> {
+            if (stage[0] == 0) {
+                waitUntilSaved(helper, server, pace, indexAsked, odds, saved);
+                LootIndexStore.watchProgress(d -> generated.incrementAndGet());
+                server.getCommands().performPrefixedCommand(console, "jes reload loot");
+                // As a /reload's hook does, before the index's thread has started on the command.
+                JesServer.reload(server);
+                stage[0] = 1;
+            }
+            if (said(said, "failed")) {
+                LootIndexStore.watchProgress(null);
+                helper.assertTrue(false, "jes reload loot said the loot index couldn't be built again");
+            }
+            boolean done = said(said, "done");
+            if (!done) {
+                pace.keep();
+            }
+            helper.assertTrue(done, "jes reload loot hasn't said the loot index is built again");
+            LootIndexStore.watchProgress(null);
+            JustEnoughStructures.LOGGER.info("In the test of jes reload loot with a /reload straight after: {} structures generated again; it said {}",
+                    generated.get(), said.stream().map(Component::getString).toList());
+            helper.assertTrue(generated.get() > 0, "with a /reload straight after jes reload loot, no structure was generated again before it said "
+                    + "the index is built, so it was read back from what was saved, not built from nothing");
+        });
+    }
+
+    /**
+     * Waits, as a test does by throwing, for the loot index and kept chances to be ready, a table's
+     * chances to be kept on disk and the index's scan to be saved.
+     */
+    private static void waitUntilSaved(GameTestHelper helper, MinecraftServer server, IndexStoreTests.Pace pace, boolean[] indexAsked,
+                                       AtomicReference<LootOdds> odds, AtomicReference<CompletableFuture<?>> saved) {
+        if (saved.get() == null) {
+            boolean ready = LootIndexStore.ready() && OddsStore.isReady();
+            if (!ready) {
+                if (!indexAsked[0]) {
+                    indexAsked[0] = true;
+                    KeptOddsTests.askForTheIndex(helper);
+                }
+                pace.keep();
+            }
+            helper.assertTrue(ready, "the loot index isn't built yet");
+            if (odds.get() == null) {
+                JesServer.forgetOdds(TABLE);
+                JesServer.odds(server, TABLE, LootRolls.table(server, TABLE), odds::set);
+            }
+            helper.assertTrue(odds.get() != null, "the odds of " + TABLE + " haven't been rolled yet");
+            OddsStore.save(server);
+            saved.set(LootIndexStore.workSoFarDone());
+        }
+        if (!saved.get().isDone()) {
+            pace.keep();
+        }
+        helper.assertTrue(saved.get().isDone(), "the loot index is still saving");
+    }
+
+    private static byte[] readOrNull(Path file) {
+        try {
+            return file != null && Files.exists(file) ? Files.readAllBytes(file) : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static void deleteQuietly(Path file) {
+        try {
+            if (file != null) {
+                Files.deleteIfExists(file);
+            }
+        } catch (IOException e) {
+            JustEnoughStructures.LOGGER.warn("Couldn't delete {} after a test of jes reload", file);
+        }
     }
 
     /** The server console, its messages kept in {@code said}. */

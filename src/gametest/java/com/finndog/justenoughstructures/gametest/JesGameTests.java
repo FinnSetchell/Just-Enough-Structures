@@ -330,6 +330,24 @@ public final class JesGameTests {
         ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, false, false);
     }
 
+    // Reloads the server's datapacks, edits a table and builds the loot index again from nothing, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_after_reload", timeoutTicks = 6000)
+    public void reloadCommandRightAfterAReloadKeepsOtherSetups(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandRightAfterAReloadKeepsOtherSetups(helper);
+    }
+
+    // Builds the loot index again from nothing, with a reload straight after, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_then_reload", timeoutTicks = 6000)
+    public void reloadCommandBuildsFromNothingThoughAReloadFollows(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandBuildsFromNothingThoughAReloadFollows(helper);
+    }
+
+    // Reloads the server's datapacks in a task, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_in_a_task", timeoutTicks = 1200)
+    public void aReloadRunInATaskIsHandledOnceByItsHook(GameTestHelper helper) {
+        KeptOddsTests.aReloadRunInATaskIsHandledOnceByItsHook(helper);
+    }
+
     // The same with the folder the loot index is saved in made read-only, so nothing in it can be deleted.
     @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_unwritable", timeoutTicks = 6000)
     public void reloadLootCommandBuildsAgainWhenFilesCantBeDeleted(GameTestHelper helper) {

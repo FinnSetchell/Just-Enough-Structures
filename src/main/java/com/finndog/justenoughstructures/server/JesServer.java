@@ -133,6 +133,7 @@ public final class JesServer {
     public static void reload(MinecraftServer server) {
         running = server;
         reloadedFor = server.getResourceManager();
+        reloads++;
         if (!guardChecked) {
             guardChecked = StructureCapture.checkChunkGuard(server);
         }
@@ -173,6 +174,19 @@ public final class JesServer {
 
     /** The server's resources as JES last reloaded for them: each /reload makes new ones. Server thread only. */
     private static Object reloadedFor;
+    // How many times JES has reloaded, and how many of those the tick check caught up with. Test hooks.
+    private static int reloads;
+    private static int lateReloads;
+
+    /** How many times JES has reloaded since the game started. Test hook. */
+    public static int reloads() {
+        return reloads;
+    }
+
+    /** How many of those were a /reload caught up with on a tick, as its hook hadn't come. Test hook. */
+    public static int lateReloads() {
+        return lateReloads;
+    }
     /** Whether the loaders' reload hooks are kept from JES, as another mod's failing listener can. Test hook. */
     private static volatile boolean missReloadHooks;
 
@@ -199,6 +213,7 @@ public final class JesServer {
         if (server == running && reloadedFor != null && server.getResourceManager() != reloadedFor) {
             JesLog.warnOnce("late-reload", "A /reload didn't reach Just Enough Structures, so it caught up on the next tick. "
                     + "Another mod's reload listener may have failed before JES's");
+            lateReloads++;
             reload(server);
         }
     }

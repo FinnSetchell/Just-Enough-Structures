@@ -458,6 +458,33 @@ public final class KeptOddsTests {
     }
 
     /**
+     * A /reload run in one of the server's tasks, as a player's /reload and Pack tools' Reload button
+     * are, is handled once, by its hook: not caught up with on a tick first, as if the hook had missed JES.
+     */
+    public static void aReloadRunInATaskIsHandledOnceByItsHook(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        int reloadsBefore = JesServer.reloads();
+        int lateBefore = JesServer.lateReloads();
+        AtomicReference<CompletableFuture<Void>> reloading = new AtomicReference<>();
+        server.execute(() -> reloading.set(TestSupport.reload(server)));
+        int[] waited = {0};
+        helper.succeedWhen(() -> {
+            helper.assertTrue(reloading.get() != null && reloading.get().isDone(), "still reloading");
+            // Two seconds, longer than the hook can take to come.
+            if (++waited[0] < 40) {
+                helper.assertTrue(false, "waiting two seconds after the /reload");
+            }
+            int reloads = JesServer.reloads() - reloadsBefore;
+            int late = JesServer.lateReloads() - lateBefore;
+            if (waited[0] == 40) {
+                JustEnoughStructures.LOGGER.info("In the test of a /reload run in a task: JES reloaded {} times, {} of them caught up with on a tick", reloads, late);
+            }
+            helper.assertTrue(late == 0, "a /reload run in a task was caught up with on a tick " + late + " times, as if its hook had missed JES");
+            helper.assertTrue(reloads == 1, "a /reload run in a task was handled " + reloads + " times, not once");
+        });
+    }
+
+    /**
      * Asks for the loot index as a player opening the browser does, which builds it if it isn't being
      * built. What it would send the mock player is dropped, as NeoForge refuses to send JES's messages
      * to one, and the player is gone again at once: the build goes ahead without anyone waiting for it.
