@@ -348,23 +348,27 @@ public final class KeptOddsTests {
             if (stage[0] == 0) {
                 if (pistons) {
                     failed[0] = WITH_KINDS + " gave pistons before the edit, so this shows nothing";
-                    return;
+                    JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {}", failed[0]);
+                    helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
                 }
                 JsonObject edited = JsonParser.parseString(LootOverrides.original(server.getResourceManager(), WITH_KINDS)).getAsJsonObject();
                 JsonArray pools = edited.has("pools") ? edited.getAsJsonArray("pools") : new JsonArray();
                 pools.add(JsonParser.parseString("{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", \"name\": \"minecraft:piston\"}]}"));
                 edited.add("pools", pools);
                 var problem = LootOverrides.save(server.getResourceManager(), WITH_KINDS, edited.toString());
-                if (problem != null) {
+                if (!(problem.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents said)
+                        || !said.getKey().equals("screen.justenoughstructures.override.saved")) {
                     failed[0] = "the edit wasn't saved: " + problem.getString();
-                    return;
+                    JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {}", failed[0]);
+                    helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
                 }
                 tableBefore[0] = LootRolls.table(server, WITH_KINDS);
                 // As Reload in Pack tools runs it.
                 PackToolsServer.reload(server);
             } else if (!pistons) {
                 failed[0] = "the chances of " + WITH_KINDS + " " + when[stage[0]] + " have no pistons, though the edited table gives them every time: " + seen[stage[0]];
-                return;
+                JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {}", failed[0]);
+                helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
             }
             if (stage[0] == 2) {
                 // As leaving the world and opening it again does in singleplayer, in the same game.
