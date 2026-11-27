@@ -221,8 +221,13 @@ public final class ReloadCommandTests {
         helper.succeed();
     }
 
+    // A failure comes wrapped in an empty text, its own as one of that's siblings.
     private static boolean said(List<Component> said, String key) {
-        return said.stream().anyMatch(message -> message.getContents() instanceof TranslatableContents t && t.getKey().equals(KEYS + key));
+        return said.stream().anyMatch(message -> is(message, key) || message.getSiblings().stream().anyMatch(part -> is(part, key)));
+    }
+
+    private static boolean is(Component message, String key) {
+        return message.getContents() instanceof TranslatableContents t && t.getKey().equals(KEYS + key);
     }
 
 }
