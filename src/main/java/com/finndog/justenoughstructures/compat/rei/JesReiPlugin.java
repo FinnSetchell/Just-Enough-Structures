@@ -96,6 +96,8 @@ public class JesReiPlugin implements REIClientPlugin {
         }
         listening = true;
         ClientRequests.onEachIndex(JesReiPlugin::arrived);
+        // On leaving a world its rows go, so the next world's early index isn't taken for a later one of the same.
+        ClientRequests.onReset(JesReiPlugin::forget);
         // A build that fails sends nothing more, so REI takes the latest early index then.
         ClientRequests.onIndexStopped(() -> {
             LootIndex latest = ClientRequests.latestIndex();
@@ -145,6 +147,14 @@ public class JesReiPlugin implements REIClientPlugin {
     /** Opens REI on how to get an item, at the structures it's found in. Test hook for the scripted scenarios. */
     public static void showFoundIn(ItemStack stack) {
         ViewSearchBuilder.builder().addRecipesFor(EntryStacks.of(stack)).setPreferredOpenedCategory(FOUND_IN).open();
+    }
+
+    /** Forgets the index and rows of the world left. */
+    private static void forget() {
+        INDEX.showing(null);
+        INDEX.coming(null);
+        all = List.of();
+        byItem = Map.of();
     }
 
     private static void arrived(LootIndex index) {

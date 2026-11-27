@@ -68,6 +68,7 @@ public final class ClientRequests {
     private static final Map<Integer, Transfer> TRANSFERS = new HashMap<>();
     private static final List<Consumer<LootIndex>> INDEX_LISTENERS = new ArrayList<>();
     private static final List<Runnable> STOPPED_LISTENERS = new ArrayList<>();
+    private static final List<Runnable> RESET_LISTENERS = new ArrayList<>();
     private static CompletableFuture<LootIndex> index;
     private static int indexDone;
     private static int indexTotal;
@@ -158,6 +159,16 @@ public final class ClientRequests {
         }
         tools = null;
         lastTools = null;
+        RESET_LISTENERS.forEach(Runnable::run);
+    }
+
+    /**
+     * Runs {@code listener} each time what's tied to the connection is forgotten, as on leaving a world,
+     * so a viewer can drop what it shows from it. Not in a game test: this class needs the client, which
+     * the game test server hasn't.
+     */
+    public static void onReset(Runnable listener) {
+        RESET_LISTENERS.add(listener);
     }
 
     // ------------------------------------------------------------------ Pack tools
