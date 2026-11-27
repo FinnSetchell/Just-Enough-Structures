@@ -144,6 +144,11 @@ public class JesReiPlugin implements REIClientPlugin {
         if (!INDEX.isNew(index)) {
             return;
         }
+        // While the rest is built the server sends what it has so far now and then. REI has the first of
+        // those and then waits for the finished one, rather than rebuilding every row each time.
+        if (INDEX.waitsForFinished(ClientRequests.indexEarly(), ClientRequests.indexFailed())) {
+            return;
+        }
         List<FoundInDisplay> displays = FoundInRecipe.fromIndex(index, StructureNames::structure).stream().map(FoundInDisplay::new).toList();
         Map<Item, List<FoundInDisplay>> grouped = new HashMap<>();
         for (FoundInDisplay display : displays) {
