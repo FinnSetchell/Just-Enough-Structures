@@ -265,6 +265,9 @@ public record LootIndex(Map<ResourceLocation, Set<ResourceLocation>> tablesByStr
             LootModifiers.Listing modifiers = LootModifiers.read(server);
             items.forEach((table, given) -> {
                 for (LootModifiers.Modifier m : modifiers.on(table)) {
+                    if (m.json() == null || !LootModifiers.listedBeforeRolls(m.json())) {
+                        continue;
+                    }
                     given.addAll(m.items());
                     for (ResourceLocation named : m.namedTables()) {
                         given.addAll(itemsIn(server, named, new HashSet<>()));

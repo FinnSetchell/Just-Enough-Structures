@@ -84,9 +84,24 @@ public final class LootModifiersTests {
         // 26.3 writes a list of one as the one thing, so an any_of of one table has that table as its terms.
         expect(helper, "either of one table, as 26.3 writes it", Set.of(A), "{\"type\":\"minecraft:any_of\",\"terms\":" + a + "}");
         expect(helper, "either of a predicate file", null, "{\"type\":\"minecraft:any_of\",\"terms\":\"somemod:some_predicate\"}");
+        // What a modifier names is listed before any rolls unless it acts only in some places or for some
+        // players, or takes items out or swaps them.
+        listed(helper, "a plain add", true, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "]}");
+        listed(helper, "an add with a chance", true, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + chance + "]}");
+        listed(helper, "an add in some places", false, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + place + "]}");
+        listed(helper, "an add for some players", false, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + opener + "]}");
+        listed(helper, "an add for some players, inside an any_of", false,
+                "{\"type\":\"somemod:add_item\",\"conditions\":[" + anyOf(a, opener) + "]}");
+        listed(helper, "a swap", false, "{\"type\":\"somemod:replace_item\",\"conditions\":[" + a + "]}");
+        listed(helper, "a removal", false, "{\"type\":\"somemod:remove_items\",\"conditions\":[" + a + "]}");
         JsonObject one = JsonParser.parseString("{\"type\":\"neoforge:add_table\",\"condition\":" + a + "}").getAsJsonObject();
         helper.assertTrue(Set.of(A).equals(LootModifiers.tablesOf(one)), "a single condition naming a table gave " + LootModifiers.tablesOf(one));
         helper.succeed();
+    }
+
+    private static void listed(GameTestHelper helper, String what, boolean expected, String modifier) {
+        boolean listed = LootModifiers.listedBeforeRolls(JsonParser.parseString(modifier).getAsJsonObject());
+        helper.assertTrue(listed == expected, "what " + what + " names was " + (listed ? "" : "not ") + "listed before any rolls");
     }
 
     /**

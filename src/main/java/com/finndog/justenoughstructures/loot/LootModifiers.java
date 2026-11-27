@@ -185,6 +185,60 @@ public final class LootModifiers {
         return all(conditionsOf(modifier), chestParams());
     }
 
+    /**
+     * Whether what a modifier names is listed for its tables before any rolls: not where it acts only in
+     * some places or for some players (its conditions read the chest's place or the one opening it, which
+     * JES's rolls don't have, so they'd never give it a chance), and not where its type says it takes items
+     * out or swaps them, as what it names may then be what goes. Those are found by rolls only.
+     */
+    public static boolean listedBeforeRolls(JsonObject modifier) {
+        String type = modifier.has("type") && modifier.get("type").isJsonPrimitive() ? modifier.get("type").getAsString() : "";
+        String path = type.substring(type.indexOf(':') + 1);
+        for (String takes : List.of("remove", "replace", "remplace", "swap", "convert")) {
+            if (path.contains(takes)) {
+                return false;
+            }
+        }
+        for (JsonElement c : conditionsOf(modifier)) {
+            if (placeOrOpener(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether a condition, or any condition in it, reads the chest's place or the one opening it. */
+    private static boolean placeOrOpener(JsonElement json) {
+        if (!(json instanceof JsonObject c)) {
+            return false;
+        }
+        JsonElement kind = c.has("condition") ? c.get("condition") : c.get("type");
+        String type = kind instanceof JsonPrimitive p && p.isString() ? p.getAsString() : "";
+        if (!type.contains(":")) {
+            type = "minecraft:" + type;
+        }
+        if (type.equals("minecraft:location_check")) {
+            return true;
+        }
+        if ((type.equals("minecraft:entity_properties") || type.equals("minecraft:entity_scores"))
+                && c.get("entity") instanceof JsonPrimitive entity && entity.getAsString().equals("this")) {
+            return true;
+        }
+        for (String nested : List.of("term", "terms")) {
+            JsonElement inner = c.get(nested);
+            if (inner instanceof JsonArray array) {
+                for (JsonElement e : array) {
+                    if (placeOrOpener(e)) {
+                        return true;
+                    }
+                }
+            } else if (placeOrOpener(inner)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A modifier's conditions, all of which pass for it to act: a list, or from NeoForge 26.3 one condition. */
     static List<JsonElement> conditionsOf(JsonObject modifier) {
         List<JsonElement> out = new ArrayList<>();

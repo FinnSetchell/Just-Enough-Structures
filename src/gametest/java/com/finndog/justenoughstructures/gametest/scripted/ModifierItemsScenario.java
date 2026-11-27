@@ -72,7 +72,8 @@ final class ModifierItemsScenario {
             return "fail: this game's loot modifiers couldn't be read, so what they add is found only by rolling";
         }
         List<LootModifiers.Modifier> naming = modifiers.all().stream()
-                .filter(m -> m.tables() != null && !m.tables().isEmpty() && !named(server, m).isEmpty()).toList();
+                .filter(m -> m.tables() != null && !m.tables().isEmpty() && m.json() != null && LootModifiers.listedBeforeRolls(m.json())
+                        && !named(server, m).isEmpty()).toList();
         if (naming.isEmpty()) {
             return "skip: no loot modifier here names both the tables it acts on and the items or tables it adds";
         }
