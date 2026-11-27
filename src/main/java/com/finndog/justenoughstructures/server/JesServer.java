@@ -187,10 +187,13 @@ public final class JesServer {
     public static int lateReloads() {
         return lateReloads;
     }
-    /** Whether the loaders' reload hooks are kept from JES, as another mod's failing listener can. Test hook. */
+    /** Whether the loaders' next reload hook is kept from JES, as another mod's failing listener can. Test hook. */
     private static volatile boolean missReloadHooks;
 
-    /** Keeps the loaders' reload hooks from JES, or lets them through again. Test hook. */
+    /**
+     * Keeps the loaders' next reload hook from JES, or lets it through again. Only the next one, so a
+     * test that times out can't keep every later /reload's from JES. Test hook.
+     */
     public static void missReloadHooks(boolean miss) {
         missReloadHooks = miss;
     }
@@ -200,7 +203,11 @@ public final class JesServer {
      * caught up with it ({@link #noticeReload}), so it's never done twice.
      */
     public static void reloaded(MinecraftServer server) {
-        if (!missReloadHooks && server.getResourceManager() != reloadedFor) {
+        if (missReloadHooks) {
+            missReloadHooks = false;
+            return;
+        }
+        if (server.getResourceManager() != reloadedFor) {
             reload(server);
         }
     }

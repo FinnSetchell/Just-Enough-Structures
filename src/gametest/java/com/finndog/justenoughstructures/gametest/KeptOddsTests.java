@@ -425,6 +425,8 @@ public final class KeptOddsTests {
                         tableBefore[0] = LootRolls.table(server, EDITED);
                         JesServer.missReloadHooks(true);
                         edited.set(TestSupport.reload(server));
+                        // The edit is loaded, so the folder isn't needed, and isn't left in use if the test times out.
+                        LootOverrides.setFolder(null);
                     }
                 }
             }
@@ -445,11 +447,10 @@ public final class KeptOddsTests {
             }
             JesServer.missReloadHooks(false);
             if (undone.get() == null) {
-                LootOverrides.remove(EDITED);
+                LootOverrides.setFolder(null);
                 undone.set(TestSupport.reload(server));
             }
             helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
-            LootOverrides.setFolder(null);
             JustEnoughStructures.LOGGER.info("In the test of a /reload that misses JES: {} gave {}, and a second after the edit's /reload {}", EDITED,
                     before.get() == null ? "nothing" : rows(before.get()), after.get() == null ? "nothing" : rows(after.get()));
             if (failed[0] != null) {

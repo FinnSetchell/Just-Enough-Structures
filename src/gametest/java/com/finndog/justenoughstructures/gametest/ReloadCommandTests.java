@@ -55,6 +55,8 @@ public final class ReloadCommandTests {
         // which would make the command refuse.
         PackToolsServer.reloaded();
         Path folder = JustEnoughStructures.cacheDir().resolve("loot-index");
+        // In case a run of the unwritable test before was stopped before it made it writable again.
+        folder.toFile().setWritable(true);
         List<Component> said = new CopyOnWriteArrayList<>();
         CommandSourceStack console = console(server, said);
         int[] stage = {0};
@@ -138,7 +140,13 @@ public final class ReloadCommandTests {
                     JustEnoughStructures.LOGGER.info("In the test of {} with files that can't be deleted: {} can't be made read-only here, so this is the test without",
                             command, folder);
                 }
-                LootIndexStore.watchProgress(d -> generated.incrementAndGet());
+                LootIndexStore.watchProgress(d -> {
+                    generated.incrementAndGet();
+                    // The deletes come before the build, so the folder needn't stay read-only, or be left so if the test times out.
+                    if (unwritable) {
+                        folder.toFile().setWritable(true);
+                    }
+                });
                 server.getCommands().performPrefixedCommand(console, command);
                 if (!said(said, everything ? "all" : "loot")) {
                     failed[0] = command + " didn't say it started; it said " + said.stream().map(Component::getString).toList();
@@ -156,9 +164,8 @@ public final class ReloadCommandTests {
             }
             helper.assertTrue(done, command + " hasn't said the loot index is built again");
             List<Path> gone = others.stream().filter(other -> !Files.exists(other)).toList();
-            boolean writable = Files.isWritable(folder);
             tidy.run();
-            if (writable) {
+            if (!unwritable) {
                 helper.assertTrue(!Arrays.equals(readOrNull(oddsFile[0]), DECOY), "the loot chances kept on disk are still there after " + command);
             }
             helper.assertTrue(gone.isEmpty(), command + " deleted what other setups saved: " + gone);
