@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-11-27
 
 ### Added
 - A settings button beside a structure's mod name opens that mod's settings, in single player
@@ -10,6 +10,7 @@
 - A Command only setting: the browser opens only with /jes open, and nothing is added to recipe viewers or other mods' screens; Pack tools changes still apply
 - A fly button in the preview: fly through a structure with your movement keys and the mouse, like spectator mode, and click chests and spawners to open them
   ![Flying through a structure](https://i.moogsmods.com/images/f90e35677b9c4e6dbf7eef88e54cf64b.png)
+- /jes reload rebuilds the loot chances and structure previews from scratch and reloads the settings and names; /jes reload loot does only the loot chances. Pack tools users and the server console can use them
 
 ### Fixed
 - In packs with Tierify, such as Prominence II, loot chances show many times faster and the full loot list is ready much sooner
@@ -24,6 +25,7 @@
 - Closing the browser no longer keeps the last structure it showed in memory
 - Very rare items in the combined chances now read <0.1% too, instead of 0.0%
 - The small Nether ruins from Moog's Nether Structures now show a preview
+- Loot chances now update after a Pack tools edit and /reload, or after reopening the world, in packs where they kept showing the old chances until the game was restarted
 
 ### Changed
 - Chances for chest loot no mod changes as it's rolled are now exact, worked out from the loot table, and shown at once
