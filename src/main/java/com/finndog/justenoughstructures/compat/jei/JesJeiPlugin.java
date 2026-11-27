@@ -77,6 +77,13 @@ public final class JesJeiPlugin implements IModPlugin {
         if (!listening) {
             listening = true;
             ClientRequests.onEachIndex(JesJeiPlugin::show);
+            // A build that fails sends nothing more, so JEI takes the latest early index then.
+            ClientRequests.onIndexStopped(() -> {
+                LootIndex latest = ClientRequests.latestIndex();
+                if (latest != null) {
+                    show(latest);
+                }
+            });
             ClientRequests.onChestItems(JesJeiPlugin::showWaiting);
             ClientRequests.wantIndex();
             ChestLootTabs.onChange(JesJeiPlugin::showChosenTabs);

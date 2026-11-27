@@ -96,6 +96,13 @@ public class JesReiPlugin implements REIClientPlugin {
         }
         listening = true;
         ClientRequests.onEachIndex(JesReiPlugin::arrived);
+        // A build that fails sends nothing more, so REI takes the latest early index then.
+        ClientRequests.onIndexStopped(() -> {
+            LootIndex latest = ClientRequests.latestIndex();
+            if (latest != null) {
+                arrived(latest);
+            }
+        });
         ClientRequests.wantIndex();
         if (ClientRequests.indexReady()) {
             arrived(ClientRequests.index().join());
