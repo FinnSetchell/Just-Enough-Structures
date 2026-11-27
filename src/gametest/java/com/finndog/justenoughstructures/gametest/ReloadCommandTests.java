@@ -15,9 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -276,6 +274,11 @@ public final class ReloadCommandTests {
                 }
             }
             if (stage[0] == 2) {
+                // The command's refresh has worked out its key once the kept chances are ready again,
+                // so the salt goes at once, not only at the end, which a test that times out never reaches.
+                if (OddsStore.isReady()) {
+                    OddsStore.saltKey("");
+                }
                 if (said(said, "failed")) {
                     failed[0] = "jes reload said the loot index couldn't be built again";
                 } else {
@@ -362,49 +365,49 @@ public final class ReloadCommandTests {
     }
 
     /**
-     * {@code /jes reload} reads server.json5 again, as a /reload does: a structure hidden there since
-     * is hidden once the command has run.
+     * {@code /jes reload} reads server.json5 again, as a /reload does: who can teleport, changed there
+     * since, is in use once the command has run. That setting, as the loot index doesn't use it, and
+     * put back at once, so a test that times out leaves nothing changed.
      */
     public static void reloadCommandReadsTheSettingsAgain(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         PackToolsServer.reloaded();
-        ResourceLocation igloo = Ids.parse("igloo");
         ServerConfig.Settings before = ServerConfig.get();
+        int teleport = before.teleportPermission() == 4 ? 3 : 4;
         Path configRoot = JustEnoughStructures.configDir().getParent();
         List<Component> said = new CopyOnWriteArrayList<>();
         IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
-        boolean hidden;
+        int inUse = -1;
         try {
             JustEnoughStructures.setConfigDir(Files.createTempDirectory("jes-reload-settings"));
-            Set<ResourceLocation> hide = new HashSet<>(before.hiddenStructures());
-            hide.add(igloo);
-            ServerConfig.save(ServerConfig.file(), new ServerConfig.Settings(hide, before.hiddenMods(), before.locatePermission(),
-                    before.teleportPermission(), before.showLootLocations(), before.packTools(), before.containerChanges()));
+            ServerConfig.save(ServerConfig.file(), new ServerConfig.Settings(before.hiddenStructures(), before.hiddenMods(), before.locatePermission(),
+                    teleport, before.showLootLocations(), before.packTools(), before.containerChanges()));
             server.getCommands().performPrefixedCommand(console(server, said), "jes reload");
-            hidden = ServerConfig.hides(igloo);
+            inUse = ServerConfig.get().teleportPermission();
         } catch (IOException e) {
-            hidden = false;
             said.add(Component.literal("couldn't write the test's settings: " + e));
         } finally {
             JustEnoughStructures.setConfigDir(configRoot);
+            ServerConfig.set(before);
+            JesServer.structuresChanged(server);
         }
-        boolean read = hidden;
-        boolean[] restored = {false};
+        int read = inUse;
+        boolean started = said(said, "all");
+        boolean[] logged = {false};
         helper.succeedWhen(() -> {
-            // The build the command started is waited for, then the settings put back for it to see.
-            boolean done = said(said, "done") || said(said, "failed") || !read;
+            // The build the command started is waited for, so it doesn't run into the next test.
+            boolean done = !started || said(said, "done") || said(said, "failed");
             if (!done) {
                 pace.keep();
             }
             helper.assertTrue(done, "jes reload hasn't said the loot index is built again");
-            if (!restored[0]) {
-                restored[0] = true;
-                ServerConfig.set(before);
-                JesServer.structuresChanged(server);
-                JustEnoughStructures.LOGGER.info("In the test of jes reload reading the settings: the igloo was {}hidden after it; it said {}",
-                        read ? "" : "not ", said.stream().map(Component::getString).toList());
+            if (!logged[0]) {
+                logged[0] = true;
+                JustEnoughStructures.LOGGER.info("In the test of jes reload reading the settings: teleporting needed level {} after it, {} in the file; it said {}",
+                        read, teleport, said.stream().map(Component::getString).toList());
             }
-            helper.assertTrue(read, "jes reload didn't read server.json5 again: the igloo hidden there since wasn't hidden after it");
+            helper.assertTrue(read == teleport, "jes reload didn't read server.json5 again: teleporting needed level " + read
+                    + " after it, not the " + teleport + " written there");
         });
     }
 
