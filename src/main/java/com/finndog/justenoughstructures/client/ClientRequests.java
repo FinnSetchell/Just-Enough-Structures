@@ -1,6 +1,7 @@
 package com.finndog.justenoughstructures.client;
 
 import com.finndog.justenoughstructures.JesLog;
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
@@ -36,9 +37,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-//? if emi {
-import com.finndog.justenoughstructures.JustEnoughStructures;
-//?}
 
 /**
  * Client side of the protocol: sends requests and returns futures that complete when the reply
