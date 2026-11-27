@@ -409,6 +409,56 @@ public final class ReloadCommandTests {
     }
 
     /**
+     * container_changes changed by hand in server.json5 only reaches the structures with a /reload,
+     * which loads their templates again, so {@code /jes reload} reading it says to /reload first, as
+     * Pack tools' Rules screen does, and builds nothing from templates that don't have the change.
+     */
+    public static void reloadCommandWaitsForAHandEditedContainerChange(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        PackToolsServer.reloaded();
+        ServerConfig.Settings before = ServerConfig.get();
+        Path configRoot = JustEnoughStructures.configDir().getParent();
+        List<Component> said = new CopyOnWriteArrayList<>();
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        boolean waiting = false;
+        try {
+            JustEnoughStructures.setConfigDir(Files.createTempDirectory("jes-reload-containers"));
+            ServerConfig.save(ServerConfig.file(), new ServerConfig.Settings(before.hiddenStructures(), before.hiddenMods(), before.locatePermission(),
+                    before.teleportPermission(), before.showLootLocations(), before.packTools(), !before.containerChanges()));
+            server.getCommands().performPrefixedCommand(console(server, said), "jes reload");
+            waiting = PackToolsServer.anyWaiting();
+        } catch (IOException e) {
+            said.add(Component.literal("couldn't write the test's settings: " + e));
+        } finally {
+            // Put back at once, so a test that times out leaves nothing changed.
+            JustEnoughStructures.setConfigDir(configRoot);
+            ServerConfig.set(before);
+            PackToolsServer.reloaded();
+            JesServer.structuresChanged(server);
+        }
+        boolean refused = said(said, "waiting");
+        boolean started = said(said, "all");
+        boolean marked = waiting;
+        boolean[] logged = {false};
+        helper.succeedWhen(() -> {
+            // A build the command started is waited for, so it doesn't run into the next test.
+            boolean done = !started || said(said, "done") || said(said, "failed");
+            if (!done) {
+                pace.keep();
+            }
+            helper.assertTrue(done, "jes reload hasn't said the loot index is built again");
+            if (!logged[0]) {
+                logged[0] = true;
+                JustEnoughStructures.LOGGER.info("In the test of jes reload after a hand edit to container_changes: {}; it said {}",
+                        marked ? "the change waits for a /reload" : "nothing waits", said.stream().map(Component::getString).toList());
+            }
+            helper.assertTrue(refused && !started, "jes reload built the loot index after container_changes was changed by hand, "
+                    + "from templates loaded without the change, instead of saying to /reload first; it said " + said.stream().map(Component::getString).toList());
+            helper.assertTrue(marked, "a hand edit to container_changes read by jes reload isn't marked as waiting for a /reload");
+        });
+    }
+
+    /**
      * Waits, as a test does by throwing, for the loot index and kept chances to be ready, a table's
      * chances to be kept on disk and the index's scan to be saved.
      */

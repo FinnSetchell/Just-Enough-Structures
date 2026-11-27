@@ -348,6 +348,12 @@ public final class JesGameTests {
         ReloadCommandTests.reloadCommandReadsTheSettingsAgain(helper);
     }
 
+    // Reads other settings, and builds the loot index again if it doesn't refuse, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_containers", timeoutTicks = 6000)
+    public void reloadCommandWaitsForAHandEditedContainerChange(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandWaitsForAHandEditedContainerChange(helper);
+    }
+
     // Reloads the server's datapacks in a task, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "reload_in_a_task", timeoutTicks = 1200)
     public void aReloadRunInATaskIsHandledOnceByItsHook(GameTestHelper helper) {
