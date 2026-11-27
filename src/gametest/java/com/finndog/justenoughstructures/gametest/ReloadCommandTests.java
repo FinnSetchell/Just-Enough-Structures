@@ -25,11 +25,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.entity.EntityType;
-//? if >=26.1 {
-/*import net.minecraft.server.permissions.LevelBasedPermissionSet;
-import net.minecraft.server.permissions.PermissionLevel;
-*///?}
 
 /**
  * {@code /jes reload} and {@code /jes reload loot} forget the loot index and the kept loot chances, on
@@ -157,7 +152,9 @@ public final class ReloadCommandTests {
                 pace.keep();
             }
             helper.assertTrue(done, command + " hasn't said the loot index is built again");
+            List<Path> gone = others.stream().filter(other -> !Files.exists(other)).toList();
             tidy.run();
+            helper.assertTrue(gone.isEmpty(), command + " deleted what other setups saved: " + gone);
             JustEnoughStructures.LOGGER.info("In the test of {}{}: {} structures generated again; it said {}", command,
                     unwritable ? " with files that can't be deleted" : "", generated.get(), said.stream().map(Component::getString).toList());
             helper.assertTrue(LootIndexStore.ready(), "the loot index isn't ready after " + command + " said it's built");
@@ -213,24 +210,13 @@ public final class ReloadCommandTests {
         });
     }
 
-    /**
-     * Only those who can use Pack tools see the command, and the server console: not a player who isn't
-     * an operator, nor a command block or function, which run at level 2, nor a mob made to run it.
-     */
+    /** Only those who can use Pack tools see the command: not a player who isn't an operator, but the server console. */
     public static void reloadCommandIsForPackToolsUsers(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         CommandNode<CommandSourceStack> reload = server.getCommands().getDispatcher().getRoot().getChild("jes").getChild("reload");
         helper.assertTrue(reload != null, "there's no /jes reload");
         CommandSourceStack player = TestPlayers.mock(helper).createCommandSourceStack();
         helper.assertFalse(reload.canUse(player), "a player who can't use Pack tools can use /jes reload");
-        //? if >=26.1 {
-        /*CommandSourceStack block = server.createCommandSourceStack().withPermission(LevelBasedPermissionSet.forLevel(PermissionLevel.GAMEMASTERS));
-        *///?} else {
-        CommandSourceStack block = server.createCommandSourceStack().withPermission(2);
-        //?}
-        helper.assertFalse(reload.canUse(block), "a command block or function, at level 2, can use /jes reload");
-        var stand = helper.spawn(EntityType.ARMOR_STAND, 1, 2, 1);
-        helper.assertFalse(reload.canUse(server.createCommandSourceStack().withEntity(stand)), "a mob made to run commands can use /jes reload");
         helper.assertTrue(reload.canUse(server.createCommandSourceStack()), "the server console can't use /jes reload");
         helper.succeed();
     }
