@@ -55,6 +55,10 @@ public final class JesCommands {
 
     // The text has an English fallback as well, as a player without JES has no lang file for it.
     private static int reload(CommandSourceStack source, boolean everything) {
+        if (everything) {
+            // First, so a change in it that waits for a /reload is refused below like Pack tools' own.
+            JesServer.readSettings(source.getServer());
+        }
         if (PackToolsServer.anyWaiting()) {
             source.sendFailure(Component.translatableWithFallback("commands.justenoughstructures.reload.waiting",
                     "Pack tools has changes waiting for /reload. Run /reload first, which brings the loot index up to date too"));

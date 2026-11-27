@@ -113,8 +113,17 @@ public final class PackToolsServer {
             JustEnoughStructures.LOGGER.warn("Couldn't save {}: {}", ServerConfig.file(), e.toString());
             return Component.translatable("screen.justenoughstructures.override.save_failed", String.valueOf(e.getMessage()));
         }
-        ServerConfig.load();
-        if (before.containerChanges() != settings.containerChanges()) {
+        rulesRead(before, ServerConfig.load());
+        JesServer.structuresChanged(server);
+        return Component.translatable("screen.justenoughstructures.tools.rules_saved");
+    }
+
+    /**
+     * Rules newly read from server.json5: a change to using changed containers and spawners waits for
+     * the next /reload, as templates are only read then.
+     */
+    static void rulesRead(ServerConfig.Settings before, ServerConfig.Settings now) {
+        if (before.containerChanges() != now.containerChanges()) {
             if (PENDING.contains(PackToolsState.RULES)) {
                 // Switched back before a /reload: nothing's waiting any more.
                 PENDING.remove(PackToolsState.RULES);
@@ -122,8 +131,6 @@ public final class PackToolsServer {
                 PENDING.add(PackToolsState.RULES);
             }
         }
-        JesServer.structuresChanged(server);
-        return Component.translatable("screen.justenoughstructures.tools.rules_saved");
     }
 
     /**
