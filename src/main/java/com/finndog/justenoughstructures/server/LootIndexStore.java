@@ -123,6 +123,9 @@ public final class LootIndexStore {
     private static boolean building;
     // Building failed, and won't be tried again until the next /reload.
     private static boolean broken;
+    // /jes reload's: what's saved for the setup the next refresh settles on is to be deleted, and the
+    // index built from nothing, even if a /reload's refresh takes over from the command's own.
+    private static boolean wipe;
     // The index players have is an early one, with more to come. Read on the index's thread too.
     private static volatile boolean partial;
     private static volatile long progressSaid;
@@ -168,9 +171,15 @@ public final class LootIndexStore {
         refresh(server, false);
     }
 
-    /** With {@code fromNothing}, what's saved for the game as it's set up now is deleted and not read: the index is built again. */
+    /**
+     * With {@code fromNothing}, what's saved for the game as it's set up now, the scan and the kept
+     * chances, is deleted and not read: the index is built again. That holds for every refresh after
+     * until one has deleted them, so a /reload straight after doesn't read them back.
+     */
     private static void refresh(MinecraftServer server, boolean fromNothing) {
         int generation = GENERATION.incrementAndGet();
+        wipe |= fromNothing;
+        boolean wiping = wipe;
         checking = true;
         building = false;
         broken = false;
@@ -178,7 +187,7 @@ public final class LootIndexStore {
         StructureScan knownScan = scan;
         Path dir = folder();
         // Read at once, not behind a build that's going on, so a player's odds aren't rolled again meanwhile.
-        CompletableFuture<Void> odds = CompletableFuture.runAsync(() -> OddsStore.refresh(server, () -> generation == GENERATION.get()), ODDS);
+        CompletableFuture<Void> odds = CompletableFuture.runAsync(() -> OddsStore.refresh(server, () -> generation == GENERATION.get(), wiping), ODDS);
         inBackground(server, generation, () -> {
             long started = System.nanoTime();
             String current = fingerprintOf(server);
@@ -190,15 +199,22 @@ public final class LootIndexStore {
                 JesLog.warnOnce("kept-odds-read", "Couldn't read the kept loot odds, so they're rolled again when asked for", e);
                 return null;
             }).join();
-            if (fromNothing && current != null) {
-                // Here, on the index's thread, after anything it was saving, so nothing saves it again after.
-                forgetSaved(dir, current);
+            if (wiping) {
+                if (current != null) {
+                    // Here, on the index's thread, after anything it was saving, so nothing saves it again after.
+                    forgetSaved(dir, current);
+                }
+                server.execute(() -> {
+                    if (generation == GENERATION.get()) {
+                        wipe = false;
+                    }
+                });
             }
-            StructureScan base = fromNothing || current == null ? null : current.equals(known) ? knownScan : read(dir, current);
+            StructureScan base = wiping || current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
             // what it kept: its structures still to generate are among those to try again.
             boolean goingOn = false;
-            if (base == null && current != null && !fromNothing) {
+            if (base == null && current != null && !wiping) {
                 base = readKept(dir, current);
                 goingOn = base != null;
             }
@@ -351,6 +367,7 @@ public final class LootIndexStore {
         building = false;
         broken = false;
         partial = false;
+        wipe = false;
         // In singleplayer the next world's server starts in the same game, and a player asking it
         // before it has started a build of its own would be told how far this one got.
         done = 0;

@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -55,6 +56,9 @@ public final class SavedPreviews {
     private SavedPreviews() {
     }
 
+    /** /jes reload's: the folder the next {@link #use} picks is emptied first. */
+    private static final AtomicBoolean WIPE = new AtomicBoolean();
+
     /** Stops using saved views until the next {@link #use}, as after a /reload the setup may have changed. */
     public static synchronized void forget() {
         GENERATION.incrementAndGet();
@@ -84,6 +88,9 @@ public final class SavedPreviews {
                 return;
             }
             Path dir = root().resolve(key);
+            if (WIPE.compareAndSet(true, false)) {
+                deleteViews(dir);
+            }
             try {
                 Files.createDirectories(dir);
                 CacheFiles.markUsed(dir);
@@ -107,32 +114,41 @@ public final class SavedPreviews {
     }
 
     /**
-     * For /jes reload: stops using the saved views, as {@link #forget} does, and deletes those of the
-     * folder in use, the game as it's set up now. On the saved previews' thread, where every view is
-     * saved, after anything it was saving, as nothing is saved there for a folder no longer in use.
+     * For /jes reload: stops using the saved views, as {@link #forget} does, and has the next {@link #use}
+     * delete those of the folder it picks, the game as it's set up then, before using it. That's once the
+     * loot index knows its fingerprint, as until then it isn't known which setup's views are wanted. It
+     * runs on the saved previews' thread, where every view is saved, after anything it was saving, as
+     * nothing is saved there for a folder no longer in use.
      */
-    public static void forgetAndDelete() {
-        Path dir = folder;
+    public static void forgetAndWipe() {
         forget();
-        if (dir == null) {
+        WIPE.set(true);
+    }
+
+    /** When the server stops: forgets the folder, and that it was to be emptied. */
+    public static void stop() {
+        forget();
+        WIPE.set(false);
+    }
+
+    private static void deleteViews(Path dir) {
+        if (!Files.isDirectory(dir)) {
             return;
         }
-        DISK.execute(() -> {
-            List<Path> files;
-            try (var listed = Files.list(dir)) {
-                files = listed.toList();
+        List<Path> files;
+        try (var listed = Files.list(dir)) {
+            files = listed.toList();
+        } catch (IOException | RuntimeException e) {
+            JustEnoughStructures.LOGGER.warn("Couldn't list the saved first views in {} to delete them: {}", dir, e.toString());
+            return;
+        }
+        for (Path file : files) {
+            try {
+                Files.deleteIfExists(file);
             } catch (IOException | RuntimeException e) {
-                JustEnoughStructures.LOGGER.warn("Couldn't list the saved first views in {} to delete them: {}", dir, e.toString());
-                return;
+                JustEnoughStructures.LOGGER.warn("Couldn't delete the saved first view {}: {}", file, e.toString());
             }
-            for (Path file : files) {
-                try {
-                    Files.deleteIfExists(file);
-                } catch (IOException | RuntimeException e) {
-                    JustEnoughStructures.LOGGER.warn("Couldn't delete the saved first view {}: {}", file, e.toString());
-                }
-            }
-        });
+        }
     }
 
     /** The folder saved views are currently read from and saved to, or null while it's being computed. */

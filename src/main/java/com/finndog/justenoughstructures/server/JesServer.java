@@ -160,7 +160,7 @@ public final class JesServer {
             StructureNameFiles.forget();
             clearCaptures();
             catalog = null;
-            SavedPreviews.forgetAndDelete();
+            SavedPreviews.forgetAndWipe();
         }
         ODDS_CACHE.clear();
         ROLLING.clear();
@@ -315,7 +315,7 @@ public final class JesServer {
         RequestLimits.clear();
         LootIndexStore.stop();
         SpareTime.clear();
-        SavedPreviews.forget();
+        SavedPreviews.stop();
         BROWSING.clear();
         LATEST_PREVIEW.clear();
         QUEUED.clear();

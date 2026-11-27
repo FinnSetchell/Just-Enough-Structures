@@ -120,6 +120,8 @@ public final class ReloadCommandTests {
                     helper.assertTrue(false, failed[0]);
                 }
                 try {
+                    // So it can be told whether the command deleted them, whatever is saved there after.
+                    Files.write(oddsFile[0], DECOY);
                     others.add(Files.write(folder.resolve("reload-command-test-other-setup.bin"), new byte[] {1}));
                     others.add(Files.write(folder.resolve("odds-reload-command-test-other-setup.odds"), new byte[] {1}));
                     if (everything) {
@@ -142,11 +144,6 @@ public final class ReloadCommandTests {
                     failed[0] = command + " didn't say it started; it said " + said.stream().map(Component::getString).toList();
                     helper.assertTrue(false, failed[0]);
                 }
-                // Kept odds are deleted at once, on the server's thread.
-                if (Files.isWritable(folder) && Files.exists(oddsFile[0])) {
-                    failed[0] = "the loot chances kept on disk are still there after " + command;
-                    helper.assertTrue(false, failed[0]);
-                }
                 stage[0] = 2;
             }
             if (said(said, "failed")) {
@@ -159,7 +156,11 @@ public final class ReloadCommandTests {
             }
             helper.assertTrue(done, command + " hasn't said the loot index is built again");
             List<Path> gone = others.stream().filter(other -> !Files.exists(other)).toList();
+            boolean writable = Files.isWritable(folder);
             tidy.run();
+            if (writable) {
+                helper.assertTrue(!Arrays.equals(readOrNull(oddsFile[0]), DECOY), "the loot chances kept on disk are still there after " + command);
+            }
             helper.assertTrue(gone.isEmpty(), command + " deleted what other setups saved: " + gone);
             JustEnoughStructures.LOGGER.info("In the test of {}{}: {} structures generated again; it said {}", command,
                     unwritable ? " with files that can't be deleted" : "", generated.get(), said.stream().map(Component::getString).toList());

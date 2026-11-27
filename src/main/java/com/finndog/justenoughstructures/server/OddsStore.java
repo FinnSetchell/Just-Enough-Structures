@@ -80,11 +80,20 @@ public final class OddsStore {
     /**
      * After a start or /reload, on a thread of its own: reads the odds kept for the game as it is now,
      * and hands them to the server thread, unless {@code current} says another /reload has come since,
-     * whose own refresh follows.
+     * whose own refresh follows. With {@code wipe}, for /jes reload, those kept for the game as it is now
+     * are deleted instead, so they're rolled again: here, once it's known which they are.
      */
-    static void refresh(MinecraftServer server, BooleanSupplier current) {
+    static void refresh(MinecraftServer server, BooleanSupplier current, boolean wipe) {
         String now = keyOf(server);
-        Map<ResourceLocation, Kept> read = now == null ? new HashMap<>() : read(server.registryAccess(), file(now));
+        if (wipe && now != null) {
+            Path file = file(now);
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException | RuntimeException e) {
+                JustEnoughStructures.LOGGER.warn("Couldn't delete the kept loot chances in {}, so the next start reads them again: {}", file, e.toString());
+            }
+        }
+        Map<ResourceLocation, Kept> read = now == null || wipe ? new HashMap<>() : read(server.registryAccess(), file(now));
         server.execute(() -> {
             if (!current.getAsBoolean()) {
                 return;
@@ -92,11 +101,11 @@ public final class OddsStore {
             // Tables may have changed with a /reload, so their hashes are worked out again.
             hashes.clear();
             ready = true;
-            if (now != null && now.equals(key)) {
+            if (now != null && now.equals(key) && !wipe) {
                 // The same game: what's kept here is what was read, and what was kept since.
                 return;
             }
-            if (changed && key != null) {
+            if (changed && key != null && !key.equals(now)) {
                 write(server.registryAccess(), key, kept);
             }
             key = now;
@@ -141,22 +150,13 @@ public final class OddsStore {
     }
 
     /**
-     * Forgets every table's odds kept for the game as it's set up now, in memory and on disk, for /jes
-     * reload: each is rolled again when it's next wanted. Server thread only, as the odds are saved there.
+     * Forgets the odds kept in memory, for /jes reload, so none of them is saved again. Those on disk
+     * are deleted by the refresh that follows, once it's known which setup they're for. Server thread only.
      */
     static void forgetAll() {
         kept = new HashMap<>();
         changed = false;
         hashes.clear();
-        if (key == null) {
-            return;
-        }
-        Path file = file(key);
-        try {
-            Files.deleteIfExists(file);
-        } catch (IOException | RuntimeException e) {
-            JustEnoughStructures.LOGGER.warn("Couldn't delete the kept loot chances in {}, so the next start reads them again: {}", file, e.toString());
-        }
     }
 
     /** Saves what's kept, if anything changed. Server thread only. */
