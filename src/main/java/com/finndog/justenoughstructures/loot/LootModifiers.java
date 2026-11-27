@@ -217,7 +217,8 @@ public final class LootModifiers {
         if (!type.contains(":")) {
             type = "minecraft:" + type;
         }
-        if (type.equals("minecraft:location_check")) {
+        // From 26.1 an environment check reads the chest's place too, for an attribute that depends on where.
+        if (type.equals("minecraft:location_check") || type.equals("minecraft:environment_attribute_check")) {
             return true;
         }
         if ((type.equals("minecraft:entity_properties") || type.equals("minecraft:entity_scores"))

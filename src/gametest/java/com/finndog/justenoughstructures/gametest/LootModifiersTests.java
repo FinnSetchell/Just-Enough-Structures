@@ -90,6 +90,8 @@ public final class LootModifiersTests {
         listed(helper, "an add with a chance", true, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + chance + "]}");
         listed(helper, "an add in some places", false, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + place + "]}");
         listed(helper, "an add for some players", false, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a + "," + opener + "]}");
+        listed(helper, "an add in some biomes, as 26.x checks them", false, "{\"type\":\"somemod:add_item\",\"conditions\":[" + a
+                + ",{\"type\":\"minecraft:environment_attribute_check\",\"attribute\":\"minecraft:visual/sky_color\",\"value\":0}]}");
         listed(helper, "an add for some players, inside an any_of", false,
                 "{\"type\":\"somemod:add_item\",\"conditions\":[" + anyOf(a, opener) + "]}");
         listed(helper, "a swap", false, "{\"type\":\"somemod:replace_item\",\"conditions\":[" + a + "]}");
