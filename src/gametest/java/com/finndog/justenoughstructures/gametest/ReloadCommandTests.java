@@ -9,12 +9,15 @@ import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.OddsStore;
 import com.finndog.justenoughstructures.server.PackToolsServer;
 import com.finndog.justenoughstructures.server.SavedPreviews;
+import com.finndog.justenoughstructures.server.ServerConfig;
 import com.mojang.brigadier.tree.CommandNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -355,6 +358,53 @@ public final class ReloadCommandTests {
                     generated.get(), said.stream().map(Component::getString).toList());
             helper.assertTrue(generated.get() > 0, "with a /reload straight after jes reload loot, no structure was generated again before it said "
                     + "the index is built, so it was read back from what was saved, not built from nothing");
+        });
+    }
+
+    /**
+     * {@code /jes reload} reads server.json5 again, as a /reload does: a structure hidden there since
+     * is hidden once the command has run.
+     */
+    public static void reloadCommandReadsTheSettingsAgain(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        PackToolsServer.reloaded();
+        ResourceLocation igloo = Ids.parse("igloo");
+        ServerConfig.Settings before = ServerConfig.get();
+        Path configRoot = JustEnoughStructures.configDir().getParent();
+        List<Component> said = new CopyOnWriteArrayList<>();
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        boolean hidden;
+        try {
+            JustEnoughStructures.setConfigDir(Files.createTempDirectory("jes-reload-settings"));
+            Set<ResourceLocation> hide = new HashSet<>(before.hiddenStructures());
+            hide.add(igloo);
+            ServerConfig.save(ServerConfig.file(), new ServerConfig.Settings(hide, before.hiddenMods(), before.locatePermission(),
+                    before.teleportPermission(), before.showLootLocations(), before.packTools(), before.containerChanges()));
+            server.getCommands().performPrefixedCommand(console(server, said), "jes reload");
+            hidden = ServerConfig.hides(igloo);
+        } catch (IOException e) {
+            hidden = false;
+            said.add(Component.literal("couldn't write the test's settings: " + e));
+        } finally {
+            JustEnoughStructures.setConfigDir(configRoot);
+        }
+        boolean read = hidden;
+        boolean[] restored = {false};
+        helper.succeedWhen(() -> {
+            // The build the command started is waited for, then the settings put back for it to see.
+            boolean done = said(said, "done") || said(said, "failed") || !read;
+            if (!done) {
+                pace.keep();
+            }
+            helper.assertTrue(done, "jes reload hasn't said the loot index is built again");
+            if (!restored[0]) {
+                restored[0] = true;
+                ServerConfig.set(before);
+                JesServer.structuresChanged(server);
+                JustEnoughStructures.LOGGER.info("In the test of jes reload reading the settings: the igloo was {}hidden after it; it said {}",
+                        read ? "" : "not ", said.stream().map(Component::getString).toList());
+            }
+            helper.assertTrue(read, "jes reload didn't read server.json5 again: the igloo hidden there since wasn't hidden after it");
         });
     }
 

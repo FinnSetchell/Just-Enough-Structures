@@ -149,14 +149,16 @@ public final class JesServer {
     /**
      * {@code /jes reload}: forgets the loot index and the kept loot chances and, with {@code everything},
      * the names, captures and saved first views as well, those of the game as it's set up now, on disk
-     * too, and builds them again from the game as it's loaded now. Unlike a /reload, nothing is read
-     * from the datapacks or server.json5 again. Everyone browsing is told, as after a /reload, so their
+     * too, and builds them again from the game as it's loaded now. With {@code everything} server.json5
+     * is read again too, as a /reload reads it. Unlike a /reload, nothing is read from the datapacks
+     * again, so a change to container_changes reaches the structures only with the next /reload. Everyone browsing is told, as after a /reload, so their
      * chances and index are asked for again. {@code done} is told once the index is built again, or that
      * it couldn't be. Server thread only.
      */
     public static void rebuild(MinecraftServer server, boolean everything, Consumer<Boolean> done) {
         running = server;
         if (everything) {
+            warnUnknownHidden(server, ServerConfig.load());
             StructureNameFiles.forget();
             clearCaptures();
             catalog = null;
