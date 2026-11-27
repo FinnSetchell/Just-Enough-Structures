@@ -344,16 +344,19 @@ public final class KeptOddsTests {
             helper.assertTrue(odds.get() != null, "the odds of " + WITH_KINDS + " haven't come " + when[stage[0]]);
             LootOdds got = odds.get();
             seen[stage[0]] = rows(got).toString();
-            boolean pistons = got.rows().stream().anyMatch(row -> row.example().is(Items.PISTON));
+            boolean pistons = got.rows().stream().anyMatch(row -> row.example().is(Items.STICKY_PISTON));
             if (stage[0] == 0) {
                 if (pistons) {
-                    failed[0] = WITH_KINDS + " gave pistons before the edit, so this shows nothing";
+                    failed[0] = WITH_KINDS + " gave sticky pistons before the edit, so this shows nothing";
                     JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {}", failed[0]);
                     helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
                 }
                 JsonObject edited = JsonParser.parseString(LootOverrides.original(server.getResourceManager(), WITH_KINDS)).getAsJsonObject();
                 JsonArray pools = edited.has("pools") ? edited.getAsJsonArray("pools") : new JsonArray();
-                pools.add(JsonParser.parseString("{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", \"name\": \"minecraft:piston\"}]}"));
+                // The pool Finn added in Prominence II, as Pack tools saved it.
+                pools.add(JsonParser.parseString("{\"rolls\": {\"type\": \"minecraft:uniform\", \"min\": 10, \"max\": 20}, \"entries\": [{\"type\": \"minecraft:item\", "
+                        + "\"name\": \"minecraft:sticky_piston\", \"functions\": [{\"function\": \"minecraft:set_count\", \"add\": false, "
+                        + "\"count\": {\"type\": \"minecraft:uniform\", \"min\": 1, \"max\": 10}}]}]}"));
                 edited.add("pools", pools);
                 var problem = LootOverrides.save(server.getResourceManager(), WITH_KINDS, edited.toString());
                 if (!(problem.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents said)
@@ -366,7 +369,7 @@ public final class KeptOddsTests {
                 // As Reload in Pack tools runs it.
                 PackToolsServer.reload(server);
             } else if (!pistons) {
-                failed[0] = "the chances of " + WITH_KINDS + " " + when[stage[0]] + " have no pistons, though the edited table gives them every time: " + seen[stage[0]];
+                failed[0] = "the chances of " + WITH_KINDS + " " + when[stage[0]] + " have no sticky pistons, though the edited table gives them every time: " + seen[stage[0]];
                 JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {}", failed[0]);
                 helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
             }
