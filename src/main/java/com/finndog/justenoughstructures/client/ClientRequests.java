@@ -116,6 +116,21 @@ public final class ClientRequests {
         return sender != null && !serverSupported() && sender.sendable().stream().anyMatch(JesNetwork::isJesChannel);
     }
 
+    /** Whether the loaders' disconnect hooks are kept from JES, as another mod's failing listener can. Test hook. */
+    private static volatile boolean missDisconnects;
+
+    /** Keeps the loaders' disconnect hooks from JES, or lets them through again. Test hook. */
+    public static void missDisconnects(boolean miss) {
+        missDisconnects = miss;
+    }
+
+    /** The loaders' hook for leaving a server. */
+    public static void disconnected() {
+        if (!missDisconnects) {
+            reset();
+        }
+    }
+
     /** Forgets everything tied to the current connection. */
     public static void reset() {
         catalog = null;

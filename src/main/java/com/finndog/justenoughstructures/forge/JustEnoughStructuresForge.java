@@ -73,7 +73,7 @@ public final class JustEnoughStructuresForge {
         OnDatapackSyncEvent.BUS.addListener(event -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();
-                server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reloaded(server)));
             }
         });
 
@@ -108,7 +108,7 @@ public final class JustEnoughStructuresForge {
         MinecraftForge.EVENT_BUS.addListener((OnDatapackSyncEvent event) -> {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();
-                server.tell(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                server.tell(new TickTask(server.getTickCount(), () -> JesServer.reloaded(server)));
             }
         });
 

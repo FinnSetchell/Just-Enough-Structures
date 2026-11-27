@@ -50,7 +50,7 @@ final class FabricNetworking {
         ServerLifecycleEvents.SERVER_STARTING.register(JesServer::starting);
         ServerLifecycleEvents.SERVER_STARTED.register(JesServer::reload);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> JesServer.stop());
-        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.reload(server));
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> JesServer.reloaded(server));
         ServerTickEvents.START_SERVER_TICK.register(SpareTime::tickStarted);
         ServerTickEvents.END_SERVER_TICK.register(SpareTime::tickEnded);
     }

@@ -53,7 +53,7 @@ final class FabricClientNetworking {
                 (client, listener, buf, responder) -> handler.handle(client, buf)));
         //?}
 
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::reset));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(ClientRequests::disconnected));
         // The loot index is asked for as the server is joined, before the recipes and tags that start
         // EMI's load are handled. Both events come on the client thread.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ClientRequests.askIfWanted());

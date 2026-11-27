@@ -390,6 +390,74 @@ public final class KeptOddsTests {
     }
 
     /**
+     * A /reload whose hook doesn't reach JES, as in Prominence II, where another mod's reload listener
+     * failing before JES's stops it, is still caught up with: an edited table's odds asked for a second
+     * after are the edited table's, not those kept in memory from before. The hook is kept from JES
+     * here, and let through again before the edit is taken out.
+     */
+    public static void aReloadThatMissesJesIsCaughtUpWith(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path dir;
+        try {
+            dir = Files.createTempDirectory("jes-missed-reload");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't make a temporary folder", e);
+        }
+        LootOverrides.setFolder(dir);
+        AtomicReference<LootOdds> before = new AtomicReference<>();
+        AtomicReference<LootOdds> after = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> edited = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> undone = new AtomicReference<>();
+        Object[] tableBefore = {null};
+        int[] waited = {0};
+        String[] failed = {null};
+        JesServer.forgetOdds(EDITED);
+        JesServer.odds(server, EDITED, LootRolls.table(server, EDITED), before::set);
+        helper.succeedWhen(() -> {
+            if (failed[0] == null) {
+                helper.assertTrue(before.get() != null, "the odds of " + EDITED + " haven't been rolled yet");
+                if (edited.get() == null) {
+                    if (!only(before.get(), Items.APPLE)) {
+                        failed[0] = "before the edit " + EDITED + " gave " + rows(before.get());
+                    } else {
+                        LootOverrides.save(server.getResourceManager(), EDITED, DIAMONDS_ONLY);
+                        tableBefore[0] = LootRolls.table(server, EDITED);
+                        JesServer.missReloadHooks(true);
+                        edited.set(TestSupport.reload(server));
+                    }
+                }
+            }
+            if (failed[0] == null) {
+                helper.assertTrue(edited.get().isDone() && LootRolls.table(server, EDITED) != tableBefore[0], "still reloading with the edit");
+                // A second, as a player opening the Loot tab after a /reload would.
+                if (++waited[0] < 20) {
+                    helper.assertTrue(false, "waiting a second after the /reload");
+                }
+                if (waited[0] == 20) {
+                    JesServer.odds(server, EDITED, LootRolls.table(server, EDITED), after::set);
+                }
+                helper.assertTrue(after.get() != null, "the edited table's odds haven't come yet");
+                if (!only(after.get(), Items.DIAMOND)) {
+                    failed[0] = "a second after a /reload that didn't reach JES, " + EDITED + " was answered with " + rows(after.get())
+                            + ", the odds kept in memory from before, not the edited table's diamonds";
+                }
+            }
+            JesServer.missReloadHooks(false);
+            if (undone.get() == null) {
+                LootOverrides.remove(EDITED);
+                undone.set(TestSupport.reload(server));
+            }
+            helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
+            LootOverrides.setFolder(null);
+            JustEnoughStructures.LOGGER.info("In the test of a /reload that misses JES: {} gave {}, and a second after the edit's /reload {}", EDITED,
+                    before.get() == null ? "nothing" : rows(before.get()), after.get() == null ? "nothing" : rows(after.get()));
+            if (failed[0] != null) {
+                helper.assertTrue(false, failed[0]);
+            }
+        });
+    }
+
+    /**
      * Asks for the loot index as a player opening the browser does, which builds it if it isn't being
      * built. What it would send the mock player is dropped, as NeoForge refuses to send JES's messages
      * to one, and the player is gone again at once: the build goes ahead without anyone waiting for it.

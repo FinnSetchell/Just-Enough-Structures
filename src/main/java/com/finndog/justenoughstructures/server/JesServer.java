@@ -170,6 +170,21 @@ public final class JesServer {
         Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, everything));
     }
 
+    /** Whether the loaders' reload hooks are kept from JES, as another mod's failing listener can. Test hook. */
+    private static volatile boolean missReloadHooks;
+
+    /** Keeps the loaders' reload hooks from JES, or lets them through again. Test hook. */
+    public static void missReloadHooks(boolean miss) {
+        missReloadHooks = miss;
+    }
+
+    /** The loaders' hook for a /reload whose data is all in place. */
+    public static void reloaded(MinecraftServer server) {
+        if (!missReloadHooks) {
+            reload(server);
+        }
+    }
+
     /** Mentions hidden ids that aren't structures, which are usually typos. */
     static void warnUnknownHidden(MinecraftServer server, ServerConfig.Settings settings) {
         var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);

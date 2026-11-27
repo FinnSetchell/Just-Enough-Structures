@@ -82,9 +82,9 @@ public final class JustEnoughStructuresNeoForge {
             if (event.getPlayer() == null) {
                 MinecraftServer server = event.getPlayerList().getServer();
                 //? if >=26.1 {
-                /*server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                /*server.schedule(new TickTask(server.getTickCount(), () -> JesServer.reloaded(server)));
                 *///?} else {
-                server.tell(new TickTask(server.getTickCount(), () -> JesServer.reload(server)));
+                server.tell(new TickTask(server.getTickCount(), () -> JesServer.reloaded(server)));
                 //?}
             }
         });

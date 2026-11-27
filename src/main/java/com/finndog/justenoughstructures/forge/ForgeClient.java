@@ -86,7 +86,7 @@ final class ForgeClient {
         /*// From 26.1 Forge listeners go on each event's BUS field.
         RegisterKeyMappingsEvent.BUS.addListener(event -> event.register(JesClient.OPEN));
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> JesClient.tick(Minecraft.getInstance()));
-        ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> ClientRequests.reset());
+        ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> ClientRequests.disconnected());
         // The loot index is asked for as the server is joined, before the recipes and tags that start EMI's load are handled.
         ClientPlayerNetworkEvent.LoggingIn.BUS.addListener(event -> ClientRequests.askIfWanted());
         *///?} else {
@@ -96,7 +96,7 @@ final class ForgeClient {
                 JesClient.tick(Minecraft.getInstance());
             }
         });
-        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
+        MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.disconnected());
         // The loot index is asked for as the server is joined, before the recipes and tags that start EMI's load are handled.
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> ClientRequests.askIfWanted());
         //?}

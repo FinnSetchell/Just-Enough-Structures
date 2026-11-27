@@ -92,7 +92,7 @@ final class NeoForgeClient {
         modBus.addListener((RegisterKeyMappingsEvent event) -> event.register(JesClient.OPEN));
         //?}
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> JesClient.tick(Minecraft.getInstance()));
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.reset());
+        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientRequests.disconnected());
         // The loot index is asked for as the server is joined, before the recipes and tags that start EMI's load are handled.
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> ClientRequests.askIfWanted());
 
