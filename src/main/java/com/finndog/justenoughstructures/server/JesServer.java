@@ -965,13 +965,16 @@ public final class JesServer {
         LootOdds known = ODDS_CACHE.get(table);
         // Only the loaded table can be worked out or kept: a test's own table isn't in the game.
         boolean loaded = loot == LootRolls.table(server, table);
+        String from = "kept in memory";
         if (known == null && loaded) {
             known = OddsStore.forPlayers(server, table);
+            from = "kept on disk";
             if (known != null) {
                 ODDS_CACHE.put(table, known);
             }
         }
         if (known != null) {
+            JesLog.debug("Answered the odds of {} with those {}: {} rows from {} rolls", table, from, known.rows().size(), known.rolls());
             reply.accept(known);
             return;
         }
@@ -985,6 +988,8 @@ public final class JesServer {
         LootRolls.Roller roller = new LootRolls.Roller(LootRolls.level(server), table, loot, ODDS_ROLLS, table.hashCode());
         rollInSlices(server, roller, ODDS_BUDGET_NANOS, (rolled, keep) -> {
             LootOdds odds = loaded ? LootMath.withWorkedOutChances(server, rolled) : rolled;
+            JesLog.debug("Answered the odds of {} with new rolls: {} rows from {} rolls{}", table, odds.rows().size(), odds.rolls(),
+                    ROLLING.get(table) == these ? "" : ", from before a reload, so not kept");
             // After a /reload these are the old table's odds: still the answer to what was asked, but not kept.
             if (ROLLING.get(table) == these) {
                 ROLLING.remove(table);

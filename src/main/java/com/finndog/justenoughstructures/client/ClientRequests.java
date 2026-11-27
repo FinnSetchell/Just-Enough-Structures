@@ -686,6 +686,7 @@ public final class ClientRequests {
      * hundred tables at once, so only {@link #ODDS_IN_FLIGHT} are requested at a time and the rest queue.
      */
     private static CompletableFuture<LootOdds> requestOdds(ResourceLocation table) {
+        JesLog.debug("Asking the server for the odds of {}", table);
         CompletableFuture<LootOdds> future = new CompletableFuture<>();
         ODDS_WAITING.add(Map.entry(table, future));
         sendWaitingOdds();
@@ -901,6 +902,7 @@ public final class ClientRequests {
             return;
         }
         reloads++;
+        JesLog.debug("The server reloaded, so the {} loot tables' odds kept here are asked for again when wanted", ODDS_BY_TABLE.size());
         if (catalog != null && catalog.isDone()) {
             catalog = null;
         }
@@ -928,6 +930,7 @@ public final class ClientRequests {
     }
 
     public static void onOdds(int requestId, LootOdds odds) {
+        JesLog.debug("The server sent the odds of {}: {} rows from {} rolls", odds.tableId(), odds.rows().size(), odds.rolls());
         answer(ODDS, requestId, odds);
         sendWaitingOdds();
     }
