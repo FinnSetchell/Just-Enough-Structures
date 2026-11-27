@@ -910,6 +910,7 @@
   "commands.justenoughstructures.reload.loot": "Building the loot index and loot chances again",
   "commands.justenoughstructures.reload.done": "The loot index is built again",
   "commands.justenoughstructures.reload.failed": "The loot index couldn't be built again. The log says why",
+  "commands.justenoughstructures.reload.waiting": "Pack tools has changes waiting for /reload. Run /reload first, which brings the loot index up to date too",
 
   "_comment.preview_errors": "Why a preview couldn't be built",
   "screen.justenoughstructures.error.hidden": "This server keeps this structure hidden",

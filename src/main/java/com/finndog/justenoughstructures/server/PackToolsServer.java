@@ -48,6 +48,11 @@ public final class PackToolsServer {
         PENDING.add(key);
     }
 
+    /** Whether anything saved is waiting for a /reload to take effect. */
+    public static boolean anyWaiting() {
+        return !PENDING.isEmpty();
+    }
+
     /** After a /reload, or when the server starts, everything saved is in use. */
     public static void reloaded() {
         PENDING.clear();

@@ -107,23 +107,30 @@ public final class SavedPreviews {
     }
 
     /**
-     * Deletes every saved first view and picture's copy, for /jes reload. On the saved previews' thread,
-     * after anything it was saving, and before the folder the next {@link #use} picks is made.
+     * For /jes reload: stops using the saved views, as {@link #forget} does, and deletes those of the
+     * folder in use, the game as it's set up now. On the saved previews' thread, where every view is
+     * saved, after anything it was saving, as nothing is saved there for a folder no longer in use.
      */
-    public static void deleteAll() {
-        Path root = root();
+    public static void forgetAndDelete() {
+        Path dir = folder;
+        forget();
+        if (dir == null) {
+            return;
+        }
         DISK.execute(() -> {
-            if (!Files.isDirectory(root)) {
+            List<Path> files;
+            try (var listed = Files.list(dir)) {
+                files = listed.toList();
+            } catch (IOException | RuntimeException e) {
+                JustEnoughStructures.LOGGER.warn("Couldn't list the saved first views in {} to delete them: {}", dir, e.toString());
                 return;
             }
-            try (var files = Files.walk(root)) {
-                for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
-                    if (!file.equals(root)) {
-                        Files.deleteIfExists(file);
-                    }
+            for (Path file : files) {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException | RuntimeException e) {
+                    JustEnoughStructures.LOGGER.warn("Couldn't delete the saved first view {}: {}", file, e.toString());
                 }
-            } catch (IOException | RuntimeException e) {
-                JesLog.debug("Couldn't delete the saved previews in {}", root, e);
             }
         });
     }
@@ -153,11 +160,12 @@ public final class SavedPreviews {
 
     /** The same, into a given folder. */
     public static void offer(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
+        int generation = GENERATION.get();
         if (dir == null || seed != StructureCapture.defaultSeed(id) || !result.succeeded() || ServerConfig.hides(id) || saved(dir, id)) {
             return;
         }
         try {
-            saveBoth(dir, server, id, seed, result);
+            saveBoth(dir, server, id, seed, result, generation);
         } catch (RuntimeException e) {
             JesLog.debug("Couldn't save the first view of {}", id, e);
         }
@@ -198,7 +206,7 @@ public final class SavedPreviews {
                         return;
                     }
                     if (result.succeeded()) {
-                        saveBoth(dir, server, id, seed, result);
+                        saveBoth(dir, server, id, seed, result, generation);
                         made++;
                     }
                 } catch (RuntimeException | LinkageError | StackOverflowError e) {
@@ -223,9 +231,19 @@ public final class SavedPreviews {
         return Codecs.packCapture(server.registryAccess(), id, seed, picture);
     }
 
-    private static void saveBoth(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result) {
-        write(dir, id, false, payloadOf(server, id, seed, result));
-        write(dir, id, true, pictureOf(server, id, seed, result));
+    /**
+     * Saves both on the saved previews' thread, unless the folder in use has changed since {@code
+     * generation}, as /jes reload may be deleting it there, and what's sent may have changed.
+     */
+    private static void saveBoth(Path dir, MinecraftServer server, ResourceLocation id, long seed, CaptureResult result, int generation) {
+        byte[] view = payloadOf(server, id, seed, result);
+        byte[] picture = pictureOf(server, id, seed, result);
+        DISK.execute(() -> {
+            if (generation == GENERATION.get()) {
+                write(dir, id, false, view);
+                write(dir, id, true, picture);
+            }
+        });
     }
 
     /** Whether both of a structure's saved versions are there. */

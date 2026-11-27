@@ -139,23 +139,21 @@ public final class OddsStore {
     }
 
     /**
-     * Forgets every table's kept odds, in memory and on disk, for /jes reload: each is rolled again when
-     * it's next wanted. Server thread only, as the odds are saved there.
+     * Forgets every table's odds kept for the game as it's set up now, in memory and on disk, for /jes
+     * reload: each is rolled again when it's next wanted. Server thread only, as the odds are saved there.
      */
     static void forgetAll() {
         kept = new HashMap<>();
         changed = false;
         hashes.clear();
-        Path dir = JustEnoughStructures.cacheDir().resolve("loot-index");
-        if (!Files.isDirectory(dir)) {
+        if (key == null) {
             return;
         }
-        try (var files = Files.list(dir)) {
-            for (Path file : files.filter(p -> p.toString().endsWith(SUFFIX)).toList()) {
-                Files.deleteIfExists(file);
-            }
+        Path file = file(key);
+        try {
+            Files.deleteIfExists(file);
         } catch (IOException | RuntimeException e) {
-            JesLog.debug("Couldn't delete the kept loot odds in {}", dir, e);
+            JustEnoughStructures.LOGGER.warn("Couldn't delete the kept loot chances in {}, so the next start reads them again: {}", file, e.toString());
         }
     }
 

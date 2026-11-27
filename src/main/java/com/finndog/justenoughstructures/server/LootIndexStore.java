@@ -165,6 +165,11 @@ public final class LootIndexStore {
 
     /** Called when the server has started and after /reload: checks whether the saved index still matches. */
     public static void refresh(MinecraftServer server) {
+        refresh(server, false);
+    }
+
+    /** With {@code fromNothing}, what's saved for the game as it's set up now is deleted and not read: the index is built again. */
+    private static void refresh(MinecraftServer server, boolean fromNothing) {
         int generation = GENERATION.incrementAndGet();
         checking = true;
         building = false;
@@ -185,11 +190,15 @@ public final class LootIndexStore {
                 JesLog.warnOnce("kept-odds-read", "Couldn't read the kept loot odds, so they're rolled again when asked for", e);
                 return null;
             }).join();
-            StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
+            if (fromNothing && current != null) {
+                // Here, on the index's thread, after anything it was saving, so nothing saves it again after.
+                forgetSaved(dir, current);
+            }
+            StructureScan base = fromNothing || current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
             // what it kept: its structures still to generate are among those to try again.
             boolean goingOn = false;
-            if (base == null && current != null) {
+            if (base == null && current != null && !fromNothing) {
                 base = readKept(dir, current);
                 goingOn = base != null;
             }
@@ -268,24 +277,20 @@ public final class LootIndexStore {
      * /jes reload. Players keep the index they have until the new one is sent. Server thread only.
      */
     public static void rebuild(MinecraftServer server) {
-        // Stops a build or an update going on, so it doesn't save its scan again after it's deleted.
-        GENERATION.incrementAndGet();
         scan = null;
-        Path dir = folder();
-        // On the index's thread, after anything it was saving, and before the build refresh starts there.
-        WORKER.execute(() -> {
-            if (!Files.isDirectory(dir)) {
-                return;
-            }
-            try (var files = Files.list(dir)) {
-                for (Path file : files.filter(p -> p.toString().endsWith(".bin") || p.toString().endsWith(KEPT_SUFFIX)).toList()) {
-                    Files.deleteIfExists(file);
-                }
+        refresh(server, true);
+    }
+
+    /** Deletes the scan saved under this fingerprint and what a build cut short kept, each on its own. */
+    private static void forgetSaved(Path dir, String key) {
+        for (Path file : List.of(dir.resolve(key + ".bin"), dir.resolve(key + KEPT_SUFFIX))) {
+            try {
+                Files.deleteIfExists(file);
             } catch (IOException | RuntimeException e) {
-                JesLog.debug("Couldn't delete the saved loot index in {}", dir, e);
+                JustEnoughStructures.LOGGER.warn("Couldn't delete the saved loot index {}, so a start before the new one is saved reads it: {}",
+                        file, e.toString());
             }
-        });
-        refresh(server);
+        }
     }
 
     /**

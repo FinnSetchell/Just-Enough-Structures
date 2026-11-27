@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.JustEnoughStructures;
 import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.Blobs;
@@ -23,7 +24,9 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <p>{@code /jes reload [loot]}: builds again what JES keeps on the server, or with {@code loot} only
  * the loot index and loot chances, kept on disk too, for when they don't show a change. For those who
- * can use Pack tools, and the server console.
+ * can use Pack tools, and the server console. Not while Pack tools has changes waiting for a /reload,
+ * as changed containers and spawners only take effect with one, and the index would be built from
+ * changes the structures don't have yet.
  */
 public final class JesCommands {
     private JesCommands() {
@@ -44,7 +47,7 @@ public final class JesCommands {
                                 .executes(context -> reload(context.getSource(), false)))));
     }
 
-    /** Those who can use Pack tools, and sources that aren't players, like the server console, at operator level. */
+    /** Those who can use Pack tools, and sources that aren't players at operator level, as /reload needs: the console, command blocks, functions. */
     private static boolean mayReload(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         return player != null ? PackToolsAccess.allowed(player) : Players.hasPermission(source, 2);
@@ -52,12 +55,25 @@ public final class JesCommands {
 
     // The text has an English fallback as well, as a player without JES has no lang file for it.
     private static int reload(CommandSourceStack source, boolean everything) {
+        if (PackToolsServer.anyWaiting()) {
+            source.sendFailure(Component.translatableWithFallback("commands.justenoughstructures.reload.waiting",
+                    "Pack tools has changes waiting for /reload. Run /reload first, which brings the loot index up to date too"));
+            return 0;
+        }
+        JustEnoughStructures.LOGGER.info("{} asked for {} to be built again from nothing", source.getTextName(),
+                everything ? "everything Just Enough Structures keeps" : "the loot index and loot chances");
         source.sendSuccess(() -> everything
                 ? Component.translatableWithFallback("commands.justenoughstructures.reload.all",
                         "Building everything Just Enough Structures keeps again, starting with the loot index")
                 : Component.translatableWithFallback("commands.justenoughstructures.reload.loot",
                         "Building the loot index and loot chances again"), true);
         JesServer.rebuild(source.getServer(), everything, built -> {
+            // In the log too, as over RCON the command has returned before this comes.
+            if (built) {
+                JustEnoughStructures.LOGGER.info("The loot index is built again");
+            } else {
+                JustEnoughStructures.LOGGER.warn("The loot index couldn't be built again; the error is above");
+            }
             if (built) {
                 source.sendSuccess(() -> Component.translatableWithFallback("commands.justenoughstructures.reload.done",
                         "The loot index is built again"), true);
