@@ -124,6 +124,14 @@ public final class ClientRequests {
         missDisconnects = miss;
     }
 
+    /** Whether the client tick's check of the connection is left out, so only the hook can reset. Test hook. */
+    private static volatile boolean missConnectionChanges;
+
+    /** Leaves out the client tick's check of the connection, or puts it back. Test hook. */
+    public static void missConnectionChanges(boolean miss) {
+        missConnectionChanges = miss;
+    }
+
     // Set when a server is left off the client's thread, and acted on by the next client tick.
     private static volatile boolean leftServer;
 
@@ -517,7 +525,7 @@ public final class ClientRequests {
         ClientPacketListener now = Minecraft.getInstance().getConnection();
         boolean left = leftServer;
         leftServer = false;
-        if (left || keptFor != null && now != keptFor) {
+        if (left || !missConnectionChanges && keptFor != null && now != keptFor) {
             if (!left) {
                 JesLog.debug("The game's connection changed without JES hearing that the server was left, so what was kept for it is forgotten now");
             }
