@@ -48,6 +48,85 @@ public final class KeptOddsTests {
     private KeptOddsTests() {
     }
 
+    /**
+     * After a /reload while a loot index build is going, kept odds are ready again within moments, not
+     * once the build gets past the structure it's on: until then a player's odds are rolled again. The
+     * build is held at a structure here, as a big one holds it, until the odds are ready or 10 s go by.
+     * Whatever happens the build is let go and the watcher taken off, so no later build waits on it.
+     */
+    public static void keptOddsReadyWhileABuildGoesOn(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        java.util.concurrent.CountDownLatch building = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        AtomicBoolean over = new AtomicBoolean();
+        long started = System.nanoTime();
+        // Well inside the test's time out, so the test always ends here and lets the build go.
+        long deadline = started + java.util.concurrent.TimeUnit.SECONDS.toNanos(50);
+        long[] reloaded = {0};
+        // Why the test failed, once it has: it stays failed, though the odds are ready once the build is let go.
+        String[] failed = {null};
+        LootIndexStore.stop();
+        try {
+            Files.deleteIfExists(JustEnoughStructures.cacheDir().resolve("loot-index").resolve(LootIndexStore.fingerprintOf(server) + ".bin"));
+            Files.deleteIfExists(JustEnoughStructures.cacheDir().resolve("loot-index").resolve(LootIndexStore.fingerprintOf(server) + ".partial"));
+        } catch (IOException e) {
+            throw new AssertionError("couldn't delete the saved index", e);
+        }
+        LootIndexStore.watchProgress(d -> {
+            // On the index's thread: the first build after this holds at its first structure until let go,
+            // and never once the test is over.
+            if (over.get()) {
+                return;
+            }
+            building.countDown();
+            try {
+                release.await(Math.max(0, deadline - System.nanoTime()), java.util.concurrent.TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        Runnable letGo = () -> {
+            over.set(true);
+            release.countDown();
+            LootIndexStore.watchProgress(null);
+        };
+        // As the server starting does: the build starts at once.
+        LootIndexStore.refresh(server);
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        helper.succeedWhen(() -> {
+            if (failed[0] != null) {
+                helper.assertTrue(false, failed[0]);
+            }
+            if (System.nanoTime() > deadline) {
+                letGo.run();
+                failed[0] = reloaded[0] == 0 ? "the build never reached its first structure"
+                        : "kept odds weren't ready " + (System.nanoTime() - reloaded[0]) / 1_000_000L + " ms after a /reload, while a build was held";
+                helper.assertTrue(false, failed[0]);
+            }
+            if (reloaded[0] == 0) {
+                if (building.getCount() != 0) {
+                    pace.keep();
+                }
+                helper.assertTrue(building.getCount() == 0, "the build hasn't reached its first structure yet");
+                // As a /reload does, while the build is held.
+                JesServer.reload(server);
+                reloaded[0] = System.nanoTime();
+            }
+            boolean ready = OddsStore.isReady();
+            long waited = (System.nanoTime() - reloaded[0]) / 1_000_000L;
+            if (!ready && waited < 10_000) {
+                pace.keep();
+                helper.assertTrue(false, "kept odds aren't ready yet, " + waited + " ms after the /reload");
+            }
+            letGo.run();
+            if (!ready) {
+                failed[0] = "kept odds weren't ready " + waited + " ms after a /reload, while a build was held at a structure";
+                helper.assertTrue(false, failed[0]);
+            }
+            JustEnoughStructures.LOGGER.info("In the test of kept odds during a build: ready {} ms after the /reload", waited);
+        });
+    }
+
     public static void keptOddsAnswerWithoutRolling(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         AtomicReference<LootOdds> first = new AtomicReference<>();

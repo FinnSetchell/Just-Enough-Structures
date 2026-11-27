@@ -306,6 +306,12 @@ public final class JesGameTests {
         LootModifiersTests.addTableWorkedOut(helper);
     }
 
+    // Holds a loot index build and reloads the server's data, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_build", timeoutTicks = 1200)
+    public void keptOddsReadyWhileABuildGoesOn(GameTestHelper helper) {
+        KeptOddsTests.keptOddsReadyWhileABuildGoesOn(helper);
+    }
+
     @GameTest(template = EMPTY_STRUCTURE, timeoutTicks = 400)
     public void keptOddsAnswerWithoutRolling(GameTestHelper helper) {
         KeptOddsTests.keptOddsAnswerWithoutRolling(helper);

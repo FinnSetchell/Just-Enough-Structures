@@ -106,6 +106,8 @@ public final class LootIndexStore {
 
     // The index captures every structure, so it runs on a separate thread and never holds up previews.
     private static final ExecutorService WORKER = Threads.single("Just Enough Structures loot index", Thread.MIN_PRIORITY);
+    // Kept odds are read on a thread of their own, so a build going on can't hold them up (OddsStore.refresh).
+    private static final ExecutorService ODDS = Threads.single("Just Enough Structures kept odds", Thread.MIN_PRIORITY);
     private static final AtomicInteger GENERATION = new AtomicInteger();
     // Players who've asked for the index. They're sent the new one whenever it changes.
     private static final Set<UUID> WAITING = ConcurrentHashMap.newKeySet();
@@ -168,13 +170,16 @@ public final class LootIndexStore {
         String known = scan == null ? null : fingerprint;
         StructureScan knownScan = scan;
         Path dir = folder();
+        // Read at once, not behind a build that's going on, so a player's odds aren't rolled again meanwhile.
+        CompletableFuture<Void> odds = CompletableFuture.runAsync(() -> OddsStore.refresh(server, () -> generation == GENERATION.get()), ODDS);
         inBackground(server, generation, () -> {
             long started = System.nanoTime();
             String current = fingerprintOf(server);
             if (generation != GENERATION.get()) {
                 return;
             }
-            OddsStore.refresh(server, () -> generation == GENERATION.get());
+            // The kept odds are handed to the server thread before anything here is, as the index's rolls use them.
+            odds.exceptionally(e -> null).join();
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
             // what it kept: its structures still to generate are among those to try again.

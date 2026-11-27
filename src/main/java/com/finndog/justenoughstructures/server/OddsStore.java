@@ -76,7 +76,7 @@ public final class OddsStore {
     }
 
     /**
-     * After a start or /reload, on the index's thread: reads the odds kept for the game as it is now,
+     * After a start or /reload, on a thread of its own: reads the odds kept for the game as it is now,
      * and hands them to the server thread, unless {@code current} says another /reload has come since,
      * whose own refresh follows.
      */
@@ -102,6 +102,11 @@ public final class OddsStore {
             changed = false;
             JesLog.debug("Kept loot odds: {} tables", read.size());
         });
+    }
+
+    /** Whether kept odds are answered and kept now: not from a start or /reload until they've been read for it. Test hook. */
+    public static boolean isReady() {
+        return ready;
     }
 
     /** The odds kept for a loaded table as it is now, if they're good enough to answer a player with. Server thread only. */
