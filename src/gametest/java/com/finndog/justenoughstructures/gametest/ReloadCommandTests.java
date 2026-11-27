@@ -48,6 +48,9 @@ public final class ReloadCommandTests {
     public static void reloadCommandBuildsTheLootIndexAgain(GameTestHelper helper, boolean everything, boolean unwritable) {
         MinecraftServer server = helper.getLevel().getServer();
         String command = everything ? "jes reload" : "jes reload loot";
+        // Pack tools tests in the batches before this one may leave changes waiting for a /reload,
+        // which would make the command refuse.
+        PackToolsServer.reloaded();
         Path folder = JustEnoughStructures.cacheDir().resolve("loot-index");
         List<Component> said = new CopyOnWriteArrayList<>();
         CommandSourceStack console = console(server, said);
