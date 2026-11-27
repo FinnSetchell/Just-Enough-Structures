@@ -174,7 +174,8 @@ public final class JesServer {
 
     /**
      * For {@code /jes reload}: reads server.json5 again and puts it in use, as Pack tools' Rules screen
-     * does when it saves it. A change to container_changes waits for a /reload, as it does there: the structures' templates
+     * does when it saves it, so structures newly hidden there leave the loot index players have at once.
+     * A change to container_changes waits for a /reload, as it does there: the structures' templates
      * only get it when they load again. Server thread only.
      */
     public static void readSettings(MinecraftServer server) {
@@ -182,6 +183,7 @@ public final class JesServer {
         ServerConfig.Settings now = ServerConfig.load();
         warnUnknownHidden(server, now);
         PackToolsServer.rulesRead(before, now);
+        structuresChanged(server);
     }
 
     /** The server's resources as JES last reloaded for them: each /reload makes new ones. Server thread only. */

@@ -88,7 +88,8 @@ public final class SavedPreviews {
                 return;
             }
             Path dir = root().resolve(key);
-            if (WIPE.compareAndSet(true, false)) {
+            // Only by the use() after /jes reload's, not one queued before it that's out of date.
+            if (generation == GENERATION.get() && WIPE.compareAndSet(true, false)) {
                 deleteViews(dir);
             }
             try {
