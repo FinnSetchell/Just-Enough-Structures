@@ -1058,6 +1058,11 @@ public final class JesGameTests {
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
+    public void viewersWaitForTheFinishedIndex(GameTestHelper helper) {
+        IndexArrivalTests.viewersWaitForTheFinishedIndex(helper);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
     public void earlyIndexIsHandedOverAtOnce(GameTestHelper helper) {
         IndexArrivalTests.earlyIndexIsHandedOverAtOnce(helper);
     }

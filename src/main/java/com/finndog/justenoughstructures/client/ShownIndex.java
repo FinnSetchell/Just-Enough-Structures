@@ -35,6 +35,21 @@ public final class ShownIndex {
         coming = index;
     }
 
+    /**
+     * Whether an index that has just come is left for the finished one: while the server is still
+     * building ({@code early}, and not {@code failed}), it sends what it has so far now and then, and a
+     * viewer that shows an early index, or is about to, takes the finished one next. Once the build has
+     * failed the latest index is all there is.
+     */
+    public boolean waitsForFinished(boolean early, boolean failed) {
+        return (shown != null || coming != null) && early && !failed;
+    }
+
+    /** The index the viewer is about to show, or null. */
+    public LootIndex coming() {
+        return coming;
+    }
+
     /** The index the viewer shows, or null. */
     public LootIndex shown() {
         return shown;

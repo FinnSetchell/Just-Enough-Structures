@@ -174,7 +174,7 @@ public final class JesJeiPlugin implements IModPlugin {
      * of those and then waits for the finished one, as each set of rows it replaces stays hidden in it.
      */
     private static void show(LootIndex index) {
-        if (INDEX.shown() != null && ClientRequests.indexEarly() && !ClientRequests.indexFailed()) {
+        if (INDEX.waitsForFinished(ClientRequests.indexEarly(), ClientRequests.indexFailed())) {
             return;
         }
         if (runtime != null && INDEX.isNew(index)) {

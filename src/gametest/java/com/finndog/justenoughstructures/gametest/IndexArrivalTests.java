@@ -78,6 +78,25 @@ public final class IndexArrivalTests {
     }
 
     /**
+     * A viewer that shows an early index, or is about to, leaves the ones the server sends as the build
+     * goes on for the finished one; with none shown it takes the first; once the build has failed it
+     * takes the latest.
+     */
+    public static void viewersWaitForTheFinishedIndex(GameTestHelper helper) {
+        ShownIndex viewer = new ShownIndex();
+        LootIndex early = new LootIndex(Map.of(), Map.of());
+        helper.assertFalse(viewer.waitsForFinished(true, false), "a viewer with no index waited for the finished one instead of taking the first");
+        viewer.coming(early);
+        helper.assertTrue(viewer.waitsForFinished(true, false), "a viewer about to load an early index took the next one sent, restarting its load");
+        viewer.coming(null);
+        viewer.showing(early);
+        helper.assertTrue(viewer.waitsForFinished(true, false), "a viewer showing an early index took the next one sent as the build went on");
+        helper.assertFalse(viewer.waitsForFinished(false, false), "a viewer showing an early index didn't take the finished one");
+        helper.assertFalse(viewer.waitsForFinished(true, true), "after a failed build, a viewer kept the first early index instead of the latest");
+        helper.succeed();
+    }
+
+    /**
      * An early index is handed to EMI's load as soon as it's here, as a finished one is: it holds
      * most of the loot, long before the finished one.
      */

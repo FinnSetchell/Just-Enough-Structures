@@ -179,8 +179,9 @@ public final class JesEmiPlugin implements EmiPlugin {
             return;
         }
         // While the rest is built the server sends what it has so far now and then. EMI has the first
-        // of those, or loads with it now, and then waits for the finished one.
-        if (INDEX.shown() != null && ClientRequests.indexEarly()) {
+        // of those, or is about to load with it, and then waits for the finished one. Not once the build
+        // has failed: then the latest one is all there is.
+        if (INDEX.waitsForFinished(ClientRequests.indexEarly(), ClientRequests.indexFailed())) {
             return;
         }
         reload(index);
