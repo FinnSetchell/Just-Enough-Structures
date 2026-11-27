@@ -327,13 +327,25 @@ public final class JesGameTests {
     // Builds the loot index again from nothing, so it runs on its own, with as long as the tests that build the index.
     @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_loot", timeoutTicks = 6000)
     public void reloadLootCommandBuildsTheLootIndexAgain(GameTestHelper helper) {
-        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, false);
+        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, false, false);
+    }
+
+    // The same with the folder the loot index is saved in made read-only, so nothing in it can be deleted.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_unwritable", timeoutTicks = 6000)
+    public void reloadLootCommandBuildsAgainWhenFilesCantBeDeleted(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, false, true);
+    }
+
+    // Marks a Pack tools change as waiting and then clears what's waiting, as a /reload does, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_waiting")
+    public void reloadCommandWaitsForPackToolsChanges(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandWaitsForPackToolsChanges(helper);
     }
 
     // The same, forgetting the saved first views as well.
     @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_all", timeoutTicks = 6000)
     public void reloadCommandBuildsEverythingAgain(GameTestHelper helper) {
-        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, true);
+        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, true, false);
     }
 
     @GameTest(template = EMPTY_STRUCTURE)
