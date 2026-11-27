@@ -315,7 +315,9 @@ public final class KeptOddsTests {
                 LootOverrides.setFolder(null);
                 JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {} gave {} {}, {} {}, {} {}, {} {}", WITH_KINDS,
                         when[0], seen[0], when[1], seen[1], when[2], seen[2], when[3], seen[3]);
-                helper.assertTrue(failed[0] == null, failed[0]);
+                if (failed[0] != null) {
+                    helper.assertTrue(false, failed[0]);
+                }
                 return;
             }
             // Stages 1 and 3 ask at once; 0 and 2 once the loot index is up to date, as kept odds are then too.
