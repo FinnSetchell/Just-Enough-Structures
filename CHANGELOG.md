@@ -7,7 +7,7 @@
   ![The settings button beside a mod name](https://i.moogsmods.com/images/be9d9857624f4367ba1a422f7be36306.png)
   - When another mod turns a structure off or replaces it, the Info tab links to that mod's settings
     ![The Info tab linking to a mod's settings](https://i.moogsmods.com/images/bb9bcb39a5cf4c2bb31fbf84517cec88.png)
-- A Command only setting that hides everything Just Enough Structures adds to the game until you use /jes open; Pack tools changes still apply
+- A Command only setting: the browser opens only with /jes open, and nothing is added to recipe viewers or other mods' screens; Pack tools changes still apply
 - A fly button in the preview: fly through a structure with your movement keys and the mouse, like spectator mode, and click chests and spawners to open them
   ![Flying through a structure](https://i.moogsmods.com/images/f90e35677b9c4e6dbf7eef88e54cf64b.png)
 
@@ -21,15 +21,22 @@
 - Quitting or reloading while the loot list is still being built no longer starts it over: it carries on from where it stopped
 - Hovering a row in the Blocks tab no longer makes the preview stutter on big structures
 - The loot editor no longer offers functions on alternatives, groups and sequences before Minecraft 26.3, as the game ignores them there
+- Closing the browser no longer keeps the last structure it showed in memory
+- Very rare items in the combined chances now read <0.1% too, instead of 0.0%
+- The small Nether ruins from Moog's Nether Structures now show a preview
 
 ### Changed
 - Chances for chest loot no mod changes as it's rolled are now exact, worked out from the loot table, and shown at once
-- On Fabric, loot chances and Found in lists are ready sooner in big packs, as chests no mod changes are no longer rolled in full
+- Loot chances and Found in lists are ready sooner in big packs, on every loader, as chests no mod changes are no longer rolled in full
+- On a first start or after your mods change, Found in and item search show most of the loot soon after you join, and the rest fills in as it's found
+- EMI, JEI and REI show Just Enough Structures' loot as soon as you join, instead of waiting for the full list
+- Items other mods add to chests through loot modifiers are listed straight away, before any chances are rolled
+- Rare items NeoForge mods add to chests are now listed with their exact chances
 - Loot chances are kept between game starts, so they show at once after the first start until the pack's mods or loot change
 - The game's log now says why when loot can't all be listed, or the browser's settings or notes can't be read or saved
 - Loot chances for potions, tipped arrows, enchanted books and enchanted gear now show every kind they come in: the picture cycles through them and the tooltip gives each one's chance
   ![The tooltip listing every enchanted book kind and its chance](https://i.moogsmods.com/images/fef311dfd2054d849189bee535102aa0.png)
-- Players below operator level wait 10 seconds between structure searches, so searching can't be used to slow a server down
+- On servers that let everyone find structures, players below operator level wait 10 seconds between finds, so it can't be used to slow the server down
 - In packs with Loot Integrations, such as Prominence II, Found in now lists everything it can add to a chest, the same every time, and the full loot list is ready sooner
 - The preview only spins until you move the camera, and spins again after Reset view or when you open another structure
 
