@@ -81,6 +81,9 @@ public final class LootModifiersTests {
         // From 26.3 a condition's type is under type, and a NeoForge modifier has one condition rather than a list.
         expect(helper, "a named table, as 26.3 writes it", Set.of(A), "{\"type\":\"neoforge:loot_table_id\",\"loot_table_id\":\"" + A + "\"}");
         expect(helper, "a player's kill, as 26.3 writes it", Set.of(), "{\"type\":\"minecraft:killed_by_player\"}");
+        // 26.3 writes a list of one as the one thing, so an any_of of one table has that table as its terms.
+        expect(helper, "either of one table, as 26.3 writes it", Set.of(A), "{\"type\":\"minecraft:any_of\",\"terms\":" + a + "}");
+        expect(helper, "either of a predicate file", null, "{\"type\":\"minecraft:any_of\",\"terms\":\"somemod:some_predicate\"}");
         JsonObject one = JsonParser.parseString("{\"type\":\"neoforge:add_table\",\"condition\":" + a + "}").getAsJsonObject();
         helper.assertTrue(Set.of(A).equals(LootModifiers.tablesOf(one)), "a single condition naming a table gave " + LootModifiers.tablesOf(one));
         helper.succeed();

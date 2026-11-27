@@ -261,10 +261,17 @@ public final class LootModifiers {
         }
     }
 
+    /**
+     * A composite condition's terms. From 26.3 a list of one is written as the one term, and a term can be
+     * a predicate file's id, which reads as a condition that may pass anywhere.
+     */
     private static List<JsonElement> terms(JsonObject c) {
         List<JsonElement> out = new ArrayList<>();
-        if (c.get("terms") instanceof JsonArray array) {
+        JsonElement terms = c.get("terms");
+        if (terms instanceof JsonArray array) {
             array.forEach(out::add);
+        } else if (terms != null) {
+            out.add(terms);
         }
         return out;
     }
