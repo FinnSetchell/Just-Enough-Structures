@@ -41,7 +41,7 @@
 - The preview only spins until you move the camera, and spins again after Reset view or when you open another structure
 
 ### Coming soon
-- Just Enough Structures will be optional for players: you'll be able to join a server that has it without installing it yourself
+- Just Enough Structures will be optional for players: you'll be able to join a server that has it without installing it yourself. Pack tool changes will be applied
 
 ## [1.2.0] - 2026-11-05
 
