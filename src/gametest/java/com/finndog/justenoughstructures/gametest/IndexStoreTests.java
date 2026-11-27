@@ -669,6 +669,108 @@ public final class IndexStoreTests {
         });
     }
 
+    /**
+     * A start that goes on with a build cut short makes the fingerprint known before it generates what's
+     * left, not once it's done, which can be minutes later: until then saved list pictures aren't loaded
+     * or saved, and saved first views aren't used. A build from nothing is cut by a /reload at its third
+     * structure, and the start after it is held at its first, as a big structure holds it, until the
+     * fingerprint is known and the folder of saved first views is in use, or 20 s go by. Whatever happens
+     * both builds are let go and the watcher taken off, so no later build waits on it.
+     */
+    public static void fingerprintIsKnownWhileACutShortBuildGoesOn(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path folder = JustEnoughStructures.cacheDir().resolve("loot-index");
+        String fingerprint = LootIndexStore.fingerprintOf(server);
+        // 0: the build from nothing, held at its third structure. 1: the start after the cut, held at its first.
+        AtomicInteger stage = new AtomicInteger();
+        CountDownLatch cutHeld = new CountDownLatch(1);
+        CountDownLatch cutGo = new CountDownLatch(1);
+        CountDownLatch goingOnHeld = new CountDownLatch(1);
+        CountDownLatch goingOnGo = new CountDownLatch(1);
+        AtomicBoolean over = new AtomicBoolean();
+        // Well inside the test's time out, so the test always ends here and lets the builds go.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(80);
+        long[] heldSince = {0};
+        String[] failed = {null};
+        long keptEvery = LootIndex.keepSoFarEvery(0);
+        LootIndexStore.watchProgress(d -> {
+            // On the index's thread, after a structure is done.
+            if (over.get()) {
+                return;
+            }
+            CountDownLatch go;
+            if (stage.get() == 0 && d >= 3) {
+                cutHeld.countDown();
+                go = cutGo;
+            } else if (stage.get() == 1) {
+                goingOnHeld.countDown();
+                go = goingOnGo;
+            } else {
+                return;
+            }
+            try {
+                go.await(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        Runnable letGo = () -> {
+            over.set(true);
+            cutGo.countDown();
+            goingOnGo.countDown();
+            LootIndexStore.watchProgress(null);
+            LootIndex.keepSoFarEvery(keptEvery);
+        };
+        forgetSaved(folder, fingerprint);
+        LootIndexStore.stop();
+        LootIndexStore.refresh(server);
+        Pace pace = new Pace(server);
+        helper.succeedWhen(() -> {
+            if (failed[0] != null) {
+                helper.assertTrue(false, failed[0]);
+            }
+            if (System.nanoTime() > deadline) {
+                letGo.run();
+                failed[0] = stage.get() == 0 ? "the build from nothing never reached its third structure"
+                        : "the start after the cut never reached its first structure";
+                helper.assertTrue(false, failed[0]);
+            }
+            if (stage.get() == 0) {
+                if (cutHeld.getCount() != 0) {
+                    pace.keep();
+                }
+                helper.assertTrue(cutHeld.getCount() == 0, "the build from nothing hasn't reached its third structure yet");
+                helper.assertTrue(Files.exists(folder.resolve(fingerprint + ".partial")), "the build from nothing kept nothing of what it had done");
+                stage.set(1);
+                // A /reload: the build under way stops at its next structure, and what it kept is gone on with.
+                JesServer.reload(server);
+                cutGo.countDown();
+            }
+            if (goingOnHeld.getCount() != 0) {
+                pace.keep();
+            }
+            helper.assertTrue(goingOnHeld.getCount() == 0, "the start after the cut hasn't reached its first structure yet");
+            if (heldSince[0] == 0) {
+                heldSince[0] = System.nanoTime();
+            }
+            long waited = (System.nanoTime() - heldSince[0]) / 1_000_000L;
+            String known = LootIndexStore.knownFingerprint();
+            boolean saving = com.finndog.justenoughstructures.server.SavedPreviews.current() != null;
+            boolean right = fingerprint.equals(known) && saving;
+            if (!right && waited < 20_000) {
+                pace.keep();
+                helper.assertTrue(false, "the fingerprint isn't known yet, " + waited + " ms into going on with the build");
+            }
+            letGo.run();
+            if (!right) {
+                failed[0] = "going on with a build cut short, after " + waited + " ms the fingerprint known was " + known + ", not " + fingerprint
+                        + ", and the folder of saved first views was " + (saving ? "in use" : "not in use");
+                helper.assertTrue(false, failed[0]);
+            }
+            JustEnoughStructures.LOGGER.info("In the test of the fingerprint while a cut-short build goes on: known {} ms into going on", waited);
+        });
+    }
+
     /** The first finished index among what was sent from {@code from} on, or null. */
     private static LootIndex finished(List<Sent> sent, int from) {
         return sent.subList(from, sent.size()).stream().filter(s -> s.index() != null && Boolean.FALSE.equals(s.early())).map(Sent::index).findFirst().orElse(null);

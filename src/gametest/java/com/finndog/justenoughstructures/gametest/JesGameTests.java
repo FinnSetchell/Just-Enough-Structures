@@ -1195,6 +1195,12 @@ public final class JesGameTests {
         IndexStoreTests.indexIsHandedOutEarlyThenFinished(helper);
     }
 
+    // Holds two loot index builds, one cut short and the start after it, so it runs on its own.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_going_on", timeoutTicks = 2400)
+    public void fingerprintIsKnownWhileACutShortBuildGoesOn(GameTestHelper helper) {
+        IndexStoreTests.fingerprintIsKnownWhileACutShortBuildGoesOn(helper);
+    }
+
     // Builds the whole loot index twice, cutting the second short, so it runs on its own.
     @GameTest(template = EMPTY_STRUCTURE, batch = "loot_index_resume", timeoutTicks = 12000)
     public void aCutShortBuildIsKept(GameTestHelper helper) {
