@@ -132,6 +132,7 @@ public final class JesServer {
      */
     public static void reload(MinecraftServer server) {
         running = server;
+        reloadedFor = server.getResourceManager();
         if (!guardChecked) {
             guardChecked = StructureCapture.checkChunkGuard(server);
         }
@@ -170,6 +171,8 @@ public final class JesServer {
         Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, everything));
     }
 
+    /** The server's resources as JES last reloaded for them: each /reload makes new ones. Server thread only. */
+    private static Object reloadedFor;
     /** Whether the loaders' reload hooks are kept from JES, as another mod's failing listener can. Test hook. */
     private static volatile boolean missReloadHooks;
 
@@ -178,9 +181,24 @@ public final class JesServer {
         missReloadHooks = miss;
     }
 
-    /** The loaders' hook for a /reload whose data is all in place. */
+    /**
+     * The loaders' hook for a /reload whose data is all in place. Nothing is done if JES has already
+     * caught up with it ({@link #noticeReload}), so it's never done twice.
+     */
     public static void reloaded(MinecraftServer server) {
-        if (!missReloadHooks) {
+        if (!missReloadHooks && server.getResourceManager() != reloadedFor) {
+            reload(server);
+        }
+    }
+
+    /**
+     * As each server tick starts: a /reload whose hook didn't reach JES, as another mod's listener
+     * failing before JES's can stop it, is caught up with here, from the server's resources being new.
+     */
+    static void noticeReload(MinecraftServer server) {
+        if (server == running && reloadedFor != null && server.getResourceManager() != reloadedFor) {
+            JesLog.warnOnce("late-reload", "A /reload didn't reach Just Enough Structures, so it caught up on the next tick. "
+                    + "Another mod's reload listener may have failed before JES's");
             reload(server);
         }
     }
@@ -275,6 +293,7 @@ public final class JesServer {
     public static void stop() {
         OddsStore.stop(running);
         running = null;
+        reloadedFor = null;
         guardChecked = false;
         invalidate();
         Uploads.clear();

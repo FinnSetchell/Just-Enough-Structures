@@ -83,6 +83,7 @@ public final class SpareTime {
     /** Called by the loader as each server tick starts. */
     public static void tickStarted(MinecraftServer server) {
         tickStarted = System.nanoTime();
+        JesServer.noticeReload(server);
     }
 
     /** Called by the loader as each server tick ends: runs the jobs for the time the tick left over. */

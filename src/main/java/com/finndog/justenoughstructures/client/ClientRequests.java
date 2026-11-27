@@ -116,6 +116,8 @@ public final class ClientRequests {
         return sender != null && !serverSupported() && sender.sendable().stream().anyMatch(JesNetwork::isJesChannel);
     }
 
+    /** The connection what's kept here is for, or null after a reset. Client thread only. */
+    private static ClientPacketListener keptFor;
     /** Whether the loaders' disconnect hooks are kept from JES, as another mod's failing listener can. Test hook. */
     private static volatile boolean missDisconnects;
 
@@ -133,6 +135,7 @@ public final class ClientRequests {
 
     /** Forgets everything tied to the current connection. */
     public static void reset() {
+        keptFor = null;
         catalog = null;
         structureTags = null;
         StructureNames.useGiven(null);
@@ -499,6 +502,15 @@ public final class ClientRequests {
     }
 
     public static void tick() {
+        // Leaving a server whose disconnect hook didn't reach JES, as another mod's listener failing
+        // before JES's can stop it, is caught up with here, from the game's connection being another.
+        ClientPacketListener now = Minecraft.getInstance().getConnection();
+        if (keptFor != null && now != keptFor) {
+            JesLog.warnOnce("late-disconnect", "Leaving a server didn't reach Just Enough Structures, so it caught up on the next tick. "
+                    + "Another mod's disconnect listener may have failed before JES's");
+            reset();
+        }
+        keptFor = now;
         askIfWanted();
         if (index != null && !index.isDone() && System.currentTimeMillis() - lastIndexPoll > 1500) {
             pollIndex();
