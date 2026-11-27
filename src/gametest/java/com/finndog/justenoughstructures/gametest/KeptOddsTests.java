@@ -369,6 +369,8 @@ public final class KeptOddsTests {
                     helper.assertTrue(false, "taking the edit out again after: " + failed[0]);
                 }
                 tableBefore[0] = LootRolls.table(server, WITH_KINDS);
+                // As in a player's world, where packs not in use are left out, so the /reload turns none of them on.
+                TestSupport.leaveOutUnusedPacks(server);
                 // As Reload in Pack tools runs it.
                 PackToolsServer.reload(server);
             } else if (!pistons) {

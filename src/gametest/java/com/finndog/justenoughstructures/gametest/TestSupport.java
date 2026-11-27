@@ -5,7 +5,9 @@ import com.finndog.justenoughstructures.capture.CaptureResult;
 import com.finndog.justenoughstructures.capture.StructureCapture;
 import com.finndog.justenoughstructures.capture.StructureSnapshot;
 import com.finndog.justenoughstructures.mixin.StructureTemplateAccessor;
+import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.ServerConfig;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -16,7 +18,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.packs.repository.PackRepository;
+import net.minecraft.world.level.DataPackConfig;
+import net.minecraft.world.level.WorldDataConfiguration;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.level.storage.WorldData;
 
 /** What the game tests and scenarios share. */
 public final class TestSupport {
@@ -48,6 +54,20 @@ public final class TestSupport {
 
     public static void expect(GameTestHelper helper, Component reply, String keyEnd) {
         helper.assertTrue(key(reply).endsWith(keyEnd), "expected " + keyEnd + " but got " + reply.getString());
+    }
+
+    /**
+     * Lists every pack the world isn't using as left out, as each reload does, so a /reload turns
+     * none of them on. Forge's game test world doesn't until its first reload, so a test's /reload
+     * that's the first would turn on the experimental packs, above JES's loot overrides. The overrides
+     * pack is never left out, as a test's first edit makes it.
+     */
+    public static void leaveOutUnusedPacks(MinecraftServer server) {
+        PackRepository packs = server.getPackRepository();
+        List<String> used = List.copyOf(packs.getSelectedIds());
+        List<String> unused = packs.getAvailableIds().stream().filter(id -> !used.contains(id) && !id.equals(LootOverrides.PACK_ID)).toList();
+        WorldData world = server.getWorldData();
+        world.setDataConfiguration(new WorldDataConfiguration(new DataPackConfig(used, unused), world.enabledFeatures()));
     }
 
     /** What /reload does: look for new datapacks, then reload with them. */
