@@ -126,10 +126,22 @@ public final class ClientRequests {
         missDisconnects = miss;
     }
 
-    /** The loaders' hook for leaving a server. */
+    // Set when a server is left off the client's thread, and acted on by the next client tick.
+    private static volatile boolean leftServer;
+
+    /**
+     * The loaders' hook for leaving a server, on any thread. On Fabric it comes on the connection's own
+     * thread, and a task queued from there for the client's thread can be dropped by the game as it
+     * clears the world, so the next client tick forgets what was kept instead.
+     */
     public static void disconnected() {
-        if (!missDisconnects) {
+        if (missDisconnects) {
+            return;
+        }
+        if (Minecraft.getInstance().isSameThread()) {
             reset();
+        } else {
+            leftServer = true;
         }
     }
 
@@ -502,13 +514,21 @@ public final class ClientRequests {
     }
 
     public static void tick() {
-        // Leaving a server whose disconnect hook didn't reach JES, as another mod's listener failing
-        // before JES's can stop it, is caught up with here, from the game's connection being another.
+        // A server left, as the hook said off this thread, or as the game's connection being another
+        // says when the hook didn't reach JES.
         ClientPacketListener now = Minecraft.getInstance().getConnection();
-        if (keptFor != null && now != keptFor) {
-            JesLog.warnOnce("late-disconnect", "Leaving a server didn't reach Just Enough Structures, so it caught up on the next tick. "
-                    + "Another mod's disconnect listener may have failed before JES's");
-            reset();
+        boolean left = leftServer;
+        leftServer = false;
+        if (left || keptFor != null && now != keptFor) {
+            if (!left) {
+                JesLog.debug("The game's connection changed without JES hearing that the server was left, so what was kept for it is forgotten now");
+            }
+            // On a tick, where a throw would stop the game, not in a task as the hook was.
+            try {
+                reset();
+            } catch (RuntimeException | LinkageError | StackOverflowError e) {
+                JustEnoughStructures.LOGGER.error("Couldn't forget what was kept for the server left", e);
+            }
         }
         keptFor = now;
         askIfWanted();
