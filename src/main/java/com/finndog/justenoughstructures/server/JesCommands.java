@@ -1,5 +1,6 @@
 package com.finndog.justenoughstructures.server;
 
+import com.finndog.justenoughstructures.Players;
 import com.finndog.justenoughstructures.network.JesNetwork;
 import com.finndog.justenoughstructures.network.Blobs;
 import com.finndog.justenoughstructures.network.Codecs;
@@ -19,6 +20,10 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * {@code /jes open [structure]}: opens the browser, on a structure if one is named. Anyone can use
  * it, so guidebooks and chat links can point players at a structure.
+ *
+ * <p>{@code /jes reload [loot]}: builds again what JES keeps on the server, or with {@code loot} only
+ * the loot index and loot chances, kept on disk too, for when they don't show a change. For those who
+ * can use Pack tools, and the server console.
  */
 public final class JesCommands {
     private JesCommands() {
@@ -31,7 +36,37 @@ public final class JesCommands {
                         .then(Commands.argument("structure", ResourceLocationArgument.id())
                                 .suggests((context, builder) -> SharedSuggestionProvider.suggestResource(
                                         visible(context.getSource().getServer()), builder))
-                                .executes(context -> open(context.getSource(), ResourceLocationArgument.getId(context, "structure"))))));
+                                .executes(context -> open(context.getSource(), ResourceLocationArgument.getId(context, "structure")))))
+                .then(Commands.literal("reload")
+                        .requires(JesCommands::mayReload)
+                        .executes(context -> reload(context.getSource(), true))
+                        .then(Commands.literal("loot")
+                                .executes(context -> reload(context.getSource(), false)))));
+    }
+
+    /** Those who can use Pack tools, and sources that aren't players, like the server console, at operator level. */
+    private static boolean mayReload(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        return player != null ? PackToolsAccess.allowed(player) : Players.hasPermission(source, 2);
+    }
+
+    // The text has an English fallback as well, as a player without JES has no lang file for it.
+    private static int reload(CommandSourceStack source, boolean everything) {
+        source.sendSuccess(() -> everything
+                ? Component.translatableWithFallback("commands.justenoughstructures.reload.all",
+                        "Building everything Just Enough Structures keeps again, starting with the loot index")
+                : Component.translatableWithFallback("commands.justenoughstructures.reload.loot",
+                        "Building the loot index and loot chances again"), true);
+        JesServer.rebuild(source.getServer(), everything, built -> {
+            if (built) {
+                source.sendSuccess(() -> Component.translatableWithFallback("commands.justenoughstructures.reload.done",
+                        "The loot index is built again"), true);
+            } else {
+                source.sendFailure(Component.translatableWithFallback("commands.justenoughstructures.reload.failed",
+                        "The loot index couldn't be built again. The log says why"));
+            }
+        });
+        return 1;
     }
 
     /** Every structure the browser shows: all of them less the ones the server hides. */

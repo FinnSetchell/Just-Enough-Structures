@@ -3,6 +3,7 @@ package com.finndog.justenoughstructures;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,6 +52,16 @@ public final class Players {
                 && player.permissions().hasPermission(new Permission.HasCommandLevel(PermissionLevel.byId(level)));
         *///?} else {
         return player.hasPermissions(level);
+        //?}
+    }
+
+    /** Whether a command's source has this command permission level: the server console and command blocks too. */
+    public static boolean hasPermission(CommandSourceStack source, int level) {
+        //? if >=26.1 {
+        /*return level <= PermissionLevel.OWNERS.id()
+                && source.permissions().hasPermission(new Permission.HasCommandLevel(PermissionLevel.byId(level)));
+        *///?} else {
+        return source.hasPermission(level);
         //?}
     }
 

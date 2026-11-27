@@ -144,6 +144,34 @@ public final class JesServer {
         Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, true));
     }
 
+    /**
+     * {@code /jes reload}: forgets the loot index, the kept loot chances and, with {@code everything}, the
+     * server's settings, names, captures and saved first views as well, on disk too, and builds them
+     * again from the game as it's loaded now. Unlike a /reload, the datapacks aren't loaded again, so
+     * Pack tools changes to containers and spawners still wait for one. Everyone browsing is told, as
+     * after a /reload, so their chances and index are asked for again. {@code done} is told once the
+     * index is built again, or that it couldn't be. Server thread only.
+     */
+    public static void rebuild(MinecraftServer server, boolean everything, Consumer<Boolean> done) {
+        running = server;
+        if (everything) {
+            warnUnknownHidden(server, ServerConfig.load());
+            StructureNameFiles.forget();
+            clearCaptures();
+            catalog = null;
+            SavedPreviews.forget();
+            SavedPreviews.deleteAll();
+        }
+        ODDS_CACHE.clear();
+        ROLLING.clear();
+        OddsStore.reloaded();
+        OddsStore.forgetAll();
+        RemovedItems.forget();
+        LootIndexStore.whenBuilt(done);
+        LootIndexStore.rebuild(server);
+        Players.forEachOnline(server, BROWSING, player -> sendSettings(player, true, everything));
+    }
+
     /** Mentions hidden ids that aren't structures, which are usually typos. */
     static void warnUnknownHidden(MinecraftServer server, ServerConfig.Settings settings) {
         var structures = server.registryAccess().registryOrThrow(Registries.STRUCTURE);

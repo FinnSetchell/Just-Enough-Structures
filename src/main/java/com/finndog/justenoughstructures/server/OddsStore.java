@@ -138,6 +138,27 @@ public final class OddsStore {
         changed = true;
     }
 
+    /**
+     * Forgets every table's kept odds, in memory and on disk, for /jes reload: each is rolled again when
+     * it's next wanted. Server thread only, as the odds are saved there.
+     */
+    static void forgetAll() {
+        kept = new HashMap<>();
+        changed = false;
+        hashes.clear();
+        Path dir = JustEnoughStructures.cacheDir().resolve("loot-index");
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var files = Files.list(dir)) {
+            for (Path file : files.filter(p -> p.toString().endsWith(SUFFIX)).toList()) {
+                Files.deleteIfExists(file);
+            }
+        } catch (IOException | RuntimeException e) {
+            JesLog.debug("Couldn't delete the kept loot odds in {}", dir, e);
+        }
+    }
+
     /** Saves what's kept, if anything changed. Server thread only. */
     public static void save(MinecraftServer server) {
         if (changed && key != null) {

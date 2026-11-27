@@ -106,6 +106,28 @@ public final class SavedPreviews {
         });
     }
 
+    /**
+     * Deletes every saved first view and picture's copy, for /jes reload. On the saved previews' thread,
+     * after anything it was saving, and before the folder the next {@link #use} picks is made.
+     */
+    public static void deleteAll() {
+        Path root = root();
+        DISK.execute(() -> {
+            if (!Files.isDirectory(root)) {
+                return;
+            }
+            try (var files = Files.walk(root)) {
+                for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+                    if (!file.equals(root)) {
+                        Files.deleteIfExists(file);
+                    }
+                }
+            } catch (IOException | RuntimeException e) {
+                JesLog.debug("Couldn't delete the saved previews in {}", root, e);
+            }
+        });
+    }
+
     /** The folder saved views are currently read from and saved to, or null while it's being computed. */
     public static Path current() {
         return folder;

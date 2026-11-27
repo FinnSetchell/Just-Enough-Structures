@@ -906,6 +906,10 @@
   "_comment.commands": "The /jes open command",
   "commands.justenoughstructures.open.unknown": "There's no structure %s to show",
   "commands.justenoughstructures.open.no_mod": "To open the structure browser, install the same version of Just Enough Structures as the server",
+  "commands.justenoughstructures.reload.all": "Building everything Just Enough Structures keeps again, starting with the loot index",
+  "commands.justenoughstructures.reload.loot": "Building the loot index and loot chances again",
+  "commands.justenoughstructures.reload.done": "The loot index is built again",
+  "commands.justenoughstructures.reload.failed": "The loot index couldn't be built again. The log says why",
 
   "_comment.preview_errors": "Why a preview couldn't be built",
   "screen.justenoughstructures.error.hidden": "This server keeps this structure hidden",

@@ -111,6 +111,8 @@ public final class LootIndexStore {
     private static final AtomicInteger GENERATION = new AtomicInteger();
     // Players who've asked for the index. They're sent the new one whenever it changes.
     private static final Set<UUID> WAITING = ConcurrentHashMap.newKeySet();
+    /** Told once the next finished index is sent, or that it failed (/jes reload). Server thread only. */
+    private static final List<Consumer<Boolean>> WHEN_BUILT = new ArrayList<>();
 
     // Changed on the server thread only.
     private static StructureScan scan;
@@ -262,6 +264,45 @@ public final class LootIndexStore {
     }
 
     /**
+     * Forgets the saved scans and what any build cut short kept, and builds the index from nothing, for
+     * /jes reload. Players keep the index they have until the new one is sent. Server thread only.
+     */
+    public static void rebuild(MinecraftServer server) {
+        // Stops a build or an update going on, so it doesn't save its scan again after it's deleted.
+        GENERATION.incrementAndGet();
+        scan = null;
+        Path dir = folder();
+        // On the index's thread, after anything it was saving, and before the build refresh starts there.
+        WORKER.execute(() -> {
+            if (!Files.isDirectory(dir)) {
+                return;
+            }
+            try (var files = Files.list(dir)) {
+                for (Path file : files.filter(p -> p.toString().endsWith(".bin") || p.toString().endsWith(KEPT_SUFFIX)).toList()) {
+                    Files.deleteIfExists(file);
+                }
+            } catch (IOException | RuntimeException e) {
+                JesLog.debug("Couldn't delete the saved loot index in {}", dir, e);
+            }
+        });
+        refresh(server);
+    }
+
+    /**
+     * Tells {@code done} once the next finished index is sent, or that building it failed. Server thread
+     * only. Forgotten when the server stops.
+     */
+    public static void whenBuilt(Consumer<Boolean> done) {
+        WHEN_BUILT.add(done);
+    }
+
+    private static void built(boolean ok) {
+        List<Consumer<Boolean>> waiting = new ArrayList<>(WHEN_BUILT);
+        WHEN_BUILT.clear();
+        waiting.forEach(done -> done.accept(ok));
+    }
+
+    /**
      * Makes the fingerprint known while the index's thread goes on with a saved scan: the update that
      * follows counts as building, so a player asking meanwhile doesn't start another build. Server thread only.
      */
@@ -311,6 +352,7 @@ public final class LootIndexStore {
         total = 0;
         chestItems = null;
         WAITING.clear();
+        WHEN_BUILT.clear();
     }
 
     /** When a player leaves: they're no longer sent the index. */
@@ -442,6 +484,7 @@ public final class LootIndexStore {
         scan = done;
         index = finished;
         publish(server);
+        built(true);
     }
 
     /**
@@ -621,6 +664,7 @@ public final class LootIndexStore {
                         if (payload == null || partial) {
                             Players.forEachOnline(server, WAITING, LootIndexStore::tellProgress);
                         }
+                        built(false);
                     }
                 });
             }

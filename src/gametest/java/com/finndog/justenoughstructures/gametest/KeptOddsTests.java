@@ -392,7 +392,7 @@ public final class KeptOddsTests {
      * built. What it would send the mock player is dropped, as NeoForge refuses to send JES's messages
      * to one, and the player is gone again at once: the build goes ahead without anyone waiting for it.
      */
-    private static void askForTheIndex(GameTestHelper helper) {
+    static void askForTheIndex(GameTestHelper helper) {
         ServerPlayer player = TestPlayers.mock(helper);
         JesNetwork.ServerSender before = JesNetwork.serverSender();
         JesNetwork.setServerSender((target, channel, buf) -> {

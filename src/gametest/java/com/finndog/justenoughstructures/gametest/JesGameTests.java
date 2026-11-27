@@ -324,6 +324,23 @@ public final class JesGameTests {
         KeptOddsTests.keptOddsReadBackInAnotherWorld(helper);
     }
 
+    // Builds the loot index again from nothing, so it runs on its own, with as long as the tests that build the index.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_loot", timeoutTicks = 6000)
+    public void reloadLootCommandBuildsTheLootIndexAgain(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, false);
+    }
+
+    // The same, forgetting the saved first views as well.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "reload_command_all", timeoutTicks = 6000)
+    public void reloadCommandBuildsEverythingAgain(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandBuildsTheLootIndexAgain(helper, true);
+    }
+
+    @GameTest(template = EMPTY_STRUCTURE)
+    public void reloadCommandIsForPackToolsUsers(GameTestHelper helper) {
+        ReloadCommandTests.reloadCommandIsForPackToolsUsers(helper);
+    }
+
     // Reloads the server's datapacks and stops and starts JES, so it runs on its own. It waits for the
     // loot index twice, so it has as long as the tests that build the index.
     @GameTest(template = EMPTY_STRUCTURE, batch = "edited_table_reload", timeoutTicks = 6000)
