@@ -121,7 +121,7 @@ public final class LootModifiers {
         try {
             loaded = loaded(server);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-            JesLog.debug("Couldn't read the loaded loot modifiers, so any loot table may be changed as it's rolled", e);
+            JesLog.warnOnce("loot-modifiers", "Couldn't read the loaded loot modifiers, so every loot table is rolled in full and what they add is only found by rolling", e);
             return new Listing(List.of(), false);
         }
         if (loaded == null) {
@@ -350,7 +350,12 @@ public final class LootModifiers {
         } catch (ClassNotFoundException e) {
             return null;
         }
-        manager = managerClass.getMethod("getLootModifierManager").invoke(null);
+        // Porting Lib 2.x (1.20.1) and 3.x (1.21.1) both have the public INSTANCE; only 2.x has the getter.
+        try {
+            manager = managerClass.getField("INSTANCE").get(null);
+        } catch (NoSuchFieldException e) {
+            manager = managerClass.getMethod("getLootModifierManager").invoke(null);
+        }
         //?} else if forge {
         /*Method get = net.minecraftforge.common.ForgeInternalHandler.class.getDeclaredMethod("getLootModifierManager");
         get.setAccessible(true);

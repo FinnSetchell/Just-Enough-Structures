@@ -68,7 +68,8 @@ final class ModifierItemsScenario {
     private static String check(MinecraftServer server, LootIndex first, boolean firstEarly) {
         LootModifiers.Listing modifiers = LootModifiers.read(server);
         if (!modifiers.readable()) {
-            return "skip: this game's loot modifiers couldn't be read";
+            // The loader, or Porting Lib on Fabric, has modifiers loaded and JES can't read them: a failure, not a skip.
+            return "fail: this game's loot modifiers couldn't be read, so what they add is found only by rolling";
         }
         List<LootModifiers.Modifier> naming = modifiers.all().stream()
                 .filter(m -> m.tables() != null && !m.tables().isEmpty() && !named(server, m).isEmpty()).toList();
