@@ -179,7 +179,10 @@ public final class LootIndexStore {
                 return;
             }
             // The kept odds are handed to the server thread before anything here is, as the index's rolls use them.
-            odds.exceptionally(e -> null).join();
+            odds.exceptionally(e -> {
+                JesLog.warnOnce("kept-odds-read", "Couldn't read the kept loot odds, so they're rolled again when asked for", e);
+                return null;
+            }).join();
             StructureScan base = current == null ? null : current.equals(known) ? knownScan : read(dir, current);
             // A build that was cut short, by quitting, a crash, a stop or a /reload, is gone on with from
             // what it kept: its structures still to generate are among those to try again.
