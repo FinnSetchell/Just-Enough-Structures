@@ -191,6 +191,12 @@ public final class LootIndexStore {
                 base = readKept(dir, current);
                 goingOn = base != null;
             }
+            if (base != null) {
+                // Everyone is told the fingerprint before the update generates anything, which going on
+                // with a build cut short can take minutes to do, so saved list pictures and first views
+                // are used meanwhile, as they are while a build from nothing goes on.
+                server.execute(() -> handOver(server, generation, current));
+            }
             StructureScan updated = null;
             LootIndex updatedIndex = null;
             Map<ResourceLocation, String> unrolled = Map.of();
@@ -235,9 +241,12 @@ public final class LootIndexStore {
                 if (generation != GENERATION.get()) {
                     return;
                 }
+                boolean handedOver = !checking;
                 checking = false;
                 fingerprint = current;
-                JesServer.fingerprintKnown(server, current);
+                if (!handedOver) {
+                    JesServer.fingerprintKnown(server, current);
+                }
                 if (ready != null) {
                     JesLog.debug("The loot index is up to date in {} ms, with {} loot tables to roll", millis, toRoll.size());
                     lastToRoll = Set.copyOf(toRoll.keySet());
@@ -250,6 +259,20 @@ public final class LootIndexStore {
                 build(server, generation);
             });
         });
+    }
+
+    /**
+     * Makes the fingerprint known while the index's thread goes on with a saved scan: the update that
+     * follows counts as building, so a player asking meanwhile doesn't start another build. Server thread only.
+     */
+    private static void handOver(MinecraftServer server, int generation, String current) {
+        if (generation != GENERATION.get() || !checking) {
+            return;
+        }
+        checking = false;
+        building = true;
+        fingerprint = current;
+        JesServer.fingerprintKnown(server, current);
     }
 
     /**
