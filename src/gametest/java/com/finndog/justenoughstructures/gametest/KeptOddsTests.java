@@ -9,6 +9,10 @@ import com.finndog.justenoughstructures.overrides.LootOverrides;
 import com.finndog.justenoughstructures.server.JesServer;
 import com.finndog.justenoughstructures.server.LootIndexStore;
 import com.finndog.justenoughstructures.server.OddsStore;
+import com.finndog.justenoughstructures.server.PackToolsServer;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -267,6 +271,112 @@ public final class KeptOddsTests {
                     rows(before.get()), rows(after.get()));
             helper.assertTrue(only(after.get(), Items.DIAMOND), "asked for at once after the edit and a /reload, " + EDITED + " was answered with "
                     + rows(after.get()) + ", the odds kept from before, not the edited table's diamonds");
+        });
+    }
+
+    /**
+     * Finn's check of card 406 in Prominence II: in Pack tools a structure's chest table gets an item
+     * added and is saved, Reload is pressed, and the structure's Loot tab is opened. Its chances have
+     * the new item at once, once the loot index has caught up with the reload, and after the world is
+     * left and opened again, which in singleplayer stops the server and starts it again in the same
+     * game. Whatever happens the edit is taken out again and the datapacks reloaded without it.
+     */
+    public static void editedStructureTableHasItsNewItemsAfterReload(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path dir;
+        try {
+            dir = Files.createTempDirectory("jes-edited-reload");
+        } catch (IOException e) {
+            throw new AssertionError("couldn't make a temporary folder", e);
+        }
+        LootOverrides.setFolder(dir);
+        String[] failed = {null};
+        int[] stage = {0};
+        int[] waited = {0};
+        AtomicBoolean indexAsked = new AtomicBoolean();
+        AtomicReference<LootOdds> odds = new AtomicReference<>();
+        AtomicBoolean asked = new AtomicBoolean();
+        Object[] tableBefore = {null};
+        AtomicReference<CompletableFuture<Void>> undone = new AtomicReference<>();
+        String[] when = {"before the edit", "asked for soon after Reload", "once the loot index caught up with the reload",
+                "after leaving and opening the world again"};
+        String[] seen = new String[4];
+        IndexStoreTests.Pace pace = new IndexStoreTests.Pace(server);
+        helper.succeedWhen(() -> {
+            if (failed[0] != null || stage[0] == 4) {
+                if (undone.get() == null) {
+                    LootOverrides.remove(WITH_KINDS);
+                    undone.set(TestSupport.reload(server));
+                }
+                if (!undone.get().isDone()) {
+                    pace.keep();
+                }
+                helper.assertTrue(undone.get().isDone(), "still reloading without the edit");
+                LootOverrides.setFolder(null);
+                JustEnoughStructures.LOGGER.info("In the test of an edited structure table after Reload: {} gave {} {}, {} {}, {} {}, {} {}", WITH_KINDS,
+                        when[0], seen[0], when[1], seen[1], when[2], seen[2], when[3], seen[3]);
+                helper.assertTrue(failed[0] == null, failed[0]);
+                return;
+            }
+            // Stages 1 and 3 ask at once; 0 and 2 once the loot index is up to date, as kept odds are then too.
+            boolean needsIndex = stage[0] == 0 || stage[0] == 2;
+            boolean ready = OddsStore.isReady() && (!needsIndex || LootIndexStore.ready());
+            if (stage[0] == 1) {
+                // Reload is under way until the loaded table is another one, and JES's hook has had a moment to run.
+                if (LootRolls.table(server, WITH_KINDS) != tableBefore[0]) {
+                    waited[0]++;
+                }
+                ready = ready && waited[0] >= 40;
+            }
+            if (!ready) {
+                if (needsIndex && !LootIndexStore.ready() && !indexAsked.getAndSet(true)) {
+                    askForTheIndex(helper);
+                }
+                pace.keep();
+            }
+            helper.assertTrue(ready, "waiting to ask " + when[stage[0]]);
+            if (!asked.getAndSet(true)) {
+                JesServer.odds(server, WITH_KINDS, LootRolls.table(server, WITH_KINDS), odds::set);
+            }
+            if (odds.get() == null) {
+                pace.keep();
+            }
+            helper.assertTrue(odds.get() != null, "the odds of " + WITH_KINDS + " haven't come " + when[stage[0]]);
+            LootOdds got = odds.get();
+            seen[stage[0]] = rows(got).toString();
+            boolean pistons = got.rows().stream().anyMatch(row -> row.example().is(Items.PISTON));
+            if (stage[0] == 0) {
+                if (pistons) {
+                    failed[0] = WITH_KINDS + " gave pistons before the edit, so this shows nothing";
+                    return;
+                }
+                JsonObject edited = JsonParser.parseString(LootOverrides.original(server.getResourceManager(), WITH_KINDS)).getAsJsonObject();
+                JsonArray pools = edited.has("pools") ? edited.getAsJsonArray("pools") : new JsonArray();
+                pools.add(JsonParser.parseString("{\"rolls\": 1, \"entries\": [{\"type\": \"minecraft:item\", \"name\": \"minecraft:piston\"}]}"));
+                edited.add("pools", pools);
+                var problem = LootOverrides.save(server.getResourceManager(), WITH_KINDS, edited.toString());
+                if (problem != null) {
+                    failed[0] = "the edit wasn't saved: " + problem.getString();
+                    return;
+                }
+                tableBefore[0] = LootRolls.table(server, WITH_KINDS);
+                // As Reload in Pack tools runs it.
+                PackToolsServer.reload(server);
+            } else if (!pistons) {
+                failed[0] = "the chances of " + WITH_KINDS + " " + when[stage[0]] + " have no pistons, though the edited table gives them every time: " + seen[stage[0]];
+                return;
+            }
+            if (stage[0] == 2) {
+                // As leaving the world and opening it again does in singleplayer, in the same game.
+                JesServer.stop();
+                JesServer.starting(server);
+                JesServer.reload(server);
+                indexAsked.set(false);
+            }
+            stage[0]++;
+            odds.set(null);
+            asked.set(false);
+            helper.assertTrue(false, "going on to ask " + (stage[0] < 4 ? when[stage[0]] : "nothing more"));
         });
     }
 

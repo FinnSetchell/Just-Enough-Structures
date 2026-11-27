@@ -324,6 +324,13 @@ public final class JesGameTests {
         KeptOddsTests.keptOddsReadBackInAnotherWorld(helper);
     }
 
+    // Reloads the server's datapacks and stops and starts JES, so it runs on its own. It waits for the
+    // loot index twice, so it has as long as the tests that build the index.
+    @GameTest(template = EMPTY_STRUCTURE, batch = "edited_table_reload", timeoutTicks = 6000)
+    public void editedStructureTableHasItsNewItemsAfterReload(GameTestHelper helper) {
+        KeptOddsTests.editedStructureTableHasItsNewItemsAfterReload(helper);
+    }
+
     // Reloads the server's datapacks twice, so it runs on its own rather than alongside other tests.
     @GameTest(template = EMPTY_STRUCTURE, batch = "kept_odds_reload", timeoutTicks = 1200)
     public void keptOddsOfAnEditedTableAreNotAnswered(GameTestHelper helper) {
